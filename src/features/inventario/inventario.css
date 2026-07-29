@@ -1,0 +1,92 @@
+.inventario-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px;
+}
+
+.inventario-titulo {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #222;
+}
+
+.inventario-subtitulo {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.boton-regresar {
+  background: #d81b60;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 25px;
+}
+
+.boton-regresar:hover {
+  background: #b71553;
+}
+
+.lista-productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+/* ===========================
+   FORMULARIO DE PRODUCTOS
+=========================== */
+
+form {
+  background: #ffffff;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(0,0,0,.08);
+  margin: 35px 0;
+}
+
+form h2{
+  text-align:center;
+  margin-bottom:25px;
+  color:#d81b60;
+  font-size:32px;
+}
+
+form input{
+  width:100%;
+  padding:14px;
+  margin-bottom:15px;
+  border:1px solid #ddd;
+  border-radius:12px;
+  font-size:16px;
+  transition:.25s;
+  box-sizing:border-box;
+}
+
+form input:focus{
+  outline:none;
+  border-color:#d81b60;
+  box-shadow:0 0 10px rgba(216,27,96,.18);
+}
+
+form button{
+  width:100%;
+  padding:15px;
+  background:#d81b60;
+  color:white;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
+  font-size:18px;
+  font-weight:bold;
+  transition:.25s;
+}
+
+form button:hover{
+  background:#b3134f;
+  transform:translateY(-2px);
+}

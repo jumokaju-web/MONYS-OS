@@ -1,0 +1,39 @@
+.tarjeta-producto {
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  border: 1px solid #ececec;
+  box-shadow: 0 10px 25px rgba(0,0,0,.06);
+  transition: .25s;
+}
+
+.tarjeta-producto:hover {
+  transform: translateY(-5px);
+}
+
+.tarjeta-titulo {
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 18px;
+  color: #222;
+}
+
+.tarjeta-info {
+  margin: 10px 0;
+  font-size: 18px;
+}
+
+.estado-verde{
+  color:#2e7d32;
+  font-weight:bold;
+}
+
+.estado-rojo{
+  color:#d32f2f;
+  font-weight:bold;
+}
+
+.estado-amarillo{
+  color:#f9a825;
+  font-weight:bold;
+}

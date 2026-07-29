@@ -1,0 +1,107 @@
+.formulario-movimiento{
+    max-width:900px;
+    margin:40px auto;
+    background:#ffffff;
+    border-radius:22px;
+    padding:40px;
+    box-shadow:0 15px 45px rgba(0,0,0,.12);
+}
+
+.formulario-movimiento h2{
+    text-align:center;
+    font-size:34px;
+    color:#b1005d;
+    margin-bottom:35px;
+}
+
+.form-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:22px;
+}
+
+.campo{
+    display:flex;
+    flex-direction:column;
+}
+
+.campo label{
+    font-weight:600;
+    margin-bottom:8px;
+    color:#444;
+}
+
+.campo input,
+.campo select,
+.campo textarea{
+    padding:12px 15px;
+    border-radius:12px;
+    border:1px solid #d9d9d9;
+    font-size:15px;
+    transition:.25s;
+}
+
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus{
+    outline:none;
+    border-color:#c2185b;
+    box-shadow:0 0 0 3px rgba(194,24,91,.15);
+}
+
+.campo-completo{
+    grid-column:1 / -1;
+}
+
+textarea{
+    min-height:120px;
+    resize:vertical;
+}
+
+.botones{
+    display:flex;
+    justify-content:flex-end;
+    gap:15px;
+    margin-top:35px;
+}
+
+.btn-guardar{
+    background:#c2185b;
+    color:white;
+    border:none;
+    border-radius:12px;
+    padding:14px 28px;
+    cursor:pointer;
+    font-size:16px;
+    font-weight:bold;
+}
+
+.btn-guardar:hover{
+    background:#9d174d;
+}
+
+.btn-cancelar{
+    background:#ececec;
+    border:none;
+    border-radius:12px;
+    padding:14px 28px;
+    cursor:pointer;
+    font-size:16px;
+}
+
+.btn-cancelar:hover{
+    background:#d9d9d9;
+}
+
+@media(max-width:768px){
+
+.form-grid{
+grid-template-columns:1fr;
+}
+
+.formulario-movimiento{
+margin:15px;
+padding:20px;
+}
+
+}
