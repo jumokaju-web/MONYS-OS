@@ -1,35 +1,95 @@
 function Indicadores({
-  disponible,
-  entradas,
-  salidas,
-  cantidadMovimientos,
+  disponible = 0,
+  entradas = 0,
+  salidas = 0,
+  cantidadMovimientos = 0,
+
+  ventasTotales = 0,
+  utilidadTotal = 0,
+  margenUtilidad = 0,
+  totalPiezas = 0,
+
   formatoDinero,
 }) {
+  const formatearDinero = (valor) => {
+    if (typeof formatoDinero === "function") {
+      return formatoDinero(Number(valor) || 0);
+    }
+
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN",
+      minimumFractionDigits: 2,
+    }).format(Number(valor) || 0);
+  };
+
+  const formatearNumero = (valor) =>
+    new Intl.NumberFormat("es-MX", {
+      maximumFractionDigits: 2,
+    }).format(Number(valor) || 0);
+
+  const formatearPorcentaje = (valor) =>
+    `${formatearNumero(valor)}%`;
+
+  const tarjetas = [
+    {
+      icono: "💵",
+      titulo: "Dinero disponible",
+      valor: formatearDinero(disponible),
+    },
+    {
+      icono: "📥",
+      titulo: "Entradas registradas",
+      valor: formatearDinero(entradas),
+    },
+    {
+      icono: "📤",
+      titulo: "Salidas registradas",
+      valor: formatearDinero(salidas),
+    },
+    {
+      icono: "🧾",
+      titulo: "Movimientos",
+      valor: formatearNumero(cantidadMovimientos),
+    },
+    {
+      icono: "📈",
+      titulo: "Ventas totales",
+      valor: formatearDinero(ventasTotales),
+    },
+    {
+      icono: "💰",
+      titulo: "Utilidad total",
+      valor: formatearDinero(utilidadTotal),
+    },
+    {
+      icono: "📊",
+      titulo: "Margen de utilidad",
+      valor: formatearPorcentaje(margenUtilidad),
+    },
+    {
+      icono: "📦",
+      titulo: "Piezas vendidas",
+      valor: formatearNumero(totalPiezas),
+    },
+  ];
+
   return (
     <section className="indicadores">
-      <article className="tarjeta">
-        <span className="icono">💵</span>
-        <p>Dinero disponible</p>
-        <strong>{formatoDinero(disponible)}</strong>
-      </article>
+      {tarjetas.map((tarjeta) => (
+        <article
+          className="tarjeta"
+          key={tarjeta.titulo}
+        >
+          <span className="icono">
+            {tarjeta.icono}
+          </span>
 
-      <article className="tarjeta">
-        <span className="icono">📥</span>
-        <p>Entradas registradas</p>
-        <strong>{formatoDinero(entradas)}</strong>
-      </article>
+          <p>{tarjeta.titulo}</p>
 
-      <article className="tarjeta">
-        <span className="icono">📤</span>
-        <p>Salidas registradas</p>
-        <strong>{formatoDinero(salidas)}</strong>
-      </article>
-
-      <article className="tarjeta">
-        <span className="icono">🧾</span>
-        <p>Movimientos</p>
-        <strong>{cantidadMovimientos}</strong>
-      </article>
+          <strong>{tarjeta.valor}</strong>
+        </article>
+      ))}
     </section>
   );
 }

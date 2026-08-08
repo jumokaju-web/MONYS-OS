@@ -1,0 +1,43 @@
+const suppliers = [
+  {
+    id: "proveedor-beauty-creations",
+    name: "Proveedor Beauty Creations",
+    brandIds: ["beauty-creations"],
+    city: "",
+    state: "",
+    contactName: "",
+    phone: "",
+    email: "",
+    paymentTerms: "",
+    deliveryTimeDays: null,
+    active: true,
+  },
+  {
+    id: "proveedor-bissu",
+    name: "Proveedor Bissú",
+    brandIds: ["bissu"],
+    city: "",
+    state: "",
+    contactName: "",
+    phone: "",
+    email: "",
+    paymentTerms: "",
+    deliveryTimeDays: null,
+    active: true,
+  },
+  {
+    id: "proveedor-saniye",
+    name: "Proveedor SANIYE",
+    brandIds: ["saniye"],
+    city: "Guadalajara",
+    state: "Jalisco",
+    contactName: "",
+    phone: "",
+    email: "",
+    paymentTerms: "",
+    deliveryTimeDays: null,
+    active: true,
+  },
+];
+
+export default suppliers;

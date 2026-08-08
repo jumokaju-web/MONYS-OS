@@ -23,7 +23,10 @@ function contieneAlgunaColumna(encabezados, opciones) {
 }
 
 export function detectarReporte(encabezados = []) {
-  if (!Array.isArray(encabezados) || encabezados.length === 0) {
+  if (
+    !Array.isArray(encabezados) ||
+    encabezados.length === 0
+  ) {
     return "Reporte desconocido";
   }
 
@@ -39,63 +42,217 @@ export function detectarReporte(encabezados = []) {
     "sku",
   ]);
 
-  const tieneDescripcion = contieneAlgunaColumna(columnas, [
-    "descripcion",
-    "producto",
-    "articulo",
-    "nombre",
-  ]);
+  const tieneDescripcion = contieneAlgunaColumna(
+    columnas,
+    [
+      "descripcion",
+      "producto",
+      "articulo",
+      "nombre",
+    ]
+  );
 
-  const tieneCantidad = contieneAlgunaColumna(columnas, [
-    "cantidad",
-    "piezas",
-  ]);
-
-  const tieneExistencia = contieneAlgunaColumna(columnas, [
-    "existencia",
-    "existencias",
-    "exis",
-  ]);
-
-  const tienePrecioVenta = contieneAlgunaColumna(columnas, [
-    "precio venta",
-    "precio de venta",
-    "precio v",
-  ]);
-
-  const tienePrecioCompra = contieneAlgunaColumna(columnas, [
-  "precio compra",
-  "precio de compra",
-  "precio c",
-  "costo",
+ const tieneCantidad = contieneAlgunaColumna(columnas, [
+  "cantidad",
+  "cant",
+  "piezas",
 ]);
+
+  const tieneExistencia = contieneAlgunaColumna(
+    columnas,
+    [
+      "existencia",
+      "existencias",
+      "exis",
+    ]
+  );
+
+  const tienePrecioVenta = contieneAlgunaColumna(
+    columnas,
+    [
+      "precio venta",
+      "precio de venta",
+      "precio v",
+    ]
+  );
+
+  const tienePrecioCompra = contieneAlgunaColumna(
+    columnas,
+    [
+      "precio compra",
+      "precio de compra",
+      "precio c",
+      "costo",
+    ]
+  );
 
   const tieneMargen = contieneAlgunaColumna(columnas, [
     "margen",
     "margen porcentaje",
   ]);
 
- const tieneUtilidadUnitaria = contieneAlgunaColumna(columnas, [
-  "utilidad unitaria",
-  "utilidad uni",
-]);
+  const tieneUtilidadUnitaria = contieneAlgunaColumna(
+    columnas,
+    [
+      "utilidad unitaria",
+      "utilidad uni",
+    ]
+  );
 
-  const tieneUtilidadTotal = contieneAlgunaColumna(columnas, [
-    "utilidad total",
-  ]);
+  const tieneUtilidadTotal = contieneAlgunaColumna(
+    columnas,
+    ["utilidad total"]
+  );
 
-  const tienePrecioUnitario = contieneAlgunaColumna(columnas, [
-    "precio u",
-    "precio unitario",
-  ]);
+  const tienePrecioUnitario = contieneAlgunaColumna(
+    columnas,
+    [
+      "precio u",
+      "precio unitario",
+    ]
+  );
 
   const tieneTotal = contieneAlgunaColumna(columnas, [
     "total",
   ]);
 
   /*
-   * Inventario / Utilidad debe evaluarse antes que Inventario,
-   * porque también contiene columnas de existencia.
+   * Columnas del reporte SICAR:
+   * Utilidad de ventas.
+   */
+  const tieneDocumento = contieneAlgunaColumna(
+    columnas,
+    ["documento"]
+  );
+
+  const tieneFecha = contieneAlgunaColumna(columnas, [
+    "fecha",
+  ]);
+
+  const tieneFolio = contieneAlgunaColumna(columnas, [
+    "folio",
+  ]);
+
+  const tieneTotalVenta = contieneAlgunaColumna(
+    columnas,
+    [
+      "total ven",
+      "total venta",
+      "total ventas",
+    ]
+  );
+
+  const tieneTotalCompra = contieneAlgunaColumna(
+    columnas,
+    [
+      "total com",
+      "total compra",
+      "total compras",
+    ]
+  );
+
+  const tieneUtilidad = contieneAlgunaColumna(
+    columnas,
+    ["utilidad"]
+  );
+
+   const tieneNoProveedor =
+    contieneAlgunaColumna(columnas, [
+      "no prv",
+      "numero proveedor",
+      "numero de proveedor",
+      "prv",
+    ]);
+
+  const tieneNombreProveedor =
+    contieneAlgunaColumna(columnas, [
+      "nombre",
+      "proveedor",
+    ]);
+
+  const tieneTelefonoProveedor =
+    contieneAlgunaColumna(columnas, [
+      "telefono",
+      "celular",
+    ]);
+
+  const tieneSaldoProveedor =
+    contieneAlgunaColumna(columnas, [
+      "saldo",
+    ]);
+
+      const tieneHora = contieneAlgunaColumna(
+    columnas,
+    ["hora"]
+  );
+
+  const tieneComentario = contieneAlgunaColumna(
+    columnas,
+    ["comentario"]
+  );
+
+  const tieneEntradaSalida =
+    contieneAlgunaColumna(columnas, [
+      "e/s",
+      "entrada salida",
+      "entrada/salida",
+    ]);
+
+  const tieneCajaMovimiento =
+    contieneAlgunaColumna(columnas, [
+      "caja",
+    ]);
+
+  const tieneUsuarioMovimiento =
+    contieneAlgunaColumna(columnas, [
+      "usuario",
+    ]);
+
+  const tieneTotalMovimiento =
+    contieneAlgunaColumna(columnas, [
+      "total",
+    ]);
+
+  if (
+    tieneNoProveedor &&
+    tieneNombreProveedor &&
+    tieneSaldoProveedor
+  ) {
+    return "Créditos de proveedores";
+  }
+
+  /*
+   * Utilidad de ventas debe evaluarse antes
+   * que los demás reportes.
+   */
+  
+   if (
+  tieneFecha &&
+  tieneHora &&
+  tieneComentario &&
+  tieneEntradaSalida &&
+  tieneCajaMovimiento &&
+  tieneUsuarioMovimiento &&
+  tieneTotalMovimiento
+) {
+  return "Movimientos de caja";
+}
+  
+  if (
+    tieneDocumento &&
+    tieneFecha &&
+    tieneFolio &&
+    tieneTotalVenta &&
+    tieneTotalCompra &&
+    tieneUtilidad
+  ) {
+    return "Utilidad de ventas";
+  }
+
+  /*
+   * Inventario / Utilidad debe evaluarse antes
+   * que Inventario porque también contiene
+   * columnas de existencia.
    */
   if (
     tieneCodigo &&
@@ -103,12 +260,26 @@ export function detectarReporte(encabezados = []) {
     tieneExistencia &&
     tienePrecioVenta &&
     tienePrecioCompra &&
-    (tieneMargen ||
+    (
+      tieneMargen ||
       tieneUtilidadUnitaria ||
-      tieneUtilidadTotal)
+      tieneUtilidadTotal
+    )
   ) {
     return "Inventario / Utilidad";
   }
+
+   if (
+  tieneCodigo &&
+  tieneDescripcion &&
+  tieneExistencia &&
+  !tienePrecioUnitario &&
+  !tieneTotal &&
+  !tienePrecioVenta &&
+  !tienePrecioCompra
+) {
+  return "Existencias";
+}
 
   if (
     tieneCodigo &&
@@ -126,18 +297,24 @@ export function detectarReporte(encabezados = []) {
   ) {
     return "Ventas por artículo";
   }
-   
+
   console.log({
-  columnas,
-  tieneCodigo,
-  tieneDescripcion,
-  tieneExistencia,
-  tienePrecioVenta,
-  tienePrecioCompra,
-  tieneMargen,
-  tieneUtilidadUnitaria,
-  tieneUtilidadTotal,
-});
+    columnas,
+    tieneCodigo,
+    tieneDescripcion,
+    tieneExistencia,
+    tienePrecioVenta,
+    tienePrecioCompra,
+    tieneMargen,
+    tieneUtilidadUnitaria,
+    tieneUtilidadTotal,
+    tieneDocumento,
+    tieneFecha,
+    tieneFolio,
+    tieneTotalVenta,
+    tieneTotalCompra,
+    tieneUtilidad,
+  });
 
   return "Reporte desconocido";
 }
@@ -147,26 +324,38 @@ export function encontrarFilaEncabezados(filas = []) {
     return -1;
   }
 
-  const limiteBusqueda = Math.min(filas.length, 30);
+ const limiteBusqueda = Math.min(filas.length, 60);
 
-  for (let indice = 0; indice < limiteBusqueda; indice += 1) {
+  for (
+    let indice = 0;
+    indice < limiteBusqueda;
+    indice += 1
+  ) {
     const fila = filas[indice];
 
     if (!Array.isArray(fila)) {
       continue;
     }
 
-    const reporteDetectado = detectarReporte(fila);
-
-   console.log(
-  "Fila",
+    console.log(
+  "Fila:",
   indice,
-  "=>",
-  detectarReporte(fila),
   fila
 );
 
-    if (reporteDetectado !== "Reporte desconocido") {
+    const reporteDetectado = detectarReporte(fila);
+
+    console.log(
+      "Fila",
+      indice,
+      "=>",
+      reporteDetectado,
+      fila
+    );
+
+    if (
+      reporteDetectado !== "Reporte desconocido"
+    ) {
       return indice;
     }
   }

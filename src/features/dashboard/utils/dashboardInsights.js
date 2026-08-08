@@ -49,7 +49,10 @@ export function generarInsightsDashboard(
       tipo: item.prioridad,
       icono,
       titulo: item.titulo,
-      mensaje: item.descripcion,
+     mensaje:
+  item.descripcion ??
+  item.mensaje ??
+  "Sin detalle disponible.",
     };
   });
 }

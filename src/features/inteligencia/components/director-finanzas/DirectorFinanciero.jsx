@@ -1,5 +1,5 @@
 // ======================================================
-// MONYS ERP AI
+// MONYS OS
 // Director Financiero IA
 // ======================================================
 
@@ -10,27 +10,39 @@ function DirectorFinanciero({
   datosDashboard,
   movimientos = [],
 }) {
-  /*
-    Información proveniente de la última
-    importación disponible de SICAR.
-  */
-  const metricas = datosDashboard?.metricas;
+  const metricas =
+    datosDashboard?.metricas || {};
 
-  /*
-    El motor financiero recibe los datos reales
-    y devuelve todos los cálculos y diagnósticos.
-  */
   const analisisFinanciero =
     generarAnalisisFinanciero({
       movimientos,
+
       ventasTotales:
-        metricas?.ventasTotales ?? 0,
+        metricas.ventasTotales ?? 0,
+
       costoTotal:
-        metricas?.costoTotal ?? 0,
+        metricas.costoTotal ?? 0,
+
       utilidadTotal:
-        metricas?.utilidadTotal ?? 0,
+        metricas.utilidadTotal ?? 0,
+
       margenUtilidad:
-        metricas?.margenUtilidad ?? 0,
+        metricas.margenUtilidad ?? 0,
+
+      fechaInicial:
+        metricas.fechaInicial ?? null,
+
+      fechaFinal:
+        metricas.fechaFinal ?? null,
+
+      diasAnalizados:
+        metricas.diasAnalizados ?? 0,
+
+      ventaPromedioDiaria:
+        metricas.ventaPromedioDiaria ?? 0,
+
+      utilidadPromedioDiaria:
+        metricas.utilidadPromedioDiaria ?? 0,
     });
 
   const {
@@ -38,27 +50,72 @@ function DirectorFinanciero({
     costoTotal,
     utilidadTotal,
     margenUtilidad,
+
     entradasTesoreria,
     salidasTesoreria,
     dineroDisponible,
+
     movimientosPendientes,
     porcentajeGastos,
+
+    proyeccionVentasMes,
+    proyeccionUtilidadMes,
+
+    reservaRecomendada,
+    capacidadCompra,
+
+    alertasFinancieras = [],
+    decisionPrioritaria,
+
+    accionesPrioritarias = [],
+
     nivel,
     estado,
     mensaje,
     recomendacion,
   } = analisisFinanciero;
 
-  /*
-    Da formato de pesos mexicanos
-    a todas las cantidades.
-  */
   const formatoDinero = (cantidad) =>
     new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "MXN",
       minimumFractionDigits: 2,
     }).format(Number(cantidad) || 0);
+
+  const formatoPorcentaje = (cantidad) =>
+    `${(Number(cantidad) || 0).toFixed(2)} %`;
+
+  const colorPrioridad = (prioridad) => {
+    if (prioridad === "CRITICA") {
+      return {
+        fondo: "#fff0f0",
+        borde: "#efaaaa",
+        icono: "🔴",
+      };
+    }
+
+    if (prioridad === "ALTA") {
+      return {
+        fondo: "#fff7ed",
+        borde: "#f4c58d",
+        icono: "🟠",
+      };
+    }
+
+    if (prioridad === "MEDIA") {
+      return {
+        fondo: "#fffde8",
+        borde: "#e8d77b",
+        icono: "🟡",
+      };
+    }
+
+    return {
+      fondo: "#f2fff6",
+      borde: "#b5dfc1",
+      icono: "🟢",
+    };
+  };
 
   return (
     <section
@@ -130,10 +187,58 @@ function DirectorFinanciero({
         style={{
           marginTop: 0,
           color: "#756d62",
+          lineHeight: "1.7",
         }}
       >
         Resultados calculados con la última
-        importación disponible.
+        información disponible.
+        <br />
+
+        📅 Periodo analizado:{" "}
+        <strong>
+          {metricas.fechaInicial
+            ? new Date(
+                metricas.fechaInicial
+              ).toLocaleDateString("es-MX")
+            : "Sin fecha"}
+        </strong>
+
+        {" "}a{" "}
+
+        <strong>
+          {metricas.fechaFinal
+            ? new Date(
+                metricas.fechaFinal
+              ).toLocaleDateString("es-MX")
+            : "Sin fecha"}
+        </strong>
+
+        {" · "}
+
+        🗓️{" "}
+        <strong>
+          {Number(
+            metricas.diasAnalizados
+          ) || 0} días analizados
+        </strong>
+
+        <br />
+
+        💵 Venta promedio diaria:{" "}
+        <strong>
+          {formatoDinero(
+            metricas.ventaPromedioDiaria
+          )}
+        </strong>
+
+        {" · "}
+
+        📈 Utilidad promedio diaria:{" "}
+        <strong>
+          {formatoDinero(
+            metricas.utilidadPromedioDiaria
+          )}
+        </strong>
       </p>
 
       <div
@@ -165,7 +270,9 @@ function DirectorFinanciero({
 
         <TarjetaIndicador
           titulo="Margen"
-          valor={`${margenUtilidad.toFixed(2)} %`}
+          valor={formatoPorcentaje(
+            margenUtilidad
+          )}
           icono="📊"
         />
       </div>
@@ -179,16 +286,6 @@ function DirectorFinanciero({
       >
         Flujo real de Tesorería
       </h3>
-
-      <p
-        style={{
-          marginTop: 0,
-          color: "#756d62",
-        }}
-      >
-        Calculado con las entradas y salidas
-        registradas en MONYS OS.
-      </p>
 
       <div
         style={{
@@ -230,34 +327,246 @@ function DirectorFinanciero({
           )}
           icono="⏳"
         />
+
+        <TarjetaIndicador
+          titulo="Porcentaje utilizado"
+          valor={formatoPorcentaje(
+            porcentajeGastos
+          )}
+          icono="📉"
+        />
+      </div>
+
+      <h3
+        style={{
+          marginTop: "32px",
+          marginBottom: "4px",
+          fontSize: "20px",
+        }}
+      >
+        Proyección y capacidad financiera
+      </h3>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: "16px",
+          marginTop: "18px",
+        }}
+      >
+        <TarjetaIndicador
+          titulo="Proyección ventas del mes"
+          valor={formatoDinero(
+            proyeccionVentasMes
+          )}
+          icono="📅"
+        />
+
+        <TarjetaIndicador
+          titulo="Proyección utilidad del mes"
+          valor={formatoDinero(
+            proyeccionUtilidadMes
+          )}
+          icono="📈"
+        />
+
+        <TarjetaIndicador
+          titulo="Capacidad de compra sugerida"
+          valor={formatoDinero(
+            capacidadCompra
+          )}
+          icono="🛒"
+        />
+
+        <TarjetaIndicador
+          titulo="Reserva recomendada"
+          valor={formatoDinero(
+            reservaRecomendada
+          )}
+          icono="🏦"
+        />
+      </div>
+
+      {/* ============================================= */}
+      {/* ACCIONES PRIORITARIAS */}
+      {/* ============================================= */}
+
+      <div
+        style={{
+          marginTop: "32px",
+          padding: "24px",
+          borderRadius: "20px",
+          background:
+            "linear-gradient(135deg, #fff 0%, #fff5f8 100%)",
+          border: "2px solid #e8b8ca",
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "24px",
+          }}
+        >
+          🎯 Acciones Prioritarias de Hoy
+        </h2>
+
+        <p
+          style={{
+            marginTop: "8px",
+            color: "#756d62",
+          }}
+        >
+          Ordenadas automáticamente por urgencia
+          e impacto financiero.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gap: "14px",
+            marginTop: "20px",
+          }}
+        >
+          {accionesPrioritarias.map(
+            (accion, indice) => {
+              const estilo =
+                colorPrioridad(
+                  accion.prioridad
+                );
+
+              return (
+                <article
+                  key={`${accion.titulo}-${indice}`}
+                  style={{
+                    padding: "18px",
+                    borderRadius: "15px",
+                    backgroundColor:
+                      estilo.fondo,
+                    border:
+                      `1px solid ${estilo.borde}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent:
+                        "space-between",
+                      gap: "15px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <strong
+                      style={{
+                        fontSize: "17px",
+                      }}
+                    >
+                      {estilo.icono}{" "}
+                      PRIORIDAD {indice + 1}:{" "}
+                      {accion.titulo}
+                    </strong>
+
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      Impacto: {accion.impacto}
+                    </span>
+                  </div>
+
+                  <p
+                    style={{
+                      lineHeight: "1.6",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {accion.descripcion}
+                  </p>
+
+                  <small
+                    style={{
+                      color: "#756d62",
+                    }}
+                  >
+                    Responsable:{" "}
+                    {accion.responsable}
+                  </small>
+                </article>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "24px",
+          padding: "22px",
+          borderRadius: "16px",
+          backgroundColor: "#fff7df",
+          border: "1px solid #ecd392",
+        }}
+      >
+        <strong
+          style={{
+            fontSize: "18px",
+          }}
+        >
+          🎯 Decisión prioritaria del CFO
+        </strong>
+
+        <p
+          style={{
+            marginBottom: 0,
+            lineHeight: "1.7",
+          }}
+        >
+          {decisionPrioritaria}
+        </p>
       </div>
 
       <div
         style={{
           marginTop: "18px",
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "16px",
+          padding: "22px",
+          borderRadius: "16px",
+          backgroundColor:
+            alertasFinancieras.length > 0
+              ? "#fff4f4"
+              : "#f3fff7",
+          border:
+            alertasFinancieras.length > 0
+              ? "1px solid #efc2c2"
+              : "1px solid #bfe2ca",
         }}
       >
-        <TarjetaIndicador
-          titulo="Porcentaje utilizado"
-          valor={`${porcentajeGastos.toFixed(2)} %`}
-          subtitulo="Porcentaje de las entradas destinado a salidas."
-          icono="📉"
-          color="#fffdf8"
-        />
+        <strong
+          style={{
+            fontSize: "18px",
+          }}
+        >
+          🚨 Alertas financieras
+        </strong>
 
-        <TarjetaIndicador
-          titulo="Saldo del flujo"
-          valor={formatoDinero(
-            dineroDisponible
-          )}
-          subtitulo="Resultado de entradas menos salidas registradas."
-          icono="⚖️"
-          color="#fffdf8"
-        />
+        {alertasFinancieras.length === 0 ? (
+          <p>
+            No se detectaron alertas financieras
+            críticas.
+          </p>
+        ) : (
+          <ul>
+            {alertasFinancieras.map(
+              (alerta, indice) => (
+                <li key={indice}>
+                  {alerta}
+                </li>
+              )
+            )}
+          </ul>
+        )}
       </div>
 
       <div
@@ -281,7 +590,6 @@ function DirectorFinanciero({
           style={{
             marginBottom: 0,
             lineHeight: "1.7",
-            color: "#5f584e",
           }}
         >
           {mensaje}
@@ -309,7 +617,6 @@ function DirectorFinanciero({
           style={{
             marginBottom: 0,
             lineHeight: "1.7",
-            color: "#5f584e",
           }}
         >
           {recomendacion}

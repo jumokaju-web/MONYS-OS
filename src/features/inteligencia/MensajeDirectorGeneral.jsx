@@ -5,13 +5,16 @@ function MensajeDirectorGeneral({
   totalProductos,
   totalPiezas,
   productoLider,
+  cantidadProductoLider,
 }) {
+
   const analisis = generarMensajeDirectorGeneral({
     totalProductos,
     totalPiezas,
-    productoMasVendido: {
-      descripcion: productoLider,
-    },
+   productoMasVendido: {
+  descripcion: productoLider,
+  cantidad: cantidadProductoLider,
+},
   });
 
   return (

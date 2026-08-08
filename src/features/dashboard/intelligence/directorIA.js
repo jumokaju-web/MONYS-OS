@@ -23,6 +23,8 @@ devuelve un único resumen para el Dashboard.
 */
 
 import { analizarVentas } from "./ventasAnalyzer";
+import { analizarInventario } from "../../inteligencia/analyzers/inventarioAnalyzer";
+import { analizarFinanzas } from "./finanzasAnalyzer"
 
 /*
 =========================================================
@@ -46,26 +48,34 @@ export function generarResumenDirectorIA(
     resumenGeneral.push(...ventas.resumen);
   }
 
-  /*
-  ==========================================
-  Futuros analizadores
-  ==========================================
+  const finanzas = analizarFinanzas(datosDashboard);
 
-  const inventario = analizarInventario(...);
-  resumenGeneral.push(...inventario.resumen);
-
-  const compras = analizarCompras(...);
-  resumenGeneral.push(...compras.resumen);
-
-  const finanzas = analizarFinanzas(...);
+if (finanzas?.resumen?.length) {
   resumenGeneral.push(...finanzas.resumen);
-  */
+}
 
   /*
-  ==========================================
-  Orden por prioridad
-  ==========================================
-  */
+==========================================
+Inventario
+==========================================
+*/
+
+const inventario = analizarInventario(
+  datosDashboard?.inventario?.detalles || []
+);
+
+if (inventario?.alertas?.length) {
+  inventario.alertas.forEach((alerta) => {
+    resumenGeneral.push({
+      prioridad:
+        alerta.prioridad === "critica"
+          ? "alta"
+          : "media",
+      titulo: "Inventario",
+      mensaje: alerta.mensaje,
+    });
+  });
+}
 
   const prioridad = {
     alta: 1,
