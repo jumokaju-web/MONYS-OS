@@ -542,12 +542,13 @@ if (
         });
 
         try {
-          await guardarImportacion({
-            tipoReporte: item.tipoReporte,
-            archivoOriginal: item.nombre,
-            datosNormalizados:
-              item.datosNormalizados,
-          });
+         const importacionGuardada =
+  await guardarImportacion({
+    tipoReporte: item.tipoReporte,
+    archivoOriginal: item.nombre,
+    datosNormalizados:
+      item.datosNormalizados,
+  });
 
           actualizarArchivo(item.id, {
             estado: "importado",

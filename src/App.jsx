@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import "./App.css";
 
+import CentroUsuarios from "./features/usuarios/components/CentroUsuarios";
 import { systemConfig } from "./core/config/systemConfig";
+import { useUser } from "./context/UserContext";
 
 import Header from "./components/layout/Header";
 
@@ -11,6 +17,7 @@ import AccionesPrioritarias from "./features/inteligencia/components/AccionesPri
 import AccionesRapidas from "./features/dashboard/AccionesRapidas";
 import SicarResumen from "./features/dashboard/components/SicarResumen";
 
+import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
 import TesoreriaPage from "./features/tesoreria/pages/TesoreriaPage";
 import InventarioPage from "./features/inventario/pages/InventarioPage";
 import ImportadorPage from "./features/importador/pages/ImportadorPage";
@@ -35,12 +42,39 @@ const modulos = [
   ["💡", "Ideas y oportunidades"],
   ["🚚", "Flotilla"],
   ["📄", "Importar reportes"],
+  ["📋", "Centro de Órdenes"],
+  ["👥", "Usuarios"],
   ["🤖", "Director General IA"],
 ];
 
 function App() {
+  const {
+    usuario,
+    permisos,
+    tienePermiso,
+    cargandoUsuario,
+    errorUsuario,
+    cargandoPermisos,
+    errorPermisos,
+  } = useUser();
+
+  console.log(
+    "USUARIO MONYS OS:",
+    usuario
+  );
+
+  console.log(
+    "PERMISOS MONYS OS:",
+    permisos
+  );
+
   const appName =
     systemConfig.app.name;
+
+  console.log(
+    "APP MONYS OS:",
+    appName
+  );
 
   const MODO_NUEVO_DASHBOARD =
     false;
@@ -49,6 +83,11 @@ function App() {
     movimientos,
     setMovimientos,
   ] = useState([]);
+
+  const [
+    importacionId,
+    setImportacionId,
+  ] = useState(null);
 
   const [
     pantallaActual,
@@ -61,9 +100,129 @@ function App() {
     errorDashboard,
   } = useDashboardData();
 
+  const esOwner =
+    usuario?.role === "owner";
+
+  const esAdmin =
+    usuario?.role === "admin";
+
+  function puede(permission) {
+    if (esOwner) {
+      return true;
+    }
+
+    return tienePermiso(
+      permission
+    );
+  }
+
+  function puedeAdministrarUsuarios() {
+    return (
+      esOwner ||
+      esAdmin
+    );
+  }
+
+  function puedeUsarInteligencia() {
+    /*
+      Por seguridad, mientras no exista
+      un permiso específico de IA,
+      solamente Owner tendrá acceso.
+    */
+    return esOwner;
+  }
+
+  function puedeImportarReportes() {
+    /*
+      Por seguridad, mientras no exista
+      un permiso específico para importar,
+      solamente Owner tendrá acceso.
+    */
+    return esOwner;
+  }
+
+  function puedeAbrirModulo(
+    nombre
+  ) {
+    if (esOwner) {
+      return true;
+    }
+
+    switch (nombre) {
+      case "Registrar dinero":
+        return puede(
+          "ver_finanzas"
+        );
+
+      case "Producto solicitado":
+        return (
+          puede(
+            "registrar_producto_solicitado"
+          ) ||
+          puede(
+            "ver_inventario"
+          )
+        );
+
+      case "Problemas e incidencias":
+        return puede(
+          "registrar_incidencias"
+        );
+
+      case "Ideas y oportunidades":
+        return puede(
+          "registrar_ideas"
+        );
+
+      case "Flotilla":
+        return puede(
+          "ver_logistica"
+        );
+
+      case "Importar reportes":
+        return puedeImportarReportes();
+
+      case "Centro de Órdenes":
+        return puede(
+          "ver_ordenes"
+        );
+
+      case "Usuarios":
+        return puedeAdministrarUsuarios();
+
+      case "Director General IA":
+        return puedeUsarInteligencia();
+
+      default:
+        return false;
+    }
+  }
+
+  const modulosVisibles =
+    modulos.filter(
+      ([, nombre]) =>
+        puedeAbrirModulo(
+          nombre
+        )
+    );
+
+  const puedeVerFinanzas =
+    puede("ver_finanzas");
+
+  const puedeVerVentas =
+    puede("ver_ventas");
+
+  const puedeVerInventario =
+    puede("ver_inventario");
+
+  const tieneAlgúnPermiso =
+    esOwner ||
+    esAdmin ||
+    permisos.length > 0;
+
   /*
-    Consulta los movimientos guardados en Supabase
-    y los adapta al formato que utiliza el Dashboard.
+    Consulta los movimientos guardados
+    en Supabase.
   */
   const cargarMovimientos =
     async () => {
@@ -85,7 +244,8 @@ function App() {
                 ) || 0,
 
               concepto:
-                registro.concept || "",
+                registro.concept ||
+                "",
 
               negocio:
                 registro.business_id
@@ -123,23 +283,26 @@ function App() {
       }
     };
 
-  /*
-    Carga los movimientos cuando inicia MONYS OS.
-  */
   useEffect(() => {
     cargarMovimientos();
   }, []);
 
-  /*
-    Cambia el estado de un movimiento en Supabase
-    y después actualiza el Dashboard.
-  */
   const cambiarEstadoMovimiento =
     async (
       movimientoId,
       nuevoEstado
     ) => {
       try {
+        if (
+          !puedeVerFinanzas
+        ) {
+          alert(
+            "No tienes permiso para modificar movimientos de Tesorería."
+          );
+
+          return;
+        }
+
         await actualizarEstadoMovimientoTesoreria(
           movimientoId,
           nuevoEstado
@@ -163,9 +326,6 @@ function App() {
       }
     };
 
-  /*
-    Calcula el total de entradas.
-  */
   const entradas =
     movimientos
       .filter(
@@ -174,15 +334,15 @@ function App() {
           "ENTRADA"
       )
       .reduce(
-        (total, movimiento) =>
+        (
+          total,
+          movimiento
+        ) =>
           total +
           movimiento.monto,
         0
       );
 
-  /*
-    Calcula el total de salidas.
-  */
   const salidas =
     movimientos
       .filter(
@@ -191,7 +351,10 @@ function App() {
           "SALIDA"
       )
       .reduce(
-        (total, movimiento) =>
+        (
+          total,
+          movimiento
+        ) =>
           total +
           movimiento.monto,
         0
@@ -200,11 +363,9 @@ function App() {
   const disponible =
     entradas - salidas;
 
-  /*
-    Métricas reales obtenidas de SICAR.
-  */
   const metricasVentas =
-    datosDashboard?.metricas || {};
+    datosDashboard?.metricas ||
+    {};
 
   const ventasTotales =
     Number(
@@ -226,9 +387,6 @@ function App() {
       metricasVentas.totalPiezas
     ) || 0;
 
-  /*
-    Da formato de pesos mexicanos.
-  */
   const formatoDinero =
     (cantidad) =>
       new Intl.NumberFormat(
@@ -241,11 +399,120 @@ function App() {
         Number(cantidad) || 0
       );
 
-  /*
-    Abre los módulos disponibles.
-  */
+  function mostrarAccesoDenegado(
+    titulo
+  ) {
+    return (
+      <main
+        className="app"
+      >
+        <Header />
+
+        <section
+          style={{
+            maxWidth:
+              "720px",
+            margin:
+              "50px auto",
+            padding:
+              "32px",
+            background:
+              "#ffffff",
+            border:
+              "1px solid #eadde4",
+            borderRadius:
+              "18px",
+            textAlign:
+              "center",
+            boxShadow:
+              "0 10px 30px rgba(94, 48, 72, 0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize:
+                "42px",
+              marginBottom:
+                "12px",
+            }}
+          >
+            🔒
+          </div>
+
+          <h2
+            style={{
+              color:
+                "#2c2030",
+              marginBottom:
+                "10px",
+            }}
+          >
+            Acceso restringido
+          </h2>
+
+          <p
+            style={{
+              color:
+                "#766a70",
+              lineHeight:
+                1.6,
+            }}
+          >
+            Tu usuario no tiene
+            permiso para acceder a{" "}
+            <strong>
+              {titulo}
+            </strong>
+            .
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              setPantallaActual(
+                "dashboard"
+              )
+            }
+            style={{
+              marginTop:
+                "18px",
+              padding:
+                "11px 18px",
+              border:
+                "none",
+              borderRadius:
+                "10px",
+              background:
+                "#5e3048",
+              color:
+                "#ffffff",
+              fontWeight:
+                "800",
+              cursor:
+                "pointer",
+            }}
+          >
+            Volver al Dashboard
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   const abrirModulo =
     (nombre) => {
+      if (
+        !puedeAbrirModulo(
+          nombre
+        )
+      ) {
+        alert(
+          "Tu usuario no tiene permiso para abrir este módulo."
+        );
+
+        return;
+      }
+
       if (
         nombre ===
         "Registrar dinero"
@@ -281,10 +548,32 @@ function App() {
 
       if (
         nombre ===
+        "Centro de Órdenes"
+      ) {
+        setPantallaActual(
+          "ordenes"
+        );
+
+        return;
+      }
+
+      if (
+        nombre ===
         "Producto solicitado"
       ) {
         setPantallaActual(
           "inventario"
+        );
+
+        return;
+      }
+
+      if (
+        nombre ===
+        "Usuarios"
+      ) {
+        setPantallaActual(
+          "usuarios"
         );
 
         return;
@@ -295,22 +584,94 @@ function App() {
       );
     };
 
-  /*
-    Dashboard alternativo.
-  */
+  if (
+    cargandoUsuario ||
+    cargandoPermisos
+  ) {
+    return (
+      <main
+        className="app"
+      >
+        <div
+          style={{
+            padding:
+              "60px 20px",
+            textAlign:
+              "center",
+            color:
+              "#766a70",
+          }}
+        >
+          Cargando acceso de
+          MONYS OS...
+        </div>
+      </main>
+    );
+  }
+
+  if (
+    errorUsuario
+  ) {
+    return (
+      <main
+        className="app"
+      >
+        <div
+          style={{
+            maxWidth:
+              "700px",
+            margin:
+              "60px auto",
+            padding:
+              "24px",
+            borderRadius:
+              "14px",
+            background:
+              "#fff2f2",
+            border:
+              "1px solid #efc0c0",
+            color:
+              "#9b3030",
+          }}
+        >
+          {errorUsuario}
+        </div>
+      </main>
+    );
+  }
+
+  if (
+    errorPermisos
+  ) {
+    console.error(
+      "Error permisos:",
+      errorPermisos
+    );
+  }
+
   if (
     MODO_NUEVO_DASHBOARD
   ) {
-    return <DashboardPage />;
+    return (
+      <DashboardPage />
+    );
   }
 
   /*
-    Pantalla de Tesorería.
+    TESORERÍA
   */
   if (
     pantallaActual ===
     "tesoreria"
   ) {
+    if (
+      !puedeVerFinanzas
+    ) {
+      return mostrarAccesoDenegado(
+        "Tesorería"
+      );
+    }
+
     return (
       <TesoreriaPage
         volverAlDashboard={() =>
@@ -326,12 +687,23 @@ function App() {
   }
 
   /*
-    Pantalla de Inventario.
+    INVENTARIO
   */
   if (
     pantallaActual ===
     "inventario"
   ) {
+    if (
+      !puedeVerInventario &&
+      !puede(
+        "registrar_producto_solicitado"
+      )
+    ) {
+      return mostrarAccesoDenegado(
+        "Inventario"
+      );
+    }
+
     return (
       <InventarioPage
         volverAlDashboard={() =>
@@ -344,12 +716,74 @@ function App() {
   }
 
   /*
-    Pantalla del Importador.
+    USUARIOS
+  */
+  if (
+    pantallaActual ===
+    "usuarios"
+  ) {
+    if (
+      !puedeAdministrarUsuarios()
+    ) {
+      return mostrarAccesoDenegado(
+        "Administración de Usuarios"
+      );
+    }
+
+    return (
+      <CentroUsuarios
+        volverAlDashboard={() =>
+          setPantallaActual(
+            "dashboard"
+          )
+        }
+      />
+    );
+  }
+
+  /*
+    ÓRDENES
+  */
+  if (
+    pantallaActual ===
+    "ordenes"
+  ) {
+    if (
+      !puede(
+        "ver_ordenes"
+      )
+    ) {
+      return mostrarAccesoDenegado(
+        "Centro de Órdenes"
+      );
+    }
+
+    return (
+      <CentroOrdenes
+        volverAlDashboard={() =>
+          setPantallaActual(
+            "dashboard"
+          )
+        }
+      />
+    );
+  }
+
+  /*
+    IMPORTADOR
   */
   if (
     pantallaActual ===
     "importador"
   ) {
+    if (
+      !puedeImportarReportes()
+    ) {
+      return mostrarAccesoDenegado(
+        "Importador de Reportes"
+      );
+    }
+
     return (
       <ImportadorPage
         volverAlDashboard={() =>
@@ -362,12 +796,20 @@ function App() {
   }
 
   /*
-    Centro de Inteligencia Empresarial.
+    INTELIGENCIA
   */
   if (
     pantallaActual ===
     "inteligencia"
   ) {
+    if (
+      !puedeUsarInteligencia()
+    ) {
+      return mostrarAccesoDenegado(
+        "Director General IA"
+      );
+    }
+
     return (
       <CentroInteligencia
         datosDashboard={
@@ -375,6 +817,9 @@ function App() {
         }
         movimientos={
           movimientos
+        }
+        importacionId={
+          importacionId
         }
         cargandoDashboard={
           cargandoDashboard
@@ -396,45 +841,130 @@ function App() {
     DASHBOARD PRINCIPAL
     ==========================================
   */
+
+  if (
+    !tieneAlgúnPermiso
+  ) {
+    return (
+      <main
+        className="app"
+      >
+        <Header />
+
+        <section
+          style={{
+            maxWidth:
+              "720px",
+            margin:
+              "50px auto",
+            padding:
+              "34px",
+            background:
+              "#ffffff",
+            border:
+              "1px solid #eadde4",
+            borderRadius:
+              "18px",
+            textAlign:
+              "center",
+            boxShadow:
+              "0 10px 30px rgba(94, 48, 72, 0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize:
+                "44px",
+              marginBottom:
+                "12px",
+            }}
+          >
+            🔐
+          </div>
+
+          <h2
+            style={{
+              color:
+                "#2c2030",
+              marginBottom:
+                "10px",
+            }}
+          >
+            Usuario sin permisos asignados
+          </h2>
+
+          <p
+            style={{
+              color:
+                "#766a70",
+              lineHeight:
+                1.6,
+            }}
+          >
+            Hola{" "}
+            <strong>
+              {usuario?.nombre}
+            </strong>
+            . Tu cuenta está activa,
+            pero todavía no tiene
+            permisos para utilizar
+            módulos de MONYS OS.
+          </p>
+
+          <p
+            style={{
+              color:
+                "#766a70",
+            }}
+          >
+            Un administrador deberá
+            asignarte los accesos
+            correspondientes.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app">
       <Header />
 
-      <Indicadores
-        disponible={
-          disponible
-        }
-        entradas={
-          entradas
-        }
-        salidas={
-          salidas
-        }
-        cantidadMovimientos={
-          movimientos.length
-        }
-        ventasTotales={
-          ventasTotales
-        }
-        utilidadTotal={
-          utilidadTotal
-        }
-        margenUtilidad={
-          margenUtilidad
-        }
-        totalPiezas={
-          totalPiezas
-        }
-        formatoDinero={
-          formatoDinero
-        }
-      />
+      {(puedeVerFinanzas ||
+        puedeVerVentas) && (
+        <Indicadores
+          disponible={
+            disponible
+          }
+          entradas={
+            entradas
+          }
+          salidas={
+            salidas
+          }
+          cantidadMovimientos={
+            movimientos.length
+          }
+          ventasTotales={
+            ventasTotales
+          }
+          utilidadTotal={
+            utilidadTotal
+          }
+          margenUtilidad={
+            margenUtilidad
+          }
+          totalPiezas={
+            totalPiezas
+          }
+          formatoDinero={
+            formatoDinero
+          }
+        />
+      )}
 
-      {/* ================================= */}
-      {/* DECISIONES PRIORITARIAS DE HOY */}
-      {/* ================================= */}
-
-      {!cargandoDashboard &&
+      {esOwner &&
+        !cargandoDashboard &&
         !errorDashboard &&
         datosDashboard && (
           <AccionesPrioritarias
@@ -447,135 +977,151 @@ function App() {
           />
         )}
 
-      <DirectorGeneralIA
-        cantidadMovimientos={
-          movimientos.length
-        }
-        disponible={
-          disponible
-        }
-        formatoDinero={
-          formatoDinero
-        }
-        datosDashboard={
-          datosDashboard
-        }
-        movimientos={
-          movimientos
-        }
-        entradas={
-          entradas
-        }
-        salidas={
-          salidas
-        }
-        abrirSalaConsejo={() =>
-          setPantallaActual(
-            "inteligencia"
-          )
-        }
-      />
-
-      <SicarResumen
-        datosDashboard={
-          datosDashboard
-        }
-        cargandoDashboard={
-          cargandoDashboard
-        }
-        errorDashboard={
-          errorDashboard
-        }
-      />
-
-      <AccionesRapidas
-        modulos={
-          modulos
-        }
-        abrirModulo={
-          abrirModulo
-        }
-      />
-
-      <HistorialMovimientos
-        movimientos={
-          movimientos
-        }
-        formatoDinero={
-          formatoDinero
-        }
-        onCambiarEstado={
-          cambiarEstadoMovimiento
-        }
-      />
-
-      <h2 className="titulo-seccion">
-        Últimos movimientos
-      </h2>
-
-      <section className="lista-movimientos">
-        {movimientos.length ===
-        0 ? (
-          <div className="sin-registros">
-            Todavía no hay movimientos registrados.
-          </div>
-        ) : (
-          movimientos
-            .slice(0, 8)
-            .map(
-              (movimiento) => (
-                <article
-                  className="movimiento"
-                  key={
-                    movimiento.id
-                  }
-                >
-                  <div>
-                    <strong>
-                      {movimiento.tipo ===
-                      "ENTRADA"
-                        ? "📥"
-                        : "📤"}{" "}
-                      {formatoDinero(
-                        movimiento.monto
-                      )}
-                    </strong>
-
-                    <p>
-                      {
-                        movimiento.concepto
-                      }
-                    </p>
-
-                    <small>
-                      {
-                        movimiento.negocio
-                      }{" "}
-                      ·{" "}
-                      {
-                        movimiento.sucursal
-                      }
-                    </small>
-                  </div>
-
-                  <div className="movimiento-derecha">
-                    <span>
-                      {
-                        movimiento.estado
-                      }
-                    </span>
-
-                    <small>
-                      {
-                        movimiento.fecha
-                      }
-                    </small>
-                  </div>
-                </article>
-              )
+      {puedeUsarInteligencia() && (
+        <DirectorGeneralIA
+          cantidadMovimientos={
+            movimientos.length
+          }
+          disponible={
+            disponible
+          }
+          formatoDinero={
+            formatoDinero
+          }
+          datosDashboard={
+            datosDashboard
+          }
+          movimientos={
+            movimientos
+          }
+          entradas={
+            entradas
+          }
+          salidas={
+            salidas
+          }
+          abrirSalaConsejo={() =>
+            setPantallaActual(
+              "inteligencia"
             )
-        )}
-      </section>
+          }
+        />
+      )}
+
+      {(puedeVerVentas ||
+        puedeVerInventario) && (
+        <SicarResumen
+          datosDashboard={
+            datosDashboard
+          }
+          cargandoDashboard={
+            cargandoDashboard
+          }
+          errorDashboard={
+            errorDashboard
+          }
+        />
+      )}
+
+      {modulosVisibles.length >
+        0 && (
+        <AccionesRapidas
+          modulos={
+            modulosVisibles
+          }
+          abrirModulo={
+            abrirModulo
+          }
+        />
+      )}
+
+      {puedeVerFinanzas && (
+        <>
+          <HistorialMovimientos
+            movimientos={
+              movimientos
+            }
+            formatoDinero={
+              formatoDinero
+            }
+            onCambiarEstado={
+              cambiarEstadoMovimiento
+            }
+          />
+
+          <h2 className="titulo-seccion">
+            Últimos movimientos
+          </h2>
+
+          <section className="lista-movimientos">
+            {movimientos.length ===
+            0 ? (
+              <div className="sin-registros">
+                Todavía no hay
+                movimientos
+                registrados.
+              </div>
+            ) : (
+              movimientos
+                .slice(0, 8)
+                .map(
+                  (
+                    movimiento
+                  ) => (
+                    <article
+                      className="movimiento"
+                      key={
+                        movimiento.id
+                      }
+                    >
+                      <div>
+                        <strong>
+                          {movimiento.tipo ===
+                          "ENTRADA"
+                            ? "📥"
+                            : "📤"}{" "}
+                          {formatoDinero(
+                            movimiento.monto
+                          )}
+                        </strong>
+
+                        <p>
+                          {
+                            movimiento.concepto
+                          }
+                        </p>
+
+                        <small>
+                          {
+                            movimiento.negocio
+                          }{" "}
+                          ·{" "}
+                          {
+                            movimiento.sucursal
+                          }
+                        </small>
+                      </div>
+
+                      <div className="movimiento-derecha">
+                        <span>
+                          {
+                            movimiento.estado
+                          }
+                        </span>
+
+                        <small>
+                          {
+                            movimiento.fecha
+                          }
+                        </small>
+                      </div>
+                    </article>
+                  )
+                )
+            )}
+          </section>
+        </>
+      )}
     </main>
   );
 }

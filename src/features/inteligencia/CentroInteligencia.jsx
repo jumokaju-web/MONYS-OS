@@ -1,10 +1,27 @@
 import { useState } from "react";
 import ResumenDirectorGeneral from "./components/director-general/ResumenDirectorGeneral";
+import PanelCEOIA from "./components/PanelCEOIA";
 import { obtenerResumenConsejo } from "./consejo-directivo/consejoDirectivo";
 import DirectorComercial from "./components/director-comercial/DirectorComercial";
 import DirectorInventario from "./components/director-comercial/director-inventario/DirectorInventario";
 import DirectorFinanciero from "./components/director-finanzas/DirectorFinanciero";
 import SalaConsejoIA from "./SalaConsejoIA";
+
+import {
+  generarDecisionCEO,
+} from "./ia/ceo/directorGeneralIA";
+
+import {
+  generarAnalisisFinanciero,
+} from "./ia/directorFinancieroIA";
+
+import {
+  directorComercialIA,
+} from "./directores/directorComercialIA";
+
+import {
+  analizarInventario,
+} from "./analyzers/inventarioAnalyzer";
 
 const directores = [
 
@@ -71,6 +88,15 @@ const directores = [
     estado: "En desarrollo",
     disponible: false,
   },
+  {
+  id: "ceo",
+  icono: "👑",
+  nombre: "Director General IA",
+  descripcion:
+    "Coordina a todos los directores de IA y toma decisiones estratégicas para el negocio.",
+  estado: "Disponible",
+  disponible: true,
+},
 ];
 
 function CentroInteligencia({
@@ -79,6 +105,7 @@ function CentroInteligencia({
   cargandoDashboard,
   errorDashboard,
   volverAlDashboard,
+  importacionId,
 }) {
 
   const [directorAbierto, setDirectorAbierto] =
@@ -107,6 +134,43 @@ function CentroInteligencia({
   }
 
   const metricas = datosDashboard?.metricas;
+
+  const decisionCEO = generarDecisionCEO({
+  analisisFinanciero: generarAnalisisFinanciero({
+    movimientos,
+    ventasTotales:
+      metricas?.ventasTotales ?? 0,
+    costoTotal:
+      metricas?.costoTotal ?? 0,
+    utilidadTotal:
+      metricas?.utilidadTotal ?? 0,
+    margenUtilidad:
+      metricas?.margenUtilidad ?? 0,
+  }),
+
+    importacionId,
+  
+  analisisComercial:
+    directorComercialIA(
+      datosDashboard || {}
+    ),
+
+ analisisInventario:
+  analizarInventario(
+    datosDashboard?.inventario
+      ?.detalles || [],
+    {
+      ventas:
+        datosDashboard?.inteligencia
+          ?.comercial?.ventas || [],
+
+      diasAnalizados:
+        metricas?.diasAnalizados || 7,
+
+      diasObjetivoInventario: 30,
+    }
+  ),
+});
 
   const abrirDirector = (director) => {
     if (!director.disponible) {
@@ -373,9 +437,16 @@ function CentroInteligencia({
   />
 )}
 
+{directorAbierto === "ceo" && (
+  <PanelCEOIA
+    decisionCEO={decisionCEO}
+  />
+)}
 
     </main>
   );
 }
 
 export default CentroInteligencia;
+
+
