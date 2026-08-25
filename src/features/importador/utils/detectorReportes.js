@@ -133,28 +133,37 @@ export function detectarReporte(encabezados = []) {
     "folio",
   ]);
 
-  const tieneTotalVenta = contieneAlgunaColumna(
-    columnas,
-    [
-      "total ven",
-      "total venta",
-      "total ventas",
-    ]
-  );
+ const tieneTotalVenta = contieneAlgunaColumna(
+  columnas,
+  [
+    "total ven",
+    "total venta",
+    "total ventas",
+    "ventatotal",
+    "importe",
+  ]
+);
 
-  const tieneTotalCompra = contieneAlgunaColumna(
-    columnas,
-    [
-      "total com",
-      "total compra",
-      "total compras",
-    ]
-  );
+const tieneTotalCompra = contieneAlgunaColumna(
+  columnas,
+  [
+    "total com",
+    "total compra",
+    "total compras",
+    "costototal",
+    "costo total",
+    "costo",
+  ]
+);
 
-  const tieneUtilidad = contieneAlgunaColumna(
-    columnas,
-    ["utilidad"]
-  );
+const tieneUtilidad = contieneAlgunaColumna(
+  columnas,
+  [
+    "utilidad",
+    "utilidad total",
+    "utilidadtotal",
+  ]
+);
 
    const tieneNoProveedor =
     contieneAlgunaColumna(columnas, [

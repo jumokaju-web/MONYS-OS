@@ -1,4 +1,8 @@
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   detectarReporte,
   encontrarFilaEncabezados,
@@ -23,6 +27,10 @@ import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/mo
 import AnalisisEjecutivo from "./AnalisisEjecutivo";
 import { ejecutarIA } from "../../../core/engine/iaEngine";
 import { actualizarEmpresa } from "../../../core/engine/empresaActual";
+import { useUser } from "../../../context/UserContext";
+import {
+  obtenerSucursalesInventario,
+} from "../../inventario/services/inventarioService";
 
 const REPORTES_ESPERADOS = [
   "Ventas por artículo",
@@ -146,6 +154,48 @@ function obtenerEtiquetaEstado(estado) {
 }
 
 function ZonaCarga() {
+  const { usuario } = useUser();
+ const [sucursales, setSucursales] =
+  useState([]);
+
+const [
+  branchIdSeleccionado,
+  setBranchIdSeleccionado,
+] = useState(
+  usuario?.branch_id || ""
+);
+
+useEffect(() => {
+  async function cargarSucursales() {
+    try {
+      const resultado =
+        await obtenerSucursalesInventario();
+
+      setSucursales(resultado || []);
+
+      if (
+        !branchIdSeleccionado &&
+        usuario?.branch_id
+      ) {
+        setBranchIdSeleccionado(
+          usuario.branch_id
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error cargando sucursales:",
+        error
+      );
+    }
+  }
+
+  cargarSucursales();
+}, [
+  usuario?.branch_id,
+  branchIdSeleccionado,
+]);
+
+  console.log("USUARIO EN ZONA CARGA:", usuario);
   const inputArchivo = useRef(null);
 
   const [archivosProcesados, setArchivosProcesados] =
@@ -263,27 +313,113 @@ function ZonaCarga() {
         );
       }
 
-      const filasDelReporte =
-        filas.slice(indiceEncabezados);
+    const filasAntesEncabezados =
+  filas.slice(0, indiceEncabezados);
 
-      const encabezados = filasDelReporte[0] || [];
+let periodoInicio = null;
+let periodoFin = null;
 
-      const tipoReporte =
-        detectarReporte(encabezados);
+for (const filaCabecera of filasAntesEncabezados) {
+  const indicePeriodo =
+    filaCabecera.findIndex(
+      (valor) =>
+        String(valor ?? "")
+          .trim()
+          .toLowerCase()
+          .replace(":", "") ===
+        "periodo"
+    );
 
-      if (
-        !tipoReporte ||
-        tipoReporte === "Reporte desconocido"
-      ) {
-        throw new Error(
-          "MONYS OS no pudo identificar el reporte SICAR."
-        );
-      }
+  if (indicePeriodo === -1) {
+    continue;
+  }
 
-      const datosNormalizados = obtenerNormalizador(
-        tipoReporte,
-        filasDelReporte
+  const fechasNumericas =
+    filaCabecera
+      .slice(indicePeriodo + 1)
+      .map((valor) => Number(valor))
+      .filter(
+        (valor) =>
+          Number.isFinite(valor) &&
+          valor > 10000
       );
+
+  if (fechasNumericas.length >= 2) {
+    const convertirFechaExcel = (
+      numeroExcel
+    ) => {
+      const milisegundos =
+        Math.round(
+          (numeroExcel - 25569) *
+            86400 *
+            1000
+        );
+
+      return new Date(milisegundos)
+        .toISOString()
+        .slice(0, 10);
+    };
+
+    periodoInicio =
+      convertirFechaExcel(
+        fechasNumericas[0]
+      );
+
+    periodoFin =
+      convertirFechaExcel(
+        fechasNumericas[1]
+      );
+
+    break;
+  }
+}
+
+const filasDelReporte =
+  filas.slice(indiceEncabezados);
+
+const encabezados =
+  filasDelReporte[0] || [];
+
+const tipoReporte =
+  detectarReporte(encabezados);
+
+if (
+  !tipoReporte ||
+  tipoReporte === "Reporte desconocido"
+) {
+  throw new Error(
+    "MONYS OS no pudo identificar el reporte SICAR."
+  );
+}
+
+let datosNormalizados =
+  obtenerNormalizador(
+    tipoReporte,
+    filasDelReporte
+  );
+
+if (
+  tipoReporte ===
+  "Ventas por artículo"
+) {
+  if (
+    !periodoInicio ||
+    !periodoFin
+  ) {
+    throw new Error(
+      "MONYS OS no pudo detectar el periodo del reporte de Ventas por artículo."
+    );
+  }
+
+  datosNormalizados =
+    datosNormalizados.map(
+      (fila) => ({
+        ...fila,
+        periodoInicio,
+        periodoFin,
+      })
+    );
+}
 
       const vistaPrevia =
         filasDelReporte.slice(0, 6);
@@ -543,13 +679,14 @@ if (
 
         try {
          const importacionGuardada =
-  await guardarImportacion({
-    tipoReporte: item.tipoReporte,
-    archivoOriginal: item.nombre,
-    datosNormalizados:
-      item.datosNormalizados,
-  });
-
+ await guardarImportacion({
+  tipoReporte: item.tipoReporte,
+  archivoOriginal: item.nombre,
+  datosNormalizados:
+    item.datosNormalizados,
+ branchId:
+  branchIdSeleccionado || null,
+});
           actualizarArchivo(item.id, {
             estado: "importado",
           });
@@ -663,7 +800,54 @@ if (
           automáticamente.
         </p>
       </div>
+      <div
+  style={{
+    margin: "22px auto 0",
+    maxWidth: "420px",
+    textAlign: "left",
+  }}
+>
+  <label
+    style={{
+      display: "block",
+      marginBottom: "8px",
+      fontWeight: "800",
+      color: "#7a315f",
+    }}
+  >
+    Sucursal del reporte
+  </label>
 
+  <select
+    value={branchIdSeleccionado}
+    onChange={(evento) =>
+      setBranchIdSeleccionado(
+        evento.target.value
+      )
+    }
+    style={{
+      width: "100%",
+      padding: "12px 14px",
+      borderRadius: "10px",
+      border: "1px solid #d4b5c7",
+      backgroundColor: "#ffffff",
+      fontSize: "15px",
+    }}
+  >
+    <option value="">
+      Selecciona una sucursal
+    </option>
+
+    {sucursales.map((sucursal) => (
+      <option
+        key={sucursal.id}
+        value={sucursal.id}
+      >
+        {sucursal.name}
+      </option>
+    ))}
+  </select>
+</div>
       <div
         onClick={seleccionarArchivos}
         onDragEnter={manejarArrastre}

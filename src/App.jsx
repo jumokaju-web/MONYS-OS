@@ -16,10 +16,12 @@ import DirectorGeneralIA from "./features/dashboard/DirectorGeneralIA";
 import AccionesPrioritarias from "./features/inteligencia/components/AccionesPrioritarias";
 import AccionesRapidas from "./features/dashboard/AccionesRapidas";
 import SicarResumen from "./features/dashboard/components/SicarResumen";
-
+import OperacionHoy from "./features/inteligencia/components/OperacionHoy";
+import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
 import TesoreriaPage from "./features/tesoreria/pages/TesoreriaPage";
 import InventarioPage from "./features/inventario/pages/InventarioPage";
+import CompraMaestraPage from "./features/inventario/pages/CompraMaestraPage";
 import ImportadorPage from "./features/importador/pages/ImportadorPage";
 import DashboardPage from "./features/dashboard/pages/DashboardPage";
 import CentroInteligencia from "./features/inteligencia/CentroInteligencia";
@@ -38,6 +40,7 @@ import {
 const modulos = [
   ["💰", "Registrar dinero"],
   ["📦", "Producto solicitado"],
+  ["🛒", "Compra Maestra"],
   ["⚠️", "Problemas e incidencias"],
   ["💡", "Ideas y oportunidades"],
   ["🚚", "Flotilla"],
@@ -163,6 +166,11 @@ function App() {
             "ver_inventario"
           )
         );
+
+       case "Compra Maestra":
+  return puede(
+    "ver_inventario"
+  );
 
       case "Problemas e incidencias":
         return puede(
@@ -557,6 +565,17 @@ function App() {
         return;
       }
 
+       if (
+  nombre ===
+  "Compra Maestra"
+) {
+  setPantallaActual(
+    "compra-maestra"
+  );
+
+  return;
+}
+
       if (
         nombre ===
         "Producto solicitado"
@@ -588,26 +607,337 @@ function App() {
     cargandoUsuario ||
     cargandoPermisos
   ) {
+   
     return (
-      <main
-        className="app"
-      >
-        <div
+  <main className="app">
+    <Header />
+
+    {/* ==========================================
+        1. DIRECTOR GENERAL / JUNTA ARRIBA
+        ========================================== */}
+    {puedeUsarInteligencia() && (
+      <DirectorGeneralIA
+        cantidadMovimientos={
+          movimientos.length
+        }
+        disponible={disponible}
+        formatoDinero={formatoDinero}
+        datosDashboard={datosDashboard}
+        movimientos={movimientos}
+        entradas={entradas}
+        salidas={salidas}
+        abrirSalaConsejo={() =>
+          setPantallaActual(
+            "inteligencia"
+          )
+        }
+      />
+    )}
+
+    {/* ==========================================
+        2. INDICADORES PRINCIPALES
+        ========================================== */}
+    {(puedeVerFinanzas ||
+      puedeVerVentas) && (
+      <Indicadores
+        disponible={disponible}
+        entradas={entradas}
+        salidas={salidas}
+        cantidadMovimientos={
+          movimientos.length
+        }
+        ventasTotales={
+          ventasTotales
+        }
+        utilidadTotal={
+          utilidadTotal
+        }
+        margenUtilidad={
+          margenUtilidad
+        }
+        totalPiezas={totalPiezas}
+        formatoDinero={
+          formatoDinero
+        }
+      />
+    )}
+
+    {/* ==========================================
+        3. ACCESOS RÁPIDOS
+        ========================================== */}
+    {modulosVisibles.length > 0 && (
+      <AccionesRapidas
+        modulos={modulosVisibles}
+        abrirModulo={abrirModulo}
+      />
+    )}
+
+    {/* ==========================================
+        4. INFORMACIÓN ADICIONAL PLEGABLE
+        ========================================== */}
+    <section
+      style={{
+        margin:
+          "24px auto",
+        maxWidth:
+          "1200px",
+        padding:
+          "0 16px",
+      }}
+    >
+      {esOwner &&
+        !cargandoDashboard &&
+        !errorDashboard &&
+        datosDashboard && (
+          <details
+            style={{
+              marginBottom:
+                "14px",
+              background:
+                "#ffffff",
+              border:
+                "1px solid #eadde4",
+              borderRadius:
+                "14px",
+              overflow:
+                "hidden",
+            }}
+          >
+            <summary
+              style={{
+                padding:
+                  "16px 18px",
+                cursor:
+                  "pointer",
+                fontWeight:
+                  "800",
+                color:
+                  "#6f3153",
+              }}
+            >
+              🎯 Acciones prioritarias
+            </summary>
+
+            <div
+              style={{
+                padding:
+                  "0 14px 18px",
+              }}
+            >
+            <AccionesPrioritarias
+  datosDashboard={
+    datosDashboard
+  }
+  movimientos={
+    movimientos
+  }
+  branchId={
+    datosDashboard?.branch_id ||
+    null
+  }
+/>
+            </div>
+          </details>
+        )}
+
+  
+
+      {(puedeVerVentas ||
+        puedeVerInventario) && (
+        <details
           style={{
-            padding:
-              "60px 20px",
-            textAlign:
-              "center",
-            color:
-              "#766a70",
+            marginBottom:
+              "14px",
+            background:
+              "#ffffff",
+            border:
+              "1px solid #eadde4",
+            borderRadius:
+              "14px",
+            overflow:
+              "hidden",
           }}
         >
-          Cargando acceso de
-          MONYS OS...
-        </div>
-      </main>
-    );
+          <summary
+            style={{
+              padding:
+                "16px 18px",
+              cursor:
+                "pointer",
+              fontWeight:
+                "800",
+              color:
+                "#6f3153",
+            }}
+          >
+            📊 Resumen SICAR
+          </summary>
+
+          <div
+            style={{
+              padding:
+                "0 14px 18px",
+            }}
+          >
+
+  <SicarResumen
+  datosDashboard={
+    datosDashboard
   }
+  cargandoDashboard={
+    cargandoDashboard
+  }
+  errorDashboard={
+    errorDashboard
+  }
+/>
+
+            <SicarResumen
+              datosDashboard={
+                datosDashboard
+              }
+              cargandoDashboard={
+                cargandoDashboard
+              }
+              errorDashboard={
+                errorDashboard
+              }
+            />
+          </div>
+        </details>
+      )}
+
+      {puedeVerFinanzas && (
+        <details
+          style={{
+            marginBottom:
+              "14px",
+            background:
+              "#ffffff",
+            border:
+              "1px solid #eadde4",
+            borderRadius:
+              "14px",
+            overflow:
+              "hidden",
+          }}
+        >
+          <summary
+            style={{
+              padding:
+                "16px 18px",
+              cursor:
+                "pointer",
+              fontWeight:
+                "800",
+              color:
+                "#6f3153",
+            }}
+          >
+            💰 Movimientos y Tesorería
+          </summary>
+
+          <div
+            style={{
+              padding:
+                "0 14px 18px",
+            }}
+          >
+            <HistorialMovimientos
+              movimientos={
+                movimientos
+              }
+              formatoDinero={
+                formatoDinero
+              }
+              onCambiarEstado={
+                cambiarEstadoMovimiento
+              }
+            />
+
+            <h2
+              className="titulo-seccion"
+              style={{
+                marginTop:
+                  "26px",
+              }}
+            >
+              Últimos movimientos
+            </h2>
+
+            <section className="lista-movimientos">
+              {movimientos.length ===
+              0 ? (
+                <div className="sin-registros">
+                  Todavía no hay
+                  movimientos registrados.
+                </div>
+              ) : (
+                movimientos
+                  .slice(0, 8)
+                  .map(
+                    (
+                      movimiento
+                    ) => (
+                      <article
+                        className="movimiento"
+                        key={
+                          movimiento.id
+                        }
+                      >
+                        <div>
+                          <strong>
+                            {movimiento.tipo ===
+                            "ENTRADA"
+                              ? "📥"
+                              : "📤"}{" "}
+                            {formatoDinero(
+                              movimiento.monto
+                            )}
+                          </strong>
+
+                          <p>
+                            {
+                              movimiento.concepto
+                            }
+                          </p>
+
+                          <small>
+                            {
+                              movimiento.negocio
+                            }{" "}
+                            ·{" "}
+                            {
+                              movimiento.sucursal
+                            }
+                          </small>
+                        </div>
+
+                        <div className="movimiento-derecha">
+                          <span>
+                            {
+                              movimiento.estado
+                            }
+                          </span>
+
+                          <small>
+                            {
+                              movimiento.fecha
+                            }
+                          </small>
+                        </div>
+                      </article>
+                    )
+                  )
+              )}
+            </section>
+          </div>
+        </details>
+      )}
+    </section>
+  </main>
+);
+}
 
   if (
     errorUsuario
@@ -686,34 +1016,60 @@ function App() {
     );
   }
 
-  /*
-    INVENTARIO
-  */
+ /*
+  INVENTARIO
+*/
+if (
+  pantallaActual ===
+  "inventario"
+) {
   if (
-    pantallaActual ===
-    "inventario"
+    !puedeVerInventario &&
+    !puede(
+      "registrar_producto_solicitado"
+    )
   ) {
-    if (
-      !puedeVerInventario &&
-      !puede(
-        "registrar_producto_solicitado"
-      )
-    ) {
-      return mostrarAccesoDenegado(
-        "Inventario"
-      );
-    }
-
-    return (
-      <InventarioPage
-        volverAlDashboard={() =>
-          setPantallaActual(
-            "dashboard"
-          )
-        }
-      />
+    return mostrarAccesoDenegado(
+      "Inventario"
     );
   }
+
+  return (
+    <InventarioPage
+      volverAlDashboard={() =>
+        setPantallaActual(
+          "dashboard"
+        )
+      }
+    />
+  );
+}
+
+/*
+  COMPRA MAESTRA
+*/
+if (
+  pantallaActual ===
+  "compra-maestra"
+) {
+  if (
+    !puedeVerInventario
+  ) {
+    return mostrarAccesoDenegado(
+      "Compra Maestra"
+    );
+  }
+
+  return (
+    <CompraMaestraPage
+      volverAlDashboard={() =>
+        setPantallaActual(
+          "dashboard"
+        )
+      }
+    />
+  );
+}
 
   /*
     USUARIOS
@@ -963,18 +1319,45 @@ function App() {
         />
       )}
 
+       <OperacionHoy
+  organizationId={
+    datosDashboard?.organization_id ||
+    null
+  }
+  businessId={
+    datosDashboard?.business_id ||
+    null
+  }
+  branchId={
+    datosDashboard?.branch_id ||
+    null
+  }
+/>
+
+   <CierreTurno
+  branchId={
+    datosDashboard?.branch_id ||
+    null
+  }
+/>
+
+
       {esOwner &&
         !cargandoDashboard &&
         !errorDashboard &&
         datosDashboard && (
-          <AccionesPrioritarias
-            datosDashboard={
-              datosDashboard
-            }
-            movimientos={
-              movimientos
-            }
-          />
+        <AccionesPrioritarias
+  datosDashboard={
+    datosDashboard
+  }
+  movimientos={
+    movimientos
+  }
+  branchId={
+    datosDashboard?.branch_id ||
+    null
+  }
+/>
         )}
 
       {puedeUsarInteligencia() && (

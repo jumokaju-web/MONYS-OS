@@ -84,7 +84,9 @@ const textoEstadoGeneral = String(
 
 const semaforoFinanzas =
   textoEstadoGeneral.includes("riesgo") ||
-  textoEstadoGeneral.includes("crítica")
+  textoEstadoGeneral.includes("crítica") ||
+  textoEstadoGeneral.includes("comprometida") ||
+  textoEstadoGeneral.includes("obligaciones próximas")
     ? {
         nivel: "Rojo",
         icono: "🔴",
@@ -481,101 +483,58 @@ const semaforoComercial =
   );
 })()}
 
-     <div
+ <div
   style={{
     padding: "12px 18px",
     borderRadius: "999px",
+
     background:
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("riesgo") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("crítica") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("inmediata")
+      textoEstadoGeneral.includes("riesgo") ||
+      textoEstadoGeneral.includes("crítica") ||
+      textoEstadoGeneral.includes("inmediata") ||
+      textoEstadoGeneral.includes("comprometida")
         ? "#ffe8e8"
-        : decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("limitada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("ajustada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("atención")
+        : textoEstadoGeneral.includes("limitada") ||
+          textoEstadoGeneral.includes("ajustada") ||
+          textoEstadoGeneral.includes("atención")
         ? "#fff4cc"
         : "#e7f8ec",
 
     border:
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("riesgo") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("crítica") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("inmediata")
+      textoEstadoGeneral.includes("riesgo") ||
+      textoEstadoGeneral.includes("crítica") ||
+      textoEstadoGeneral.includes("inmediata") ||
+      textoEstadoGeneral.includes("comprometida")
         ? "1px solid #f0a5a5"
-        : decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("limitada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("ajustada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("atención")
+        : textoEstadoGeneral.includes("limitada") ||
+          textoEstadoGeneral.includes("ajustada") ||
+          textoEstadoGeneral.includes("atención")
         ? "1px solid #e5c75d"
         : "1px solid #9fd2ae",
 
     color:
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("riesgo") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("crítica") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("inmediata")
+      textoEstadoGeneral.includes("riesgo") ||
+      textoEstadoGeneral.includes("crítica") ||
+      textoEstadoGeneral.includes("inmediata") ||
+      textoEstadoGeneral.includes("comprometida")
         ? "#9e2c2c"
-        : decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("limitada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("ajustada") ||
-          decisionCEO.estadoGeneral
-            ?.toLowerCase()
-            .includes("atención")
+        : textoEstadoGeneral.includes("limitada") ||
+          textoEstadoGeneral.includes("ajustada") ||
+          textoEstadoGeneral.includes("atención")
         ? "#8a6800"
         : "#207a4a",
 
     fontWeight: "900",
   }}
 >
-  {decisionCEO.estadoGeneral
-    ?.toLowerCase()
-    .includes("riesgo") ||
-  decisionCEO.estadoGeneral
-    ?.toLowerCase()
-    .includes("crítica") ||
-  decisionCEO.estadoGeneral
-    ?.toLowerCase()
-    .includes("inmediata")
+  {textoEstadoGeneral.includes("riesgo") ||
+  textoEstadoGeneral.includes("crítica") ||
+  textoEstadoGeneral.includes("inmediata") ||
+  textoEstadoGeneral.includes("comprometida")
     ? "🔴 "
-    : decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("limitada") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("ajustada") ||
-      decisionCEO.estadoGeneral
-        ?.toLowerCase()
-        .includes("atención")
+    : textoEstadoGeneral.includes("limitada") ||
+      textoEstadoGeneral.includes("ajustada") ||
+      textoEstadoGeneral.includes("atención")
     ? "🟡 "
     : "🟢 "}
 

@@ -105,6 +105,11 @@ export function generarDecisionCEO({
       financiero.dineroDisponible
     );
 
+  const vencimientos30Dias =
+    convertirNumero(
+      financiero.vencimientos30Dias
+    );
+
   const capacidadCompra =
     convertirNumero(
       financiero.capacidadCompra
@@ -144,7 +149,13 @@ export function generarDecisionCEO({
   let estadoLiquidez =
     "ESTABLE";
 
-  if (dineroDisponible < 0) {
+  if (
+    dineroDisponible < 0 ||
+    (
+      vencimientos30Dias > 0 &&
+      capacidadCompra <= 0
+    )
+  ) {
     estadoLiquidez =
       "CRITICA";
   } else if (
@@ -234,7 +245,11 @@ export function generarDecisionCEO({
       titulo:
         "Detener nuevas compras",
       descripcion:
-        "La liquidez no permite autorizar nuevas compras en este momento.",
+        vencimientos30Dias > 0
+          ? `Existen ${formatoDinero(
+              vencimientos30Dias
+            )} en compromisos con proveedores dentro de los próximos 30 días. No se recomienda autorizar nuevas compras hasta proteger estas obligaciones.`
+          : "La liquidez no permite autorizar nuevas compras en este momento.",
       impacto: "ALTO",
     });
   }
@@ -336,12 +351,16 @@ export function generarDecisionCEO({
         normalizarPrioridad(
           accion.prioridad
         ),
+
       area:
         "Director Financiero",
+
       titulo:
         accion.titulo,
+
       descripcion:
         accion.descripcion,
+
       impacto:
         accion.impacto || "MEDIO",
     });
@@ -355,12 +374,16 @@ export function generarDecisionCEO({
         normalizarPrioridad(
           accion.prioridad
         ),
+
       area:
         "Director Comercial",
+
       titulo:
         accion.titulo,
+
       descripcion:
         accion.descripcion,
+
       impacto:
         accion.impacto || "MEDIO",
     });
@@ -396,11 +419,24 @@ export function generarDecisionCEO({
   if (
     estadoLiquidez === "CRITICA"
   ) {
-    estadoGeneral =
-      "Atención ejecutiva inmediata";
+    if (
+      vencimientos30Dias > 0 &&
+      capacidadCompra <= 0
+    ) {
+      estadoGeneral =
+        "Liquidez comprometida por obligaciones próximas";
 
-    mensajeCEO =
-      "La prioridad principal es recuperar liquidez. No recomiendo nuevas compras hasta estabilizar el flujo de efectivo.";
+      mensajeCEO =
+        `Existen ${formatoDinero(
+          vencimientos30Dias
+        )} en compromisos con proveedores dentro de los próximos 30 días. No recomiendo autorizar nuevas compras hasta proteger estas obligaciones.`;
+    } else {
+      estadoGeneral =
+        "Atención ejecutiva inmediata";
+
+      mensajeCEO =
+        "La prioridad principal es recuperar liquidez. No recomiendo nuevas compras hasta estabilizar el flujo de efectivo.";
+    }
   } else if (
     estadoLiquidez === "AJUSTADA" &&
     comprasAutorizadas.length > 0
@@ -438,6 +474,8 @@ export function generarDecisionCEO({
     reservaRecomendada,
 
     capacidadCompra,
+
+    vencimientos30Dias,
 
     inversionInventario,
 

@@ -8,6 +8,7 @@ export async function guardarImportacion({
   tipoReporte,
   archivoOriginal,
   datosNormalizados,
+  branchId,
 }) {
   const {
     data: importacion,
@@ -19,6 +20,7 @@ export async function guardarImportacion({
       archivo_original: archivoOriginal,
       estado: "procesado",
       total_filas: datosNormalizados.length,
+      branch_id: branchId || null,
     })
     .select()
     .single();

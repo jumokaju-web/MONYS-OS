@@ -171,10 +171,21 @@ function calcularNivelInventario({
     return "NEGATIVO";
   }
 
-  if (existencia === 0) {
+  /*
+    AGOTADO REAL:
+    existencia 0 + sí tuvo ventas.
+  */
+  if (
+    existencia === 0 &&
+    ventaDiaria > 0
+  ) {
     return "AGOTADO";
   }
 
+  /*
+    Si no tiene ventas, no lo tratamos
+    como producto urgente para resurtir.
+  */
   if (ventaDiaria <= 0) {
     return "SIN_ROTACION";
   }
@@ -199,6 +210,10 @@ function calcularSugerenciaCompra({
   ventaDiaria,
   diasObjetivoInventario,
 }) {
+  /*
+    Sin ventas registradas:
+    no sugerimos compra.
+  */
   if (ventaDiaria <= 0) {
     return 0;
   }
@@ -328,10 +343,6 @@ export function analizarInventario(
       productosConExistencia += 1;
     }
 
-    if (existencia === 0) {
-      productosAgotados += 1;
-    }
-
     if (existencia < 0) {
       productosNegativos += 1;
     }
@@ -346,6 +357,17 @@ export function analizarInventario(
       convertirNumero(
         ventaProducto?.piezasVendidas
       );
+
+    /*
+      Solo contamos como AGOTADO
+      cuando está en cero Y sí tuvo demanda.
+    */
+    if (
+      existencia === 0 &&
+      piezasVendidas > 0
+    ) {
+      productosAgotados += 1;
+    }
 
     const ventaDiaria =
       diasAnalizados > 0
@@ -381,15 +403,24 @@ export function analizarInventario(
       sugerenciaCompra *
       precioCompra;
 
-    if (nivelInventario === "CRITICO") {
+    if (
+      nivelInventario ===
+      "CRITICO"
+    ) {
       productosCriticos += 1;
     }
 
-    if (nivelInventario === "BAJO") {
+    if (
+      nivelInventario ===
+      "BAJO"
+    ) {
       productosBajos += 1;
     }
 
-    if (nivelInventario === "SALUDABLE") {
+    if (
+      nivelInventario ===
+      "SALUDABLE"
+    ) {
       productosSaludables += 1;
     }
 
@@ -414,10 +445,12 @@ export function analizarInventario(
 
       existencia,
       precioCompra,
+
       valorInventario:
         valorProducto,
 
       piezasVendidas,
+
       ventaDiaria,
 
       diasCobertura,
@@ -425,6 +458,7 @@ export function analizarInventario(
       nivelInventario,
 
       sugerenciaCompra,
+
       inversionReposicion,
     };
 
@@ -432,10 +466,15 @@ export function analizarInventario(
       productoAnalizado
     );
 
+    /*
+      EXISTENCIA NEGATIVA
+    */
     if (existencia < 0) {
       alertas.push({
         tipo: "negativo",
+
         prioridad: "critica",
+
         descripcion,
         codigo,
         existencia,
@@ -447,29 +486,45 @@ export function analizarInventario(
       continue;
     }
 
-    if (existencia === 0) {
+    /*
+      AGOTADO REAL
+
+      Solo entra aquí cuando:
+      existencia = 0
+      Y
+      piezas vendidas > 0.
+    */
+    if (
+      existencia === 0 &&
+      piezasVendidas > 0
+    ) {
       agotados.push(
         productoAnalizado
       );
 
       alertas.push({
         tipo: "agotado",
-        prioridad:
-          piezasVendidas > 0
-            ? "critica"
-            : "alta",
+
+        prioridad: "critica",
 
         descripcion,
         codigo,
         existencia,
+
         piezasVendidas,
 
         mensaje:
-          piezasVendidas > 0
-            ? "Producto agotado con ventas registradas. Requiere revisión de reposición."
-            : "Producto sin existencia disponible.",
+          "Producto agotado con ventas registradas. Requiere revisión de reposición.",
       });
     }
+
+    /*
+      PRODUCTO EN CERO SIN VENTAS
+
+      No genera alerta.
+      No entra a agotados.
+      No genera compra.
+    */
 
     if (
       nivelInventario ===
@@ -479,7 +534,8 @@ export function analizarInventario(
         tipo:
           "cobertura_critica",
 
-        prioridad: "critica",
+        prioridad:
+          "critica",
 
         descripcion,
         codigo,
@@ -496,13 +552,15 @@ export function analizarInventario(
     }
 
     if (
-      nivelInventario === "BAJO"
+      nivelInventario ===
+      "BAJO"
     ) {
       alertas.push({
         tipo:
           "inventario_bajo",
 
-        prioridad: "alta",
+        prioridad:
+          "alta",
 
         descripcion,
         codigo,
@@ -527,7 +585,15 @@ export function analizarInventario(
       );
     }
 
-    if (sugerenciaCompra > 0) {
+    /*
+      COMPRA
+
+      Solo habrá sugerencia cuando
+      realmente existe velocidad de venta.
+    */
+    if (
+      sugerenciaCompra > 0
+    ) {
       piezasSugeridasCompra +=
         sugerenciaCompra;
 

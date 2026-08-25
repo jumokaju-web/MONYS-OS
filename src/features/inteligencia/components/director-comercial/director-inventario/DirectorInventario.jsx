@@ -3,8 +3,20 @@
 // Director Inventario IA 3.0
 // ======================================================
 
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import TarjetaIndicador from "../../shared/TarjetaIndicador";
 import { analizarInventario } from "../../../analyzers/inventarioAnalyzer";
+import TransferenciasInventario from "../../../../inventario/components/TransferenciasInventario";
+import RecomendacionesRebalanceo from "../../../../inventario/components/RecomendacionesRebalanceo";
+import "../../../../inventario/services/compraMaestraService";
+import {
+  generarRecomendacionesRebalanceo,
+} from "../../../../inventario/services/rebalanceoInventarioService";
+
 
 function convertirNumero(valor) {
   const numero = Number(valor);
@@ -163,9 +175,113 @@ function obtenerEstiloPrioridad(
   };
 }
 
+function limpiarCodigo(valor) {
+  return String(valor ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function obtenerCodigoRecomendacion(
+  recomendacion
+) {
+  const codigo = limpiarCodigo(
+    recomendacion?.codigo
+  );
+
+  if (codigo) {
+    return codigo;
+  }
+
+  const productId = limpiarCodigo(
+    recomendacion?.productId
+  );
+
+  if (
+    productId.startsWith(
+      "codigo:"
+    )
+  ) {
+    return productId.slice(7);
+  }
+
+  return productId;
+}
+
 function DirectorInventario({
   datosDashboard,
+  analisisFinanciero = null,
 }) {
+
+
+  const branchId =
+    datosDashboard?.branch_id ||
+    null;
+
+  const [
+    recomendacionesRebalanceo,
+    setRecomendacionesRebalanceo,
+  ] = useState([]);
+
+  const [
+    rebalanceoValidado,
+    setRebalanceoValidado,
+  ] = useState(false);
+
+  const [
+    errorRebalanceo,
+    setErrorRebalanceo,
+  ] = useState("");
+
+  useEffect(() => {
+    let activo = true;
+
+    async function cargarRebalanceo() {
+      try {
+        setRebalanceoValidado(false);
+        setErrorRebalanceo("");
+
+        const recomendaciones =
+          await generarRecomendacionesRebalanceo();
+
+        if (!activo) {
+          return;
+        }
+
+        setRecomendacionesRebalanceo(
+          Array.isArray(recomendaciones)
+            ? recomendaciones
+            : []
+        );
+      } catch (error) {
+        console.error(
+          "Error al validar traspasos antes de comprar:",
+          error
+        );
+
+        if (!activo) {
+          return;
+        }
+
+        setRecomendacionesRebalanceo([]);
+
+        setErrorRebalanceo(
+          error?.message ||
+            "No fue posible validar los traspasos entre sucursales."
+        );
+      } finally {
+        if (activo) {
+          setRebalanceoValidado(true);
+        }
+      }
+    }
+
+    cargarRebalanceo();
+
+    return () => {
+      activo = false;
+    };
+  }, [branchId]);
+
   const detalles =
     Array.isArray(
       datosDashboard?.inventario
@@ -205,7 +321,7 @@ function DirectorInventario({
       }
     );
 
-  const resumen =
+  const resumenAnalisis =
     analisis?.resumen || {};
 
   const alertas =
@@ -215,12 +331,201 @@ function DirectorInventario({
       ? analisis.alertas
       : [];
 
-  const sugerenciasCompra =
+  const sugerenciasCompraBase =
     Array.isArray(
       analisis?.sugerenciasCompra
     )
       ? analisis.sugerenciasCompra
       : [];
+
+  /*
+    REGLA EJECUTIVA DE COMPRA:
+
+    1. Primero revisar si otra sucursal
+       puede cubrir el faltante mediante
+       un traspaso seguro.
+
+    2. Después comprar solamente lo que
+       todavía haga falta.
+  */
+  const traspasosEntrantesPorProducto =
+    new Map();
+
+  if (
+    branchId &&
+    rebalanceoValidado &&
+    !errorRebalanceo
+  ) {
+    for (
+      const recomendacion of
+      recomendacionesRebalanceo
+    ) {
+      if (
+        recomendacion?.branchDestinoId !==
+        branchId
+      ) {
+        continue;
+      }
+
+      const codigo =
+        obtenerCodigoRecomendacion(
+          recomendacion
+        );
+
+      if (!codigo) {
+        continue;
+      }
+
+      const cantidad = Math.max(
+        0,
+        convertirNumero(
+          recomendacion?.cantidadSugerida
+        )
+      );
+
+      const cantidadActual =
+        traspasosEntrantesPorProducto.get(
+          codigo
+        ) || 0;
+
+      traspasosEntrantesPorProducto.set(
+        codigo,
+        cantidadActual + cantidad
+      );
+    }
+  }
+
+  const sugerenciasCompraAjustadas =
+    sugerenciasCompraBase.map(
+      (producto) => {
+        const codigo = limpiarCodigo(
+          producto?.codigo
+        );
+
+        const compraOriginal = Math.max(
+          0,
+          convertirNumero(
+            producto?.cantidadSugerida
+          )
+        );
+
+        const traspasoDisponible =
+          codigo
+            ? traspasosEntrantesPorProducto.get(
+                codigo
+              ) || 0
+            : 0;
+
+        const cubiertoPorTraspaso =
+          Math.min(
+            compraOriginal,
+            traspasoDisponible
+          );
+
+        const cantidadSugerida =
+          Math.max(
+            0,
+            compraOriginal -
+              cubiertoPorTraspaso
+          );
+
+        const precioCompra =
+          Math.max(
+            0,
+            convertirNumero(
+              producto?.precioCompra
+            )
+          );
+
+        return {
+          ...producto,
+
+          compraOriginal,
+
+          cantidadCubiertaPorTraspaso:
+            cubiertoPorTraspaso,
+
+          cantidadSugerida,
+
+          inversionEstimada:
+            cantidadSugerida *
+            precioCompra,
+        };
+      }
+    );
+
+  const piezasCubiertasPorTraspaso =
+    sugerenciasCompraAjustadas.reduce(
+      (total, producto) =>
+        total +
+        convertirNumero(
+          producto
+            .cantidadCubiertaPorTraspaso
+        ),
+      0
+    );
+
+  const sugerenciasCompra =
+    rebalanceoValidado &&
+    !errorRebalanceo
+      ? sugerenciasCompraAjustadas.filter(
+          (producto) =>
+            convertirNumero(
+              producto.cantidadSugerida
+            ) > 0
+        )
+      : [];
+
+  const piezasSugeridasCompra =
+    sugerenciasCompra.reduce(
+      (total, producto) =>
+        total +
+        convertirNumero(
+          producto.cantidadSugerida
+        ),
+      0
+    );
+
+  const inversionSugerida =
+    sugerenciasCompra.reduce(
+      (total, producto) =>
+        total +
+        convertirNumero(
+          producto.inversionEstimada
+        ),
+      0
+    );
+
+    const presupuestoFinanciero =
+  Math.max(
+    0,
+    convertirNumero(
+      analisisFinanciero
+        ?.capacidadCompra
+    )
+  );
+
+const vencimientos30Dias =
+  Math.max(
+    0,
+    convertirNumero(
+      analisisFinanciero
+        ?.vencimientos30Dias
+    )
+  );
+
+const compraFinancieramenteAutorizada =
+  Math.min(
+    presupuestoFinanciero,
+    inversionSugerida
+  );
+
+  const resumen = {
+    ...resumenAnalisis,
+
+    piezasSugeridasCompra,
+    inversionSugerida,
+  };
 
   const sobreinventario =
     Array.isArray(
@@ -265,6 +570,379 @@ function DirectorInventario({
 
   const planAccion = [];
 
+   function imprimirRevisionInventario() {
+  const prioridadPeso = {
+    critica: 3,
+    alta: 2,
+    media: 1,
+    baja: 0,
+  };
+
+  const productosUnicos =
+    new Map();
+
+  const alertasOrdenadas =
+    [...alertas].sort(
+      (a, b) =>
+        (prioridadPeso[
+          String(
+            b?.prioridad || ""
+          ).toLowerCase()
+        ] || 0) -
+        (prioridadPeso[
+          String(
+            a?.prioridad || ""
+          ).toLowerCase()
+        ] || 0)
+    );
+
+  for (
+    const alerta of
+    alertasOrdenadas
+  ) {
+    const descripcion =
+      String(
+        alerta?.descripcion ||
+        "Producto"
+      ).trim();
+
+    if (
+      !descripcion ||
+      productosUnicos.has(
+        descripcion.toLowerCase()
+      )
+    ) {
+      continue;
+    }
+
+    productosUnicos.set(
+      descripcion.toLowerCase(),
+      {
+        descripcion,
+
+        codigo:
+          alerta?.codigo ||
+          alerta?.sku ||
+          "",
+
+        prioridad:
+          String(
+            alerta?.prioridad ||
+            ""
+          ).toUpperCase(),
+
+        existenciaSistema:
+          alerta?.existencia ??
+          alerta?.stock ??
+          "",
+
+        motivo:
+          alerta?.mensaje ||
+          "Revisión física requerida.",
+      }
+    );
+
+    if (
+      productosUnicos.size >= 30
+    ) {
+      break;
+    }
+  }
+
+  const productosRevision =
+    Array.from(
+      productosUnicos.values()
+    );
+
+  if (
+    productosRevision.length === 0
+  ) {
+    window.alert(
+      "MONYS no encontró productos prioritarios para imprimir."
+    );
+
+    return;
+  }
+
+  function escapar(valor) {
+    return String(
+      valor ?? ""
+    )
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  const nombreSucursal =
+    datosDashboard?.branch_name ||
+    datosDashboard?.sucursal ||
+    datosDashboard?.nombreSucursal ||
+    "Sucursal";
+
+  const filas =
+    productosRevision
+      .map(
+        (
+          producto,
+          index
+        ) => `
+          <tr>
+            <td>${index + 1}</td>
+
+            <td>
+              <strong>
+                ${escapar(
+                  producto.descripcion
+                )}
+              </strong>
+              ${
+                producto.codigo
+                  ? `<div class="codigo">
+                      ${escapar(
+                        producto.codigo
+                      )}
+                    </div>`
+                  : ""
+              }
+            </td>
+
+            <td>
+              ${escapar(
+                producto.prioridad
+              )}
+            </td>
+
+            <td>
+              ${escapar(
+                producto.existenciaSistema
+              )}
+            </td>
+
+            <td></td>
+
+            <td></td>
+
+            <td>
+              ${escapar(
+                producto.motivo
+              )}
+            </td>
+
+            <td></td>
+          </tr>
+        `
+      )
+      .join("");
+
+  const ventana =
+    window.open(
+      "",
+      "_blank",
+      "width=1200,height=800"
+    );
+
+  if (!ventana) {
+    window.alert(
+      "El navegador bloqueó la ventana de impresión."
+    );
+
+    return;
+  }
+
+  ventana.document.write(`
+    <!DOCTYPE html>
+
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+
+        <title>
+          Revisión de Inventario MONYS OS
+        </title>
+
+        <style>
+          body {
+            font-family:
+              Arial,
+              sans-serif;
+
+            margin: 24px;
+
+            color: #222;
+          }
+
+          h1 {
+            margin-bottom: 4px;
+          }
+
+          .subtitulo {
+            margin-bottom: 20px;
+
+            color: #666;
+          }
+
+          .datos {
+            display: flex;
+
+            justify-content:
+              space-between;
+
+            margin-bottom: 18px;
+
+            gap: 20px;
+          }
+
+          table {
+            width: 100%;
+
+            border-collapse:
+              collapse;
+
+            font-size: 12px;
+          }
+
+          th,
+          td {
+            border:
+              1px solid #888;
+
+            padding: 7px;
+
+            vertical-align:
+              top;
+          }
+
+          th {
+            background:
+              #f4f4f4;
+          }
+
+          td:nth-child(4),
+          td:nth-child(5),
+          td:nth-child(6) {
+            text-align:
+              center;
+
+            min-width:
+              65px;
+          }
+
+          td:nth-child(8) {
+            min-width:
+              90px;
+          }
+
+          .codigo {
+            margin-top: 3px;
+
+            font-size: 10px;
+
+            color: #666;
+          }
+
+          .firmas {
+            margin-top: 35px;
+
+            display: grid;
+
+            grid-template-columns:
+              1fr 1fr;
+
+            gap: 60px;
+          }
+
+          .firma {
+            border-top:
+              1px solid #333;
+
+            padding-top:
+              6px;
+
+            text-align:
+              center;
+          }
+
+          @media print {
+            body {
+              margin: 10mm;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <h1>
+          MONYS OS · Revisión de Inventario
+        </h1>
+
+        <div class="subtitulo">
+          Productos seleccionados automáticamente
+          por prioridad de revisión física.
+        </div>
+
+        <div class="datos">
+          <div>
+            <strong>Sucursal:</strong>
+            ${escapar(
+              nombreSucursal
+            )}
+          </div>
+
+          <div>
+            <strong>Fecha:</strong>
+            ${new Date().toLocaleDateString(
+              "es-MX"
+            )}
+          </div>
+
+          <div>
+            <strong>Productos:</strong>
+            ${productosRevision.length}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Producto</th>
+              <th>Prioridad</th>
+              <th>SICAR</th>
+              <th>Físico</th>
+              <th>Diferencia</th>
+              <th>Motivo / observación MONYS</th>
+              <th>Revisó</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${filas}
+          </tbody>
+        </table>
+
+        <div class="firmas">
+          <div class="firma">
+            Empleada que realizó revisión
+          </div>
+
+          <div class="firma">
+            Encargada / Supervisión
+          </div>
+        </div>
+
+        <script>
+          window.onload = function () {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  ventana.document.close();
+}
+
   if (!tieneDatosInventario) {
     planAccion.push(
       "Importar desde SICAR un reporte de Inventario, Existencias o Inventario/Utilidad."
@@ -295,16 +973,46 @@ function DirectorInventario({
     }
 
     if (
-      sugerenciasCompra.length > 0
+      piezasCubiertasPorTraspaso > 0
     ) {
       planAccion.push(
-        `Evaluar la compra sugerida de ${formatearNumero(
-          resumen.piezasSugeridasCompra
-        )} piezas con inversión estimada de ${formatearDinero(
-          resumen.inversionSugerida
-        )}.`
+        `Cubrir primero ${formatearNumero(
+          piezasCubiertasPorTraspaso
+        )} piezas mediante traspasos sugeridos entre sucursales antes de comprar.`
       );
     }
+
+    if (errorRebalanceo) {
+      planAccion.push(
+        "No autorizar compras hasta volver a validar los traspasos disponibles entre sucursales."
+      );
+   
+      } else if (
+  rebalanceoValidado &&
+  sugerenciasCompra.length > 0
+) {
+  if (
+    compraFinancieramenteAutorizada > 0
+  ) {
+    planAccion.push(
+      `Después de descontar los traspasos disponibles, Inventario detecta una necesidad de ${formatearNumero(
+        resumen.piezasSugeridasCompra
+      )} piezas con inversión estimada de ${formatearDinero(
+        resumen.inversionSugerida
+      )}. Finanzas autoriza actualmente hasta ${formatearDinero(
+        compraFinancieramenteAutorizada
+      )}.`
+    );
+  } else {
+    planAccion.push(
+      `Después de descontar los traspasos disponibles, Inventario detecta una necesidad de ${formatearNumero(
+        resumen.piezasSugeridasCompra
+      )} piezas con inversión estimada de ${formatearDinero(
+        resumen.inversionSugerida
+      )}, pero actualmente Finanzas no autoriza presupuesto para nuevas compras.`
+    );
+  }
+}
 
     if (
       resumen.productosSobreinventario >
@@ -385,6 +1093,21 @@ function DirectorInventario({
           {estiloEstado.icono}{" "}
           {estiloEstado.etiqueta}
         </div>
+        <button
+  type="button"
+  onClick={imprimirRevisionInventario}
+  style={{
+    padding: "11px 17px",
+    borderRadius: "12px",
+    border: "1px solid #d6a9bf",
+    backgroundColor: "#fff7fb",
+    color: "#a62d67",
+    fontWeight: "800",
+    cursor: "pointer",
+  }}
+>
+  🖨️ Imprimir 30 productos para revisar
+</button>
       </div>
 
       {!tieneDatosInventario && (
@@ -438,6 +1161,25 @@ function DirectorInventario({
             resumen.totalProductos || 0
           }
         />
+
+        <TarjetaIndicador
+  icono={
+    compraFinancieramenteAutorizada > 0
+      ? "✅"
+      : "⛔"
+  }
+  titulo="Presupuesto autorizado"
+  valor={formatearDinero(
+    compraFinancieramenteAutorizada
+  )}
+  subtitulo={
+    vencimientos30Dias > 0
+      ? `${formatearDinero(
+          vencimientos30Dias
+        )} comprometidos a 30 días`
+      : "Según capacidad financiera actual"
+  }
+/>
 
         <TarjetaIndicador
           icono="✅"
@@ -516,13 +1258,54 @@ function DirectorInventario({
       >
         <h3
           style={{
-            margin: "0 0 18px",
+            margin: "0 0 8px",
             color: "#207a4a",
           }}
         >
-          🛒 Compra sugerida por
-          Inventario IA
+        📦 Necesidad de compra detectada por
+      Inventario IA
         </h3>
+
+        <p
+          style={{
+            margin: "0 0 18px",
+            color: "#5f6d65",
+            lineHeight: "1.5",
+          }}
+        >
+        MONYS OS calcula la necesidad operativa
+     después de descontar los traspasos seguros.
+    La compra final queda sujeta al presupuesto
+     autorizado por Finanzas.
+        </p>
+
+        {!rebalanceoValidado && (
+          <p
+            style={{
+              margin: "0 0 18px",
+              color: "#8a6800",
+              fontWeight: "700",
+            }}
+          >
+            🔄 Validando traspasos antes de
+            calcular compras...
+          </p>
+        )}
+
+        {errorRebalanceo && (
+          <p
+            style={{
+              margin: "0 0 18px",
+              color: "#a52d2d",
+              fontWeight: "700",
+            }}
+          >
+            ⚠️ No se pudo validar el
+            rebalanceo. Las compras quedan
+            detenidas hasta revisar el
+            problema.
+          </p>
+        )}
 
         <div
           style={{
@@ -545,6 +1328,14 @@ function DirectorInventario({
             titulo="Inversión estimada"
             valor={formatearDinero(
               resumen.inversionSugerida
+            )}
+          />
+
+          <TarjetaIndicador
+            icono="🔄"
+            titulo="Cubiertas por traspaso"
+            valor={formatearNumero(
+              piezasCubiertasPorTraspaso
             )}
           />
 
@@ -594,8 +1385,9 @@ function DirectorInventario({
             }}
           >
             Productos ordenados según
-            existencia, rotación y
-            cobertura.
+            existencia, rotación y cobertura,
+            después de descontar lo que puede
+            cubrirse con traspasos internos.
           </p>
 
           <div
@@ -706,6 +1498,21 @@ function DirectorInventario({
                             )}
                           </strong>
                         </span>
+
+                        {producto
+                          .cantidadCubiertaPorTraspaso >
+                          0 && (
+                          <span>
+                            Traspaso cubre:{" "}
+                            <strong>
+                              {formatearNumero(
+                                producto
+                                  .cantidadCubiertaPorTraspaso
+                              )}{" "}
+                              pzas
+                            </strong>
+                          </span>
+                        )}
                       </div>
                     </article>
                   );
@@ -1013,6 +1820,9 @@ function DirectorInventario({
           )
         )}
       </div>
+      <RecomendacionesRebalanceo />
+
+      <TransferenciasInventario />
     </section>
   );
 }

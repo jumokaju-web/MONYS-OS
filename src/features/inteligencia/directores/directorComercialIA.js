@@ -3,6 +3,10 @@
 // Director Comercial IA
 // ======================================================
 
+import {
+  analizarInventario,
+} from "../analyzers/inventarioAnalyzer";
+
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -520,33 +524,101 @@ function obtenerNivelComercial(
   };
 }
 
-function generarOportunidades(
-  indicadores
+  function generarOportunidades(
+  indicadores,
+  inventarioProductoLider = null
 ) {
   const oportunidades = [];
 
   const top =
-    indicadores.topProductos ||
-    [];
+    indicadores.topProductos || [];
 
   const categorias =
-    indicadores.categorias ||
-    [];
+    indicadores.categorias || [];
 
   if (top.length > 0) {
     const lider = top[0];
 
-    oportunidades.push({
-      tipo: "RESURTIDO",
-      prioridad: "ALTA",
-      titulo:
-        "Proteger disponibilidad del producto líder",
-      descripcion:
-        `${lider.nombre} encabeza el periodo con ${lider.piezas.toLocaleString(
-          "es-MX"
-        )} piezas vendidas. Verifica existencia antes de una compra general.`,
-      producto: lider.nombre,
-    });
+    if (!inventarioProductoLider) {
+      oportunidades.push({
+        tipo: "VALIDACION",
+        prioridad: "MEDIA",
+        titulo:
+          "Validar disponibilidad del producto líder",
+        descripcion:
+          `${lider.nombre} encabeza el periodo con ${lider.piezas.toLocaleString(
+            "es-MX"
+          )} piezas vendidas. Falta confirmar su inventario actual antes de tomar una decisión comercial.`,
+        producto: lider.nombre,
+      });
+    } else {
+      const nivel =
+        inventarioProductoLider
+          .nivelInventario;
+
+      const existencia =
+        inventarioProductoLider
+          .existencia;
+
+      const cobertura =
+        Number(
+          inventarioProductoLider
+            .diasCobertura || 0
+        );
+
+      if (
+        nivel === "AGOTADO" ||
+        nivel === "CRITICO" ||
+        nivel === "BAJO"
+      ) {
+        oportunidades.push({
+          tipo: "RESURTIDO",
+          prioridad:
+            nivel === "AGOTADO"
+              ? "CRITICA"
+              : "ALTA",
+          titulo:
+            "Proteger ventas del producto líder",
+          descripcion:
+            `${lider.nombre} tiene ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas y aproximadamente ${cobertura.toFixed(
+              1
+            )} días de cobertura. Conviene proteger su disponibilidad para evitar pérdida de ventas.`,
+          producto: lider.nombre,
+        });
+      } else if (
+        nivel === "SOBREINVENTARIO"
+      ) {
+        oportunidades.push({
+          tipo: "ROTACION",
+          prioridad: "MEDIA",
+          titulo:
+            "Aprovechar inventario disponible del producto líder",
+          descripcion:
+            `${lider.nombre} lidera las ventas y actualmente tiene ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas, equivalentes a aproximadamente ${cobertura.toFixed(
+              1
+            )} días de cobertura. Existe oportunidad de impulsar su rotación sin realizar nuevas compras.`,
+          producto: lider.nombre,
+        });
+      } else if (
+        nivel === "SALUDABLE"
+      ) {
+        oportunidades.push({
+          tipo: "VENTA",
+          prioridad: "BAJA",
+          titulo:
+            "Mantener impulso del producto líder",
+          descripcion:
+            `${lider.nombre} tiene una cobertura saludable de aproximadamente ${cobertura.toFixed(
+              1
+            )} días. Puede mantenerse como producto estratégico sin aumentar innecesariamente el inventario.`,
+          producto: lider.nombre,
+        });
+      }
+    }
   }
 
   if (top.length >= 3) {
@@ -565,7 +637,7 @@ function generarOportunidades(
       titulo:
         "Concentrar esfuerzo en los líderes",
       descripcion:
-        `Los productos con mayor movimiento son ${nombres}. Úsalos para resurtido, exhibición y campañas.`,
+        `Los productos con mayor movimiento son ${nombres}. Úsalos para exhibición, seguimiento comercial y campañas, considerando siempre su cobertura de inventario.`,
     });
   }
 
@@ -608,7 +680,8 @@ function generarOportunidades(
 
 function generarRecomendaciones(
   indicadores,
-  nivelComercial
+  nivelComercial,
+  inventarioProductoLider = null
 ) {
   const recomendaciones = [];
 
@@ -635,11 +708,74 @@ function generarRecomendaciones(
   if (
     indicadores.productoLider.nombre
   ) {
-    recomendaciones.push(
-      `${indicadores.productoLider.nombre} es el producto líder con ${indicadores.productoLider.piezas.toLocaleString(
-        "es-MX"
-      )} piezas. Revisa existencias antes de autorizar compras generales.`
-    );
+    const nombre =
+      indicadores.productoLider.nombre;
+
+    const piezasVendidas =
+      indicadores.productoLider.piezas;
+
+    if (!inventarioProductoLider) {
+      recomendaciones.push(
+        `${nombre} es el producto líder con ${piezasVendidas.toLocaleString(
+          "es-MX"
+        )} piezas vendidas. Falta confirmar su inventario actual.`
+      );
+    } else {
+      const nivel =
+        inventarioProductoLider
+          .nivelInventario;
+
+      const existencia =
+        inventarioProductoLider
+          .existencia;
+
+      const cobertura =
+        Number(
+          inventarioProductoLider
+            .diasCobertura || 0
+        );
+
+      if (
+        nivel === "SOBREINVENTARIO"
+      ) {
+        recomendaciones.push(
+          `${nombre} es el producto líder y actualmente tiene ${existencia.toLocaleString(
+            "es-MX"
+          )} piezas, equivalentes a aproximadamente ${cobertura.toFixed(
+            1
+          )} días de cobertura. Impulsa su rotación antes de realizar nuevas compras.`
+        );
+      } else if (
+        nivel === "AGOTADO"
+      ) {
+        recomendaciones.push(
+          `${nombre} es el producto líder y actualmente está agotado. Protege sus ventas revisando reposición prioritaria.`
+        );
+      } else if (
+        nivel === "CRITICO" ||
+        nivel === "BAJO"
+      ) {
+        recomendaciones.push(
+          `${nombre} tiene ${existencia.toLocaleString(
+            "es-MX"
+          )} piezas y aproximadamente ${cobertura.toFixed(
+            1
+          )} días de cobertura. Conviene preparar reposición sin exceder la capacidad financiera autorizada.`
+        );
+      } else if (
+        nivel === "SALUDABLE"
+      ) {
+        recomendaciones.push(
+          `${nombre} tiene inventario saludable con aproximadamente ${cobertura.toFixed(
+            1
+          )} días de cobertura. Mantén su disponibilidad sin sobrecomprar.`
+        );
+      } else {
+        recomendaciones.push(
+          `${nombre} continúa como producto líder. Mantén seguimiento de ventas e inventario antes de nuevas decisiones comerciales.`
+        );
+      }
+    }
   }
 
   if (
@@ -684,7 +820,8 @@ function generarRecomendaciones(
 
 function generarPlanAccion(
   indicadores,
-  nivelComercial
+  nivelComercial,
+  inventarioProductoLider = null
 ) {
   const planAccion = [];
 
@@ -702,9 +839,67 @@ function generarPlanAccion(
   if (
     indicadores.productoLider.nombre
   ) {
-    planAccion.push(
-      `Verificar existencias de ${indicadores.productoLider.nombre}.`
-    );
+    const nombre =
+      indicadores.productoLider.nombre;
+
+    if (!inventarioProductoLider) {
+      planAccion.push(
+        `Confirmar inventario actual de ${nombre}.`
+      );
+    } else {
+      const nivel =
+        inventarioProductoLider
+          .nivelInventario;
+
+      const existencia =
+        inventarioProductoLider
+          .existencia;
+
+      const cobertura =
+        Number(
+          inventarioProductoLider
+            .diasCobertura || 0
+        );
+
+      if (
+        nivel === "AGOTADO"
+      ) {
+        planAccion.push(
+          `Atender reposición de ${nombre}: actualmente tiene existencia 0.`
+        );
+      } else if (
+        nivel === "CRITICO" ||
+        nivel === "BAJO"
+      ) {
+        planAccion.push(
+          `Preparar reposición de ${nombre}: tiene ${existencia.toLocaleString(
+            "es-MX"
+          )} piezas y aproximadamente ${cobertura.toFixed(
+            1
+          )} días de cobertura.`
+        );
+      } else if (
+        nivel === "SOBREINVENTARIO"
+      ) {
+        planAccion.push(
+          `Impulsar rotación de ${nombre} antes de volver a comprar: tiene ${existencia.toLocaleString(
+            "es-MX"
+          )} piezas y aproximadamente ${cobertura.toFixed(
+            1
+          )} días de cobertura.`
+        );
+      } else if (
+        nivel === "SALUDABLE"
+      ) {
+        planAccion.push(
+          `Mantener disponibilidad de ${nombre} sin aumentar innecesariamente su inventario.`
+        );
+      } else {
+        planAccion.push(
+          `Dar seguimiento comercial e inventario a ${nombre}.`
+        );
+      }
+    }
   }
 
   const top5 =
@@ -717,7 +912,7 @@ function generarPlanAccion(
 
   if (top5.length > 0) {
     planAccion.push(
-      `Revisar disponibilidad de los cinco productos con mayor movimiento: ${top5.join(
+      `Dar seguimiento a los cinco productos con mayor movimiento: ${top5.join(
         ", "
       )}.`
     );
@@ -750,28 +945,271 @@ function generarPlanAccion(
   return planAccion;
 }
 
-function generarAccionesPrioritarias(
+function obtenerInventarioProductoLider(
+  datosDashboard,
   indicadores
+) {
+  const detallesInventario =
+    datosDashboard?.inventario
+      ?.detalles || [];
+
+  const ventas =
+    datosDashboard?.inteligencia
+      ?.comercial?.ventas || [];
+
+  const diasAnalizados =
+    convertirNumero(
+      datosDashboard?.metricas
+        ?.diasAnalizados
+    ) || 7;
+
+  const analisisInventario =
+    analizarInventario(
+      detallesInventario,
+      {
+        ventas,
+        diasAnalizados,
+        diasObjetivoInventario: 30,
+      }
+    );
+
+  const productos =
+    Array.isArray(
+      analisisInventario?.productos
+    )
+      ? analisisInventario.productos
+      : [];
+
+  const codigoLider =
+    limpiarTexto(
+      indicadores?.productoLider
+        ?.codigo
+    ).toLowerCase();
+
+  const nombreLider =
+    limpiarTexto(
+      indicadores?.productoLider
+        ?.nombre
+    ).toLowerCase();
+
+  const producto =
+    productos.find(
+      (item) => {
+        const codigo =
+          limpiarTexto(
+            item?.codigo
+          ).toLowerCase();
+
+        const nombre =
+          limpiarTexto(
+            item?.descripcion
+          ).toLowerCase();
+
+        if (
+          codigoLider &&
+          codigo &&
+          codigo === codigoLider
+        ) {
+          return true;
+        }
+
+        return (
+          nombreLider &&
+          nombre &&
+          nombre === nombreLider
+        );
+      }
+    );
+
+  if (!producto) {
+    return null;
+  }
+
+  return {
+    codigo:
+      producto.codigo,
+
+    nombre:
+      producto.descripcion,
+
+    existencia:
+      convertirNumero(
+        producto.existencia
+      ),
+
+    piezasVendidas:
+      convertirNumero(
+        producto.piezasVendidas
+      ),
+
+    ventaDiaria:
+      convertirNumero(
+        producto.ventaDiaria
+      ),
+
+    diasCobertura:
+      producto.diasCobertura,
+
+    nivelInventario:
+      producto.nivelInventario,
+
+    sugerenciaCompra:
+      convertirNumero(
+        producto.sugerenciaCompra
+      ),
+
+    inversionReposicion:
+      convertirNumero(
+        producto.inversionReposicion
+      ),
+  };
+}
+
+function generarAccionesPrioritarias(
+  indicadores,
+  inventarioProductoLider = null
 ) {
   const acciones = [];
 
   const top =
-    indicadores.topProductos ||
-    [];
+    indicadores.topProductos || [];
 
   if (top.length > 0) {
-    acciones.push({
-      prioridad: "ALTA",
-      titulo:
-        "Revisar inventario del producto líder",
-      descripcion:
-        `${top[0].nombre} vendió ${top[0].piezas.toLocaleString(
-          "es-MX"
-        )} piezas. Confirma existencia antes de que se agote.`,
-      impacto: "ALTO",
-      responsable:
-        "Director Comercial",
-    });
+    const lider = top[0];
+
+    if (!inventarioProductoLider) {
+      acciones.push({
+        prioridad: "MEDIA",
+        titulo:
+          "Validar inventario del producto líder",
+        descripcion:
+          `${lider.nombre} vendió ${lider.piezas.toLocaleString(
+            "es-MX"
+          )} piezas. No fue posible confirmar su existencia actual.`,
+        impacto: "ALTO",
+        responsable:
+          "Director Comercial",
+      });
+    } else {
+      const nivel =
+        inventarioProductoLider
+          .nivelInventario;
+
+      const existencia =
+        inventarioProductoLider
+          .existencia;
+
+      const cobertura =
+        inventarioProductoLider
+          .diasCobertura;
+
+      if (nivel === "NEGATIVO") {
+        acciones.push({
+          prioridad: "CRITICA",
+          titulo:
+            "Corregir existencia del producto líder",
+          descripcion:
+            `${lider.nombre} es el producto líder con ${lider.piezas.toLocaleString(
+              "es-MX"
+            )} piezas vendidas, pero registra existencia negativa de ${existencia}. Requiere revisión física y administrativa inmediata.`,
+          impacto: "ALTO",
+          responsable:
+            "Director Comercial",
+        });
+      } else if (
+        nivel === "AGOTADO"
+      ) {
+        acciones.push({
+          prioridad: "CRITICA",
+          titulo:
+            "Reponer producto líder agotado",
+          descripcion:
+            `${lider.nombre} vendió ${lider.piezas.toLocaleString(
+              "es-MX"
+            )} piezas y actualmente tiene existencia 0. Existe riesgo directo de perder ventas.`,
+          impacto: "ALTO",
+          responsable:
+            "Director Comercial",
+        });
+      } else if (
+        nivel === "CRITICO"
+      ) {
+        acciones.push({
+          prioridad: "ALTA",
+          titulo:
+            "Proteger producto líder con cobertura crítica",
+          descripcion:
+            `${lider.nombre} tiene ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas disponibles y aproximadamente ${Number(
+              cobertura || 0
+            ).toFixed(
+              1
+            )} días de cobertura. Requiere atención prioritaria.`,
+          impacto: "ALTO",
+          responsable:
+            "Director Comercial",
+        });
+      } else if (
+        nivel === "BAJO"
+      ) {
+        acciones.push({
+          prioridad: "ALTA",
+          titulo:
+            "Reponer producto líder con inventario bajo",
+          descripcion:
+            `${lider.nombre} tiene ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas y aproximadamente ${Number(
+              cobertura || 0
+            ).toFixed(
+              1
+            )} días de cobertura. Conviene preparar reposición.`,
+          impacto: "ALTO",
+          responsable:
+            "Director Comercial",
+        });
+      } else if (
+        nivel ===
+        "SOBREINVENTARIO"
+      ) {
+        acciones.push({
+          prioridad: "MEDIA",
+          titulo:
+            "Evitar sobrecompra del producto líder",
+          descripcion:
+            `${lider.nombre} lidera las ventas, pero tiene ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas y aproximadamente ${Number(
+              cobertura || 0
+            ).toFixed(
+              1
+            )} días de cobertura. No conviene aumentar inventario innecesariamente.`,
+          impacto: "MEDIO",
+          responsable:
+            "Director Comercial",
+        });
+      } else if (
+        nivel === "SALUDABLE"
+      ) {
+        acciones.push({
+          prioridad: "BAJA",
+          titulo:
+            "Mantener disponibilidad del producto líder",
+          descripcion:
+            `${lider.nombre} tiene inventario saludable: ${existencia.toLocaleString(
+              "es-MX"
+            )} piezas y aproximadamente ${Number(
+              cobertura || 0
+            ).toFixed(
+              1
+            )} días de cobertura.`,
+          impacto: "MEDIO",
+          responsable:
+            "Director Comercial",
+        });
+      }
+    }
   }
 
   if (
@@ -827,6 +1265,23 @@ function generarAccionesPrioritarias(
     });
   }
 
+  const ordenPrioridad = {
+    CRITICA: 1,
+    ALTA: 2,
+    MEDIA: 3,
+    BAJA: 4,
+  };
+
+  acciones.sort(
+    (a, b) =>
+      (ordenPrioridad[
+        a.prioridad
+      ] || 4) -
+      (ordenPrioridad[
+        b.prioridad
+      ] || 4)
+  );
+
   return acciones.slice(0, 5);
 }
 
@@ -843,27 +1298,38 @@ export function directorComercialIA(
       indicadores
     );
 
-  const oportunidades =
-    generarOportunidades(
-      indicadores
-    );
+    const inventarioProductoLider =
+  obtenerInventarioProductoLider(
+    datosDashboard,
+    indicadores
+  );
+ 
+    const oportunidades =
+  generarOportunidades(
+    indicadores,
+    inventarioProductoLider
+  );
 
-  const recomendaciones =
-    generarRecomendaciones(
-      indicadores,
-      nivelComercial
-    );
+ const recomendaciones =
+  generarRecomendaciones(
+    indicadores,
+    nivelComercial,
+    inventarioProductoLider
+  );
 
   const planAccion =
-    generarPlanAccion(
-      indicadores,
-      nivelComercial
-    );
+  generarPlanAccion(
+    indicadores,
+    nivelComercial,
+    inventarioProductoLider
+  );
 
-  const accionesPrioritarias =
-    generarAccionesPrioritarias(
-      indicadores
-    );
+
+const accionesPrioritarias =
+  generarAccionesPrioritarias(
+    indicadores,
+    inventarioProductoLider
+  );
 
   return {
     nombre:

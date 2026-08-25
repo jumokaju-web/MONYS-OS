@@ -103,43 +103,122 @@ export function calcularMetricasDashboard(
     }
   }
 
-  let ventasTotales = 0;
+    let ventasTotales = 0;
   let costoTotal = 0;
   let utilidadTotal = 0;
 
   const fechasValidas = [];
 
-  for (const detalle of utilidadVentas) {
-    const datosOriginales =
-      detalle?.datos_originales || {};
+  const calcularTotalesFinancieros = (
+    lista = []
+  ) => {
+    let ventasCalculadas = 0;
+    let costosCalculados = 0;
+    let utilidadCalculada = 0;
+    let registrosConImporte = 0;
 
-    const importe = convertirNumero(
-      detalle?.importe ??
-        datosOriginales.importe ??
-        datosOriginales.ventaTotal
-    );
+    for (const detalle of lista) {
+      const datosOriginales =
+        detalle?.datos_originales || {};
 
-    const costo = convertirNumero(
-      detalle?.costo ??
-        datosOriginales.costo ??
-        datosOriginales.costoTotal
-    );
+      const importe =
+        convertirNumero(
+          detalle?.importe ??
+            datosOriginales.importe ??
+            datosOriginales.ventaTotal ??
+            datosOriginales.totalVenta ??
+            datosOriginales.total
+        );
 
-    const utilidad = convertirNumero(
-      detalle?.utilidad ??
-        datosOriginales.utilidad
-    );
+      const costo =
+        convertirNumero(
+          detalle?.costo ??
+            datosOriginales.costo ??
+            datosOriginales.costoTotal ??
+            datosOriginales.totalCosto
+        );
 
-    ventasTotales += importe;
-    costoTotal += costo;
-    utilidadTotal += utilidad;
+      const utilidad =
+        convertirNumero(
+          detalle?.utilidad ??
+            datosOriginales.utilidad ??
+            datosOriginales.utilidadTotal
+        );
 
-    const fecha =
-      obtenerFechaDetalle(detalle);
+      if (
+        importe !== 0 ||
+        costo !== 0 ||
+        utilidad !== 0
+      ) {
+        registrosConImporte += 1;
+      }
 
-    if (fecha) {
-      fechasValidas.push(fecha);
+      ventasCalculadas +=
+        importe;
+
+      costosCalculados +=
+        costo;
+
+      utilidadCalculada +=
+        utilidad;
+
+      const fecha =
+        obtenerFechaDetalle(
+          detalle
+        );
+
+      if (fecha) {
+        fechasValidas.push(
+          fecha
+        );
+      }
     }
+
+    return {
+      ventasCalculadas,
+      costosCalculados,
+      utilidadCalculada,
+      registrosConImporte,
+    };
+  };
+
+  const totalesUtilidad =
+    calcularTotalesFinancieros(
+      utilidadVentas
+    );
+
+  if (
+    totalesUtilidad
+      .registrosConImporte > 0
+  ) {
+    ventasTotales =
+      totalesUtilidad
+        .ventasCalculadas;
+
+    costoTotal =
+      totalesUtilidad
+        .costosCalculados;
+
+    utilidadTotal =
+      totalesUtilidad
+        .utilidadCalculada;
+  } else {
+    const totalesVentas =
+      calcularTotalesFinancieros(
+        ventas
+      );
+
+    ventasTotales =
+      totalesVentas
+        .ventasCalculadas;
+
+    costoTotal =
+      totalesVentas
+        .costosCalculados;
+
+    utilidadTotal =
+      totalesVentas
+        .utilidadCalculada;
   }
 
   const margenUtilidad =

@@ -3,14 +3,20 @@ import knowledgeService from "../../services/knowledgeService";
 function convertirNumero(valor) {
   const numero = Number(valor);
 
-  return Number.isFinite(numero) ? numero : 0;
+  return Number.isFinite(numero)
+    ? numero
+    : 0;
 }
 
 function formatearNumero(valor) {
-  return convertirNumero(valor).toLocaleString("es-MX");
+  return convertirNumero(
+    valor
+  ).toLocaleString("es-MX");
 }
 
-export function generarMensajeDirectorGeneral(metricas) {
+export function generarMensajeDirectorGeneral(
+  metricas
+) {
   const empresa =
     knowledgeService.getCompanyProfile();
 
@@ -22,10 +28,14 @@ export function generarMensajeDirectorGeneral(metricas) {
 
   if (!metricas) {
     return {
-      saludo: `Buenos días, ${nombreResponsable}.`,
+      saludo:
+        `Buenos días, ${nombreResponsable}.`,
+
       estado:
         "Todavía no existe información suficiente para preparar el informe ejecutivo.",
+
       hallazgos: [],
+
       recomendaciones: [
         "Importar el reporte comercial más reciente para iniciar el análisis.",
       ],
@@ -33,33 +43,43 @@ export function generarMensajeDirectorGeneral(metricas) {
   }
 
   const totalProductos =
-    convertirNumero(metricas.totalProductos);
+    convertirNumero(
+      metricas.totalProductos
+    );
 
   const totalPiezas =
-    convertirNumero(metricas.totalPiezas);
+    convertirNumero(
+      metricas.totalPiezas
+    );
 
   const productoMasVendido =
     metricas.productoMasVendido || {};
-    
-    console.log(metricas.productoMasVendido);
 
   const productoLider =
-    productoMasVendido.descripcion || "";
+    productoMasVendido.descripcion ||
+    "";
 
   const piezasProductoLider =
-    convertirNumero(productoMasVendido.cantidad);
+    convertirNumero(
+      productoMasVendido.cantidad
+    );
 
   const promedioPiezasPorProducto =
     totalProductos > 0
-      ? totalPiezas / totalProductos
+      ? totalPiezas /
+        totalProductos
       : 0;
 
   const participacionProductoLider =
     totalPiezas > 0
-      ? (piezasProductoLider / totalPiezas) * 100
+      ? (
+          piezasProductoLider /
+          totalPiezas
+        ) * 100
       : 0;
 
   const hallazgos = [];
+
   const recomendaciones = [];
 
   let estado =
@@ -77,9 +97,13 @@ export function generarMensajeDirectorGeneral(metricas) {
     );
 
     return {
-      saludo: `Buenos días, ${nombreResponsable}.`,
+      saludo:
+        `Buenos días, ${nombreResponsable}.`,
+
       estado,
+
       hallazgos,
+
       recomendaciones,
     };
   }
@@ -104,7 +128,10 @@ export function generarMensajeDirectorGeneral(metricas) {
       )} piezas vendidas.`
     );
 
-    if (participacionProductoLider >= 20) {
+    if (
+      participacionProductoLider >=
+      20
+    ) {
       hallazgos.push(
         `El producto líder concentra el ${participacionProductoLider.toFixed(
           1
@@ -114,7 +141,10 @@ export function generarMensajeDirectorGeneral(metricas) {
       recomendaciones.push(
         `Proteger la disponibilidad de "${productoLider}" y mantener una existencia de seguridad para evitar una caída directa en ventas.`
       );
-    } else if (participacionProductoLider >= 10) {
+    } else if (
+      participacionProductoLider >=
+      10
+    ) {
       hallazgos.push(
         `El producto líder representa el ${participacionProductoLider.toFixed(
           1
@@ -135,9 +165,16 @@ export function generarMensajeDirectorGeneral(metricas) {
         `Mantener disponible "${productoLider}", pero distribuir el presupuesto de compra entre varios productos con demanda comprobada.`
       );
     }
+  } else {
+    hallazgos.push(
+      "No fue posible identificar un producto líder dentro de la información comercial disponible."
+    );
   }
 
-  if (promedioPiezasPorProducto < 2) {
+  if (
+    promedioPiezasPorProducto <
+    2
+  ) {
     hallazgos.push(
       "El volumen promedio por producto es bajo, lo que puede indicar un catálogo muy amplio en relación con la rotación."
     );
@@ -151,7 +188,9 @@ export function generarMensajeDirectorGeneral(metricas) {
     );
   }
 
-  if (objetivos.length > 0) {
+  if (
+    objetivos.length > 0
+  ) {
     hallazgos.push(
       `El análisis considera ${objetivos.length} objetivos empresariales activos.`
     );
@@ -162,9 +201,13 @@ export function generarMensajeDirectorGeneral(metricas) {
   );
 
   return {
-    saludo: `Buenos días, ${nombreResponsable}.`,
+    saludo:
+      `Buenos días, ${nombreResponsable}.`,
+
     estado,
+
     hallazgos,
+
     recomendaciones,
   };
 }

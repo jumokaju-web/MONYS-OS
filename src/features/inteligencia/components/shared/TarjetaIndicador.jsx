@@ -19,6 +19,12 @@ function TarjetaIndicador({
         backgroundColor: color,
         border: "1px solid #f1dce6",
         boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+
+        // Evita que textos largos ensanchen la tarjeta.
+        minWidth: 0,
+        width: "100%",
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <div
@@ -27,15 +33,28 @@ function TarjetaIndicador({
           alignItems: "center",
           gap: "10px",
           marginBottom: "12px",
+          minWidth: 0,
         }}
       >
-        <span style={{ fontSize: "24px" }}>{icono}</span>
+        <span
+          style={{
+            fontSize: "24px",
+            flexShrink: 0,
+          }}
+        >
+          {icono}
+        </span>
 
         <p
           style={{
             margin: 0,
             color: "#766a70",
             fontWeight: "600",
+
+            // Permite títulos largos.
+            minWidth: 0,
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
           }}
         >
           {titulo}
@@ -45,8 +64,17 @@ function TarjetaIndicador({
       <strong
         style={{
           display: "block",
-          fontSize: "30px",
+
+          // Mantiene números grandes,
+          // pero se adapta mejor en pantallas pequeñas.
+          fontSize: "clamp(22px, 3vw, 30px)",
           lineHeight: "1.2",
+
+          // Evita desbordamiento de nombres largos.
+          maxWidth: "100%",
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+          whiteSpace: "normal",
         }}
       >
         {valor}
@@ -59,6 +87,10 @@ function TarjetaIndicador({
             marginBottom: 0,
             color: "#666",
             lineHeight: "1.5",
+
+            maxWidth: "100%",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
           }}
         >
           {subtitulo}

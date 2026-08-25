@@ -14,94 +14,232 @@ import {
   ejecutarDecision,
 } from "../engine/motorEjecutivoIA";
 
-
 function CentroAccionesCEO({
   decisiones = [],
 }) {
-  const [decisionesPendientes, setDecisionesPendientes] =
-    useState(decisiones);
+  const [
+    decisionesPendientes,
+    setDecisionesPendientes,
+  ] = useState([]);
 
-  const [historial, setHistorial] =
-    useState([]);
+  const [
+    historial,
+    setHistorial,
+  ] = useState([]);
 
-  const [errorHistorial, setErrorHistorial] =
-    useState("");
+  const [
+    errorHistorial,
+    setErrorHistorial,
+  ] = useState("");
 
-  const [mensaje, setMensaje] =
-    useState("");
+  const [
+    mensaje,
+    setMensaje,
+  ] = useState("");
 
-  const [procesando, setProcesando] =
-    useState(null);
+  const [
+    procesando,
+    setProcesando,
+  ] = useState(null);
 
-  const [decisionesResueltas, setDecisionesResueltas] =
-    useState(() => new Set());
-
- const obtenerClaveDecision = (decision) =>
-  decision?.id ||
-  [
-    decision?.titulo || "decision",
-    decision?.area || "general",
-    decision?.descripcion || decision?.motivo || "",
-  ].join("-");
-
-  useEffect(() => {
-    setDecisionesPendientes(
-      decisiones.filter(
-        (decision, index) =>
-          !decisionesResueltas.has(
-            obtenerClaveDecision(
-              decision,
-              index
-            )
-          )
-      )
-    );
-  }, [
-    decisiones,
+  const [
     decisionesResueltas,
-  ]);
+    setDecisionesResueltas,
+  ] = useState(
+    () => new Set()
+  );
 
-  const cargarHistorial = useCallback(
-    async () => {
-      setErrorHistorial("");
+  const normalizarTexto = (
+    valor
+  ) =>
+    String(valor || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
 
-      try {
-        const registros =
-          await obtenerHistorialDecisiones();
+  const obtenerClaveDecision = (
+    decision
+  ) =>
+    decision?.id ||
+    [
+      decision?.titulo ||
+        "decision",
 
-        setHistorial(registros);
-      } catch (error) {
-        console.error(
-          "Error al cargar historial:",
-          error
-        );
+      decision?.area ||
+        "general",
 
-        setErrorHistorial(
-          error.message
+      decision?.descripcion ||
+        decision?.motivo ||
+        "",
+    ].join("-");
+
+  const obtenerDescripcionDecision = (
+    decision
+  ) =>
+    normalizarTexto(
+      decision?.descripcion ||
+        decision?.motivo ||
+        ""
+    );
+
+  const decisionYaRegistrada = (
+    decision,
+    registros
+  ) => {
+    const descripcionActual =
+      obtenerDescripcionDecision(
+        decision
+      );
+
+    if (!descripcionActual) {
+      return false;
+    }
+
+    return registros.some(
+      (registro) => {
+        const estado =
+          String(
+            registro?.estado || ""
+          ).toUpperCase();
+
+        const descripcionRegistro =
+          normalizarTexto(
+            registro?.descripcion ||
+              ""
+          );
+
+        const autorizadoPor =
+          normalizarTexto(
+            registro?.autorizado_por ||
+              ""
+          );
+
+        const esDecisionCEO =
+          autorizadoPor.includes(
+            "director general"
+          );
+
+        const estaResuelta =
+          estado === "APROBADA" ||
+          estado === "RECHAZADA";
+
+        return (
+          esDecisionCEO &&
+          estaResuelta &&
+          descripcionRegistro ===
+            descripcionActual
         );
       }
-    },
-    []
-  );
+    );
+  };
+
+  const sincronizarDecisiones =
+    useCallback(
+      (registros) => {
+        const nuevasResueltas =
+          new Set();
+
+        decisiones.forEach(
+          (decision) => {
+            if (
+              decisionYaRegistrada(
+                decision,
+                registros
+              )
+            ) {
+              nuevasResueltas.add(
+                obtenerClaveDecision(
+                  decision
+                )
+              );
+            }
+          }
+        );
+
+        setDecisionesResueltas(
+          nuevasResueltas
+        );
+
+        setDecisionesPendientes(
+          decisiones.filter(
+            (decision) =>
+              !nuevasResueltas.has(
+                obtenerClaveDecision(
+                  decision
+                )
+              )
+          )
+        );
+      },
+      [decisiones]
+    );
+
+  const cargarHistorial =
+    useCallback(
+      async () => {
+        setErrorHistorial("");
+
+        try {
+          const registros =
+            await obtenerHistorialDecisiones();
+
+          const lista =
+            Array.isArray(registros)
+              ? registros
+              : [];
+
+          setHistorial(lista);
+
+          sincronizarDecisiones(
+            lista
+          );
+
+          return lista;
+        } catch (error) {
+          console.error(
+            "Error al cargar historial:",
+            error
+          );
+
+          setErrorHistorial(
+            error.message ||
+              "No fue posible cargar el historial."
+          );
+
+          return [];
+        }
+      },
+      [sincronizarDecisiones]
+    );
 
   useEffect(() => {
     cargarHistorial();
   }, [cargarHistorial]);
 
+  useEffect(() => {
+    sincronizarDecisiones(
+      historial
+    );
+  }, [
+    decisiones,
+    historial,
+    sincronizarDecisiones,
+  ]);
+
   const marcarDecisionResuelta = (
-    decision,
-    index
+    decision
   ) => {
     const clave =
       obtenerClaveDecision(
-        decision,
-        index
+        decision
       );
 
     setDecisionesResueltas(
       (anteriores) => {
         const nuevas =
-          new Set(anteriores);
+          new Set(
+            anteriores
+          );
 
         nuevas.add(clave);
 
@@ -113,42 +251,42 @@ function CentroAccionesCEO({
       (anteriores) =>
         anteriores.filter(
           (item) =>
-            item !== decision
+            obtenerClaveDecision(
+              item
+            ) !== clave
         )
     );
   };
 
   const aprobar = async (
-    decision,
-    index
+    decision
   ) => {
     const clave =
       obtenerClaveDecision(
-        decision,
-        index
+        decision
       );
+
+    if (
+      procesando ||
+      decisionesResueltas.has(
+        clave
+      )
+    ) {
+      return;
+    }
 
     try {
       setProcesando(clave);
+
       setMensaje("");
 
-    const decisionGuardada =
-  await guardarDecisionAprobada(
-    decision
-  );
-
-const resultadoEjecucion =
-  await ejecutarDecision({
-    ...decision,
-    id: decisionGuardada.id,
-  });
-
- console.log("Motor ejecutó:", resultadoEjecucion);
-
+      const decisionGuardada =
+        await guardarDecisionAprobada(
+          decision
+        );
 
       marcarDecisionResuelta(
-        decision,
-        index
+        decision
       );
 
       setMensaje(
@@ -159,6 +297,21 @@ const resultadoEjecucion =
       );
 
       await cargarHistorial();
+
+      try {
+        await ejecutarDecision({
+          ...decision,
+          id:
+            decisionGuardada.id,
+        });
+      } catch (
+        errorEjecucion
+      ) {
+        console.error(
+          "La decisión fue aprobada, pero ocurrió un problema al ejecutar la acción:",
+          errorEjecucion
+        );
+      }
     } catch (error) {
       console.error(
         "Error al aprobar decisión:",
@@ -175,17 +328,25 @@ const resultadoEjecucion =
   };
 
   const rechazar = async (
-    decision,
-    index
+    decision
   ) => {
     const clave =
       obtenerClaveDecision(
-        decision,
-        index
+        decision
       );
+
+    if (
+      procesando ||
+      decisionesResueltas.has(
+        clave
+      )
+    ) {
+      return;
+    }
 
     try {
       setProcesando(clave);
+
       setMensaje("");
 
       await guardarDecisionRechazada(
@@ -193,8 +354,7 @@ const resultadoEjecucion =
       );
 
       marcarDecisionResuelta(
-        decision,
-        index
+        decision
       );
 
       setMensaje(
@@ -219,7 +379,7 @@ const resultadoEjecucion =
       setProcesando(null);
     }
   };
-
+  
   return (
     <section
       style={{

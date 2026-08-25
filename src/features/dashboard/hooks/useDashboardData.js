@@ -5,6 +5,10 @@ import {
 } from "react";
 
 import {
+  useUser,
+} from "../../../context/UserContext";
+
+import {
   obtenerUltimaImportacionVentas,
   obtenerUltimaImportacionInventario,
   obtenerUltimaImportacionUtilidadVentas,
@@ -14,7 +18,87 @@ import {
   calcularMetricasDashboard,
 } from "../utils/dashboardMetrics";
 
+function convertirFechaValida(valor) {
+  if (!valor) {
+    return null;
+  }
+
+  const fecha = new Date(valor);
+
+  if (
+    Number.isNaN(
+      fecha.getTime()
+    )
+  ) {
+    return null;
+  }
+
+  return fecha;
+}
+
+function obtenerPeriodoDesdeDetalles(
+  detalles = []
+) {
+  for (const detalle of detalles) {
+    const datosOriginales =
+      detalle?.datos_originales || {};
+
+    const fechaInicio =
+      convertirFechaValida(
+        datosOriginales.periodoInicio
+      );
+
+    const fechaFin =
+      convertirFechaValida(
+        datosOriginales.periodoFin
+      );
+
+    if (
+      !fechaInicio ||
+      !fechaFin
+    ) {
+      continue;
+    }
+
+    const milisegundosDia =
+      1000 * 60 * 60 * 24;
+
+    const diasAnalizados =
+      Math.floor(
+        (
+          fechaFin.getTime() -
+          fechaInicio.getTime()
+        ) / milisegundosDia
+      ) + 1;
+
+    if (
+      diasAnalizados <= 0
+    ) {
+      continue;
+    }
+
+    return {
+      fechaInicial:
+        datosOriginales.periodoInicio,
+
+      fechaFinal:
+        datosOriginales.periodoFin,
+
+      diasAnalizados,
+    };
+  }
+
+  return null;
+}
+
 export function useDashboardData() {
+  const {
+    usuario,
+  } = useUser();
+
+  const branchId =
+    usuario?.branch_id || null;
+
   const [
     datosDashboard,
     setDatosDashboard,
@@ -33,6 +117,13 @@ export function useDashboardData() {
   const cargarDatosDashboard =
     useCallback(async () => {
       try {
+
+      if (!branchId) {
+  setDatosDashboard(null);
+  setCargandoDashboard(false);
+  return;
+}
+
         setCargandoDashboard(true);
         setErrorDashboard("");
 
@@ -41,9 +132,17 @@ export function useDashboardData() {
           resultadoInventario,
           resultadoUtilidad,
         ] = await Promise.all([
-          obtenerUltimaImportacionVentas(),
-          obtenerUltimaImportacionInventario(),
-          obtenerUltimaImportacionUtilidadVentas(),
+          obtenerUltimaImportacionVentas(
+            branchId
+          ),
+
+          obtenerUltimaImportacionInventario(
+            branchId
+          ),
+
+          obtenerUltimaImportacionUtilidadVentas(
+            branchId
+          ),
         ]);
 
         if (!resultadoVentas) {
@@ -51,9 +150,10 @@ export function useDashboardData() {
           return;
         }
 
-        const ventasReales =
-          resultadoVentas.ventasReales || [];
+      const ventasReales =
+  resultadoVentas.ventasReales || [];
 
+ 
         const detallesVentasOriginales =
           resultadoVentas.detalles || [];
 
@@ -65,52 +165,89 @@ export function useDashboardData() {
         const detallesUtilidad =
           resultadoUtilidad?.detalles || [];
 
+      
         const detallesInventario =
           resultadoInventario?.detalles || [];
 
-        const metricas =
+        const metricasBase =
           calcularMetricasDashboard(
             datosVentas,
             detallesUtilidad
           );
 
+        const periodoReal =
+          obtenerPeriodoDesdeDetalles(
+            detallesVentasOriginales
+          );
+
+        const diasAnalizados =
+          periodoReal?.diasAnalizados ||
+          metricasBase?.diasAnalizados ||
+          0;
+
+        const ventasTotales =
+          Number(
+            metricasBase?.ventasTotales
+          ) || 0;
+
+        const utilidadTotal =
+          Number(
+            metricasBase?.utilidadTotal
+          ) || 0;
+
+        const metricas = {
+          ...metricasBase,
+
+          fechaInicial:
+            periodoReal?.fechaInicial ||
+            metricasBase?.fechaInicial ||
+            null,
+
+          fechaFinal:
+            periodoReal?.fechaFinal ||
+            metricasBase?.fechaFinal ||
+            null,
+
+          diasAnalizados,
+
+          ventaPromedioDiaria:
+            diasAnalizados > 0
+              ? ventasTotales /
+                diasAnalizados
+              : 0,
+
+          utilidadPromedioDiaria:
+            diasAnalizados > 0
+              ? utilidadTotal /
+                diasAnalizados
+              : 0,
+        };
+
         setDatosDashboard({
+          branch_id:
+            branchId,
+
           importacion:
             resultadoVentas.importacion,
 
           metricas,
 
-          /*
-            Fuente principal para cálculos.
-          */
           detalles:
             datosVentas,
 
-          /*
-            Ventas estructuradas guardadas
-            en ventas_articulos.
-          */
           ventasReales,
 
-          /*
-            Conservamos también el contenido
-            original importado desde SICAR.
-            Esto servirá para enriquecer
-            categoría, departamento, marca,
-            proveedor u otros campos cuando existan.
-          */
           ventasOriginales: {
             importacion:
               resultadoVentas.importacion,
 
             detalles:
               detallesVentasOriginales,
+
+            periodo:
+              periodoReal,
           },
 
-          /*
-            Datos de rentabilidad provenientes
-            del reporte Utilidad de ventas.
-          */
           utilidadVentas: {
             importacion:
               resultadoUtilidad?.importacion ||
@@ -120,10 +257,6 @@ export function useDashboardData() {
               detallesUtilidad,
           },
 
-          /*
-            Datos de inventario disponibles
-            para cruces comerciales.
-          */
           inventario: {
             importacion:
               resultadoInventario?.importacion ||
@@ -133,12 +266,11 @@ export function useDashboardData() {
               detallesInventario,
           },
 
-          /*
-            Paquete preparado especialmente
-            para los Directores IA.
-          */
           inteligencia: {
             comercial: {
+              branch_id:
+                branchId,
+
               ventas:
                 datosVentas,
 
@@ -152,6 +284,9 @@ export function useDashboardData() {
 
               inventario:
                 detallesInventario,
+
+              periodo:
+                periodoReal,
 
               metricas,
             },
@@ -170,7 +305,7 @@ export function useDashboardData() {
       } finally {
         setCargandoDashboard(false);
       }
-    }, []);
+    }, [branchId]);
 
   useEffect(() => {
     cargarDatosDashboard();

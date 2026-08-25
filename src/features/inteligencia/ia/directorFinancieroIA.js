@@ -37,9 +37,9 @@ const convertirFecha = (valor) => {
     : fecha;
 };
 
-export function generarAnalisisFinanciero({
+ export function generarAnalisisFinanciero({
   movimientos = [],
-
+ 
   ventasTotales = 0,
   costoTotal = 0,
   utilidadTotal = 0,
@@ -51,7 +51,11 @@ export function generarAnalisisFinanciero({
 
   ventaPromedioDiaria = 0,
   utilidadPromedioDiaria = 0,
-}) {
+
+  saldoProveedores = 0,
+  creditosProveedores = [],
+}) {   
+
   const ventas =
     convertirNumero(ventasTotales);
 
@@ -78,6 +82,89 @@ export function generarAnalisisFinanciero({
 
   const fin =
     convertirFecha(fechaFinal);
+
+    const hoy =
+  new Date();
+
+hoy.setHours(
+  0,
+  0,
+  0,
+  0
+);
+
+const creditosValidos =
+  Array.isArray(
+    creditosProveedores
+  )
+    ? creditosProveedores
+    : [];
+
+const calcularMontoPorHorizonte =
+  (diasHorizonte) => {
+    const fechaLimite =
+      new Date(hoy);
+
+    fechaLimite.setDate(
+      fechaLimite.getDate() +
+        diasHorizonte
+    );
+
+    return creditosValidos.reduce(
+      (
+        total,
+        credito
+      ) => {
+        const fechaCredito =
+          credito?.fecha_vencimiento_estimada
+            ? new Date(
+                `${credito.fecha_vencimiento_estimada}T00:00:00`
+              )
+            : null;
+
+        if (
+          !fechaCredito ||
+          Number.isNaN(
+            fechaCredito.getTime()
+          )
+        ) {
+          return total;
+        }
+
+        if (
+          fechaCredito <=
+          fechaLimite
+        ) {
+          return (
+            total +
+            (
+              Number(
+                credito?.saldo
+              ) || 0
+            )
+          );
+        }
+
+        return total;
+      },
+      0
+    );
+  };
+
+const vencimientos7Dias =
+  calcularMontoPorHorizonte(7);
+
+const vencimientos15Dias =
+  calcularMontoPorHorizonte(15);
+
+const vencimientos30Dias =
+  calcularMontoPorHorizonte(30);
+
+const vencimientos60Dias =
+  calcularMontoPorHorizonte(60);
+
+const vencimientos90Dias =
+  calcularMontoPorHorizonte(90);
 
   const movimientosValidos =
     Array.isArray(movimientos)
@@ -202,19 +289,35 @@ export function generarAnalisisFinanciero({
       estado =
         "Rentabilidad positiva con liquidez ajustada";
 
+     
       mensaje =
-        `Las ventas analizadas suman ${formatoDinero(
-          ventas
-        )}, con utilidad de ${formatoDinero(
-          utilidad
-        )} y margen de ${formatoPorcentaje(
-          margen
-        )}. Las salidas representan ${formatoPorcentaje(
-          porcentajeGastos
-        )} de las entradas de Tesorería.`;
+  `Las ventas analizadas suman ${formatoDinero(
+    ventas
+  )}, con utilidad de ${formatoDinero(
+    utilidad
+  )} y margen de ${formatoPorcentaje(
+    margen
+  )}. Las salidas representan ${formatoPorcentaje(
+    porcentajeGastos
+  )} de las entradas de Tesorería.${
+    saldoProveedores > 0
+      ? ` Además, existen ${formatoDinero(
+          saldoProveedores
+        )} registrados como saldo pendiente con proveedores.`
+      : ""
+  }`;
 
-      recomendacion =
-        "La operación genera utilidad, pero conviene cuidar el efectivo y revisar pagos próximos antes de comprometer más dinero.";
+recomendacion =
+  saldoProveedores > 0
+    ? vencimientos30Dias > 0
+      ? `La operación genera utilidad, pero existen ${formatoDinero(
+          vencimientos30Dias
+        )} en compromisos con proveedores dentro de los próximos 30 días. Conviene proteger liquidez y evitar nuevas compras que comprometan ese pago.`
+      : `La operación genera utilidad y existen ${formatoDinero(
+          saldoProveedores
+        )} pendientes con proveedores, pero no vencen dentro de los próximos 30 días. Mantén vigilancia sobre los próximos vencimientos.`
+    : "La operación genera utilidad, pero conviene cuidar el efectivo y revisar pagos próximos antes de comprometer más dinero.";
+
     } else if (
       margen > 0 &&
       dineroDisponible >= 0
@@ -372,24 +475,31 @@ export function generarAnalisisFinanciero({
       ? dineroDisponible * 0.20
       : 0;
 
-  const disponibleDespuesReserva =
-    Math.max(
-      0,
-      dineroDisponible -
-        reservaRecomendada
-    );
+   const disponibleDespuesReserva =
+  Math.max(
+    0,
+    dineroDisponible -
+      reservaRecomendada
+  );
 
-  const limiteCompraPorUtilidad =
-    Math.max(
-      0,
-      utilidad * 0.40
-    );
+const disponibleDespuesCompromisos =
+  Math.max(
+    0,
+    disponibleDespuesReserva -
+      vencimientos30Dias
+  );
 
-  const capacidadCompra =
-    Math.min(
-      disponibleDespuesReserva,
-      limiteCompraPorUtilidad
-    );
+const limiteCompraPorUtilidad =
+  Math.max(
+    0,
+    utilidad * 0.40
+  );
+
+const capacidadCompra =
+  Math.min(
+    disponibleDespuesCompromisos,
+    limiteCompraPorUtilidad
+  );
 
   // ======================================================
   // ALERTAS
@@ -426,6 +536,17 @@ export function generarAnalisisFinanciero({
     );
   }
 
+  if (saldoProveedores > 0) {
+  alertasFinancieras.push(
+    `Hay $${Number(
+      saldoProveedores
+    ).toLocaleString("es-MX", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} registrados como saldo pendiente con proveedores.`
+  );
+}
+
   if (!periodoValido && ventas > 0) {
     alertasFinancieras.push(
       "No fue posible determinar con seguridad el periodo del reporte; la proyección mensual permanece desactivada."
@@ -436,30 +557,37 @@ export function generarAnalisisFinanciero({
   // DECISIÓN PRIORITARIA
   // ======================================================
 
-  let decisionPrioritaria =
-    "Mantener el control financiero y continuar alimentando MONYS OS.";
+ let decisionPrioritaria =
+  "Mantener el control financiero y continuar alimentando MONYS OS.";
 
-  if (dineroDisponible < 0) {
-    decisionPrioritaria =
-      "Prioridad máxima: recuperar liquidez y revisar salidas antes de autorizar nuevas compras.";
-  } else if (
-    porcentajeGastos >= 90
-  ) {
-    decisionPrioritaria =
-      "Reducir o posponer gastos no prioritarios antes de comprometer más efectivo.";
-  } else if (
-    capacidadCompra > 0
-  ) {
-    decisionPrioritaria =
-      `La capacidad de compra sugerida es ${formatoDinero(
-        capacidadCompra
-      )}, conservando una reserva aproximada de ${formatoDinero(
-        reservaRecomendada
-      )}.`;
-  } else if (utilidad > 0) {
-    decisionPrioritaria =
-      "La operación es rentable, pero conviene conservar efectivo hasta integrar inventario y pagos próximos.";
-  }
+if (dineroDisponible < 0) {
+  decisionPrioritaria =
+    "Prioridad máxima: recuperar liquidez y revisar salidas antes de autorizar nuevas compras.";
+} else if (
+  vencimientos30Dias > 0
+) {
+  decisionPrioritaria =
+    `Proteger liquidez para cubrir ${formatoDinero(
+      vencimientos30Dias
+    )} en compromisos con proveedores dentro de los próximos 30 días antes de autorizar nuevas compras.`;
+} else if (
+  porcentajeGastos >= 90
+) {
+  decisionPrioritaria =
+    "Reducir o posponer gastos no prioritarios antes de comprometer más efectivo.";
+} else if (
+  capacidadCompra > 0
+) {
+  decisionPrioritaria =
+    `La capacidad de compra sugerida es ${formatoDinero(
+      capacidadCompra
+    )}, conservando una reserva aproximada de ${formatoDinero(
+      reservaRecomendada
+    )}.`;
+} else if (utilidad > 0) {
+  decisionPrioritaria =
+    "La operación es rentable, pero conviene conservar efectivo hasta integrar inventario y pagos próximos.";
+}
 
   // ======================================================
   // ACCIONES PRIORITARIAS DEL DÍA
@@ -467,7 +595,7 @@ export function generarAnalisisFinanciero({
 
   const accionesPrioritarias = [];
 
-  const agregarAccion = ({
+   const agregarAccion = ({
     prioridad,
     titulo,
     descripcion,
@@ -475,6 +603,9 @@ export function generarAnalisisFinanciero({
     responsable = "Director Financiero",
   }) => {
     accionesPrioritarias.push({
+      origen: "DIRECTOR_FINANCIERO",
+      estado: "PROPUESTA_IA",
+
       prioridad,
       titulo,
       descripcion,
@@ -628,6 +759,12 @@ export function generarAnalisisFinanciero({
 
     reservaRecomendada,
     capacidadCompra,
+
+    vencimientos7Dias,
+    vencimientos15Dias,
+    vencimientos30Dias,
+    vencimientos60Dias,
+    vencimientos90Dias,
 
     alertasFinancieras,
     decisionPrioritaria,
