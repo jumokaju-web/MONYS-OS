@@ -243,3 +243,56 @@ export async function crearPerfilUsuario(
 
   return data.usuario;
 }
+
+export async function cambiarEstadoUsuario(
+  usuarioId,
+  active
+) {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("usuarios")
+    .update({
+      active,
+    })
+    .eq("id", usuarioId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function eliminarUsuarioMonys(
+  usuarioId
+) {
+  const {
+    data,
+    error,
+  } =
+    await supabase.functions.invoke(
+      "eliminar-usuario-monys",
+      {
+        body: {
+          usuario_id: usuarioId,
+        },
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ||
+        "No fue posible eliminar el usuario."
+    );
+  }
+
+  return data;
+}

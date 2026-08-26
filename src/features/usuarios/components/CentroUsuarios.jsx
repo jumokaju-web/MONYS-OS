@@ -10,6 +10,8 @@ import {
   obtenerSucursalesActivas,
   validarNuevoUsuario,
   crearPerfilUsuario,
+  cambiarEstadoUsuario,
+  eliminarUsuarioMonys,
 } from "../services/usuariosService";
 
 const ROLES = [
@@ -290,6 +292,76 @@ export default function CentroUsuarios({
       setGuardandoUsuario(false);
     }
   }
+
+async function cambiarEstado(
+  usuario
+) {
+  try {
+    setError("");
+    setMensajeExito("");
+
+    await cambiarEstadoUsuario(
+      usuario.id,
+      !usuario.active
+    );
+
+    await cargarUsuarios();
+
+    setMensajeExito(
+      usuario.active
+        ? `${usuario.nombre} fue pausado correctamente.`
+        : `${usuario.nombre} fue reactivado correctamente.`
+    );
+  } catch (errorEstado) {
+    console.error(
+      "Error cambiando estado:",
+      errorEstado
+    );
+
+    setError(
+      errorEstado.message ||
+        "No fue posible cambiar el estado del usuario."
+    );
+  }
+}
+
+async function eliminarUsuario(
+  usuario
+) {
+  const confirmar =
+    window.confirm(
+      `¿Eliminar definitivamente a ${usuario.nombre}?\n\nEsta acción eliminará su acceso a MONYS OS.`
+    );
+
+  if (!confirmar) {
+    return;
+  }
+
+  try {
+    setError("");
+    setMensajeExito("");
+
+    await eliminarUsuarioMonys(
+      usuario.id
+    );
+
+    await cargarUsuarios();
+
+    setMensajeExito(
+      `${usuario.nombre} fue eliminado correctamente.`
+    );
+  } catch (errorEliminar) {
+    console.error(
+      "Error eliminando usuario:",
+      errorEliminar
+    );
+
+    setError(
+      errorEliminar.message ||
+        "No fue posible eliminar el usuario."
+    );
+  }
+}
 
  const formularioCompleto =
   Boolean(
@@ -894,7 +966,7 @@ export default function CentroUsuarios({
           </div>
         )}
 
-      {!cargando &&
+          {!cargando &&
         !error &&
         usuarios.length > 0 && (
           <div
@@ -906,16 +978,11 @@ export default function CentroUsuarios({
             {usuarios.map(
               (usuario) => (
                 <article
-                  key={
-                    usuario.id
-                  }
+                  key={usuario.id}
                   style={{
-                    padding:
-                      "18px",
-                    borderRadius:
-                      "16px",
-                    background:
-                      "#ffffff",
+                    padding: "18px",
+                    borderRadius: "16px",
+                    background: "#ffffff",
                     border:
                       "1px solid #eadde4",
                     boxShadow:
@@ -924,24 +991,19 @@ export default function CentroUsuarios({
                 >
                   <div
                     style={{
-                      display:
-                        "flex",
+                      display: "flex",
                       justifyContent:
                         "space-between",
                       gap: "16px",
-                      flexWrap:
-                        "wrap",
+                      flexWrap: "wrap",
                     }}
                   >
                     <div>
                       <strong
                         style={{
-                          display:
-                            "block",
-                          fontSize:
-                            "18px",
-                          color:
-                            "#2c2030",
+                          display: "block",
+                          fontSize: "18px",
+                          color: "#2c2030",
                         }}
                       >
                         👤{" "}
@@ -950,12 +1012,9 @@ export default function CentroUsuarios({
 
                       <div
                         style={{
-                          marginTop:
-                            "6px",
-                          color:
-                            "#766a70",
-                          fontSize:
-                            "14px",
+                          marginTop: "6px",
+                          color: "#766a70",
+                          fontSize: "14px",
                         }}
                       >
                         {usuario.correo ||
@@ -977,10 +1036,8 @@ export default function CentroUsuarios({
                           usuario.active
                             ? "#236b45"
                             : "#9b3030",
-                        fontWeight:
-                          "800",
-                        fontSize:
-                          "13px",
+                        fontWeight: "800",
+                        fontSize: "13px",
                       }}
                     >
                       {usuario.active
@@ -991,17 +1048,12 @@ export default function CentroUsuarios({
 
                   <div
                     style={{
-                      display:
-                        "flex",
+                      display: "flex",
                       gap: "20px",
-                      flexWrap:
-                        "wrap",
-                      marginTop:
-                        "16px",
-                      color:
-                        "#51484d",
-                      fontSize:
-                        "14px",
+                      flexWrap: "wrap",
+                      marginTop: "16px",
+                      color: "#51484d",
+                      fontSize: "14px",
                     }}
                   >
                     <span>
@@ -1029,6 +1081,78 @@ export default function CentroUsuarios({
                         : "Todas / No aplica"}
                     </span>
                   </div>
+
+                  {usuario.role !==
+                    "owner" && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "18px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          cambiarEstado(
+                            usuario
+                          )
+                        }
+                        style={{
+                          padding:
+                            "9px 14px",
+                          borderRadius:
+                            "9px",
+                          border:
+                            "1px solid #d7c6cf",
+                          background:
+                            usuario.active
+                              ? "#fff8df"
+                              : "#eef8f2",
+                          color:
+                            usuario.active
+                              ? "#8a6800"
+                              : "#236b45",
+                          fontWeight:
+                            "800",
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        {usuario.active
+                          ? "⏸ Pausar"
+                          : "▶ Reactivar"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          eliminarUsuario(
+                            usuario
+                          )
+                        }
+                        style={{
+                          padding:
+                            "9px 14px",
+                          borderRadius:
+                            "9px",
+                          border:
+                            "1px solid #efb8b8",
+                          background:
+                            "#fff3f3",
+                          color:
+                            "#a52d2d",
+                          fontWeight:
+                            "800",
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        🗑 Eliminar
+                      </button>
+                    </div>
+                  )}
                 </article>
               )
             )}
