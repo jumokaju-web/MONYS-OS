@@ -31,6 +31,7 @@ const FORMULARIO_INICIAL = {
   nombre: "",
   correo: "",
   telefono: "",
+  password: "",
   role: "",
   business_id: "",
   branch_id: "",
@@ -290,14 +291,15 @@ export default function CentroUsuarios({
     }
   }
 
-  const formularioCompleto =
-    Boolean(
-      formulario.nombre.trim() &&
-        formulario.correo.trim() &&
-        formulario.role &&
-        formulario.business_id &&
-        formulario.branch_id
-    );
+ const formularioCompleto =
+  Boolean(
+    formulario.nombre.trim() &&
+      formulario.correo.trim() &&
+      formulario.password.length >= 8 &&
+      formulario.role &&
+      formulario.business_id &&
+      formulario.branch_id
+  );
 
   return (
     <div
@@ -554,6 +556,30 @@ export default function CentroUsuarios({
                 style={estiloCampo}
               />
             </label>
+
+              <label
+  style={{
+    display: "grid",
+    gap: "7px",
+    color: "#51484d",
+    fontWeight: "700",
+  }}
+>
+  Contraseña temporal
+
+  <input
+    type="password"
+    name="password"
+    value={
+      formulario.password
+    }
+    onChange={
+      actualizarCampo
+    }
+    placeholder="Mínimo 8 caracteres"
+    style={estiloCampo}
+  />
+</label>
 
             <label
               style={{

@@ -107,6 +107,7 @@ export function validarNuevoUsuario({
   nombre,
   correo,
   telefono,
+  password,
   role,
   business_id,
   branch_id,
@@ -123,6 +124,12 @@ export function validarNuevoUsuario({
   if (!correo?.trim()) {
     throw new Error(
       "Debes escribir el correo del usuario."
+    );
+  }
+
+  if (!password || password.length < 8) {
+    throw new Error(
+      "La contraseña temporal debe tener por lo menos 8 caracteres."
     );
   }
 
@@ -194,6 +201,8 @@ export function validarNuevoUsuario({
     telefono:
       telefono?.trim() || null,
 
+    password,
+
     role,
 
     active:
@@ -203,18 +212,8 @@ export function validarNuevoUsuario({
 
 /*
   ==========================================
-  GUARDAR PERFIL DE USUARIO
+  CREAR USUARIO COMPLETO
   ==========================================
-
-  IMPORTANTE:
-  Esta función crea el registro empresarial
-  dentro de public.usuarios.
-
-  Todavía NO crea la cuenta de acceso de
-  Supabase Auth.
-
-  No la conectaremos al botón hasta terminar
-  la seguridad y autenticación.
 */
 
 export async function crearPerfilUsuario(
@@ -223,41 +222,24 @@ export async function crearPerfilUsuario(
   const {
     data,
     error,
-  } = await supabase
-    .from("usuarios")
-    .insert({
-      organization_id:
-        nuevoUsuario.organization_id,
-
-      business_id:
-        nuevoUsuario.business_id,
-
-      branch_id:
-        nuevoUsuario.branch_id,
-
-      nombre:
-        nuevoUsuario.nombre,
-
-      correo:
-        nuevoUsuario.correo,
-
-      telefono:
-        nuevoUsuario.telefono,
-
-      role:
-        nuevoUsuario.role,
-
-      active:
-        nuevoUsuario.active,
-
-      auth_user_id: null,
-    })
-    .select()
-    .single();
+  } =
+    await supabase.functions.invoke(
+      "crear-usuario-monys",
+      {
+        body: nuevoUsuario,
+      }
+    );
 
   if (error) {
     throw error;
   }
 
-  return data;
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ||
+        "No fue posible crear el usuario."
+    );
+  }
+
+  return data.usuario;
 }
