@@ -1,4 +1,4 @@
-import OperacionHoy from "./OperacionHoy";
+import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
 
 export default function InicioEmpleado({
@@ -156,13 +156,10 @@ export default function InicioEmpleado({
               "0 7px 22px rgba(93, 44, 67, 0.05)",
           }}
         >
-          <OperacionHoy
-            organizationId={
-              organizationId
-            }
-            businessId={businessId}
-            branchId={branchId}
-          />
+        <OperacionEmpleado
+  branchId={branchId}
+  usuario={usuario}
+/>
         </div>
 
         {/* ======================================
