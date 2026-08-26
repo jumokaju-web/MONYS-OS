@@ -17,6 +17,7 @@ import AccionesPrioritarias from "./features/inteligencia/components/AccionesPri
 import AccionesRapidas from "./features/dashboard/AccionesRapidas";
 import SicarResumen from "./features/dashboard/components/SicarResumen";
 import OperacionHoy from "./features/inteligencia/components/OperacionHoy";
+import InicioEmpleado from "./features/inteligencia/components/InicioEmpleado";
 import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
 import TesoreriaPage from "./features/tesoreria/pages/TesoreriaPage";
@@ -108,6 +109,10 @@ function App() {
 
   const esAdmin =
     usuario?.role === "admin";
+
+   const esEmpleado =
+  !esOwner &&
+  !esAdmin;
 
   function puede(permission) {
     if (esOwner) {
@@ -1191,6 +1196,15 @@ if (
       />
     );
   }
+
+  if (esEmpleado) {
+  return (
+    <InicioEmpleado
+      usuario={usuario}
+      datosDashboard={datosDashboard}
+    />
+  );
+}
 
   /*
     ==========================================
