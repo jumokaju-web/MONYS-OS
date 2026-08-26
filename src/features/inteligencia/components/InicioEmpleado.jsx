@@ -1,3 +1,4 @@
+import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
 
@@ -5,12 +6,6 @@ export default function InicioEmpleado({
   usuario,
   datosDashboard,
 }) {
-  const organizationId =
-    datosDashboard?.organization_id || null;
-
-  const businessId =
-    datosDashboard?.business_id || null;
-
   const branchId =
     datosDashboard?.branch_id || null;
 
@@ -22,6 +17,19 @@ export default function InicioEmpleado({
     usuario?.puesto ||
     usuario?.role ||
     "Operación";
+
+  async function cerrarSesion() {
+    try {
+      await supabase.auth.signOut();
+
+      window.location.reload();
+    } catch (error) {
+      console.error(
+        "Error al cerrar sesión:",
+        error
+      );
+    }
+  }
 
   return (
     <main
@@ -53,6 +61,8 @@ export default function InicioEmpleado({
           style={{
             maxWidth: "720px",
             margin: "0 auto",
+            position: "relative",
+            paddingRight: "72px",
           }}
         >
           <div
@@ -72,6 +82,7 @@ export default function InicioEmpleado({
               margin: 0,
               fontSize: "25px",
               color: "#251a20",
+              lineHeight: 1.15,
             }}
           >
             Hola, {nombre} 👋
@@ -86,6 +97,27 @@ export default function InicioEmpleado({
           >
             {puesto}
           </div>
+
+          <button
+            type="button"
+            onClick={cerrarSesion}
+            style={{
+              position: "absolute",
+              top: "2px",
+              right: 0,
+              border:
+                "1px solid #ead7e1",
+              background: "#ffffff",
+              color: "#8b315c",
+              borderRadius: "11px",
+              padding: "8px 11px",
+              fontWeight: "800",
+              cursor: "pointer",
+              fontSize: "13px",
+            }}
+          >
+            Salir
+          </button>
         </div>
       </header>
 
@@ -141,7 +173,7 @@ export default function InicioEmpleado({
         </div>
 
         {/* ======================================
-            OPERACIÓN DE HOY
+            OPERACIÓN INDIVIDUAL
             ====================================== */}
 
         <div
@@ -156,14 +188,14 @@ export default function InicioEmpleado({
               "0 7px 22px rgba(93, 44, 67, 0.05)",
           }}
         >
-        <OperacionEmpleado
-  branchId={branchId}
-  usuario={usuario}
-/>
+          <OperacionEmpleado
+            branchId={branchId}
+            usuario={usuario}
+          />
         </div>
 
         {/* ======================================
-            CIERRE DE TURNO PLEGABLE
+            CIERRE DE TURNO
             ====================================== */}
 
         <details
@@ -185,6 +217,7 @@ export default function InicioEmpleado({
               fontSize: "18px",
               color: "#7c3158",
               listStyle: "none",
+              textAlign: "center",
             }}
           >
             📝 Cierre de turno
@@ -280,7 +313,7 @@ export default function InicioEmpleado({
             📝
           </div>
 
-          Cierre
+          Turno
         </div>
       </nav>
     </main>
