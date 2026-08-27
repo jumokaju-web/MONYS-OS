@@ -18,6 +18,7 @@ import AccionesRapidas from "./features/dashboard/AccionesRapidas";
 import SicarResumen from "./features/dashboard/components/SicarResumen";
 import OperacionHoy from "./features/inteligencia/components/OperacionHoy";
 import InicioEmpleado from "./features/inteligencia/components/InicioEmpleado";
+import InicioJefa from "./features/dashboard/InicioJefa";
 import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
 import TesoreriaPage from "./features/tesoreria/pages/TesoreriaPage";
@@ -1202,6 +1203,117 @@ if (
     <InicioEmpleado
       usuario={usuario}
       datosDashboard={datosDashboard}
+    />
+  );
+}
+
+if (esOwner) {
+  return (
+    <InicioJefa
+      ventasTotales={
+        ventasTotales
+      }
+      utilidadTotal={
+        utilidadTotal
+      }
+      disponible={
+        disponible
+      }
+      movimientos={
+        movimientos
+      }
+      formatoDinero={
+        formatoDinero
+      }
+
+      abrirJuntaDirectiva={() =>
+        setPantallaActual(
+          "inteligencia"
+        )
+      }
+
+      abrirTesoreria={() =>
+        setPantallaActual(
+          "tesoreria"
+        )
+      }
+
+      abrirInventario={() =>
+        setPantallaActual(
+          "inventario"
+        )
+      }
+
+      abrirCompraMaestra={() =>
+        setPantallaActual(
+          "compra-maestra"
+        )
+      }
+
+      abrirUsuarios={() =>
+        setPantallaActual(
+          "usuarios"
+        )
+      }
+
+      contenidoAcciones={
+        !cargandoDashboard &&
+        !errorDashboard &&
+        datosDashboard ? (
+          <AccionesPrioritarias
+            datosDashboard={
+              datosDashboard
+            }
+            movimientos={
+              movimientos
+            }
+            branchId={
+              datosDashboard?.branch_id ||
+              null
+            }
+          />
+        ) : null
+      }
+
+      contenidoOperacion={
+        <OperacionHoy
+          organizationId={
+            datosDashboard?.organization_id ||
+            null
+          }
+          businessId={
+            datosDashboard?.business_id ||
+            null
+          }
+          branchId={
+            datosDashboard?.branch_id ||
+            null
+          }
+        />
+      }
+
+      contenidoSicar={
+        <SicarResumen
+          datosDashboard={
+            datosDashboard
+          }
+          cargandoDashboard={
+            cargandoDashboard
+          }
+          errorDashboard={
+            errorDashboard
+          }
+        />
+      }
+
+      contenidoCierre={
+        <CierreTurno
+          branchId={
+            datosDashboard?.branch_id ||
+            null
+          }
+        />
+      }
     />
   );
 }
