@@ -11,6 +11,11 @@ export default function InicioJefa({
   abrirInventario,
   abrirCompraMaestra,
   abrirUsuarios,
+
+  sucursalesDashboard = [],
+  cargandoSucursales = false,
+  errorSucursales = "",
+
   contenidoOperacion = null,
   contenidoAcciones = null,
   contenidoSicar = null,
@@ -48,9 +53,7 @@ export default function InicioJefa({
           paddingTop: "18px",
         }}
       >
-        {/* =====================================
-            SALUDO
-            ===================================== */}
+        {/* SALUDO */}
 
         <div
           style={{
@@ -89,9 +92,7 @@ export default function InicioJefa({
           </div>
         </div>
 
-        {/* =====================================
-            3 NÚMEROS IMPORTANTES
-            ===================================== */}
+        {/* MÉTRICAS */}
 
         <div
           style={{
@@ -124,9 +125,7 @@ export default function InicioJefa({
           />
         </div>
 
-        {/* =====================================
-            NECESITA TU ATENCIÓN
-            ===================================== */}
+        {/* ATENCIÓN */}
 
         <section
           style={{
@@ -143,55 +142,43 @@ export default function InicioJefa({
         >
           <div
             style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              gap: "12px",
-              alignItems: "flex-start",
+              fontSize: "11px",
+              fontWeight: "900",
+              color: hayPendientes
+                ? "#a65435"
+                : "#377357",
+              marginBottom: "5px",
+              letterSpacing: "0.5px",
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "900",
-                  color: hayPendientes
-                    ? "#a65435"
-                    : "#377357",
-                  marginBottom: "5px",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {hayPendientes
-                  ? "🚨 REQUIERE TU ATENCIÓN"
-                  : "✅ OPERACIÓN BAJO CONTROL"}
-              </div>
+            {hayPendientes
+              ? "🚨 REQUIERE TU ATENCIÓN"
+              : "✅ OPERACIÓN BAJO CONTROL"}
+          </div>
 
-              <strong
-                style={{
-                  display: "block",
-                  fontSize: "18px",
-                  color: "#30232a",
-                }}
-              >
-                {hayPendientes
-                  ? `${movimientosPendientes} movimientos pendientes`
-                  : "No hay alertas críticas aquí"}
-              </strong>
+          <strong
+            style={{
+              display: "block",
+              fontSize: "18px",
+              color: "#30232a",
+            }}
+          >
+            {hayPendientes
+              ? `${movimientosPendientes} movimientos pendientes`
+              : "No hay alertas críticas aquí"}
+          </strong>
 
-              <div
-                style={{
-                  marginTop: "5px",
-                  color: "#77686f",
-                  fontSize: "13px",
-                  lineHeight: 1.4,
-                }}
-              >
-                {hayPendientes
-                  ? "MONYS te mostrará aquí solamente lo que realmente necesite tu decisión."
-                  : "Si todo está funcionando, no necesitas revisar listas completas."}
-              </div>
-            </div>
+          <div
+            style={{
+              marginTop: "5px",
+              color: "#77686f",
+              fontSize: "13px",
+              lineHeight: 1.4,
+            }}
+          >
+            {hayPendientes
+              ? "MONYS te mostrará aquí solamente lo que realmente necesite tu decisión."
+              : "Si todo está funcionando, no necesitas revisar listas completas."}
           </div>
 
           {hayPendientes && (
@@ -205,9 +192,7 @@ export default function InicioJefa({
           )}
         </section>
 
-        {/* =====================================
-            MONYS RECOMIENDA / JUNTA
-            ===================================== */}
+        {/* DECISIÓN DEL DÍA */}
 
         <section
           style={{
@@ -276,9 +261,7 @@ export default function InicioJefa({
           </button>
         </section>
 
-        {/* =====================================
-            SUCURSALES / ZONAS
-            ===================================== */}
+        {/* SUCURSALES */}
 
         <section
           style={{
@@ -319,7 +302,7 @@ export default function InicioJefa({
                   fontSize: "12px",
                 }}
               >
-                Vista rápida por zona
+                Vista rápida por sucursal
               </div>
             </div>
 
@@ -330,47 +313,90 @@ export default function InicioJefa({
                 fontWeight: "700",
               }}
             >
-              2 sucursales
+              {sucursalesDashboard.length}{" "}
+              sucursal
+              {sucursalesDashboard.length ===
+              1
+                ? ""
+                : "es"}
             </span>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: "9px",
-            }}
-          >
-            <SucursalCard
-              nombre="Centro"
-              icono="🏬"
-            />
+          {cargandoSucursales && (
+            <div
+              style={{
+                padding: "16px",
+                borderRadius: "14px",
+                background: "#faf6f8",
+                color: "#7d6c74",
+                textAlign: "center",
+                fontSize: "13px",
+              }}
+            >
+              Analizando sucursales...
+            </div>
+          )}
 
-            <SucursalCard
-              nombre="General Anaya"
-              icono="🏪"
-            />
-          </div>
+          {!cargandoSucursales &&
+            errorSucursales && (
+              <div
+                style={{
+                  padding: "12px",
+                  borderRadius: "12px",
+                  background: "#fff2f2",
+                  color: "#a33d3d",
+                  fontSize: "13px",
+                }}
+              >
+                {errorSucursales}
+              </div>
+            )}
 
-          <div
-            style={{
-              marginTop: "11px",
-              paddingTop: "10px",
-              borderTop:
-                "1px solid #f0e5ea",
-              color: "#8b7982",
-              fontSize: "12px",
-              lineHeight: 1.4,
-            }}
-          >
-            Próximo paso: MONYS calculará
-            automáticamente ventas, utilidad,
-            alertas y salud de cada sucursal.
-          </div>
+          {!cargandoSucursales &&
+            !errorSucursales &&
+            sucursalesDashboard.length ===
+              0 && (
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "14px",
+                  background: "#faf6f8",
+                  color: "#7d6c74",
+                  textAlign: "center",
+                  fontSize: "13px",
+                }}
+              >
+                No hay sucursales activas
+                disponibles para analizar.
+              </div>
+            )}
+
+          {!cargandoSucursales &&
+            !errorSucursales &&
+            sucursalesDashboard.length >
+              0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gap: "9px",
+                }}
+              >
+                {sucursalesDashboard.map(
+                  (sucursal) => (
+                    <SucursalCard
+                      key={sucursal.id}
+                      sucursal={sucursal}
+                      formatoDinero={
+                        formatoDinero
+                      }
+                    />
+                  )
+                )}
+              </div>
+            )}
         </section>
 
-        {/* =====================================
-            VALOR MONYS
-            ===================================== */}
+        {/* VALOR MONYS */}
 
         <section
           style={{
@@ -438,9 +464,7 @@ export default function InicioJefa({
           </div>
         </section>
 
-        {/* =====================================
-            ACCESOS DE DUEÑA
-            ===================================== */}
+        {/* ACCIONES RÁPIDAS */}
 
         <div
           style={{
@@ -496,9 +520,7 @@ export default function InicioJefa({
           />
         </div>
 
-        {/* =====================================
-            INFORMACIÓN DETALLADA
-            ===================================== */}
+        {/* MÁS INFORMACIÓN */}
 
         <div
           style={{
@@ -549,18 +571,16 @@ export default function InicioJefa({
 }
 
 function SucursalCard({
-  nombre,
-  icono,
+  sucursal,
+  formatoDinero,
 }) {
+  const tieneDatos =
+    sucursal?.tieneDatos;
+
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent:
-          "space-between",
-        gap: "12px",
-        padding: "12px",
+        padding: "13px",
         border:
           "1px solid #eee2e8",
         borderRadius: "14px",
@@ -570,63 +590,132 @@ function SucursalCard({
       <div
         style={{
           display: "flex",
+          justifyContent:
+            "space-between",
           alignItems: "center",
           gap: "10px",
-          minWidth: 0,
         }}
       >
-        <div
-          style={{
-            width: "38px",
-            height: "38px",
-            borderRadius: "12px",
-            background: "#f9edf3",
-            display: "grid",
-            placeItems: "center",
-            fontSize: "19px",
-            flexShrink: 0,
-          }}
-        >
-          {icono}
-        </div>
-
         <div>
           <strong
             style={{
               display: "block",
               color: "#32242b",
-              fontSize: "15px",
+              fontSize: "16px",
             }}
           >
-            {nombre}
+            🏬 {sucursal.nombre}
           </strong>
 
           <div
             style={{
               color: "#8b7982",
               fontSize: "11px",
-              marginTop: "2px",
+              marginTop: "3px",
             }}
           >
-            Esperando evaluación
-            automática
+            {tieneDatos
+              ? `${sucursal.diasAnalizados || 0} días analizados`
+              : "Sin información suficiente"}
           </div>
         </div>
+
+        <span
+          style={{
+            padding: "6px 9px",
+            borderRadius: "999px",
+            background: tieneDatos
+              ? "#fff5db"
+              : "#f5f1f3",
+            color: tieneDatos
+              ? "#8a6500"
+              : "#88727d",
+            fontSize: "10px",
+            fontWeight: "900",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tieneDatos
+            ? "POR EVALUAR"
+            : "SIN DATOS"}
+        </span>
       </div>
 
-      <span
+      {tieneDatos && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(2, minmax(0, 1fr))",
+            gap: "8px",
+            marginTop: "12px",
+          }}
+        >
+          <DatoSucursal
+            titulo="Ventas"
+            valor={formatoDinero(
+              sucursal.ventasTotales
+            )}
+          />
+
+          <DatoSucursal
+            titulo="Utilidad"
+            valor={formatoDinero(
+              sucursal.utilidadTotal
+            )}
+          />
+
+          <DatoSucursal
+            titulo="Promedio diario"
+            valor={formatoDinero(
+              sucursal.ventaPromedioDiaria
+            )}
+          />
+
+          <DatoSucursal
+            titulo="Inventario"
+            valor={`${sucursal.productosInventario || 0} registros`}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DatoSucursal({
+  titulo,
+  valor,
+}) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        borderRadius: "11px",
+        padding: "9px",
+        border:
+          "1px solid #f0e5ea",
+      }}
+    >
+      <div
         style={{
-          padding: "6px 9px",
-          borderRadius: "999px",
-          background: "#f5f1f3",
-          color: "#88727d",
+          color: "#927f88",
           fontSize: "10px",
-          fontWeight: "900",
-          whiteSpace: "nowrap",
+          fontWeight: "800",
         }}
       >
-        SIN EVALUAR
-      </span>
+        {titulo}
+      </div>
+
+      <strong
+        style={{
+          display: "block",
+          marginTop: "3px",
+          color: "#392a31",
+          fontSize: "13px",
+        }}
+      >
+        {valor}
+      </strong>
     </div>
   );
 }

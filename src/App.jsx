@@ -32,6 +32,10 @@ import {
   useDashboardData,
 } from "./features/dashboard/hooks/useDashboardData";
 
+import {
+  useDashboardSucursales,
+} from "./features/dashboard/hooks/useDashboardSucursales";
+
 import HistorialMovimientos from "./features/tesoreria/components/HistorialMovimientos";
 
 import {
@@ -104,6 +108,12 @@ function App() {
     cargandoDashboard,
     errorDashboard,
   } = useDashboardData();
+
+  const {
+  sucursalesDashboard,
+  cargandoSucursales,
+  errorSucursales,
+} = useDashboardSucursales();
 
   const esOwner =
     usuario?.role === "owner";
@@ -926,6 +936,19 @@ if (
 if (esOwner) {
   return (
     <InicioJefa
+
+      sucursalesDashboard={
+  sucursalesDashboard
+}
+
+cargandoSucursales={
+  cargandoSucursales
+}
+
+errorSucursales={
+  errorSucursales
+}
+
       ventasTotales={
         ventasTotales
       }
