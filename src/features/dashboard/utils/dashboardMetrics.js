@@ -3,12 +3,55 @@
 // Cálculo de métricas reales del Dashboard
 // ======================================================
 
-const convertirNumero = (valor) => {
-  const numero = Number(valor);
+ const convertirNumero = (valor) => {
+  if (
+    valor === null ||
+    valor === undefined ||
+    valor === ""
+  ) {
+    return 0;
+  }
 
-  return Number.isFinite(numero)
-    ? numero
-    : 0;
+  if (
+    typeof valor === "number"
+  ) {
+    return Number.isFinite(valor)
+      ? valor
+      : 0;
+  }
+
+  let texto = String(valor)
+    .trim()
+    .replace(/\$/g, "")
+    .replace(/,/g, "")
+    .replace(/\s/g, "");
+
+  let esNegativo = false;
+
+  if (
+    texto.startsWith("(") &&
+    texto.endsWith(")")
+  ) {
+    esNegativo = true;
+
+    texto = texto.slice(
+      1,
+      -1
+    );
+  }
+
+  const numero =
+    Number(texto);
+
+  if (
+    !Number.isFinite(numero)
+  ) {
+    return 0;
+  }
+
+  return esNegativo
+    ? numero * -1
+    : numero;
 };
 
 const convertirFechaExcel = (valor) => {
