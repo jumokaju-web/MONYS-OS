@@ -54,7 +54,7 @@ export default function InicioJefa({
 
         <div
           style={{
-            marginBottom: "16px",
+            marginBottom: "14px",
           }}
         >
           <div
@@ -84,8 +84,8 @@ export default function InicioJefa({
               fontSize: "14px",
             }}
           >
-            Esto es lo importante de tu
-            negocio ahora.
+            Esto es lo que requiere tu
+            atención hoy.
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function InicioJefa({
             gridTemplateColumns:
               "repeat(3, minmax(0, 1fr))",
             gap: "8px",
-            marginBottom: "16px",
+            marginBottom: "14px",
           }}
         >
           <MetricaJefa
@@ -137,8 +137,8 @@ export default function InicioJefa({
               ? "1px solid #f0d1c5"
               : "1px solid #cae6d5",
             borderRadius: "18px",
-            padding: "17px",
-            marginBottom: "14px",
+            padding: "16px",
+            marginBottom: "12px",
           }}
         >
           <div
@@ -153,7 +153,7 @@ export default function InicioJefa({
             <div>
               <div
                 style={{
-                  fontSize: "12px",
+                  fontSize: "11px",
                   fontWeight: "900",
                   color: hayPendientes
                     ? "#a65435"
@@ -163,8 +163,8 @@ export default function InicioJefa({
                 }}
               >
                 {hayPendientes
-                  ? "REQUIERE TU ATENCIÓN"
-                  : "OPERACIÓN BAJO CONTROL"}
+                  ? "🚨 REQUIERE TU ATENCIÓN"
+                  : "✅ OPERACIÓN BAJO CONTROL"}
               </div>
 
               <strong
@@ -183,24 +183,14 @@ export default function InicioJefa({
                 style={{
                   marginTop: "5px",
                   color: "#77686f",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   lineHeight: 1.4,
                 }}
               >
                 {hayPendientes
-                  ? "MONYS concentrará aquí solamente los asuntos que realmente necesiten tu decisión."
-                  : "No necesitas revisar listas completas si todo marcha correctamente."}
+                  ? "MONYS te mostrará aquí solamente lo que realmente necesite tu decisión."
+                  : "Si todo está funcionando, no necesitas revisar listas completas."}
               </div>
-            </div>
-
-            <div
-              style={{
-                fontSize: "26px",
-              }}
-            >
-              {hayPendientes
-                ? "🚨"
-                : "✅"}
             </div>
           </div>
 
@@ -216,7 +206,7 @@ export default function InicioJefa({
         </section>
 
         {/* =====================================
-            MONYS RECOMIENDA
+            MONYS RECOMIENDA / JUNTA
             ===================================== */}
 
         <section
@@ -224,54 +214,54 @@ export default function InicioJefa({
             background:
               "linear-gradient(135deg, #6f2750 0%, #a93670 100%)",
             borderRadius: "20px",
-            padding: "19px",
+            padding: "18px",
             color: "#ffffff",
-            marginBottom: "14px",
+            marginBottom: "12px",
             boxShadow:
               "0 10px 28px rgba(112,39,80,0.17)",
           }}
         >
           <div
             style={{
-              fontSize: "12px",
+              fontSize: "11px",
               fontWeight: "900",
-              opacity: 0.8,
+              opacity: 0.82,
               letterSpacing: "0.7px",
             }}
           >
-            🧠 MONYS TE RECOMIENDA
+            🧠 DECISIÓN DEL DÍA
           </div>
 
           <div
             style={{
               fontSize: "20px",
               fontWeight: "900",
-              marginTop: "7px",
+              marginTop: "6px",
               lineHeight: 1.25,
             }}
           >
-            Revisa solamente lo que puede
-            cambiar el resultado del día.
+            MONYS está preparando qué
+            merece tu atención primero.
           </div>
 
           <div
             style={{
-              marginTop: "8px",
-              fontSize: "14px",
-              opacity: 0.88,
-              lineHeight: 1.5,
+              marginTop: "7px",
+              fontSize: "13px",
+              opacity: 0.9,
+              lineHeight: 1.45,
             }}
           >
-            Aquí vamos a colocar la decisión
-            prioritaria calculada por tus
-            Directores IA.
+            Tus Directores IA deben
+            concentrarte las decisiones,
+            no darte más trabajo.
           </div>
 
           <button
             type="button"
             onClick={abrirJuntaDirectiva}
             style={{
-              marginTop: "14px",
+              marginTop: "13px",
               width: "100%",
               border: "none",
               background: "#ffffff",
@@ -287,6 +277,98 @@ export default function InicioJefa({
         </section>
 
         {/* =====================================
+            SUCURSALES / ZONAS
+            ===================================== */}
+
+        <section
+          style={{
+            background: "#ffffff",
+            border:
+              "1px solid #eadde4",
+            borderRadius: "18px",
+            padding: "16px",
+            marginBottom: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent:
+                "space-between",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "12px",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "900",
+                  color: "#8b315d",
+                  letterSpacing: "0.6px",
+                }}
+              >
+                🏪 MIS SUCURSALES
+              </div>
+
+              <div
+                style={{
+                  marginTop: "3px",
+                  color: "#7b6a72",
+                  fontSize: "12px",
+                }}
+              >
+                Vista rápida por zona
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: "12px",
+                color: "#9b8891",
+                fontWeight: "700",
+              }}
+            >
+              2 sucursales
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "9px",
+            }}
+          >
+            <SucursalCard
+              nombre="Centro"
+              icono="🏬"
+            />
+
+            <SucursalCard
+              nombre="General Anaya"
+              icono="🏪"
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: "11px",
+              paddingTop: "10px",
+              borderTop:
+                "1px solid #f0e5ea",
+              color: "#8b7982",
+              fontSize: "12px",
+              lineHeight: 1.4,
+            }}
+          >
+            Próximo paso: MONYS calculará
+            automáticamente ventas, utilidad,
+            alertas y salud de cada sucursal.
+          </div>
+        </section>
+
+        {/* =====================================
             VALOR MONYS
             ===================================== */}
 
@@ -296,8 +378,8 @@ export default function InicioJefa({
             border:
               "1px solid #eadde4",
             borderRadius: "18px",
-            padding: "17px",
-            marginBottom: "14px",
+            padding: "16px",
+            marginBottom: "12px",
           }}
         >
           <div
@@ -313,8 +395,9 @@ export default function InicioJefa({
               <div
                 style={{
                   color: "#8b315d",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   fontWeight: "900",
+                  letterSpacing: "0.5px",
                 }}
               >
                 💰 VALOR GENERADO POR MONYS
@@ -324,7 +407,7 @@ export default function InicioJefa({
                 style={{
                   display: "block",
                   marginTop: "5px",
-                  fontSize: "19px",
+                  fontSize: "18px",
                   color: "#2d2127",
                 }}
               >
@@ -335,18 +418,19 @@ export default function InicioJefa({
                 style={{
                   color: "#786970",
                   marginTop: "5px",
-                  fontSize: "13px",
+                  fontSize: "12px",
+                  lineHeight: 1.4,
                 }}
               >
-                Ahorros + ventas recuperadas +
-                compras evitadas + horas
-                liberadas.
+                Compras evitadas + ventas
+                recuperadas + capital liberado
+                + horas que MONYS te ahorre.
               </div>
             </div>
 
             <div
               style={{
-                fontSize: "28px",
+                fontSize: "27px",
               }}
             >
               📈
@@ -355,8 +439,20 @@ export default function InicioJefa({
         </section>
 
         {/* =====================================
-            ACCIONES DE DUEÑA
+            ACCESOS DE DUEÑA
             ===================================== */}
+
+        <div
+          style={{
+            marginBottom: "8px",
+            fontSize: "11px",
+            fontWeight: "900",
+            color: "#846e79",
+            letterSpacing: "0.5px",
+          }}
+        >
+          ACCIONES RÁPIDAS
+        </div>
 
         <div
           style={{
@@ -407,9 +503,10 @@ export default function InicioJefa({
         <div
           style={{
             marginBottom: "8px",
-            fontSize: "13px",
+            fontSize: "11px",
             fontWeight: "900",
             color: "#846e79",
+            letterSpacing: "0.5px",
           }}
         >
           MÁS INFORMACIÓN
@@ -451,6 +548,89 @@ export default function InicioJefa({
   );
 }
 
+function SucursalCard({
+  nombre,
+  icono,
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent:
+          "space-between",
+        gap: "12px",
+        padding: "12px",
+        border:
+          "1px solid #eee2e8",
+        borderRadius: "14px",
+        background: "#fffafd",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            width: "38px",
+            height: "38px",
+            borderRadius: "12px",
+            background: "#f9edf3",
+            display: "grid",
+            placeItems: "center",
+            fontSize: "19px",
+            flexShrink: 0,
+          }}
+        >
+          {icono}
+        </div>
+
+        <div>
+          <strong
+            style={{
+              display: "block",
+              color: "#32242b",
+              fontSize: "15px",
+            }}
+          >
+            {nombre}
+          </strong>
+
+          <div
+            style={{
+              color: "#8b7982",
+              fontSize: "11px",
+              marginTop: "2px",
+            }}
+          >
+            Esperando evaluación
+            automática
+          </div>
+        </div>
+      </div>
+
+      <span
+        style={{
+          padding: "6px 9px",
+          borderRadius: "999px",
+          background: "#f5f1f3",
+          color: "#88727d",
+          fontSize: "10px",
+          fontWeight: "900",
+          whiteSpace: "nowrap",
+        }}
+      >
+        SIN EVALUAR
+      </span>
+    </div>
+  );
+}
+
 function MetricaJefa({
   titulo,
   valor,
@@ -462,7 +642,7 @@ function MetricaJefa({
         border:
           "1px solid #eadde4",
         borderRadius: "14px",
-        padding: "12px 8px",
+        padding: "11px 7px",
         textAlign: "center",
         minWidth: 0,
       }}
@@ -470,7 +650,7 @@ function MetricaJefa({
       <div
         style={{
           color: "#8a7680",
-          fontSize: "11px",
+          fontSize: "10px",
           fontWeight: "800",
           marginBottom: "5px",
         }}
@@ -481,7 +661,7 @@ function MetricaJefa({
       <strong
         style={{
           color: "#2d2027",
-          fontSize: "14px",
+          fontSize: "13px",
           wordBreak: "break-word",
         }}
       >
@@ -546,6 +726,7 @@ function BloquePlegable({
           cursor: "pointer",
           fontWeight: "800",
           color: "#6e4058",
+          fontSize: "14px",
         }}
       >
         {titulo}
@@ -564,7 +745,7 @@ function BloquePlegable({
 }
 
 const estiloBotonSecundario = {
-  marginTop: "12px",
+  marginTop: "11px",
   border:
     "1px solid #e3c4b8",
   background: "#ffffff",
@@ -573,4 +754,5 @@ const estiloBotonSecundario = {
   padding: "9px 12px",
   fontWeight: "800",
   cursor: "pointer",
+  fontSize: "13px",
 };
