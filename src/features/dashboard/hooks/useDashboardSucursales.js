@@ -201,9 +201,7 @@ async function prepararSucursal(
     id: sucursal.id,
     nombre: sucursal.name,
 
-    organization_id:
-      sucursal.organization_id,
-
+ 
     business_id:
       sucursal.business_id,
 
@@ -272,36 +270,31 @@ export function useDashboardSucursales() {
           return;
         }
 
-        const {
-          data: sucursales,
-          error,
-        } = await supabase
-          .from("branches")
-          .select(`
-            id,
-            name,
-            organization_id,
-            business_id,
-            active
-          `)
-          .eq(
-            "organization_id",
-            organizationId
-          )
-          .eq(
-            "business_id",
-            businessId
-          )
-          .eq(
-            "active",
-            true
-          )
-          .order(
-            "name",
-            {
-              ascending: true,
-            }
-          );
+      const {
+  data: sucursales,
+  error,
+} = await supabase
+  .from("branches")
+  .select(`
+    id,
+    name,
+    business_id,
+    active
+  `)
+  .eq(
+    "business_id",
+    businessId
+  )
+  .eq(
+    "active",
+    true
+  )
+  .order(
+    "name",
+    {
+      ascending: true,
+    }
+  );
 
         if (error) {
           throw error;
