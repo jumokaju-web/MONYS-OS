@@ -7,13 +7,27 @@ import {
   obtenerUltimasVentasPorSucursal,
 } from "../../dashboard/services/dashboardDataService";
 
-const DIAS_OBJETIVO_DESTINO = 30;
+const DIAS_OBJETIVO_DESTINO = 14;
 const DIAS_RESERVA_ORIGEN = 30;
 
-const RESERVA_MINIMA_PIEZAS = 2;
-const PORCENTAJE_RESERVA_MINIMA = 0.15;
+const RESERVA_MINIMA_PIEZAS = 3;
+const PORCENTAJE_RESERVA_MINIMA = 0.40;
 
 const EXISTENCIA_MAXIMA_CONFIABLE = 500;
+
+/*
+ * MODO PILOTO MONYS
+ *
+ * Mientras todavía tenemos poco histórico:
+ *
+ * - destino recibe inventario para aprox. 14 días;
+ * - origen conserva al menos 30 días de sus ventas;
+ * - además conserva mínimo 40% de su existencia;
+ * - nunca deja menos de 3 piezas.
+ *
+ * Después de acumular histórico confiable,
+ * MONYS podrá flexibilizar estas reglas.
+ */
 
 function convertirNumero(valor) {
   const numero = Number(valor);

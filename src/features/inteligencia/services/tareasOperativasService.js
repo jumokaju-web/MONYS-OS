@@ -196,6 +196,280 @@ export async function crearTareaOperativa({
   return data;
 }
 
+export async function crearTareaCorreccionInventario({
+  organizationId = null,
+  businessId = null,
+  branchId = null,
+
+  codigo = "",
+  producto = "Producto",
+
+  existenciaSistema = null,
+  existenciaFisica = null,
+
+  responsable = null,
+  prioridad = "alta",
+  creadaPor = null,
+
+  origen = "revision_inventario",
+} = {}) {
+  const codigoLimpio =
+    String(codigo || "").trim();
+
+  const productoLimpio =
+    String(producto || "Producto").trim();
+
+  const tieneExistenciaSistema =
+    Number.isFinite(
+      Number(existenciaSistema)
+    );
+
+  const tieneExistenciaFisica =
+    Number.isFinite(
+      Number(existenciaFisica)
+    );
+
+  const sistema =
+    tieneExistenciaSistema
+      ? Number(existenciaSistema)
+      : null;
+
+  const fisico =
+    tieneExistenciaFisica
+      ? Number(existenciaFisica)
+      : null;
+
+  const diferencia =
+    sistema !== null &&
+    fisico !== null
+      ? fisico - sistema
+      : null;
+
+  const descripcionPartes = [
+    codigoLimpio
+      ? `Código: ${codigoLimpio}.`
+      : null,
+
+    sistema !== null
+      ? `Existencia en sistema: ${sistema}.`
+      : "Existencia en sistema pendiente de confirmar.",
+
+    fisico !== null
+      ? `Existencia física reportada: ${fisico}.`
+      : "Existencia física pendiente de conteo.",
+
+    diferencia !== null
+      ? `Diferencia detectada: ${diferencia}.`
+      : null,
+
+    `Origen de la revisión: ${origen}.`,
+  ].filter(Boolean);
+
+  return crearTareaOperativa({
+    organizationId,
+    businessId,
+    branchId,
+
+    titulo:
+      `Verificar inventario: ${productoLimpio}`,
+
+    descripcion:
+      descripcionPartes.join(" "),
+
+    area:
+      "inventario",
+
+    responsable,
+
+    prioridad,
+
+    creadaPor,
+
+    requiereEvidencia:
+      true,
+
+    instrucciones:
+      [
+        "1. Localiza físicamente el producto.",
+        "2. Cuenta todas las piezas disponibles.",
+        "3. Verifica que el código corresponda al producto.",
+        "4. Reporta la existencia física real.",
+        "5. Toma evidencia si existe diferencia.",
+        "6. No ajustes SICAR sin autorización.",
+      ].join("\n"),
+
+    criterioExito:
+      "Producto contado físicamente, existencia real registrada y diferencia documentada cuando aplique.",
+  });
+}
+
+// ======================================================
+// OBTENER CORRECCIONES DE INVENTARIO DISPONIBLES
+// ======================================================
+
+export async function obtenerCorreccionesInventarioDisponibles({
+  branchId = null,
+  fecha = null,
+} = {}) {
+  let consulta = supabase
+    .from("tareas_operativas")
+    .select(`
+      id,
+      organization_id,
+      business_id,
+      branch_id,
+      titulo,
+      descripcion,
+      area,
+      responsable,
+      prioridad,
+      estado,
+      fecha,
+      hora_limite,
+      instrucciones,
+      resultado,
+      creada_por,
+      completada_por,
+      completada_at,
+      requiere_evidencia,
+      criterio_exito,
+      calificacion_final,
+      evaluacion_estado,
+      evaluacion_resumen,
+      requiere_revision,
+      created_at,
+      updated_at
+    `)
+    .eq(
+      "area",
+      "inventario"
+    )
+    .eq(
+      "estado",
+      "pendiente"
+    )
+    .is(
+      "responsable",
+      null
+    )
+    .order(
+      "prioridad",
+      {
+        ascending: false,
+      }
+    )
+    .order(
+      "created_at",
+      {
+        ascending: true,
+      }
+    );
+
+  if (branchId) {
+    consulta =
+      consulta.eq(
+        "branch_id",
+        branchId
+      );
+  }
+
+  if (fecha) {
+    consulta =
+      consulta.eq(
+        "fecha",
+        fecha
+      );
+  }
+
+  const {
+    data,
+    error,
+  } = await consulta;
+
+  if (error) {
+    console.error(
+      "Error al obtener correcciones de inventario disponibles:",
+      error
+    );
+
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data
+    : [];
+}
+
+
+// ======================================================
+// TOMAR CORRECCIÓN DE INVENTARIO
+// ======================================================
+
+export async function tomarCorreccionInventario({
+  tareaId,
+  responsable,
+} = {}) {
+  if (!tareaId) {
+    throw new Error(
+      "Falta el id de la tarea."
+    );
+  }
+
+  const nombreResponsable =
+    String(
+      responsable || ""
+    ).trim();
+
+  if (!nombreResponsable) {
+    throw new Error(
+      "No se pudo identificar a la empleada."
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("tareas_operativas")
+    .update({
+      responsable:
+        nombreResponsable,
+
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "id",
+      tareaId
+    )
+    .eq(
+      "estado",
+      "pendiente"
+    )
+    .is(
+      "responsable",
+      null
+    )
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "Error al tomar corrección de inventario:",
+      error
+    );
+
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(
+      "Esta corrección ya fue tomada por otra persona o ya no está disponible."
+    );
+  }
+
+  return data;
+}
 
 // ======================================================
 // CAMBIAR ESTADO

@@ -11,7 +11,7 @@ export default function InicioJefa({
   abrirInventario,
   abrirCompraMaestra,
   abrirUsuarios,
-
+  abrirImportador,
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
@@ -35,6 +35,26 @@ export default function InicioJefa({
 
   const hayPendientes =
     movimientosPendientes > 0;
+
+    const ventasConsolidadas =
+  sucursalesDashboard.reduce(
+    (total, sucursal) =>
+      total +
+      (Number(
+        sucursal?.ventasTotales
+      ) || 0),
+    0
+  );
+
+const utilidadConsolidada =
+  sucursalesDashboard.reduce(
+    (total, sucursal) =>
+      total +
+      (Number(
+        sucursal?.utilidadTotal
+      ) || 0),
+    0
+  );
 
   return (
     <main
@@ -106,14 +126,14 @@ export default function InicioJefa({
           <MetricaJefa
             titulo="Ventas"
             valor={formatoDinero(
-              ventasTotales
+              ventasConsolidadas
             )}
           />
 
           <MetricaJefa
             titulo="Utilidad"
             valor={formatoDinero(
-              utilidadTotal
+              utilidadConsolidada
             )}
           />
 
@@ -487,13 +507,16 @@ export default function InicioJefa({
             marginBottom: "18px",
           }}
         >
-          <Acceso
-            icono="📦"
-            texto="Inventario"
-            onClick={
-              abrirInventario
-            }
-          />
+         
+              <Acceso
+  icono="📄"
+  texto="Importar reportes"
+  onClick={() => {
+    console.log("CLICK IMPORTADOR");
+    abrirImportador?.();
+  }}
+/>
+
 
           <Acceso
             icono="🛒"
@@ -510,6 +533,12 @@ export default function InicioJefa({
               abrirTesoreria
             }
           />
+
+            <Acceso
+  icono="📄"
+  texto="Importar reportes"
+  onClick={abrirImportador}
+/>
 
           <Acceso
             icono="👥"
@@ -635,9 +664,28 @@ function SucursalCard({
             whiteSpace: "nowrap",
           }}
         >
-          {tieneDatos
-            ? "POR EVALUAR"
-            : "SIN DATOS"}
+        
+           {tieneDatos
+  ? (
+      sucursal?.salud?.titulo ||
+      "POR EVALUAR"
+    )
+  : "SIN DATOS"}
+
+  {tieneDatos &&
+  sucursal?.salud?.causas?.length > 0 && (
+    <div
+      style={{
+        marginTop: "8px",
+        fontSize: "12px",
+        color: "#7d6e75",
+        lineHeight: "1.45",
+      }}
+    >
+      {sucursal.salud.causas[0]}
+    </div>
+  )}
+
         </span>
       </div>
 

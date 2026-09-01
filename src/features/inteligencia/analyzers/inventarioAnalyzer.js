@@ -68,14 +68,16 @@ function obtenerExistencia(detalle) {
 
   return convertirNumero(
     detalle?.existencia ??
-      detalle?.exis ??
-      detalle?.stock ??
-      detalle?.cantidadExistencia ??
-      originales.existencia ??
-      originales.exis ??
-      originales.stock ??
-      originales.cantidadExistencia ??
-      0
+    detalle?.exis ??
+    detalle?.stock ??
+    detalle?.cantidad ??
+    detalle?.cantidadExistencia ??
+    originales.existencia ??
+    originales.exis ??
+    originales.stock ??
+    originales.cantidad ??
+    originales.cantidadExistencia ??
+    0
   );
 }
 

@@ -67,6 +67,11 @@ export default function PlanTraspasos({
     setPrioridadSeleccionada,
   ] = useState("");
 
+    const [
+    mostrarDetalle,
+    setMostrarDetalle,
+  ] = useState(false);
+
   const traspasos =
     Array.isArray(planTraspasos)
       ? planTraspasos
@@ -907,8 +912,46 @@ export default function PlanTraspasos({
         )}
       </div>
 
-      {traspasosFiltrados.length ===
-      0 ? (
+             <div
+        style={{
+          marginBottom: "18px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            setMostrarDetalle(
+              !mostrarDetalle
+            )
+          }
+          style={{
+            padding: "11px 16px",
+            borderRadius: "12px",
+            border:
+              "1px solid #315a9b",
+            backgroundColor:
+              mostrarDetalle
+                ? "#eaf3ff"
+                : "#ffffff",
+            color: "#315a9b",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          {mostrarDetalle
+            ? "▲ Ocultar detalle completo"
+            : `▼ Ver detalle completo de ${formatearNumero(
+                traspasosFiltrados.length
+              )} movimientos`}
+        </button>
+      </div>
+
+
+      
+      {mostrarDetalle && (
+        <>
+          {traspasosFiltrados.length ===
+          0 ? (
         <div
           style={{
             padding: "18px",
@@ -1217,6 +1260,8 @@ export default function PlanTraspasos({
             }
           )}
         </div>
+          )}
+        </>
       )}
     </section>
   );

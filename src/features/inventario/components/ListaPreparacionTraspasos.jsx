@@ -1,3 +1,10 @@
+import {
+  useUser,
+} from "../../../context/UserContext";
+
+import {
+  crearTareaCorreccionInventario,
+} from "../../inteligencia/services/tareasOperativasService";
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -28,6 +35,134 @@ export default function ListaPreparacionTraspasos({
   sucursalOrigen,
   sucursalDestino,
 }) {
+    const {
+    usuario,
+  } = useUser();
+
+  const reportarDiferencia =
+    async (traspaso) => {
+      try {
+        const existenciaSistema =
+          convertirNumero(
+            traspaso?.existenciaOrigen
+          );
+
+        const respuesta =
+          window.prompt(
+            [
+              `Producto: ${
+                traspaso?.producto ||
+                "Producto"
+              }`,
+              "",
+              `MONYS/SICAR registra: ${formatearNumero(
+                existenciaSistema
+              )} piezas.`,
+              "",
+              "¿Cuántas piezas hay físicamente?",
+            ].join("\n"),
+            String(existenciaSistema)
+          );
+
+        if (respuesta === null) {
+          return;
+        }
+
+        const existenciaFisica =
+          Number(respuesta);
+
+        if (
+          !Number.isFinite(
+            existenciaFisica
+          ) ||
+          existenciaFisica < 0
+        ) {
+          window.alert(
+            "Escribe una cantidad válida."
+          );
+
+          return;
+        }
+
+        if (
+          existenciaFisica ===
+          existenciaSistema
+        ) {
+          window.alert(
+            "La existencia física coincide con MONYS. No es necesario crear una corrección."
+          );
+
+          return;
+        }
+
+        await crearTareaCorreccionInventario({
+          organizationId:
+            usuario?.organization_id ||
+            null,
+
+          businessId:
+            usuario?.business_id ||
+            null,
+
+          branchId:
+            traspaso?.branchOrigenId ||
+            usuario?.branch_id ||
+            null,
+
+          codigo:
+            traspaso?.codigo || "",
+
+          producto:
+            traspaso?.producto ||
+            "Producto",
+
+          existenciaSistema,
+
+          existenciaFisica,
+
+          responsable:
+            null,
+
+          prioridad:
+            "alta",
+
+          creadaPor:
+            usuario?.id || null,
+
+          origen:
+            "preparacion_traspaso",
+        });
+
+        window.alert(
+          [
+            "✅ Diferencia registrada.",
+            "",
+            `Sistema: ${formatearNumero(
+              existenciaSistema
+            )}`,
+            `Físico: ${formatearNumero(
+              existenciaFisica
+            )}`,
+            `Diferencia: ${formatearNumero(
+              existenciaFisica -
+                existenciaSistema
+            )}`,
+            "",
+            "MONYS creó una tarea de verificación de inventario.",
+          ].join("\n")
+        );
+      } catch (error) {
+        console.error(
+          "Error reportando diferencia de inventario:",
+          error
+        );
+
+        window.alert(
+          error?.message ||
+            "No fue posible registrar la diferencia."
+        );
+      }
+    };
   const lista =
     Array.isArray(traspasos)
       ? traspasos
@@ -574,40 +709,60 @@ export default function ListaPreparacionTraspasos({
                 </div>
               </div>
 
-              <div
-                style={{
-                  textAlign:
-                    "right",
-                }}
-              >
-                <strong
-                  style={{
-                    fontSize:
-                      "20px",
-                    color:
-                      "#315a9b",
-                  }}
-                >
-                  {formatearNumero(
-                    traspaso
-                      ?.cantidadSugerida
-                  )}{" "}
-                  pzas
-                </strong>
+           <div
+  style={{
+    textAlign: "right",
+    minWidth: "150px",
+  }}
+>
+  <strong
+    style={{
+      fontSize: "20px",
+      color: "#315a9b",
+    }}
+  >
+    {formatearNumero(
+      traspaso
+        ?.cantidadSugerida
+    )}{" "}
+    pzas
+  </strong>
 
-                <div
-                  style={{
-                    marginTop:
-                      "3px",
-                    color:
-                      "#6f666a",
-                    fontSize:
-                      "12px",
-                  }}
-                >
-                  preparar
-                </div>
-              </div>
+  <div
+    style={{
+      marginTop: "3px",
+      color: "#6f666a",
+      fontSize: "12px",
+    }}
+  >
+    preparar
+  </div>
+
+  <button
+    type="button"
+    onClick={() =>
+      reportarDiferencia(
+        traspaso
+      )
+    }
+    style={{
+      marginTop: "8px",
+      padding: "7px 10px",
+      borderRadius: "9px",
+      border:
+        "1px solid #f1c27d",
+      backgroundColor:
+        "#fff8ee",
+      color: "#8c570c",
+      fontSize: "12px",
+      fontWeight: 800,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+    }}
+  >
+    ⚠️ Reportar diferencia
+  </button>
+</div>
             </div>
           )
         )}

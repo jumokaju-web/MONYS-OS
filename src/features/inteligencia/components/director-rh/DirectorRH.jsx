@@ -16,6 +16,14 @@ import {
   obtenerPuestosRH,
 } from "../../services/puestosRHService";
 
+import {
+  obtenerNegociosActivos,
+  obtenerSucursalesActivas,
+  validarNuevoUsuario,
+  crearPerfilUsuario,
+  eliminarUsuarioMonys,
+} from "../../../usuarios/services/usuariosService";
+
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -60,9 +68,52 @@ function obtenerEstiloPrioridad(prioridad) {
   };
 }
 
+const ROLES_EMPLEADO = [
+  {
+    value: "encargada",
+    label: "Encargada",
+  },
+  {
+    value: "vendedora",
+    label: "Vendedora",
+  },
+  {
+    value: "marketing",
+    label: "Marketing",
+  },
+  {
+    value: "chofer",
+    label: "Chofer",
+  },
+  {
+    value: "compras",
+    label: "Compras",
+  },
+  {
+    value: "finanzas",
+    label: "Finanzas",
+  },
+  {
+    value: "rh",
+    label: "Recursos Humanos",
+  },
+  {
+    value: "capturista",
+    label: "Capturista",
+  },
+  {
+    value: "consulta",
+    label: "Consulta",
+  },
+];
+
 const formularioInicial = {
   nombre: "",
   puesto: "",
+  correo: "",
+  telefono: "",
+  password: "",
+  role: "vendedora",
   fechaIngreso: "",
   sueldoBase: "",
   periodicidadPago: "",
@@ -213,6 +264,8 @@ const [
   );
 
   setFormularioEmpleado({
+    ...formularioInicial,
+
     nombre:
       empleado?.nombre || "",
 
@@ -258,82 +311,224 @@ const [
       setErrorEmpleado(
         "Escribe el nombre del empleado."
       );
+
       return;
     }
 
- 
-  
     if (!branchId) {
       setErrorEmpleado(
         "No se encontró la sucursal actual."
       );
+
       return;
     }
+
+    if (
+      !empleadoEditando?.id &&
+      !formularioEmpleado.correo.trim()
+    ) {
+      setErrorEmpleado(
+        "Escribe el correo que usará para entrar a MONYS OS."
+      );
+
+      return;
+    }
+
+    if (
+      !empleadoEditando?.id &&
+      formularioEmpleado.password.length < 8
+    ) {
+      setErrorEmpleado(
+        "La contraseña temporal debe tener por lo menos 8 caracteres."
+      );
+
+      return;
+    }
+
+    if (
+      !empleadoEditando?.id &&
+      !formularioEmpleado.role
+    ) {
+      setErrorEmpleado(
+        "Selecciona el rol de acceso."
+      );
+
+      return;
+    }
+
+    let usuarioCreado =
+      null;
 
     try {
       setGuardandoEmpleado(true);
 
-     if (empleadoEditando?.id) {
-  await actualizarEmpleadoRH({
-    empleadoId:
-      empleadoEditando.id,
+      if (empleadoEditando?.id) {
+        await actualizarEmpleadoRH({
+          empleadoId:
+            empleadoEditando.id,
 
-    nombre:
-      formularioEmpleado.nombre,
+          nombre:
+            formularioEmpleado.nombre,
 
-    puesto:
-      formularioEmpleado.puesto,
+          puesto:
+            formularioEmpleado.puesto,
 
-    fechaIngreso:
-      formularioEmpleado.fechaIngreso,
+          fechaIngreso:
+            formularioEmpleado.fechaIngreso,
 
-    sueldoBase:
-      formularioEmpleado.sueldoBase,
+          sueldoBase:
+            formularioEmpleado.sueldoBase,
 
-    periodicidadPago:
-      formularioEmpleado
-        .periodicidadPago,
+          periodicidadPago:
+            formularioEmpleado
+              .periodicidadPago,
 
-    tipoContrato:
-      formularioEmpleado.tipoContrato,
-  });
-} else {
-  await crearEmpleadoRH({
-    organizationId,
-    businessId,
-    branchId,
+          tipoContrato:
+            formularioEmpleado.tipoContrato,
+        });
 
-    nombre:
-      formularioEmpleado.nombre,
+        setMensajeEmpleado(
+          "Empleado actualizado correctamente."
+        );
+      } else {
+        const [
+          negocios,
+          sucursales,
+        ] = await Promise.all([
+          obtenerNegociosActivos(),
+          obtenerSucursalesActivas(),
+        ]);
 
-    puesto:
-      formularioEmpleado.puesto,
+        const sucursalActual =
+          (sucursales || []).find(
+            (sucursal) =>
+              sucursal.id ===
+              branchId
+          );
 
-    fechaIngreso:
-      formularioEmpleado.fechaIngreso,
+        const businessIdFinal =
+          businessId ||
+          sucursalActual?.business_id ||
+          null;
 
-    sueldoBase:
-      formularioEmpleado.sueldoBase,
+        if (!businessIdFinal) {
+          throw new Error(
+            "No fue posible identificar el negocio de la sucursal."
+          );
+        }
 
-    periodicidadPago:
-      formularioEmpleado
-        .periodicidadPago,
+        const usuarioValidado =
+          validarNuevoUsuario({
+            nombre:
+              formularioEmpleado.nombre,
 
-    tipoContrato:
-      formularioEmpleado.tipoContrato,
-  });
-}
+            correo:
+              formularioEmpleado.correo,
+
+            telefono:
+              formularioEmpleado.telefono,
+
+            password:
+              formularioEmpleado.password,
+
+            role:
+              formularioEmpleado.role,
+
+            business_id:
+              businessIdFinal,
+
+            branch_id:
+              branchId,
+
+            active:
+              true,
+
+            negocios:
+              negocios || [],
+
+            sucursales:
+              sucursales || [],
+          });
+
+        usuarioCreado =
+          await crearPerfilUsuario(
+            usuarioValidado
+          );
+
+        if (!usuarioCreado?.id) {
+          throw new Error(
+            "MONYS creó el acceso, pero no devolvió el identificador del usuario."
+          );
+        }
+
+        try {
+          await crearEmpleadoRH({
+            organizationId:
+              organizationId ||
+              usuarioValidado
+                .organization_id,
+
+            businessId:
+              businessIdFinal,
+
+            branchId,
+
+            nombre:
+              formularioEmpleado.nombre,
+
+            puesto:
+              formularioEmpleado.puesto,
+
+            fechaIngreso:
+              formularioEmpleado.fechaIngreso,
+
+            sueldoBase:
+              formularioEmpleado.sueldoBase,
+
+            periodicidadPago:
+              formularioEmpleado
+                .periodicidadPago,
+
+            tipoContrato:
+              formularioEmpleado.tipoContrato,
+
+            usuarioId:
+              usuarioCreado.id,
+          });
+        } catch (
+          errorEmpleadoRH
+        ) {
+          try {
+            await eliminarUsuarioMonys(
+              usuarioCreado.id
+            );
+          } catch (
+            errorRollback
+          ) {
+            console.error(
+              "No fue posible revertir el usuario después de fallar RH:",
+              errorRollback
+            );
+          }
+
+          throw errorEmpleadoRH;
+        }
+
+        setMensajeEmpleado(
+          "Empleado y acceso a MONYS OS creados correctamente."
+        );
+      }
 
       setFormularioEmpleado(
         formularioInicial
       );
 
-      setEmpleadoEditando(null);setEmpleadoEditando(null);
+      setEmpleadoEditando(
+        null
+      );
 
-      setMostrarFormulario(false);
-
-      setMensajeEmpleado(
-        "Empleado registrado correctamente."
+      setMostrarFormulario(
+        false
       );
 
       if (
@@ -358,7 +553,7 @@ const [
   }
 
 
-   async function manejarBajaEmpleado(
+  async function manejarBajaEmpleado(
   empleado
 ) {
 
@@ -444,12 +639,6 @@ async function manejarReactivarEmpleado(
       error
     );
   }
-}
-
-async function manejarReactivarEmpleado(
-  empleado
-) {
-  // toda la lógica de reactivar
 }
 
 async function manejarEliminarEmpleado(
@@ -628,7 +817,7 @@ async function manejarEliminarEmpleado(
         </div>
       )}
 
-      {/* FORMULARIO NUEVO EMPLEADO */}
+      {/* FORMULARIO EMPLEADO */}
 
       {mostrarFormulario && (
         <form
@@ -660,7 +849,9 @@ async function manejarEliminarEmpleado(
                   margin: 0,
                 }}
               >
-                👤 Nuevo empleado
+                {empleadoEditando
+                  ? "✏️ Editar empleado"
+                  : "👤 Nuevo empleado"}
               </h3>
 
               <p
@@ -670,8 +861,9 @@ async function manejarEliminarEmpleado(
                   color: "#746b71",
                 }}
               >
-                Registra personal sin entrar
-                a Supabase.
+                {empleadoEditando
+                  ? "Actualiza los datos laborales del empleado."
+                  : "Registra al empleado y crea su acceso a MONYS OS sin entrar a Supabase."}
               </p>
             </div>
 
@@ -771,6 +963,144 @@ async function manejarEliminarEmpleado(
     )}
   </select>
 </label>
+
+            {!empleadoEditando && (
+              <>
+                <label>
+                  <strong>
+                    Correo de acceso *
+                  </strong>
+
+                  <input
+                    type="email"
+                    value={
+                      formularioEmpleado.correo
+                    }
+                    onChange={(evento) =>
+                      actualizarCampo(
+                        "correo",
+                        evento.target.value
+                      )
+                    }
+                    placeholder="correo@ejemplo.com"
+                    autoComplete="email"
+                    style={{
+                      width: "100%",
+                      marginTop: "7px",
+                      padding: "11px",
+                      borderRadius: "9px",
+                      border:
+                        "1px solid #d8ced4",
+                      boxSizing:
+                        "border-box",
+                    }}
+                  />
+                </label>
+
+                <label>
+                  <strong>
+                    Teléfono
+                  </strong>
+
+                  <input
+                    type="tel"
+                    value={
+                      formularioEmpleado.telefono
+                    }
+                    onChange={(evento) =>
+                      actualizarCampo(
+                        "telefono",
+                        evento.target.value
+                      )
+                    }
+                    placeholder="Ej. 3781234567"
+                    autoComplete="tel"
+                    style={{
+                      width: "100%",
+                      marginTop: "7px",
+                      padding: "11px",
+                      borderRadius: "9px",
+                      border:
+                        "1px solid #d8ced4",
+                      boxSizing:
+                        "border-box",
+                    }}
+                  />
+                </label>
+
+                <label>
+                  <strong>
+                    Contraseña temporal *
+                  </strong>
+
+                  <input
+                    type="password"
+                    value={
+                      formularioEmpleado.password
+                    }
+                    onChange={(evento) =>
+                      actualizarCampo(
+                        "password",
+                        evento.target.value
+                      )
+                    }
+                    placeholder="Mínimo 8 caracteres"
+                    autoComplete="new-password"
+                    style={{
+                      width: "100%",
+                      marginTop: "7px",
+                      padding: "11px",
+                      borderRadius: "9px",
+                      border:
+                        "1px solid #d8ced4",
+                      boxSizing:
+                        "border-box",
+                    }}
+                  />
+                </label>
+
+                <label>
+                  <strong>
+                    Rol de acceso *
+                  </strong>
+
+                  <select
+                    value={
+                      formularioEmpleado.role
+                    }
+                    onChange={(evento) =>
+                      actualizarCampo(
+                        "role",
+                        evento.target.value
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: "7px",
+                      padding: "11px",
+                      borderRadius: "9px",
+                      border:
+                        "1px solid #d8ced4",
+                      backgroundColor:
+                        "#ffffff",
+                      boxSizing:
+                        "border-box",
+                    }}
+                  >
+                    {ROLES_EMPLEADO.map(
+                      (rol) => (
+                        <option
+                          key={rol.value}
+                          value={rol.value}
+                        >
+                          {rol.label}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              </>
+            )}
 
             <label>
               <strong>
@@ -1010,7 +1340,9 @@ async function manejarEliminarEmpleado(
             >
               {guardandoEmpleado
                 ? "Guardando..."
-                : "Guardar empleado"}
+                : empleadoEditando
+                  ? "Guardar cambios"
+                  : "Guardar empleado y acceso"}
             </button>
           </div>
         </form>

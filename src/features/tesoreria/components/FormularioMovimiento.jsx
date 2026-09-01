@@ -60,37 +60,74 @@ export default function FormularioMovimiento({
     }
   };
 
-  const guardarMovimiento = (evento) => {
+       const guardarMovimiento = async (evento) => {
     evento.preventDefault();
 
-    const montoNumerico = Number(formulario.monto);
+    const montoNumerico =
+      Number(formulario.monto);
 
-    if (!formulario.monto || montoNumerico <= 0) {
-      setMensaje("Escribe un monto mayor a cero.");
+    if (
+      !formulario.monto ||
+      montoNumerico <= 0
+    ) {
+      setMensaje(
+        "Escribe un monto mayor a cero."
+      );
+
       return;
     }
 
-    if (!formulario.concepto.trim()) {
-      setMensaje("Escribe el concepto del movimiento.");
+    if (
+      !formulario.concepto.trim()
+    ) {
+      setMensaje(
+        "Escribe el concepto del movimiento."
+      );
+
       return;
     }
 
     const movimiento = {
       ...formulario,
-      monto: montoNumerico,
+
+      monto:
+        montoNumerico,
+
       comprobante,
-      fechaRegistro: new Date().toISOString(),
+
+      fechaRegistro:
+        new Date().toISOString(),
     };
 
-    if (typeof onGuardar === "function") {
-      onGuardar(movimiento);
-    } else {
-      console.log("Movimiento preparado:", movimiento);
+    try {
+      setMensaje("");
+
+      if (
+        typeof onGuardar ===
+        "function"
+      ) {
+        await onGuardar(
+          movimiento
+        );
+      } else {
+        console.log(
+          "Movimiento preparado:",
+          movimiento
+        );
+      }
+
+      limpiarFormulario();
+    } catch (error) {
+      console.error(
+        "No fue posible guardar el movimiento:",
+        error
+      );
+
+      setMensaje(
+        error?.message ||
+          "No fue posible guardar el movimiento."
+      );
     }
-
-    setMensaje("Movimiento preparado correctamente.");
-
-    limpiarFormulario();
   };
 
   const cancelarFormulario = () => {

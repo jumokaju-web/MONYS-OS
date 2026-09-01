@@ -995,6 +995,12 @@ errorSucursales={
         )
       }
 
+      abrirImportador={() =>
+  setPantallaActual(
+    "importador"
+  )
+}
+
       contenidoAcciones={
         !cargandoDashboard &&
         !errorDashboard &&

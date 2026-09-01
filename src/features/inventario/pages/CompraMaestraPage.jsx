@@ -101,6 +101,11 @@ export default function CompraMaestraPage({
     setSucursalSeleccionada,
   ] = useState(null);
 
+    const [
+    seccionActiva,
+    setSeccionActiva,
+  ] = useState("resumen");
+
    async function guardarPlanActual() {
     if (
       !compraMaestra ||
@@ -414,6 +419,75 @@ export default function CompraMaestraPage({
         </p>
       </div>
 
+              <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          marginBottom: "24px",
+          padding: "8px",
+          borderRadius: "16px",
+          backgroundColor: "#ffffff",
+          border: "1px solid #ead5df",
+        }}
+      >
+        {[
+          {
+            id: "resumen",
+            texto: "📊 Resumen",
+          },
+          {
+            id: "compra",
+            texto: "🛒 Compra",
+          },
+          {
+            id: "traspasos",
+            texto: "🔄 Traspasos",
+          },
+          {
+            id: "historial",
+            texto: "🗂 Historial",
+          },
+        ].map((seccion) => {
+          const activa =
+            seccionActiva ===
+            seccion.id;
+
+          return (
+            <button
+              key={seccion.id}
+              type="button"
+              onClick={() =>
+                setSeccionActiva(
+                  seccion.id
+                )
+              }
+              style={{
+                padding:
+                  "11px 16px",
+                borderRadius:
+                  "12px",
+                border: activa
+                  ? "2px solid #8f2858"
+                  : "1px solid #ead5df",
+                backgroundColor:
+                  activa
+                    ? "#fff0f6"
+                    : "#ffffff",
+                color:
+                  activa
+                    ? "#8f2858"
+                    : "#6f666a",
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              {seccion.texto}
+            </button>
+          );
+        })}
+      </div>
+
       <div
         style={{
           display: "grid",
@@ -691,54 +765,76 @@ export default function CompraMaestraPage({
         </button>
       </div>
 
-      <ResumenSucursalesCompra
-        compraMaestra={
-          compraMaestra
-        }
-        onSeleccionarSucursal={
-          setSucursalSeleccionada
-        }
-      />
 
-      {sucursalSeleccionada && (
-        <DetalleCompraSucursal
-          branchId={
-            sucursalSeleccionada.branchId
-          }
-          nombreSucursal={
-            sucursalSeleccionada.sucursal
-          }
+          {seccionActiva ===
+        "resumen" && (
+        <>
+          <ResumenSucursalesCompra
+            compraMaestra={
+              compraMaestra
+            }
+            onSeleccionarSucursal={
+              setSucursalSeleccionada
+            }
+          />
+
+          {sucursalSeleccionada && (
+            <DetalleCompraSucursal
+              branchId={
+                sucursalSeleccionada.branchId
+              }
+              nombreSucursal={
+                sucursalSeleccionada.sucursal
+              }
+              productos={
+                productosCompra
+              }
+              onCerrar={() =>
+                setSucursalSeleccionada(
+                  null
+                )
+              }
+            />
+          )}
+        </>
+      )}
+
+      {seccionActiva ===
+        "historial" && (
+        <HistorialCompraMaestra />
+      )}
+
+      {seccionActiva ===
+        "compra" && (
+        <ListaMaestraCompra
           productos={
             productosCompra
           }
-          onCerrar={() =>
-            setSucursalSeleccionada(
-              null
-            )
+          totalPiezas={
+            compraMaestra
+              ?.totalPiezasComprar
+          }
+          inversionTotal={
+            compraMaestra
+              ?.inversionTotal
           }
         />
       )}
 
-           <HistorialCompraMaestra />
-
-              <ListaMaestraCompra
-        productos={
-          productosCompra
-        }
-        totalPiezas={
-          compraMaestra?.totalPiezasComprar
-        }
-        inversionTotal={
-          compraMaestra?.inversionTotal
-        }
-      />
+      {seccionActiva ===
+        "traspasos" && (
+        <PlanTraspasos
+          planTraspasos={
+            compraMaestra
+              ?.planTraspasos
+          }
+        />
+      )}
+    
 
    
-<PlanTraspasos
-  planTraspasos={
-    compraMaestra?.planTraspasos
-  }
-/>
+ 
+     {seccionActiva === "compra" && (
 
       <div
         style={{
@@ -1211,6 +1307,8 @@ export default function CompraMaestraPage({
           </div>
         )}
       </div>
+      )}
+
     </div>
   );
 }

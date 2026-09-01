@@ -6,6 +6,8 @@ import {
 
 import {
   obtenerTareasOperativas,
+  obtenerCorreccionesInventarioDisponibles,
+  tomarCorreccionInventario,
   cambiarEstadoTareaOperativa,
   subirEvidenciaTarea,
   obtenerEvidenciasTarea,
@@ -76,6 +78,11 @@ export default function OperacionEmpleado({
     useState([]);
 
   const [
+    correccionesDisponibles,
+    setCorreccionesDisponibles,
+  ] = useState([]);
+
+  const [
     evidenciasPorTarea,
     setEvidenciasPorTarea,
   ] = useState({});
@@ -102,11 +109,26 @@ export default function OperacionEmpleado({
       setCargando(true);
       setError("");
 
-      const registros =
-        await obtenerTareasOperativas({
+      const [
+        registros,
+        correcciones,
+      ] = await Promise.all([
+        obtenerTareasOperativas({
           branchId,
           fecha: fechaHoy,
-        });
+        }),
+
+        obtenerCorreccionesInventarioDisponibles({
+          branchId,
+          fecha: fechaHoy,
+        }),
+      ]);
+
+      setCorreccionesDisponibles(
+        Array.isArray(correcciones)
+          ? correcciones
+          : []
+      );
 
       /*
        * IMPORTANTE:
@@ -257,6 +279,54 @@ export default function OperacionEmpleado({
       );
     }
   }
+
+  async function tomarCorreccion(
+    tarea
+  ) {
+    try {
+      setError("");
+      setMensaje("");
+
+      const responsable =
+        String(
+          usuario?.nombre || ""
+        ).trim();
+
+      if (!responsable) {
+        setError(
+          "No pudimos identificar tu nombre para asignarte la corrección."
+        );
+
+        return;
+      }
+
+      await tomarCorreccionInventario({
+        tareaId: tarea.id,
+        responsable,
+      });
+
+      await cargarTareas();
+
+      setMensaje(
+        "Corrección tomada. Ya aparece dentro de tus tareas."
+      );
+    } catch (
+      errorTomar
+    ) {
+      console.error(
+        "Error tomando corrección de inventario:",
+        errorTomar
+      );
+
+      setError(
+        errorTomar?.message ||
+          "No pudimos asignarte esta corrección."
+      );
+
+      await cargarTareas();
+    }
+  }
+
 
   async function cambiarEstado(
     tarea,
@@ -560,6 +630,226 @@ export default function OperacionEmpleado({
           ✅ {mensaje}
         </div>
       )}
+
+      {/* CORRECCIONES DE INVENTARIO DISPONIBLES */}
+
+      <div
+        style={{
+          marginBottom: "20px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "10px",
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              color: "#2b2025",
+              fontSize: "18px",
+            }}
+          >
+            📦 Correcciones de inventario
+          </h3>
+
+          <span
+            style={{
+              minWidth: "30px",
+              height: "30px",
+              padding: "0 9px",
+              borderRadius: "999px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#fff1dc",
+              color: "#9a5b00",
+              fontWeight: "900",
+              fontSize: "13px",
+            }}
+          >
+            {correccionesDisponibles.length}
+          </span>
+        </div>
+
+        {correccionesDisponibles.length ===
+        0 ? (
+          <div
+            style={{
+              padding: "14px",
+              borderRadius: "14px",
+              border:
+                "1px solid #e6e8e7",
+              background: "#fafcfa",
+              color: "#68746d",
+              fontSize: "13px",
+            }}
+          >
+            No hay correcciones de
+            inventario disponibles en
+            esta sucursal.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            {correccionesDisponibles.map(
+              (tarea) => {
+                const esAlta =
+                  tarea.prioridad ===
+                    "alta" ||
+                  tarea.prioridad ===
+                    "urgente";
+
+                return (
+                  <article
+                    key={tarea.id}
+                    style={{
+                      padding: "14px",
+                      borderRadius:
+                        "15px",
+                      border:
+                        esAlta
+                          ? "1px solid #f0c9a6"
+                          : "1px solid #eadde4",
+                      background:
+                        esAlta
+                          ? "#fffaf4"
+                          : "#ffffff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "flex-start",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: "1 1 220px",
+                        }}
+                      >
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "#2a1e24",
+                            lineHeight: 1.35,
+                            fontSize: "15px",
+                          }}
+                        >
+                          {tarea.titulo}
+                        </strong>
+
+                        {tarea.descripcion && (
+                          <div
+                            style={{
+                              marginTop:
+                                "7px",
+                              color:
+                                "#75666d",
+                              fontSize:
+                                "13px",
+                              lineHeight:
+                                1.45,
+                            }}
+                          >
+                            {tarea.descripcion}
+                          </div>
+                        )}
+                      </div>
+
+                      <span
+                        style={{
+                          whiteSpace:
+                            "nowrap",
+                          fontSize:
+                            "11px",
+                          fontWeight:
+                            "900",
+                          padding:
+                            "5px 8px",
+                          borderRadius:
+                            "999px",
+                          background:
+                            esAlta
+                              ? "#fff0dd"
+                              : "#f7f1f4",
+                          color:
+                            esAlta
+                              ? "#9a5b00"
+                              : "#765c69",
+                        }}
+                      >
+                        {etiquetaPrioridad(
+                          tarea.prioridad
+                        )}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        tomarCorreccion(
+                          tarea
+                        )
+                      }
+                      disabled={
+                        !String(
+                          usuario?.nombre ||
+                            ""
+                        ).trim()
+                      }
+                      style={{
+                        width: "100%",
+                        marginTop: "12px",
+                        border: "none",
+                        borderRadius:
+                          "12px",
+                        padding: "12px",
+                        background:
+                          "#8f2858",
+                        color:
+                          "#ffffff",
+                        fontWeight:
+                          "900",
+                        cursor:
+                          String(
+                            usuario?.nombre ||
+                              ""
+                          ).trim()
+                            ? "pointer"
+                            : "not-allowed",
+                        opacity:
+                          String(
+                            usuario?.nombre ||
+                              ""
+                          ).trim()
+                            ? 1
+                            : 0.55,
+                      }}
+                    >
+                      📦 Tomar corrección
+                    </button>
+                  </article>
+                );
+              }
+            )}
+          </div>
+        )}
+      </div>
 
       {/* TAREAS */}
 

@@ -40,6 +40,11 @@ export function normalizarVentasPorArticulo(filas) {
 
   const encabezadosOriginales = filas[0];
 
+  console.log(
+  "ENCABEZADOS VENTAS:",
+  encabezadosOriginales
+);
+
   const encabezadosLimpios =
     encabezadosOriginales.map(limpiarEncabezado);
 
@@ -351,6 +356,8 @@ export function normalizarInventarioUtilidad(filas) {
   }
 
   const encabezadosOriginales = filas[0];
+
+  console.log("ENCABEZADOS VENTAS:", encabezadosOriginales);
 
   const encabezadosLimpios =
     encabezadosOriginales.map(limpiarEncabezado);
