@@ -9,53 +9,71 @@ function HistorialMovimientos({
   const [abriendoComprobante, setAbriendoComprobante] =
     useState(null);
 
-  const abrirComprobante = async (movimiento) => {
-    if (!movimiento?.receiptUrl) {
-      return;
+   const abrirComprobante = async (movimiento) => {
+  if (!movimiento?.receiptUrl) {
+    return;
+  }
+
+  /*
+    Abrimos la ventana inmediatamente al tocar el botón.
+    Esto evita que Safari/iPhone bloquee la apertura
+    después del await.
+  */
+  const ventanaComprobante =
+    window.open("", "_blank");
+
+  try {
+    setAbriendoComprobante(movimiento.id);
+
+    const {
+      data,
+      error,
+    } = await supabase.storage
+      .from("tesoreria-comprobantes")
+      .createSignedUrl(
+        movimiento.receiptUrl,
+        60
+      );
+
+    if (error) {
+      throw error;
     }
 
-    try {
-      setAbriendoComprobante(movimiento.id);
-
-      const {
-        data,
-        error,
-      } = await supabase.storage
-        .from("tesoreria-comprobantes")
-        .createSignedUrl(
-          movimiento.receiptUrl,
-          60
-        );
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data?.signedUrl) {
-        throw new Error(
-          "No fue posible generar el acceso al comprobante."
-        );
-      }
-
-      window.open(
-        data.signedUrl,
-        "_blank",
-        "noopener,noreferrer"
+    if (!data?.signedUrl) {
+      throw new Error(
+        "No fue posible generar el acceso al comprobante."
       );
-    } catch (error) {
-      console.error(
-        "No fue posible abrir el comprobante:",
-        error
-      );
-
-      alert(
-        error?.message ||
-          "No fue posible abrir el comprobante."
-      );
-    } finally {
-      setAbriendoComprobante(null);
     }
-  };
+
+    if (ventanaComprobante) {
+      ventanaComprobante.location.href =
+        data.signedUrl;
+    } else {
+      /*
+        Respaldo para iPhone si no permite
+        crear otra ventana.
+      */
+      window.location.href =
+        data.signedUrl;
+    }
+  } catch (error) {
+    if (ventanaComprobante) {
+      ventanaComprobante.close();
+    }
+
+    console.error(
+      "No fue posible abrir el comprobante:",
+      error
+    );
+
+    alert(
+      error?.message ||
+        "No fue posible abrir el comprobante."
+    );
+  } finally {
+    setAbriendoComprobante(null);
+  }
+};
 
   if (movimientos.length === 0) {
     return (
