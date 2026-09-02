@@ -1083,18 +1083,12 @@ export default function OperacionEmpleado({
                           1.45,
                       }}
                     >
-                      {tarea.instrucciones && (
-                        <p
-                          style={{
-                            margin:
-                              "0 0 12px",
-                          }}
-                        >
-                          {
-                            tarea.instrucciones
-                          }
-                        </p>
-                      )}
+                         {tarea.instrucciones && (
+  <ChecklistTarea
+    tareaId={tarea.id}
+    instrucciones={tarea.instrucciones}
+  />
+)}
 
                       <div
                         style={{
@@ -1333,6 +1327,297 @@ function MiniDato({
       >
         {texto}
       </span>
+    </div>
+  );
+}
+
+function ChecklistTarea({
+  tareaId,
+  instrucciones,
+}) {
+  const pasos = String(
+    instrucciones || ""
+  )
+    .split("\n")
+    .map((paso) =>
+      paso
+        .replace(/^☐\s*/, "")
+        .trim()
+    )
+    .filter(Boolean);
+
+  const claveStorage =
+    `monys-checklist-${tareaId}`;
+
+  const obtenerIniciales = () => {
+    try {
+      const guardados =
+        localStorage.getItem(
+          claveStorage
+        );
+
+      if (guardados) {
+        return JSON.parse(
+          guardados
+        );
+      }
+    } catch (error) {
+      console.error(
+        "No fue posible recuperar checklist:",
+        error
+      );
+    }
+
+    return pasos.map(() => false);
+  };
+
+  const [
+    completados,
+    setCompletados,
+  ] = useState(
+    obtenerIniciales
+  );
+
+  const cambiarPaso = (
+    indice
+  ) => {
+    setCompletados(
+      (actuales) => {
+        const nuevos =
+          [...actuales];
+
+        nuevos[indice] =
+          !nuevos[indice];
+
+        try {
+          localStorage.setItem(
+            claveStorage,
+            JSON.stringify(
+              nuevos
+            )
+          );
+        } catch (error) {
+          console.error(
+            "No fue posible guardar checklist:",
+            error
+          );
+        }
+
+        return nuevos;
+      }
+    );
+  };
+
+  const realizados =
+    completados.filter(
+      Boolean
+    ).length;
+
+  const porcentaje =
+    pasos.length > 0
+      ? Math.round(
+          (realizados /
+            pasos.length) *
+            100
+        )
+      : 0;
+
+  return (
+    <div
+      style={{
+        margin:
+          "0 0 16px",
+        padding: "14px",
+        borderRadius:
+          "14px",
+        background:
+          "#fff8fb",
+        border:
+          "1px solid #edd8e3",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent:
+            "space-between",
+          alignItems: "center",
+          gap: "10px",
+          marginBottom:
+            "10px",
+        }}
+      >
+        <strong
+          style={{
+            color:
+              "#6f294d",
+            fontSize:
+              "14px",
+          }}
+        >
+          ✅ Checklist
+        </strong>
+
+        <span
+          style={{
+            fontSize:
+              "13px",
+            fontWeight:
+              "900",
+            color:
+              porcentaje === 100
+                ? "#28704a"
+                : "#9b3463",
+          }}
+        >
+          {realizados}/
+          {pasos.length}
+        </span>
+      </div>
+
+      <div
+        style={{
+          height: "7px",
+          borderRadius:
+            "999px",
+          background:
+            "#f0e1e8",
+          overflow:
+            "hidden",
+          marginBottom:
+            "12px",
+        }}
+      >
+        <div
+          style={{
+            width:
+              `${porcentaje}%`,
+            height: "100%",
+            background:
+              porcentaje === 100
+                ? "#35a26c"
+                : "#cc3676",
+            transition:
+              "width .2s ease",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: "8px",
+        }}
+      >
+        {pasos.map(
+          (
+            paso,
+            indice
+          ) => (
+            <label
+              key={`${tareaId}-${indice}`}
+              style={{
+                display:
+                  "flex",
+                alignItems:
+                  "center",
+                gap: "10px",
+                padding:
+                  "10px 11px",
+                borderRadius:
+                  "11px",
+                cursor:
+                  "pointer",
+                background:
+                  completados[
+                    indice
+                  ]
+                    ? "#edf8f1"
+                    : "#ffffff",
+                border:
+                  completados[
+                    indice
+                  ]
+                    ? "1px solid #b7dfc8"
+                    : "1px solid #eadde4",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={
+                  !!completados[
+                    indice
+                  ]
+                }
+                onChange={() =>
+                  cambiarPaso(
+                    indice
+                  )
+                }
+                style={{
+                  width:
+                    "20px",
+                  height:
+                    "20px",
+                  accentColor:
+                    "#c72f70",
+                  flexShrink: 0,
+                }}
+              />
+
+              <span
+                style={{
+                  fontSize:
+                    "14px",
+                  lineHeight:
+                    1.3,
+                  color:
+                    completados[
+                      indice
+                    ]
+                      ? "#397153"
+                      : "#43343b",
+                  textDecoration:
+                    completados[
+                      indice
+                    ]
+                      ? "line-through"
+                      : "none",
+                }}
+              >
+                {paso}
+              </span>
+            </label>
+          )
+        )}
+      </div>
+
+      {porcentaje ===
+        100 && (
+        <div
+          style={{
+            marginTop:
+              "11px",
+            padding:
+              "9px",
+            borderRadius:
+              "10px",
+            textAlign:
+              "center",
+            background:
+              "#eaf8ef",
+            color:
+              "#28704a",
+            fontWeight:
+              "900",
+            fontSize:
+              "13px",
+          }}
+        >
+          🎉 Checklist
+          completado
+        </div>
+      )}
     </div>
   );
 }

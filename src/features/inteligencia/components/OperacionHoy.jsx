@@ -1292,85 +1292,440 @@ export default function OperacionHoy({
         )}
       </div>
 
+     {/* ======================================
+    TAREAS TERMINADAS HOY
+    ====================================== */}
 
-      <details
+<section
+  style={{
+    marginTop: "28px",
+    padding: "20px",
+    border: "1px solid #d8eadf",
+    borderRadius: "16px",
+    background: "#f7fcf9",
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: "12px",
+      flexWrap: "wrap",
+      marginBottom: "16px",
+    }}
+  >
+    <div>
+      <div
         style={{
-          marginTop: "24px",
-          padding: "16px",
-          border: "1px solid #bbb",
-          borderRadius: "12px",
+          color: "#28704a",
+          fontSize: "12px",
+          fontWeight: "900",
+          letterSpacing: "1px",
+          marginBottom: "4px",
         }}
       >
-        <summary
-          style={{
-            cursor: "pointer",
-            fontWeight: "700",
-          }}
-        >
-          🗂️ Historial de hoy (
-          {tareasHistorial.length})
-        </summary>
+        CONTROL DE EJECUCIÓN
+      </div>
 
-        <div
-          style={{
-            marginTop: "14px",
-            display: "grid",
-            gap: "10px",
-          }}
-        >
-          {tareasHistorial.length === 0 ? (
-            <p
+      <h3
+        style={{
+          margin: 0,
+          color: "#24352b",
+          fontSize: "22px",
+        }}
+      >
+        ✅ Terminadas hoy
+      </h3>
+    </div>
+
+    <div
+      style={{
+        minWidth: "42px",
+        height: "42px",
+        padding: "0 12px",
+        borderRadius: "999px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#dff3e6",
+        color: "#28704a",
+        fontWeight: "900",
+        fontSize: "18px",
+      }}
+    >
+      {
+        tareasHistorial.filter(
+          (tarea) =>
+            tarea.estado === "terminada"
+        ).length
+      }
+    </div>
+  </div>
+
+  {tareasHistorial.filter(
+    (tarea) =>
+      tarea.estado === "terminada"
+  ).length === 0 ? (
+    <div
+      style={{
+        padding: "18px",
+        borderRadius: "12px",
+        background: "#ffffff",
+        border: "1px solid #e1eee6",
+        color: "#6b7c71",
+        textAlign: "center",
+      }}
+    >
+      Todavía no hay tareas terminadas hoy.
+    </div>
+  ) : (
+    <div
+      style={{
+        display: "grid",
+        gap: "14px",
+      }}
+    >
+      {tareasHistorial
+        .filter(
+          (tarea) =>
+            tarea.estado === "terminada"
+        )
+        .map((tarea) => {
+          const evidencias =
+            evidenciasPorTarea[
+              tarea.id
+            ] || [];
+
+          const fotoInicial =
+            evidencias.find(
+              (evidencia) =>
+                evidencia.tipo ===
+                "inicio"
+            );
+
+          const fotoFinal =
+            evidencias.find(
+              (evidencia) =>
+                evidencia.tipo ===
+                "final"
+            );
+
+          return (
+            <article
+              key={`terminada-${tarea.id}`}
               style={{
-                margin: 0,
-                opacity: 0.7,
+                padding: "16px",
+                borderRadius: "14px",
+                background: "#ffffff",
+                border:
+                  "1px solid #cfe6d7",
+                boxShadow:
+                  "0 5px 16px rgba(40,112,74,0.05)",
               }}
             >
-              Todavía no hay tareas terminadas o canceladas.
-            </p>
-          ) : (
-            tareasHistorial.map(
-              (tarea) => (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems:
+                    "flex-start",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
                 <div
-                  key={`historial-${tarea.id}`}
                   style={{
-                    padding: "12px",
-                    border: "1px solid #ddd",
-                    borderRadius: "10px",
+                    flex: "1 1 240px",
                   }}
                 >
-                  <strong>
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: "17px",
+                      color: "#25332a",
+                      marginBottom:
+                        "7px",
+                    }}
+                  >
                     {tarea.titulo}
                   </strong>
 
-                  <div>
+                  <div
+                    style={{
+                      color: "#58675e",
+                      fontSize: "14px",
+                      lineHeight: 1.6,
+                    }}
+                  >
                     👤{" "}
-                    {tarea.responsable ||
-                      "Sin responsable"}
+                    <strong>
+                      {tarea.responsable ||
+                        "Sin responsable"}
+                    </strong>
                   </div>
 
-                  <div>
-                    📌{" "}
-                    {etiquetaEstado(
-                      tarea.estado
-                    )}
+                  <div
+                    style={{
+                      color: "#58675e",
+                      fontSize: "14px",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    🏢 {tarea.area}
                   </div>
 
-                  {tarea.resultado && (
+                  <div
+                    style={{
+                      color: "#28704a",
+                      fontSize: "14px",
+                      fontWeight: "900",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    ✅ TERMINADA
+                  </div>
+
+                  {tarea.calificacion_final !=
+                    null && (
                     <div
                       style={{
-                        marginTop: "6px",
-                        opacity: 0.75,
+                        marginTop: "5px",
+                        color: "#58675e",
+                        fontSize: "14px",
                       }}
                     >
-                      {tarea.resultado}
+                      🤖 Calificación MONYS:{" "}
+                      <strong>
+                        {Number(
+                          tarea.calificacion_final
+                        ).toFixed(0)}
+                        %
+                      </strong>
+                    </div>
+                  )}
+
+                  {tarea.evaluacion_resumen && (
+                    <div
+                      style={{
+                        marginTop: "7px",
+                        padding: "9px 11px",
+                        borderRadius:
+                          "10px",
+                        background:
+                          "#f5faf7",
+                        color: "#52645a",
+                        fontSize: "13px",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      🧠{" "}
+                      {
+                        tarea.evaluacion_resumen
+                      }
                     </div>
                   )}
                 </div>
-              )
-            )
-          )}
-        </div>
-      </details>
+
+                <div
+                  style={{
+                    padding: "7px 11px",
+                    borderRadius:
+                      "999px",
+                    background:
+                      "#e5f6eb",
+                    color: "#28704a",
+                    fontSize: "12px",
+                    fontWeight: "900",
+                  }}
+                >
+                  HECHO
+                </div>
+              </div>
+
+              {(fotoInicial ||
+                fotoFinal) && (
+                <div
+                  style={{
+                    marginTop: "14px",
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: "10px",
+                  }}
+                >
+                  {fotoInicial && (
+                    <div>
+                      <div
+                        style={{
+                          marginBottom:
+                            "5px",
+                          fontSize:
+                            "12px",
+                          fontWeight:
+                            "800",
+                          color:
+                            "#6c5a63",
+                        }}
+                      >
+                        📷 Antes
+                      </div>
+
+                      <img
+                        src={
+                          fotoInicial.archivo_url
+                        }
+                        alt="Evidencia inicial"
+                        style={{
+                          width: "100%",
+                          maxWidth:
+                            "260px",
+                          height:
+                            "170px",
+                          objectFit:
+                            "cover",
+                          borderRadius:
+                            "12px",
+                          border:
+                            "1px solid #ddd",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {fotoFinal && (
+                    <div>
+                      <div
+                        style={{
+                          marginBottom:
+                            "5px",
+                          fontSize:
+                            "12px",
+                          fontWeight:
+                            "800",
+                          color:
+                            "#28704a",
+                        }}
+                      >
+                        📸 Resultado final
+                      </div>
+
+                      <img
+                        src={
+                          fotoFinal.archivo_url
+                        }
+                        alt="Evidencia final"
+                        style={{
+                          width: "100%",
+                          maxWidth:
+                            "260px",
+                          height:
+                            "170px",
+                          objectFit:
+                            "cover",
+                          borderRadius:
+                            "12px",
+                          border:
+                            "1px solid #bddfc9",
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    cambiarEstado(
+                      tarea,
+                      "pendiente"
+                    )
+                  }
+                >
+                  ↩ Reabrir
+                </button>
+
+                {tarea.evaluacion_estado !==
+                  "analizando" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      reintentarEvaluacion(
+                        tarea
+                      )
+                    }
+                  >
+                    🤖 Reevaluar
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+    </div>
+  )}
+
+  {tareasHistorial.some(
+    (tarea) =>
+      tarea.estado === "cancelada"
+  ) && (
+    <details
+      style={{
+        marginTop: "16px",
+      }}
+    >
+      <summary
+        style={{
+          cursor: "pointer",
+          color: "#777",
+          fontWeight: "700",
+        }}
+      >
+        Ver tareas canceladas
+      </summary>
+
+      <div
+        style={{
+          marginTop: "10px",
+          display: "grid",
+          gap: "8px",
+        }}
+      >
+        {tareasHistorial
+          .filter(
+            (tarea) =>
+              tarea.estado ===
+              "cancelada"
+          )
+          .map((tarea) => (
+            <div
+              key={`cancelada-${tarea.id}`}
+              style={{
+                padding: "10px",
+                background: "#fafafa",
+                borderRadius:
+                  "9px",
+              }}
+            >
+              {tarea.titulo} ·{" "}
+              {tarea.responsable}
+            </div>
+          ))}
+      </div>
+    </details>
+  )}
+</section>
+
     </section>
   );
 }
