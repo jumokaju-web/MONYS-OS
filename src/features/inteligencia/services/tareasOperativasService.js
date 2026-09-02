@@ -40,6 +40,7 @@ export async function obtenerTareasOperativas({
       evaluacion_estado,
       evaluacion_resumen,
       requiere_revision,
+      checklist,
       created_at,
       updated_at
     `)
@@ -474,6 +475,77 @@ export async function tomarCorreccionInventario({
 // ======================================================
 // CAMBIAR ESTADO
 // ======================================================
+
+// ======================================================
+// GUARDAR CHECKLIST DE TAREA
+// ======================================================
+
+export async function guardarChecklistTarea({
+  tareaId,
+  checklist = [],
+}) {
+  if (!tareaId) {
+    throw new Error(
+      "Falta el id de la tarea."
+    );
+  }
+
+  const listaChecklist =
+    Array.isArray(checklist)
+      ? checklist
+      : [];
+
+  const checklistNormalizado =
+    listaChecklist.map(
+      (item, indice) => ({
+        id:
+          item?.id ??
+          indice,
+
+        texto:
+          String(
+            item?.texto || ""
+          ).trim(),
+
+        completado:
+          Boolean(
+            item?.completado
+          ),
+      })
+    );
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "tareas_operativas"
+    )
+    .update({
+      checklist:
+        checklistNormalizado,
+
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "id",
+      tareaId
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error(
+      "Error al guardar checklist de tarea:",
+      error
+    );
+
+    throw error;
+  }
+
+  return data;
+}
 
 export async function cambiarEstadoTareaOperativa({
   tareaId,

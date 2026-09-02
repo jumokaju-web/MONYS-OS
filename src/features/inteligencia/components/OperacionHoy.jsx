@@ -1033,13 +1033,144 @@ export default function OperacionHoy({
                       </div>
                     )}
 
-                    {tarea.instrucciones && (
-                      <p>
-                        {
-                          tarea.instrucciones
-                        }
-                      </p>
-                    )}
+                        {tarea.instrucciones && (
+  <>
+    <p
+      style={{
+        marginBottom: "10px",
+      }}
+    >
+      {tarea.instrucciones}
+    </p>
+
+    {Array.isArray(
+      tarea.checklist
+    ) &&
+      tarea.checklist.length >
+        0 &&
+      (() => {
+        const totalPasos =
+          tarea.checklist.length;
+
+        const completados =
+          tarea.checklist.filter(
+            (paso) =>
+              paso?.completado ===
+              true
+          ).length;
+
+        const porcentaje =
+          totalPasos > 0
+            ? Math.round(
+                (completados /
+                  totalPasos) *
+                  100
+              )
+            : 0;
+
+        return (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "12px",
+              borderRadius:
+                "12px",
+              background:
+                porcentaje === 100
+                  ? "#edf8f1"
+                  : "#fff7fb",
+              border:
+                porcentaje === 100
+                  ? "1px solid #b7dfc8"
+                  : "1px solid #ead7e1",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                gap: "10px",
+                marginBottom:
+                  "8px",
+              }}
+            >
+              <strong
+                style={{
+                  color:
+                    "#6f294d",
+                }}
+              >
+                📋 Avance
+              </strong>
+
+              <strong
+                style={{
+                  color:
+                    porcentaje ===
+                    100
+                      ? "#28704a"
+                      : "#b42f69",
+                }}
+              >
+                {completados}/
+                {totalPasos} ·{" "}
+                {porcentaje}%
+              </strong>
+            </div>
+
+            <div
+              style={{
+                height: "8px",
+                background:
+                  "#eadde4",
+                borderRadius:
+                  "999px",
+                overflow:
+                  "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width:
+                    `${porcentaje}%`,
+                  background:
+                    porcentaje ===
+                    100
+                      ? "#35a26c"
+                      : "#cc3676",
+                  transition:
+                    "width .2s ease",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop:
+                  "9px",
+                fontSize:
+                  "13px",
+                color:
+                  "#695860",
+              }}
+            >
+              {porcentaje ===
+              100
+                ? "✅ Checklist completo"
+                : `Faltan ${
+                    totalPasos -
+                    completados
+                  } pasos`}
+            </div>
+          </div>
+        );
+      })()}
+  </>
+)}
 
                       {(evidenciasPorTarea[
   tarea.id

@@ -12,6 +12,7 @@ import {
   subirEvidenciaTarea,
   obtenerEvidenciasTarea,
   ejecutarEvaluacionTareaIA,
+  guardarChecklistTarea,
 } from "../services/tareasOperativasService";
 
 function obtenerFechaHoy() {
@@ -1084,10 +1085,11 @@ export default function OperacionEmpleado({
                       }}
                     >
                          {tarea.instrucciones && (
-  <ChecklistTarea
-    tareaId={tarea.id}
-    instrucciones={tarea.instrucciones}
-  />
+     <ChecklistTarea
+  tareaId={tarea.id}
+  instrucciones={tarea.instrucciones}
+  checklistInicial={tarea.checklist}
+/>
 )}
 
                       <div
@@ -1334,6 +1336,7 @@ function MiniDato({
 function ChecklistTarea({
   tareaId,
   instrucciones,
+  checklistInicial = [],
 }) {
   const pasos = String(
     instrucciones || ""
@@ -1342,6 +1345,7 @@ function ChecklistTarea({
     .map((paso) =>
       paso
         .replace(/^☐\s*/, "")
+        .replace(/^-\s*/, "")
         .trim()
     )
     .filter(Boolean);
@@ -1350,6 +1354,22 @@ function ChecklistTarea({
     `monys-checklist-${tareaId}`;
 
   const obtenerIniciales = () => {
+    // PRIMERO: usar Supabase
+    if (
+      Array.isArray(checklistInicial) &&
+      checklistInicial.length > 0
+    ) {
+      return pasos.map(
+        (_, indice) =>
+          Boolean(
+            checklistInicial[
+              indice
+            ]?.completado
+          )
+      );
+    }
+
+    // RESPALDO: localStorage
     try {
       const guardados =
         localStorage.getItem(
@@ -1363,12 +1383,14 @@ function ChecklistTarea({
       }
     } catch (error) {
       console.error(
-        "No fue posible recuperar checklist:",
+        "No fue posible recuperar checklist local:",
         error
       );
     }
 
-    return pasos.map(() => false);
+    return pasos.map(
+      () => false
+    );
   };
 
   const [
@@ -1378,35 +1400,94 @@ function ChecklistTarea({
     obtenerIniciales
   );
 
-  const cambiarPaso = (
+  const [
+    guardandoChecklist,
+    setGuardandoChecklist,
+  ] = useState(false);
+
+  const [
+    errorChecklist,
+    setErrorChecklist,
+  ] = useState("");
+
+  async function cambiarPaso(
     indice
-  ) => {
+  ) {
+    const nuevos =
+      [...completados];
+
+    nuevos[indice] =
+      !nuevos[indice];
+
+    // Cambio inmediato en pantalla
     setCompletados(
-      (actuales) => {
-        const nuevos =
-          [...actuales];
-
-        nuevos[indice] =
-          !nuevos[indice];
-
-        try {
-          localStorage.setItem(
-            claveStorage,
-            JSON.stringify(
-              nuevos
-            )
-          );
-        } catch (error) {
-          console.error(
-            "No fue posible guardar checklist:",
-            error
-          );
-        }
-
-        return nuevos;
-      }
+      nuevos
     );
-  };
+
+    setErrorChecklist("");
+
+    // Respaldo local
+    try {
+      localStorage.setItem(
+        claveStorage,
+        JSON.stringify(
+          nuevos
+        )
+      );
+    } catch (error) {
+      console.error(
+        "No fue posible guardar checklist local:",
+        error
+      );
+    }
+
+    // Preparar estructura para Supabase
+    const checklistParaGuardar =
+      pasos.map(
+        (
+          paso,
+          indicePaso
+        ) => ({
+          id:
+            indicePaso,
+
+          texto:
+            paso,
+
+          completado:
+            Boolean(
+              nuevos[
+                indicePaso
+              ]
+            ),
+        })
+      );
+
+    try {
+      setGuardandoChecklist(
+        true
+      );
+
+      await guardarChecklistTarea({
+        tareaId,
+        checklist:
+          checklistParaGuardar,
+      });
+    } catch (error) {
+      console.error(
+        "No fue posible guardar checklist en MONYS:",
+        error
+      );
+
+      setErrorChecklist(
+        "No se pudo sincronizar. MONYS lo intentará cuando vuelvas a marcar."
+      );
+    } finally {
+      setGuardandoChecklist(
+        false
+      );
+    }
+  }
 
   const realizados =
     completados.filter(
@@ -1438,10 +1519,12 @@ function ChecklistTarea({
     >
       <div
         style={{
-          display: "flex",
+          display:
+            "flex",
           justifyContent:
             "space-between",
-          alignItems: "center",
+          alignItems:
+            "center",
           gap: "10px",
           marginBottom:
             "10px",
@@ -1591,6 +1674,46 @@ function ChecklistTarea({
           )
         )}
       </div>
+
+      {guardandoChecklist && (
+        <div
+          style={{
+            marginTop:
+              "10px",
+            textAlign:
+              "center",
+            fontSize:
+              "12px",
+            color:
+              "#876875",
+          }}
+        >
+          ☁️ Guardando progreso...
+        </div>
+      )}
+
+      {errorChecklist && (
+        <div
+          style={{
+            marginTop:
+              "10px",
+            padding:
+              "8px",
+            borderRadius:
+              "9px",
+            background:
+              "#fff3f3",
+            color:
+              "#a03c3c",
+            fontSize:
+              "12px",
+            textAlign:
+              "center",
+          }}
+        >
+          ⚠️ {errorChecklist}
+        </div>
+      )}
 
       {porcentaje ===
         100 && (
