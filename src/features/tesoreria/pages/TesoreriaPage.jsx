@@ -1,5 +1,7 @@
 import { useState } from "react";
 import FormularioMovimiento from "../components/FormularioMovimiento";
+import "./TesoreriaPage.css";
+import HistorialMovimientos from "../components/HistorialMovimientos";
 import {
   guardarMovimientoTesoreria,
 } from "../services/tesoreriaService";
@@ -7,18 +9,22 @@ import {
 function TesoreriaPage({
   volverAlDashboard,
   onMovimientoGuardado,
+  movimientos = [],
+  formatoDinero,
+  onCambiarEstado,
 }) {
-  const [tipoMovimiento, setTipoMovimiento] = useState("entrada");
-  const [formularioVisible, setFormularioVisible] = useState(false);
+
+  const [tipoMovimiento, setTipoMovimiento] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("");
   const [guardando, setGuardando] = useState(false);
 
+  const formularioVisible = tipoMovimiento !== null;
+
   const abrirFormularioMovimiento = (tipo) => {
-    setTipoMovimiento(tipo);
-    setFormularioVisible(true);
     setMensaje("");
     setTipoMensaje("");
+    setTipoMovimiento(tipo);
   };
 
   const cerrarFormulario = () => {
@@ -26,7 +32,7 @@ function TesoreriaPage({
       return;
     }
 
-    setFormularioVisible(false);
+    setTipoMovimiento(null);
     setMensaje("");
     setTipoMensaje("");
   };
@@ -40,9 +46,9 @@ function TesoreriaPage({
       const movimientoGuardado =
         await guardarMovimientoTesoreria(movimiento);
 
-        if (onMovimientoGuardado) {
-  await onMovimientoGuardado();
-}
+      if (onMovimientoGuardado) {
+        await onMovimientoGuardado();
+      }
 
       console.log(
         "Movimiento guardado correctamente:",
@@ -50,15 +56,12 @@ function TesoreriaPage({
       );
 
       setMensaje(
-        "Movimiento guardado correctamente en MONYS OS."
+        movimiento.tipo === "salida"
+          ? "Gasto guardado correctamente en MONYS OS."
+          : "Entrada guardada correctamente en MONYS OS."
       );
 
       setTipoMensaje("exito");
-
-      /*
-        Por ahora dejamos abierto el formulario
-        para que puedas registrar otro movimiento.
-      */
     } catch (error) {
       console.error("Error al guardar:", error);
 
@@ -78,7 +81,7 @@ function TesoreriaPage({
       return;
     }
 
-    setFormularioVisible(false);
+    setTipoMovimiento(null);
     setMensaje("");
     setTipoMensaje("");
 
@@ -103,7 +106,9 @@ function TesoreriaPage({
   return (
     <main className="tesoreria-page">
       <section className="tesoreria-encabezado">
-        <span className="etiqueta">TESORERÍA</span>
+        <span className="etiqueta">
+          TESORERÍA
+        </span>
 
         <h1>Control financiero</h1>
 
@@ -166,9 +171,16 @@ function TesoreriaPage({
             tipoInicial={tipoMovimiento}
             onGuardar={guardarMovimiento}
             onCancelar={cerrarFormulario}
-            guardando={guardando}
           />
         )}
+
+         {!formularioVisible && (
+  <HistorialMovimientos
+    movimientos={movimientos}
+    formatoDinero={formatoDinero}
+    onCambiarEstado={onCambiarEstado}
+  />
+)}
 
         <button
           type="button"

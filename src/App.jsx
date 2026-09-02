@@ -285,14 +285,22 @@ function App() {
                 registro.status ||
                 "Pendiente de revisión",
 
-              fecha:
-                registro.occurred_at
-                  ? new Date(
-                      registro.occurred_at
-                    ).toLocaleString(
-                      "es-MX"
-                    )
-                  : "",
+             fecha:
+  registro.occurred_at
+    ? new Date(
+        registro.occurred_at
+      ).toLocaleString(
+        "es-MX"
+      )
+    : "",
+
+receiptUrl:
+  registro.receipt_url ||
+  null,
+
+receiptStatus:
+  registro.receipt_status ||
+  "No existe",
             })
           );
 
@@ -735,16 +743,21 @@ function App() {
     }
 
     return (
-      <TesoreriaPage
-        volverAlDashboard={() =>
-          setPantallaActual(
-            "dashboard"
-          )
-        }
-        onMovimientoGuardado={
-          cargarMovimientos
-        }
-      />
+    <TesoreriaPage
+  volverAlDashboard={() =>
+    setPantallaActual(
+      "dashboard"
+    )
+  }
+  onMovimientoGuardado={
+    cargarMovimientos
+  }
+  movimientos={movimientos}
+  formatoDinero={formatoDinero}
+  onCambiarEstado={
+    cambiarEstadoMovimiento
+  }
+/>
     );
   }
 

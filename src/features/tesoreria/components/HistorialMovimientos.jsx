@@ -1,8 +1,62 @@
+import { useState } from "react";
+import { supabase } from "../../../supabase";
+
 function HistorialMovimientos({
   movimientos,
   formatoDinero,
   onCambiarEstado,
 }) {
+  const [abriendoComprobante, setAbriendoComprobante] =
+    useState(null);
+
+  const abrirComprobante = async (movimiento) => {
+    if (!movimiento?.receiptUrl) {
+      return;
+    }
+
+    try {
+      setAbriendoComprobante(movimiento.id);
+
+      const {
+        data,
+        error,
+      } = await supabase.storage
+        .from("tesoreria-comprobantes")
+        .createSignedUrl(
+          movimiento.receiptUrl,
+          60
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error(
+          "No fue posible generar el acceso al comprobante."
+        );
+      }
+
+      window.open(
+        data.signedUrl,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } catch (error) {
+      console.error(
+        "No fue posible abrir el comprobante:",
+        error
+      );
+
+      alert(
+        error?.message ||
+          "No fue posible abrir el comprobante."
+      );
+    } finally {
+      setAbriendoComprobante(null);
+    }
+  };
+
   if (movimientos.length === 0) {
     return (
       <section className="tarjeta">
@@ -16,7 +70,12 @@ function HistorialMovimientos({
     <section className="tarjeta">
       <h2>Últimos movimientos</h2>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+        }}
+      >
         <thead>
           <tr>
             <th align="left">Fecha</th>
@@ -24,6 +83,7 @@ function HistorialMovimientos({
             <th align="left">Concepto</th>
             <th align="right">Monto</th>
             <th align="center">Estado</th>
+            <th align="center">Comprobante</th>
             <th align="center">Acciones</th>
           </tr>
         </thead>
@@ -32,11 +92,15 @@ function HistorialMovimientos({
           {movimientos.map((movimiento) => (
             <tr key={movimiento.id}>
               <td>{movimiento.fecha}</td>
+
               <td>{movimiento.tipo}</td>
+
               <td>{movimiento.concepto}</td>
 
               <td align="right">
-                {formatoDinero(movimiento.monto)}
+                {formatoDinero(
+                  movimiento.monto
+                )}
               </td>
 
               <td align="center">
@@ -44,7 +108,39 @@ function HistorialMovimientos({
               </td>
 
               <td align="center">
-                {movimiento.estado !== "Revisado" && (
+                {movimiento.receiptUrl ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      abrirComprobante(
+                        movimiento
+                      )
+                    }
+                    disabled={
+                      abriendoComprobante ===
+                      movimiento.id
+                    }
+                  >
+                    {abriendoComprobante ===
+                    movimiento.id
+                      ? "Abriendo..."
+                      : "📎 Ver comprobante"}
+                  </button>
+                ) : (
+                  <span
+                    style={{
+                      color: "#999",
+                      fontSize: "13px",
+                    }}
+                  >
+                    Sin comprobante
+                  </span>
+                )}
+              </td>
+
+              <td align="center">
+                {movimiento.estado !==
+                  "Revisado" && (
                   <button
                     type="button"
                     onClick={() =>

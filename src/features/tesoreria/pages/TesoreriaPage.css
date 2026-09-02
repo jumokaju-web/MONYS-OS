@@ -1,0 +1,149 @@
+.tesoreria-page {
+  min-height: 100vh;
+  padding: 28px 18px 40px;
+  background:
+    radial-gradient(circle at top right, rgba(181, 56, 111, 0.08), transparent 30%),
+    linear-gradient(180deg, #fffafb 0%, #f8f3f5 100%);
+  box-sizing: border-box;
+}
+
+.tesoreria-encabezado {
+  max-width: 760px;
+  margin: 0 auto 26px;
+  text-align: center;
+}
+
+.tesoreria-encabezado .etiqueta {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #9b2d60;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.tesoreria-encabezado h1 {
+  margin: 0;
+  color: #28161f;
+  font-size: 40px;
+  line-height: 1.05;
+}
+
+.tesoreria-encabezado p {
+  max-width: 620px;
+  margin: 10px auto 0;
+  color: #74656c;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.acciones {
+  width: 100%;
+}
+
+.acciones-principales {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto 24px;
+}
+
+.boton-entrada,
+.boton-salida {
+  min-height: 86px;
+  padding: 18px 20px;
+  border: 1px solid rgba(111, 22, 63, 0.1);
+  border-radius: 22px;
+  background: #ffffff;
+  color: #3a2530;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(78, 22, 49, 0.08);
+  transition: 0.2s ease;
+}
+
+.boton-entrada {
+  background: linear-gradient(135deg, #fffafc, #f9eef3);
+}
+
+.boton-salida {
+  background: linear-gradient(135deg, #fff7f8, #f8e8ee);
+}
+
+.boton-entrada span,
+.boton-salida span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-right: 8px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #8a1f50;
+  font-size: 24px;
+  vertical-align: middle;
+  box-shadow: 0 4px 12px rgba(86, 27, 55, 0.08);
+}
+
+.boton-entrada:hover,
+.boton-salida:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(78, 22, 49, 0.12);
+}
+
+.boton-volver {
+  display: block;
+  min-height: 48px;
+  margin: 16px auto 0;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: #755d69;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.boton-volver:hover {
+  background: rgba(111, 22, 63, 0.06);
+  color: #7d1d4b;
+}
+
+.boton-volver:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+  .tesoreria-page {
+    padding: 22px 12px 32px;
+  }
+
+  .tesoreria-encabezado {
+    margin-bottom: 20px;
+  }
+
+  .tesoreria-encabezado h1 {
+    font-size: 32px;
+  }
+
+  .tesoreria-encabezado p {
+    font-size: 15px;
+  }
+
+  .acciones-principales {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .boton-entrada,
+  .boton-salida {
+    min-height: 74px;
+    border-radius: 20px;
+    font-size: 17px;
+  }
+}

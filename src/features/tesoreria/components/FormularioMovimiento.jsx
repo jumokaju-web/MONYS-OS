@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./FormularioMovimiento.css";
 
 const datosIniciales = {
-  tipo: "entrada",
+  tipo: "salida",
   monto: "",
   concepto: "",
   negocio: "Monys Glam",
@@ -14,7 +14,7 @@ const datosIniciales = {
 };
 
 export default function FormularioMovimiento({
-  tipoInicial = "entrada",
+  tipoInicial = "salida",
   onGuardar,
   onCancelar,
 }) {
@@ -25,6 +25,7 @@ export default function FormularioMovimiento({
 
   const [comprobante, setComprobante] = useState(null);
   const [mensaje, setMensaje] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   const cambiarCampo = (evento) => {
     const { name, value } = evento.target;
@@ -60,60 +61,36 @@ export default function FormularioMovimiento({
     }
   };
 
-       const guardarMovimiento = async (evento) => {
+  const guardarMovimiento = async (evento) => {
     evento.preventDefault();
 
-    const montoNumerico =
-      Number(formulario.monto);
+    const montoNumerico = Number(formulario.monto);
 
-    if (
-      !formulario.monto ||
-      montoNumerico <= 0
-    ) {
-      setMensaje(
-        "Escribe un monto mayor a cero."
-      );
-
+    if (!formulario.monto || montoNumerico <= 0) {
+      setMensaje("Escribe un monto mayor a cero.");
       return;
     }
 
-    if (
-      !formulario.concepto.trim()
-    ) {
-      setMensaje(
-        "Escribe el concepto del movimiento."
-      );
-
+    if (!formulario.concepto.trim()) {
+      setMensaje("Escribe en qué se usó el dinero.");
       return;
     }
 
     const movimiento = {
       ...formulario,
-
-      monto:
-        montoNumerico,
-
+      monto: montoNumerico,
       comprobante,
-
-      fechaRegistro:
-        new Date().toISOString(),
+      fechaRegistro: new Date().toISOString(),
     };
 
     try {
+      setGuardando(true);
       setMensaje("");
 
-      if (
-        typeof onGuardar ===
-        "function"
-      ) {
-        await onGuardar(
-          movimiento
-        );
+      if (typeof onGuardar === "function") {
+        await onGuardar(movimiento);
       } else {
-        console.log(
-          "Movimiento preparado:",
-          movimiento
-        );
+        console.log("Movimiento preparado:", movimiento);
       }
 
       limpiarFormulario();
@@ -127,6 +104,8 @@ export default function FormularioMovimiento({
         error?.message ||
           "No fue posible guardar el movimiento."
       );
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -138,53 +117,109 @@ export default function FormularioMovimiento({
     }
   };
 
+  const esSalida = formulario.tipo === "salida";
+
   return (
     <form
-      className="formulario-movimiento"
+      className="formulario-movimiento gasto-rapido"
       onSubmit={guardarMovimiento}
     >
-      <h2>Formulario de Movimiento</h2>
+      <div className="gasto-rapido-encabezado">
+        <span className="gasto-rapido-icono">
+          {esSalida ? "💸" : "💰"}
+        </span>
+
+        <div>
+          <p className="gasto-rapido-etiqueta">
+            TESORERÍA
+          </p>
+
+          <h2>
+            {esSalida
+              ? "Gasto rápido"
+              : "Entrada rápida"}
+          </h2>
+
+          <p className="gasto-rapido-ayuda">
+            Registra el movimiento en pocos segundos.
+          </p>
+        </div>
+      </div>
+
+      <div className="tipo-movimiento-selector">
+        <button
+          type="button"
+          className={
+            formulario.tipo === "salida"
+              ? "tipo-opcion activa"
+              : "tipo-opcion"
+          }
+          onClick={() =>
+            setFormulario((anterior) => ({
+              ...anterior,
+              tipo: "salida",
+            }))
+          }
+        >
+          💸 Salió dinero
+        </button>
+
+        <button
+          type="button"
+          className={
+            formulario.tipo === "entrada"
+              ? "tipo-opcion activa"
+              : "tipo-opcion"
+          }
+          onClick={() =>
+            setFormulario((anterior) => ({
+              ...anterior,
+              tipo: "entrada",
+            }))
+          }
+        >
+          💰 Entró dinero
+        </button>
+      </div>
 
       <div className="form-grid">
-        <div className="campo">
-          <label htmlFor="tipo">Tipo de movimiento</label>
-
-          <select
-            id="tipo"
-            name="tipo"
-            value={formulario.tipo}
-            onChange={cambiarCampo}
-            required
-          >
-            <option value="entrada">Entrada de dinero</option>
-            <option value="salida">Salida de dinero</option>
-          </select>
-        </div>
-
-        <div className="campo">
+        <div className="campo campo-monto campo-completo">
           <label htmlFor="monto">Monto</label>
 
-          <input
-            id="monto"
-            name="monto"
-            type="number"
-            min="0.01"
-            step="0.01"
-            placeholder="Ejemplo: 1,500.00"
-            value={formulario.monto}
-            onChange={cambiarCampo}
-            required
-          />
+          <div className="monto-contenedor">
+            <span>$</span>
+
+            <input
+              id="monto"
+              name="monto"
+              type="number"
+              inputMode="decimal"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00"
+              value={formulario.monto}
+              onChange={cambiarCampo}
+              required
+            />
+          </div>
         </div>
 
         <div className="campo campo-completo">
-          <label htmlFor="concepto">Concepto</label>
+          <label htmlFor="concepto">
+            {esSalida
+              ? "¿En qué se usó?"
+              : "¿De dónde entró?"}
+          </label>
 
           <input
             id="concepto"
             name="concepto"
             type="text"
-            placeholder="Ejemplo: Venta del día o pago a proveedor"
+            placeholder={
+              esSalida
+                ? "Ej. Pago proveedor, gasolina, papelería"
+                : "Ej. Depósito, recuperación de préstamo"
+            }
             value={formulario.concepto}
             onChange={cambiarCampo}
             required
@@ -192,40 +227,9 @@ export default function FormularioMovimiento({
         </div>
 
         <div className="campo">
-          <label htmlFor="negocio">Negocio</label>
-
-          <select
-            id="negocio"
-            name="negocio"
-            value={formulario.negocio}
-            onChange={cambiarCampo}
-            required
-          >
-            <option value="Monys Glam">Monys Glam</option>
-            <option value="Flotilla Jiménez">
-              Flotilla Jiménez
-            </option>
-          </select>
-        </div>
-
-        <div className="campo">
-          <label htmlFor="sucursal">Sucursal</label>
-
-          <select
-            id="sucursal"
-            name="sucursal"
-            value={formulario.sucursal}
-            onChange={cambiarCampo}
-            required
-          >
-            <option value="Centro">Centro</option>
-            <option value="General Anaya">General Anaya</option>
-            <option value="Corporativo">Corporativo</option>
-          </select>
-        </div>
-
-        <div className="campo">
-          <label htmlFor="metodoPago">Método de pago</label>
+          <label htmlFor="metodoPago">
+            Forma de pago
+          </label>
 
           <select
             id="metodoPago"
@@ -234,45 +238,80 @@ export default function FormularioMovimiento({
             onChange={cambiarCampo}
             required
           >
-            <option value="Efectivo">Efectivo</option>
-            <option value="Transferencia">Transferencia</option>
-            <option value="Tarjeta">Tarjeta</option>
+            <option value="Efectivo">
+              Efectivo
+            </option>
+
+            <option value="Transferencia">
+              Transferencia
+            </option>
+
+            <option value="Tarjeta">
+              Tarjeta
+            </option>
+
             <option value="Depósito bancario">
               Depósito bancario
             </option>
-            <option value="Otro">Otro</option>
+
+            <option value="Otro">
+              Otro
+            </option>
           </select>
         </div>
 
         <div className="campo">
-          <label htmlFor="entregadoPor">Entregado por</label>
+          <label htmlFor="negocio">
+            Negocio
+          </label>
 
-          <input
-            id="entregadoPor"
-            name="entregadoPor"
-            type="text"
-            placeholder="Nombre de quien entrega"
-            value={formulario.entregadoPor}
+          <select
+            id="negocio"
+            name="negocio"
+            value={formulario.negocio}
             onChange={cambiarCampo}
-          />
+            required
+          >
+            <option value="Monys Glam">
+              Monys Glam
+            </option>
+
+            <option value="Flotilla Jiménez">
+              Flotilla Jiménez
+            </option>
+          </select>
         </div>
 
-        <div className="campo">
-          <label htmlFor="recibidoPor">Recibido por</label>
+        <div className="campo campo-completo">
+          <label htmlFor="sucursal">
+            Sucursal / área
+          </label>
 
-          <input
-            id="recibidoPor"
-            name="recibidoPor"
-            type="text"
-            placeholder="Nombre de quien recibe"
-            value={formulario.recibidoPor}
+          <select
+            id="sucursal"
+            name="sucursal"
+            value={formulario.sucursal}
             onChange={cambiarCampo}
-          />
+            required
+          >
+            <option value="Centro">
+              Centro
+            </option>
+
+            <option value="General Anaya">
+              General Anaya
+            </option>
+
+            <option value="Corporativo">
+              Corporativo
+            </option>
+          </select>
         </div>
 
-        <div className="campo">
+        <div className="campo campo-completo">
           <label htmlFor="comprobante-movimiento">
-            Comprobante
+            Foto o comprobante
+            <span className="opcional"> Opcional</span>
           </label>
 
           <input
@@ -283,22 +322,14 @@ export default function FormularioMovimiento({
             onChange={cambiarComprobante}
           />
         </div>
-
-        <div className="campo campo-completo">
-          <label htmlFor="observaciones">Observaciones</label>
-
-          <textarea
-            id="observaciones"
-            name="observaciones"
-            placeholder="Escribe cualquier detalle importante del movimiento"
-            value={formulario.observaciones}
-            onChange={cambiarCampo}
-          />
-        </div>
       </div>
 
       {mensaje && (
-        <p role="alert" aria-live="polite">
+        <p
+          className="mensaje-formulario"
+          role="alert"
+          aria-live="polite"
+        >
           {mensaje}
         </p>
       )}
@@ -308,12 +339,21 @@ export default function FormularioMovimiento({
           className="btn-cancelar"
           type="button"
           onClick={cancelarFormulario}
+          disabled={guardando}
         >
           Cancelar
         </button>
 
-        <button className="btn-guardar" type="submit">
-          Guardar movimiento
+        <button
+          className="btn-guardar"
+          type="submit"
+          disabled={guardando}
+        >
+          {guardando
+            ? "Guardando..."
+            : esSalida
+              ? "Guardar gasto"
+              : "Guardar entrada"}
         </button>
       </div>
     </form>

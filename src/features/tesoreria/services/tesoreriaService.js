@@ -214,6 +214,81 @@ export const guardarMovimientoTesoreria =
     const esEntrada =
       tipo === "entrada";
 
+    let rutaComprobante = null;
+    let comprobanteSubido = false;
+
+    /*
+      Si existe comprobante, se guarda primero
+      en Storage privado.
+
+      La primera carpeta SIEMPRE es auth.uid()
+      para cumplir las políticas de seguridad.
+    */
+    if (movimiento.comprobante) {
+      const archivo =
+        movimiento.comprobante;
+
+      const nombreOriginal =
+        archivo.name ||
+        "comprobante";
+
+      const nombreSeguro =
+        nombreOriginal
+          .normalize("NFD")
+          .replace(
+            /[\u0300-\u036f]/g,
+            ""
+          )
+          .replace(
+            /[^a-zA-Z0-9._-]/g,
+            "_"
+          );
+
+      const identificador =
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID ===
+          "function"
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`;
+
+      rutaComprobante =
+        `${authUser.id}/` +
+        `${Date.now()}-${identificador}-${nombreSeguro}`;
+
+      const {
+        error: errorComprobante,
+      } = await supabase.storage
+        .from(
+          "tesoreria-comprobantes"
+        )
+        .upload(
+          rutaComprobante,
+          archivo,
+          {
+            cacheControl: "3600",
+            upsert: false,
+            contentType:
+              archivo.type ||
+              undefined,
+          }
+        );
+
+      if (errorComprobante) {
+        console.error(
+          "Error al subir comprobante:",
+          errorComprobante
+        );
+
+        throw new Error(
+          `No fue posible subir el comprobante: ${errorComprobante.message}`
+        );
+      }
+
+      comprobanteSubido = true;
+    }
+
     const contraparte =
       esEntrada
         ? movimiento.entregadoPor
@@ -254,12 +329,18 @@ export const guardarMovimientoTesoreria =
         null,
 
       receipt_status:
-        movimiento.comprobante
-          ? "Pendiente"
-          : "No existe",
+  comprobanteSubido
+    ? "Pendiente"
+    : "No existe",
 
+      /*
+        IMPORTANTE:
+        Como el bucket es privado,
+        guardamos la RUTA del archivo,
+        no una URL pública.
+      */
       receipt_url:
-        null,
+        rutaComprobante,
 
       status:
         "Pendiente de revisión",
@@ -286,6 +367,24 @@ export const guardarMovimientoTesoreria =
         "Error completo al guardar el movimiento:",
         error
       );
+
+      /*
+        Si el movimiento no pudo guardarse,
+        eliminamos el archivo recién subido
+        para no dejar comprobantes huérfanos.
+      */
+      if (
+        comprobanteSubido &&
+        rutaComprobante
+      ) {
+        await supabase.storage
+          .from(
+            "tesoreria-comprobantes"
+          )
+          .remove([
+            rutaComprobante,
+          ]);
+      }
 
       throw new Error(
         `Supabase no pudo guardar el movimiento: ${error.message}`
