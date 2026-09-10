@@ -151,7 +151,7 @@ function obtenerFuenteComercial(
   };
 }
 
-function agruparVentasPorProducto(
+export function agruparVentasPorProducto(
   ventas = []
 ) {
   const mapa = new Map();

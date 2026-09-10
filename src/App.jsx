@@ -916,6 +916,15 @@ if (
         datosDashboard={
           datosDashboard
         }
+        sucursalesDashboard={
+          sucursalesDashboard
+        }
+        cargandoSucursales={
+          cargandoSucursales
+        }
+        errorSucursales={
+          errorSucursales
+        }
         movimientos={
           movimientos
         }

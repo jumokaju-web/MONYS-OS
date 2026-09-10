@@ -258,6 +258,17 @@ const tieneUtilidad = contieneAlgunaColumna(
     return "Utilidad de ventas";
   }
 
+   if (
+  tieneCodigo &&
+  tieneDescripcion &&
+  tieneCantidad &&
+  tieneTotalVenta &&
+  tieneTotalCompra &&
+  tieneUtilidad
+) {
+  return "Utilidad por artículos";
+}
+
   /*
    * Inventario / Utilidad debe evaluarse antes
    * que Inventario porque también contiene

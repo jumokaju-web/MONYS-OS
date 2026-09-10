@@ -71,7 +71,8 @@ async function guardarDatosPorTipoReporte({
 }) {
   switch (tipoReporte) {
    
-    case "Ventas por artículo": {
+    case "Ventas por artículo":
+case "Utilidad por artículos": {
   console.log(
     "Guardando ventas por artículo...",
     datosNormalizados.length

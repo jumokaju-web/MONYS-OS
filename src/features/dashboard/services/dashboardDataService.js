@@ -331,6 +331,68 @@ export async function obtenerUltimaImportacionVentas(
   };
 }
 
+export async function obtenerUltimaImportacionUtilidadArticulos(
+  branchId = null
+) {
+  let consulta = supabase
+    .from("importaciones")
+    .select(
+      "id, tipo_reporte, archivo_original, total_filas, branch_id, created_at"
+    )
+    .eq(
+      "tipo_reporte",
+      "Utilidad por artículos"
+    )
+    .eq(
+      "estado",
+      "procesado"
+    );
+
+  if (branchId) {
+    consulta = consulta.eq(
+      "branch_id",
+      branchId
+    );
+  }
+
+  const {
+    data: importacion,
+    error,
+  } = await consulta
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `No se pudo consultar la última importación de utilidad por artículos: ${error.message}`
+    );
+  }
+
+  if (!importacion) {
+    return null;
+  }
+
+  const detalles =
+    await obtenerDetallesPaginados(
+      importacion.id,
+      "No se pudieron consultar los detalles de utilidad por artículos"
+    );
+
+  const utilidadArticulos =
+    await obtenerVentasArticulosPorImportacion(
+      importacion.id
+    );
+
+  return {
+    importacion,
+    detalles,
+    utilidadArticulos,
+  };
+}
+
 export async function obtenerUltimaImportacionUtilidadVentas(
   branchId = null
 ) {

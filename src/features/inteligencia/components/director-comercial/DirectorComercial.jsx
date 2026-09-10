@@ -6,7 +6,12 @@
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import { directorComercialIA } from "../../directores/directorComercialIA";
 
-function DirectorComercial({ datosDashboard }) {
+function DirectorComercial({
+  datosDashboard,
+  sucursalesDashboard = [],
+  cargandoSucursales = false,
+  errorSucursales = "",
+}) {
   const analisis = directorComercialIA(
     datosDashboard
   );
@@ -107,6 +112,76 @@ function DirectorComercial({ datosDashboard }) {
     }).format(
       Number(cantidad) || 0
     );
+
+  const normalizarNombre = (valor) =>
+    String(valor || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+  const sucursalesConDatos =
+    (sucursalesDashboard || [])
+      .filter(
+        (sucursal) =>
+          sucursal?.tieneDatos
+      )
+      .sort(
+        (a, b) =>
+          Number(
+            b.ventaPromedioDiaria || 0
+          ) -
+          Number(
+            a.ventaPromedioDiaria || 0
+          )
+      );
+
+  const sucursalActual =
+    (sucursalesDashboard || []).find(
+      (sucursal) =>
+        sucursal.id ===
+        datosDashboard?.branch_id
+    ) || null;
+
+  const sucursalCentro =
+    (sucursalesDashboard || []).find(
+      (sucursal) =>
+        normalizarNombre(
+          sucursal.nombre
+        ).includes("centro")
+    ) || null;
+
+  const sucursalGeneralAnaya =
+    (sucursalesDashboard || []).find(
+      (sucursal) =>
+        normalizarNombre(
+          sucursal.nombre
+        ).includes("general anaya")
+    ) || null;
+
+  const ventaDiariaCentro =
+    Number(
+      sucursalCentro
+        ?.ventaPromedioDiaria || 0
+    );
+
+  const ventaDiariaGeneralAnaya =
+    Number(
+      sucursalGeneralAnaya
+        ?.ventaPromedioDiaria || 0
+    );
+
+  const brechaGeneralVsCentro =
+    ventaDiariaCentro > 0 &&
+    sucursalGeneralAnaya?.tieneDatos
+      ? (
+          (
+            ventaDiariaGeneralAnaya -
+            ventaDiariaCentro
+          ) /
+          ventaDiariaCentro
+        ) * 100
+      : null;
 
   return (
     <section
@@ -237,6 +312,168 @@ function DirectorComercial({ datosDashboard }) {
               : ""
           }
         />
+      </div>
+
+      <div
+        style={{
+          marginTop: "28px",
+          padding: "22px",
+          borderRadius: "18px",
+          backgroundColor: "#fffdf6",
+          border: "1px solid #e7ce83",
+        }}
+      >
+        <p
+          style={{
+            margin: "0 0 6px",
+            color: "#8a6500",
+            fontWeight: "800",
+            letterSpacing: "0.5px",
+          }}
+        >
+          MONYS OS · RESCATE EMPRESARIAL
+        </p>
+
+        <h3
+          style={{
+            margin: "0 0 10px",
+            color: "#654b00",
+          }}
+        >
+          🛟 Diagnóstico inicial por sucursal
+        </h3>
+
+        <p
+          style={{
+            margin: "0 0 16px",
+            color: "#6b6250",
+            lineHeight: "1.5",
+          }}
+        >
+          DATO REAL · Última importación disponible por sucursal. La comparación usa venta promedio diaria para reducir la distorsión cuando los reportes cubren diferente número de días.
+        </p>
+
+        {cargandoSucursales ? (
+          <p>
+            MONYS está comparando las sucursales...
+          </p>
+        ) : errorSucursales ? (
+          <p
+            style={{
+              color: "#a52d2d",
+              fontWeight: "700",
+            }}
+          >
+            {errorSucursales}
+          </p>
+        ) : sucursalesConDatos.length === 0 ? (
+          <p>
+            No hay importaciones suficientes para comparar sucursales.
+          </p>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {sucursalesConDatos.map(
+                (sucursal) => (
+                  <div
+                    key={sucursal.id}
+                    style={{
+                      padding: "15px",
+                      borderRadius: "12px",
+                      backgroundColor:
+                        sucursal.id ===
+                        sucursalActual?.id
+                          ? "#fff4fa"
+                          : "#ffffff",
+                      border:
+                        sucursal.id ===
+                        sucursalActual?.id
+                          ? "1px solid #df9fbd"
+                          : "1px solid #eadfbd",
+                    }}
+                  >
+                    <strong>
+                      {sucursal.nombre}
+                    </strong>
+
+                    <div
+                      style={{
+                        marginTop: "9px",
+                        lineHeight: "1.6",
+                      }}
+                    >
+                      Ventas: {formatearDinero(
+                        sucursal.ventasTotales
+                      )}
+                      <br />
+                      Venta diaria: {formatearDinero(
+                        sucursal.ventaPromedioDiaria
+                      )}
+                      <br />
+                      Utilidad: {formatearDinero(
+                        sucursal.utilidadTotal
+                      )}
+                      <br />
+                      Margen: {Number(
+                        sucursal.margenUtilidad || 0
+                      ).toFixed(2)}%
+                      <br />
+                      Periodo analizado: {Number(
+                        sucursal.diasAnalizados || 0
+                      )} días
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: "14px",
+                padding: "14px",
+                borderRadius: "12px",
+                backgroundColor: "#ffffff",
+                border: "1px solid #e3c86e",
+                lineHeight: "1.55",
+              }}
+            >
+              <strong>
+                General Anaya frente a Centro
+              </strong>
+              <br />
+              {!sucursalGeneralAnaya?.tieneDatos
+                ? "General Anaya no tiene datos suficientes en su última importación."
+                : !sucursalCentro?.tieneDatos
+                  ? "Centro no tiene datos suficientes para construir la referencia."
+                  : brechaGeneralVsCentro === null
+                    ? "Todavía no es posible calcular una brecha comparable."
+                    : `La venta diaria de General Anaya es ${Math.abs(
+                        brechaGeneralVsCentro
+                      ).toFixed(1)}% ${
+                        brechaGeneralVsCentro < 0
+                          ? "menor"
+                          : "mayor"
+                      } que la de Centro en las últimas importaciones disponibles.`}
+
+              <div
+                style={{
+                  marginTop: "8px",
+                  color: "#74694e",
+                  fontSize: "14px",
+                }}
+              >
+                Esta brecha es un dato comparativo actual; todavía no demuestra por sí sola que General Anaya cayó contra su propio historial. El siguiente nivel analizará periodos anteriores.
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div

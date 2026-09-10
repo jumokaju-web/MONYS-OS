@@ -135,6 +135,9 @@ const directores = [
 
 function CentroInteligencia({
   datosDashboard,
+  sucursalesDashboard = [],
+  cargandoSucursales = false,
+  errorSucursales = "",
   movimientos,
   cargandoDashboard,
   errorDashboard,
@@ -778,6 +781,15 @@ const analisisRH =
         <DirectorComercial
           datosDashboard={
             datosDashboard
+          }
+          sucursalesDashboard={
+            sucursalesDashboard
+          }
+          cargandoSucursales={
+            cargandoSucursales
+          }
+          errorSucursales={
+            errorSucursales
           }
         />
       )}

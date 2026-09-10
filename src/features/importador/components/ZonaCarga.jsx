@@ -12,6 +12,7 @@ import {
   normalizarInventario,
   normalizarInventarioUtilidad,
   normalizarUtilidadVentas,
+  normalizarUtilidadArticulos,
   normalizarExistencias,
   normalizarMovimientosCaja,
   normalizarCreditosProveedores,
@@ -27,10 +28,13 @@ import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/mo
 import AnalisisEjecutivo from "./AnalisisEjecutivo";
 import { ejecutarIA } from "../../../core/engine/iaEngine";
 import { actualizarEmpresa } from "../../../core/engine/empresaActual";
-import { useUser } from "../../../context/UserContext";
 import {
   obtenerSucursalesInventario,
 } from "../../inventario/services/inventarioService";
+import {
+  useUser,
+} from "../../../context/UserContext";
+
 
 const REPORTES_ESPERADOS = [
   "Ventas por artículo",
@@ -38,6 +42,7 @@ const REPORTES_ESPERADOS = [
   "Inventario / Utilidad",
   "Existencias",
   "Utilidad de ventas",
+   "Utilidad por artículos",
   "Movimientos de caja",
   "Créditos de proveedores",
 ];
@@ -73,6 +78,16 @@ if (tipoReporte === "Movimientos de caja") {
   if (tipoReporte === "Inventario / Utilidad") {
     return normalizarInventarioUtilidad(filasDelReporte);
   }
+
+   if (
+  tipoReporte ===
+  "Utilidad por artículos"
+) {
+  return normalizarUtilidadArticulos(
+    filasDelReporte
+  );
+}
+
 
   if (tipoReporte === "Utilidad de ventas") {
     return normalizarUtilidadVentas(filasDelReporte);

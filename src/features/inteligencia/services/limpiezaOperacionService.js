@@ -385,7 +385,7 @@ async function obtenerTareasAutomaticasPendientes({
       "branch_id",
       branchId
     )
-    .eq(
+    .lte(
       "fecha",
       fecha
     )
@@ -400,10 +400,9 @@ async function obtenerTareasAutomaticasPendientes({
     .order(
       "created_at",
       {
-        ascending: true,
+        ascending: false,
       }
     );
-
 
   if (error) {
     console.error(
@@ -413,7 +412,6 @@ async function obtenerTareasAutomaticasPendientes({
 
     throw error;
   }
-
 
   return Array.isArray(
     data
@@ -569,14 +567,13 @@ function elegirTareaPrincipal(
     return null;
   }
 
-
   /*
-    Conservamos la tarea más antigua.
+    Conservamos la tarea más reciente.
 
-    Ventajas:
-    - mantiene trazabilidad;
-    - conserva la primera alerta;
-    - evita estar cambiando el objetivo.
+    Así la operación mantiene:
+    - la fecha vigente;
+    - la información más nueva;
+    - una sola tarea activa por problema.
   */
 
   return [...grupo]
@@ -584,17 +581,19 @@ function elegirTareaPrincipal(
       (a, b) => {
         const fechaA =
           new Date(
-            a.created_at
+            a.created_at ||
+            a.fecha
           ).getTime();
 
         const fechaB =
           new Date(
-            b.created_at
+            b.created_at ||
+            b.fecha
           ).getTime();
 
         return (
-          fechaA -
-          fechaB
+          fechaB -
+          fechaA
         );
       }
     )[0];
@@ -875,19 +874,27 @@ async function reasignarTarea({
     return false;
   }
 
-
   const instruccionesAnteriores =
     String(
       tarea.instrucciones ||
       ""
-    ).trim();
+    )
+      .replace(
+        /Tarea organizada automáticamente por MONYS y asignada a [^.]+\.\s*/gi,
+        ""
+      )
+      .replace(
+        /Tarea asignada automáticamente por MONYS a [^.]+\.\s*/gi,
+        ""
+      )
+      .trim();
 
+  const instruccionBase =
+    instruccionesAnteriores ||
+    "Ejecutar la acción indicada y registrar evidencia del resultado.";
 
   const instrucciones =
-    instruccionesAnteriores
-      ? `Tarea organizada automáticamente por MONYS y asignada a ${empleado.nombre}. ${instruccionesAnteriores}`
-      : `Tarea organizada automáticamente por MONYS y asignada a ${empleado.nombre}. Ejecutar la acción y registrar evidencia del resultado.`;
-
+    `Tarea organizada automáticamente por MONYS y asignada a ${empleado.nombre}. ${instruccionBase}`;
 
   const {
     error,
@@ -910,7 +917,6 @@ async function reasignarTarea({
       tarea.id
     );
 
-
   if (error) {
     console.error(
       "Error al reasignar tarea:",
@@ -919,7 +925,6 @@ async function reasignarTarea({
 
     throw error;
   }
-
 
   return true;
 }

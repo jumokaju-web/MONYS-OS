@@ -59,11 +59,10 @@ export async function obtenerTareasOperativas({
   }
 
   if (fecha) {
-    consulta = consulta.eq(
-      "fecha",
-      fecha
-    );
-  }
+  consulta = consulta.or(
+    `fecha.eq.${fecha},and(fecha.lt.${fecha},estado.in.(pendiente,en_proceso,analizando))`
+  );
+}
 
   const {
     data,
@@ -105,10 +104,91 @@ export async function crearTareaOperativa({
   requiereEvidencia = false,
   criterioExito = null,
 }) {
-  if (!String(titulo || "").trim()) {
+  const tituloLimpio =
+    String(titulo || "").trim();
+
+  if (!tituloLimpio) {
     throw new Error(
       "El título de la tarea es obligatorio."
     );
+  }
+
+  const fechaTarea =
+    fecha ||
+    new Date()
+      .toISOString()
+      .slice(0, 10);
+
+  // Evita crear nuevamente una tarea igual
+  // mientras la anterior siga activa.
+  let consultaExistente =
+    supabase
+      .from("tareas_operativas")
+      .select("*")
+      .ilike(
+        "titulo",
+        tituloLimpio
+      )
+      .eq(
+        "area",
+        area || "general"
+      )
+      .in("estado", [
+        "pendiente",
+        "en_proceso",
+        "analizando",
+      ])
+      .limit(1);
+
+  if (organizationId) {
+    consultaExistente =
+      consultaExistente.eq(
+        "organization_id",
+        organizationId
+      );
+  }
+
+  if (businessId) {
+    consultaExistente =
+      consultaExistente.eq(
+        "business_id",
+        businessId
+      );
+  }
+
+  if (branchId) {
+    consultaExistente =
+      consultaExistente.eq(
+        "branch_id",
+        branchId
+      );
+  }
+
+  if (responsable) {
+    consultaExistente =
+      consultaExistente.eq(
+        "responsable",
+        responsable
+      );
+  }
+
+  const {
+    data: tareaExistente,
+    error: errorConsulta,
+  } = await consultaExistente
+    .maybeSingle();
+
+  if (errorConsulta) {
+    console.error(
+      "Error al verificar tarea existente:",
+      errorConsulta
+    );
+
+    throw errorConsulta;
+  }
+
+  if (tareaExistente) {
+    return tareaExistente;
   }
 
   const nuevaTarea = {
@@ -122,7 +202,7 @@ export async function crearTareaOperativa({
       branchId || null,
 
     titulo:
-      String(titulo).trim(),
+      tituloLimpio,
 
     descripcion:
       descripcion
@@ -142,10 +222,7 @@ export async function crearTareaOperativa({
       "pendiente",
 
     fecha:
-      fecha ||
-      new Date()
-        .toISOString()
-        .slice(0, 10),
+      fechaTarea,
 
     hora_limite:
       horaLimite || null,
@@ -545,6 +622,173 @@ export async function guardarChecklistTarea({
   }
 
   return data;
+}
+
+// ======================================================
+// REVISAR CONTENIDO DE MARKETING CON IA
+// ======================================================
+
+export async function revisarContenidoMarketing({
+  tipoObjetivo = "",
+  producto = "",
+  texto = "",
+  gancho = "",
+  cta = "",
+  notas = "",
+} = {}) {
+  const contenidoDisponible = [
+    tipoObjetivo,
+    producto,
+    texto,
+    gancho,
+    cta,
+    notas,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (!contenidoDisponible) {
+    throw new Error(
+      "Escribe o prepara el contenido que quieres revisar."
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.functions.invoke(
+    "revisar-marketing",
+    {
+      body: {
+        tipoObjetivo,
+        producto,
+        texto,
+        gancho,
+        cta,
+        notas,
+      },
+    }
+  );
+
+  if (error) {
+    console.error(
+      "Error al revisar contenido de marketing:",
+      error
+    );
+
+    throw new Error(
+      "MONYS no pudo revisar el contenido en este momento."
+    );
+  }
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ||
+        "MONYS no pudo completar la revisión."
+    );
+  }
+
+  if (!data?.evaluacion) {
+    throw new Error(
+      "MONYS no devolvió una evaluación válida."
+    );
+  }
+
+  return data.evaluacion;
+}
+
+// ======================================================
+// GUARDAR RESULTADO DE MARKETING
+// ======================================================
+
+export async function guardarResultadoMarketing({
+  tareaId,
+  canal = "",
+  alcance = 0,
+  leads = 0,
+  ventas = 0,
+  monto = 0,
+  observacion = "",
+} = {}) {
+  if (!tareaId) {
+    throw new Error(
+      "Falta identificar la tarea de marketing."
+    );
+  }
+
+  if (!String(canal || "").trim()) {
+    throw new Error(
+      "Selecciona el canal."
+    );
+  }
+
+  const resultadoMarketing = {
+    tipo: "marketing",
+
+    canal:
+      String(canal || "").trim(),
+
+    alcance:
+      Number(alcance || 0),
+
+    leads:
+      Number(leads || 0),
+
+    ventas:
+      Number(ventas || 0),
+
+    monto:
+      Number(monto || 0),
+
+    observacion:
+      String(
+        observacion || ""
+      ).trim(),
+
+    registrado_at:
+      new Date().toISOString(),
+  };
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "tareas_operativas"
+    )
+    .update({
+      resultado:
+        JSON.stringify(
+          resultadoMarketing
+        ),
+
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "id",
+      tareaId
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error(
+      "Error guardando resultado de marketing:",
+      error
+    );
+
+    throw new Error(
+      "MONYS no pudo guardar el resultado de marketing."
+    );
+  }
+
+  return {
+    tarea: data,
+    resultado:
+      resultadoMarketing,
+  };
 }
 
 export async function cambiarEstadoTareaOperativa({

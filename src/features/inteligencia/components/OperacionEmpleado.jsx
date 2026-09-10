@@ -13,7 +13,23 @@ import {
   obtenerEvidenciasTarea,
   ejecutarEvaluacionTareaIA,
   guardarChecklistTarea,
+  revisarContenidoMarketing,
+  guardarResultadoMarketing,
 } from "../services/tareasOperativasService";
+
+import {
+    analizarCampanaFinalizadaIA,
+  actualizarCampanaMarketing,
+  crearCampanaMarketing,
+  generarEstrategiaCampanaIA,
+  guardarAprendizajeCampana,  
+  obtenerCampanasMarketing,
+  obtenerContextoRealProductoCampana,
+} from "../services/campanasMarketingService";
+
+import {
+  useUser,
+} from "../../../context/UserContext";
 
 function obtenerFechaHoy() {
   const ahora = new Date();
@@ -442,7 +458,7 @@ export default function OperacionEmpleado({
             total) *
             100
         )
-      : 100;
+      : 0;
 
   if (cargando) {
     return (
@@ -1089,6 +1105,28 @@ export default function OperacionEmpleado({
   tareaId={tarea.id}
   instrucciones={tarea.instrucciones}
   checklistInicial={tarea.checklist}
+/>
+)}
+
+             {normalizarTexto(tarea.area) ===
+  "MARKETING" && (
+  <RevisionMarketingTarea
+    tarea={tarea}
+  />
+)}
+
+                {normalizarTexto(tarea.area) ===
+  "MARKETING" && (
+  <ResultadoMarketingTarea
+    tarea={tarea}
+  />
+)}
+
+{normalizarTexto(tarea.area) ===
+  "MARKETING" && (
+ <CrearCampanaMarketingTarea
+  tarea={tarea}
+  branchId={branchId}
 />
 )}
 
@@ -1744,6 +1782,2169 @@ function ChecklistTarea({
     </div>
   );
 }
+
+function RevisionMarketingTarea({
+  tarea,
+}) {
+  const [
+    contenido,
+    setContenido,
+  ] = useState("");
+
+  const [
+    revisando,
+    setRevisando,
+  ] = useState(false);
+
+  const [
+    evaluacion,
+    setEvaluacion,
+  ] = useState(null);
+
+  const [
+    errorRevision,
+    setErrorRevision,
+  ] = useState("");
+
+  async function revisar() {
+    const texto =
+      String(contenido || "").trim();
+
+    if (!texto) {
+      setErrorRevision(
+        "Pega el texto, guion o idea que quieres publicar."
+      );
+
+      return;
+    }
+
+    try {
+      setRevisando(true);
+      setErrorRevision("");
+      setEvaluacion(null);
+
+      const resultado =
+        await revisarContenidoMarketing({
+       
+                texto,
+    });
+
+      setEvaluacion(resultado);
+    } catch (error) {
+      console.error(
+        "Error revisando marketing:",
+        error
+      );
+
+      setErrorRevision(
+        error?.message ||
+          "MONYS no pudo revisar el contenido."
+      );
+    } finally {
+      setRevisando(false);
+    }
+  }
+
+  const decision =
+    evaluacion?.decision || "";
+
+  const publicar =
+    decision === "PUBLICAR";
+
+  const cambios =
+    Array.isArray(
+      evaluacion?.cambios
+    )
+      ? evaluacion.cambios.slice(
+          0,
+          3
+        )
+      : [];
+
+  return (
+    <div
+      style={{
+        marginBottom: "16px",
+        padding: "14px",
+        borderRadius: "14px",
+        border:
+          "1px solid #e8d1dc",
+        background: "#fffafd",
+      }}
+    >
+      <strong
+        style={{
+          display: "block",
+          color: "#72274e",
+          marginBottom: "5px",
+        }}
+      >
+        ✨ Revisión antes de publicar
+      </strong>
+
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#806d76",
+          marginBottom: "10px",
+        }}
+      >
+        Pega tu texto, guion o idea.
+        MONYS solo te pedirá cambios
+        si realmente pueden mejorar
+        el resultado.
+      </div>
+
+      <textarea
+        value={contenido}
+        onChange={(event) =>
+          setContenido(
+            event.target.value
+          )
+        }
+        placeholder="Ejemplo: Esta base cubre muchísimo... Mándanos mensaje para encontrar tu tono."
+        rows={5}
+        style={{
+          width: "100%",
+          boxSizing:
+            "border-box",
+          border:
+            "1px solid #ddcad4",
+          borderRadius:
+            "11px",
+          padding: "11px",
+          resize: "vertical",
+          fontFamily:
+            "inherit",
+          fontSize: "14px",
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={revisar}
+        disabled={
+          revisando ||
+          !contenido.trim()
+        }
+        style={{
+          width: "100%",
+          marginTop: "10px",
+          border: "none",
+          borderRadius: "11px",
+          padding: "12px",
+          background:
+            revisando ||
+            !contenido.trim()
+              ? "#dac5cf"
+              : "#8f2858",
+          color: "#ffffff",
+          fontWeight: "900",
+          cursor:
+            revisando ||
+            !contenido.trim()
+              ? "not-allowed"
+              : "pointer",
+        }}
+      >
+        {revisando
+          ? "🧠 MONYS revisando..."
+          : "✨ Revisar con MONYS"}
+      </button>
+
+      {errorRevision && (
+        <div
+          style={{
+            marginTop: "10px",
+            padding: "9px",
+            borderRadius: "9px",
+            background: "#fff1f1",
+            color: "#a03c3c",
+            fontSize: "12px",
+          }}
+        >
+          ⚠️ {errorRevision}
+        </div>
+      )}
+
+      {evaluacion && (
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "12px",
+            borderRadius: "12px",
+            background: publicar
+              ? "#edf8f1"
+              : "#fff7e8",
+            border: publicar
+              ? "1px solid #b7dfc8"
+              : "1px solid #efd6a8",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: "900",
+              color: publicar
+                ? "#28704a"
+                : "#9a6200",
+            }}
+          >
+            {publicar
+              ? "✅ PUBLICA"
+              : "⚠️ MEJORA ESTO"}
+          </div>
+
+          <div
+            style={{
+              marginTop: "6px",
+              fontSize: "13px",
+            }}
+          >
+            🎯{" "}
+            {evaluacion.objetivoDetectado ||
+              "Objetivo"}
+            {" · "}
+            {evaluacion.puntaje ??
+              "--"}
+            /100
+          </div>
+
+          {evaluacion.resumen && (
+            <div
+              style={{
+                marginTop: "8px",
+                fontSize: "13px",
+              }}
+            >
+              {evaluacion.resumen}
+            </div>
+          )}
+
+          {cambios.length > 0 && (
+            <div
+              style={{
+                marginTop: "10px",
+              }}
+            >
+              <strong>
+                Cambia solamente esto:
+              </strong>
+
+              {cambios.map(
+                (
+                  cambio,
+                  indice
+                ) => (
+                  <div
+                    key={indice}
+                    style={{
+                      marginTop:
+                        "6px",
+                      fontSize:
+                        "13px",
+                    }}
+                  >
+                    {indice + 1}.{" "}
+                    {cambio}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+          {!publicar &&
+            evaluacion.ganchoSugerido && (
+              <div
+                style={{
+                  marginTop:
+                    "10px",
+                  padding: "9px",
+                  borderRadius:
+                    "9px",
+                  background:
+                    "#ffffff",
+                  fontSize:
+                    "13px",
+                }}
+              >
+                <strong>
+                  💡 Gancho sugerido:
+                </strong>
+                <br />
+                {
+                  evaluacion.ganchoSugerido
+                }
+              </div>
+            )}
+
+          {!publicar &&
+            evaluacion.ctaSugerido && (
+              <div
+                style={{
+                  marginTop:
+                    "8px",
+                  padding: "9px",
+                  borderRadius:
+                    "9px",
+                  background:
+                    "#ffffff",
+                  fontSize:
+                    "13px",
+                }}
+              >
+                <strong>
+                  👉 CTA sugerido:
+                </strong>
+                <br />
+                {
+                  evaluacion.ctaSugerido
+                }
+              </div>
+            )}
+
+          {publicar && (
+            <div
+              style={{
+                marginTop: "10px",
+                fontWeight: "900",
+                color: "#28704a",
+                fontSize: "13px",
+              }}
+            >
+              No le muevas más.
+              Publícalo y mide el
+              resultado.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultadoMarketingTarea({
+  tarea,
+}) {
+  const [
+    canal,
+    setCanal,
+  ] = useState("");
+
+  const [
+    alcance,
+    setAlcance,
+  ] = useState("");
+
+  const [
+    leads,
+    setLeads,
+  ] = useState("");
+
+  const [
+    ventas,
+    setVentas,
+  ] = useState("");
+
+  const [
+    monto,
+    setMonto,
+  ] = useState("");
+
+  const [
+    observacion,
+    setObservacion,
+  ] = useState("");
+
+  return (
+    <div
+      style={{
+        marginBottom: "16px",
+        padding: "14px",
+        borderRadius: "14px",
+        border:
+          "1px solid #d9e2df",
+        background: "#f8fcfa",
+      }}
+    >
+      <strong
+        style={{
+          display: "block",
+          color: "#2d6b54",
+          marginBottom: "5px",
+        }}
+      >
+        📊 Registrar resultado
+      </strong>
+
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#6d7c75",
+          marginBottom: "10px",
+        }}
+      >
+        Toma menos de un minuto.
+        Registra solo lo importante para
+        saber qué contenido sí produce
+        resultados.
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: "9px",
+        }}
+      >
+        <select
+          value={canal}
+          onChange={(event) =>
+            setCanal(
+              event.target.value
+            )
+          }
+          style={{
+            padding: "10px",
+            borderRadius: "10px",
+            border:
+              "1px solid #cedbd5",
+            fontFamily: "inherit",
+          }}
+        >
+          <option value="">
+            Selecciona canal
+          </option>
+
+          <option value="TikTok">
+            TikTok
+          </option>
+
+          <option value="Instagram">
+            Instagram
+          </option>
+
+          <option value="Facebook">
+            Facebook
+          </option>
+
+          <option value="TikTok Shop">
+            TikTok Shop
+          </option>
+
+          <option value="Mercado Libre">
+            Mercado Libre
+          </option>
+
+          <option value="ChatGPT Ads">
+            ChatGPT Ads
+          </option>
+
+          <option value="Otro">
+            Otro
+          </option>
+        </select>
+
+        <input
+          type="number"
+          min="0"
+          value={alcance}
+          onChange={(event) =>
+            setAlcance(
+              event.target.value
+            )
+          }
+          placeholder="Vistas o alcance"
+          style={estiloInputMarketing}
+        />
+
+        <input
+          type="number"
+          min="0"
+          value={leads}
+          onChange={(event) =>
+            setLeads(
+              event.target.value
+            )
+          }
+          placeholder="Mensajes o leads"
+          style={estiloInputMarketing}
+        />
+
+        <input
+          type="number"
+          min="0"
+          value={ventas}
+          onChange={(event) =>
+            setVentas(
+              event.target.value
+            )
+          }
+          placeholder="Ventas generadas"
+          style={estiloInputMarketing}
+        />
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={monto}
+          onChange={(event) =>
+            setMonto(
+              event.target.value
+            )
+          }
+          placeholder="Monto vendido $"
+          style={estiloInputMarketing}
+        />
+
+        <textarea
+          value={observacion}
+          onChange={(event) =>
+            setObservacion(
+              event.target.value
+            )
+          }
+          placeholder="Observación rápida: qué funcionó, qué preguntaron o qué mejorar."
+          rows={3}
+          style={{
+            ...estiloInputMarketing,
+            resize: "vertical",
+          }}
+        />
+      </div>
+
+     <button
+  type="button"
+  onClick={async () => {
+    try {
+      if (!canal) {
+        alert(
+          "Selecciona el canal."
+        );
+        return;
+      }
+
+      await guardarResultadoMarketing({
+        tareaId: tarea.id,
+        canal,
+        alcance,
+        leads,
+        ventas,
+        monto,
+        observacion,
+      });
+
+      alert(
+        "Resultado de marketing guardado."
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando resultado de marketing:",
+        error
+      );
+
+      alert(
+        error?.message ||
+          "MONYS no pudo guardar el resultado."
+      );
+    }
+  }}
+  style={{
+    width: "100%",
+    marginTop: "10px",
+    border: "none",
+    borderRadius: "11px",
+    padding: "12px",
+    background: "#2f8a5d",
+    color: "#ffffff",
+    fontWeight: "900",
+    cursor: "pointer",
+  }}
+>
+  💾 Guardar resultado
+</button>
+
+     
+    </div>
+  );
+}
+
+function CrearCampanaMarketingTarea({
+  tarea,
+  branchId,
+}) {
+
+    const {
+    usuario,
+  } = useUser();
+
+  const [
+    objetivoUsuario,
+    setObjetivoUsuario,
+  ] = useState("");
+
+  const [
+    producto,
+    setProducto,
+  ] = useState("");
+
+  const [
+    canalPreferido,
+    setCanalPreferido,
+  ] = useState("");
+
+  const [
+    presupuestoMaximo,
+    setPresupuestoMaximo,
+  ] = useState("");
+
+  const [
+    generando,
+    setGenerando,
+  ] = useState(false);
+
+  const [
+    estrategia,
+    setEstrategia,
+  ] = useState(null);
+
+  const [
+  campanaGuardada,
+  setCampanaGuardada,
+] = useState(null);
+
+const [
+  activandoCampana,
+  setActivandoCampana,
+] = useState(false);
+
+const [
+  gastoCampana,
+  setGastoCampana,
+] = useState("");
+
+const [
+  pedidosCampana,
+  setPedidosCampana,
+] = useState("");
+
+const [
+  ventaCampana,
+  setVentaCampana,
+] = useState("");
+
+const [
+  guardandoSeguimiento,
+  setGuardandoSeguimiento,
+] = useState(false);
+
+const [
+  cerrandoCampana,
+  setCerrandoCampana,
+] = useState(false);
+
+const [
+  mensajeSeguimiento,
+  setMensajeSeguimiento,
+] = useState("");
+
+  const [
+    errorCampana,
+    setErrorCampana,
+  ] = useState("");
+
+  useEffect(() => {
+  let componenteActivo =
+    true;
+
+  async function cargarUltimaCampana() {
+    if (
+      !usuario?.organization_id ||
+      !usuario?.business_id
+    ) {
+      return;
+    }
+
+    try {
+      const campanas =
+        await obtenerCampanasMarketing({
+          organizationId:
+            usuario.organization_id,
+
+          businessId:
+            usuario.business_id,
+
+          branchId:
+            branchId || null,
+        });
+
+      const ultimaCampana =
+        campanas?.[0] ||
+        null;
+
+    if (
+  componenteActivo &&
+  ultimaCampana
+) {
+  setCampanaGuardada(
+    ultimaCampana
+  );
+
+  if (
+    ultimaCampana?.estrategia_ia
+  ) {
+    setEstrategia(
+      ultimaCampana.estrategia_ia
+    );
+  }
+}
+
+    } catch (error) {
+      console.error(
+        "Error cargando la última campaña:",
+        error
+      );
+    }
+  }
+
+  cargarUltimaCampana();
+
+  return () => {
+    componenteActivo =
+      false;
+  };
+}, [
+  usuario?.organization_id,
+  usuario?.business_id,
+  branchId,
+]);
+
+  async function generar() {
+    try {
+      setErrorCampana("");
+      setEstrategia(null);
+
+      if (
+        !String(
+          objetivoUsuario || ""
+        ).trim()
+      ) {
+        setErrorCampana(
+          "Escribe qué quieres lograr."
+        );
+        return;
+      }
+
+      setGenerando(true);
+
+       const contextoReal =
+  await obtenerContextoRealProductoCampana({
+    branchId,
+    producto,
+  });
+
+const resultado =
+  await generarEstrategiaCampanaIA({
+    objetivoUsuario,
+    producto,
+    canalPreferido,
+    presupuestoMaximo,
+
+    inventarioDisponible:
+      contextoReal?.inventario
+        ?.existencia ?? 0,
+
+    margenEstimado:
+      contextoReal?.ventas
+        ?.margenReal ?? 0,
+
+    contextoNegocio:
+      "Monys Glam vende cosméticos. La campaña debe buscar resultados reales, proteger la utilidad y evitar trabajo innecesario.",
+
+
+     datosVentas:
+  JSON.stringify({
+    productoEncontrado:
+      contextoReal?.encontrado ||
+      false,
+
+    productoBuscado:
+      contextoReal
+        ?.productoBuscado ||
+      producto,
+
+    piezasVendidas:
+      contextoReal?.ventas
+        ?.piezas ?? 0,
+
+    importeVendido:
+      contextoReal?.ventas
+        ?.importe ?? 0,
+
+    costo:
+      contextoReal?.ventas
+        ?.costo ?? 0,
+
+    utilidad:
+      contextoReal?.ventas
+        ?.utilidad ?? 0,
+
+    margenReal:
+      contextoReal?.ventas
+        ?.margenReal ?? null,
+
+    periodo:
+      contextoReal?.periodo ||
+      null,
+
+    variantes:
+      contextoReal?.ventas
+        ?.variantes || [],
+
+    confianzaCoincidencia:
+      contextoReal
+        ?.confianzaCoincidencia ??
+      0,
+
+    confianzaDatos:
+      contextoReal
+        ?.confianzaDatos ?? 0,
+  }),
+
+datosInventario:
+  JSON.stringify({
+    existencia:
+      contextoReal?.inventario
+        ?.existencia ?? 0,
+
+    valorInventario:
+      contextoReal?.inventario
+        ?.valorInventario ?? 0,
+
+    ventaDiaria:
+      contextoReal?.inventario
+        ?.ventaDiaria ?? 0,
+
+    diasCobertura:
+      contextoReal?.inventario
+        ?.diasCobertura ?? null,
+
+    variantes:
+      (
+        contextoReal?.inventario
+          ?.variantes || []
+      ).map((item) => ({
+        codigo:
+          item?.codigo || null,
+
+        nombre:
+          item?.nombre ||
+          item?.descripcion ||
+          "",
+
+        existencia:
+          Number(
+            item?.existencia || 0
+          ),
+
+        valorInventario:
+          Number(
+            item?.valorInventario || 0
+          ),
+      })),
+
+    fuentes:
+      contextoReal?.fuentes ||
+      {},
+  }),
+
+      canalesNegocio:
+  JSON.stringify({
+    tiktok: {
+      estado: "confirmado",
+      usuario: "@monysglamshop",
+      enlace:
+        "https://www.tiktok.com/@monysglamshop",
+      metricasDisponibles: false,
+    },
+
+    tiktokShop: {
+      estado: "confirmado",
+      enlace:
+        "https://vt.tiktok.com/ZSqdFVtMk/?page=TikTokShop",
+      metricasDisponibles: false,
+    },
+
+    instagram: {
+      estado: "confirmado",
+      usuario: "@monysglamshop",
+      enlace:
+        "https://www.instagram.com/monysglamshop/",
+      metricasDisponibles: false,
+    },
+
+    facebook: {
+      estado: "confirmado",
+      enlaces: [
+        "https://www.facebook.com/share/19U7TBfAM8/",
+        "https://www.facebook.com/share/1Hy6eff8cV/",
+      ],
+      metricasDisponibles: false,
+    },
+
+    tiendaWeb: {
+      estado: "confirmado",
+      enlace:
+        "https://monyscosmeticos.com/",
+      metricasDisponibles: false,
+    },
+
+    mercadoLibre: {
+      estado: "por_confirmar",
+      enlace: null,
+      metricasDisponibles: false,
+    },
+  }),
+
+
+       notas:
+      `Tarea actual: ${
+        tarea?.titulo || ""
+      }. Sucursal analizada: ${
+        branchId || "no identificada"
+      }.`,
+  });
+
+    const campanaCreada =
+  await crearCampanaMarketing({
+  organizationId:
+  usuario?.organization_id ||
+  null,
+
+businessId:
+  usuario?.business_id ||
+  null,
+
+  branchId:
+    branchId || null,
+
+  nombre:
+    resultado?.nombre ||
+    `Campaña ${producto}`,
+
+  objetivo:
+    resultado?.objetivo ||
+    "VENTAS",
+
+  canalPrincipal:
+    resultado?.canalPrincipal ||
+    canalPreferido ||
+    "",
+
+  producto:
+    resultado?.producto ||
+    producto ||
+    "",
+
+  problemaOportunidad:
+    resultado?.problemaOportunidad ||
+    resultado?.diagnostico ||
+    "",
+
+  hipotesis:
+    resultado?.hipotesis ||
+    "",
+
+  audiencia:
+    resultado?.audiencia ||
+    "",
+
+  oferta:
+    resultado?.oferta ||
+    "",
+
+  gancho:
+    resultado?.gancho ||
+    "",
+
+  mensaje:
+    resultado?.mensaje ||
+    "",
+
+  cta:
+    resultado?.cta ||
+    "",
+
+  presupuesto:
+    resultado?.presupuestoInicial ||
+    0,
+
+  estrategiaIA:
+    resultado,
+
+  confianzaIA:
+    resultado?.confianza ||
+    0,
+
+  decisionIA:
+    resultado?.decision ||
+    "",
+});
+
+ setCampanaGuardada(
+  campanaCreada
+);
+
+setEstrategia(
+  resultado
+);   
+
+    } catch (error) {
+      console.error(
+        "Error creando campaña con MONYS:",
+        error
+      );
+
+      setErrorCampana(
+        error?.message ||
+          "MONYS no pudo crear la campaña."
+      );
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+   async function activarCampana() {
+  if (!campanaGuardada?.id) {
+    setErrorCampana(
+      "No se encontró la campaña guardada."
+    );
+    return;
+  }
+
+  try {
+    setActivandoCampana(true);
+    setErrorCampana("");
+
+    const campanaActualizada =
+      await actualizarCampanaMarketing(
+        campanaGuardada.id,
+        {
+          estado: "ACTIVA",
+
+          fecha_inicio:
+            obtenerFechaHoy(),
+        }
+      );
+
+    setCampanaGuardada(
+      campanaActualizada
+    );
+  } catch (error) {
+    console.error(
+      "Error activando campaña:",
+      error
+    );
+
+    setErrorCampana(
+      error?.message ||
+        "MONYS no pudo activar la campaña."
+    );
+  } finally {
+    setActivandoCampana(false);
+  }
+}
+
+async function guardarSeguimientoCampana() {
+  if (!campanaGuardada?.id) {
+    setErrorCampana(
+      "No se encontró la campaña activa."
+    );
+    return;
+  }
+
+  const gastoNuevo =
+    Number(gastoCampana || 0);
+
+  const pedidosNuevos =
+    Number(pedidosCampana || 0);
+
+  const ventaNueva =
+    Number(ventaCampana || 0);
+
+  if (
+    gastoNuevo < 0 ||
+    pedidosNuevos < 0 ||
+    ventaNueva < 0
+  ) {
+    setErrorCampana(
+      "Los resultados no pueden ser negativos."
+    );
+    return;
+  }
+
+  if (
+    gastoNuevo === 0 &&
+    pedidosNuevos === 0 &&
+    ventaNueva === 0
+  ) {
+    setErrorCampana(
+      "Registra al menos un resultado."
+    );
+    return;
+  }
+
+  const gastoAcumuladoActual =
+    Number(
+      campanaGuardada?.resultado
+        ?.gastoAcumulado || 0
+    );
+
+  const presupuestoAutorizado =
+    Number(
+      campanaGuardada?.presupuesto || 0
+    );
+
+  const gastoProyectado =
+    gastoAcumuladoActual +
+    gastoNuevo;
+
+  if (
+    presupuestoAutorizado > 0 &&
+    gastoProyectado >
+      presupuestoAutorizado
+  ) {
+    setErrorCampana(
+      `Este avance llevaría el gasto acumulado a $${gastoProyectado.toFixed(
+        2
+      )}, por encima del presupuesto autorizado de $${presupuestoAutorizado.toFixed(
+        2
+      )}. Solicita autorización del dueño antes de gastar más.`
+    );
+    return;
+  }
+
+  try {
+    setGuardandoSeguimiento(true);
+    setErrorCampana("");
+    setMensajeSeguimiento("");
+
+    const resultadoAnterior =
+      campanaGuardada?.resultado ||
+      {};
+
+    const gastoAcumulado =
+      Number(
+        resultadoAnterior
+          ?.gastoAcumulado || 0
+      ) + gastoNuevo;
+
+    const pedidosAcumulados =
+      Number(
+        resultadoAnterior
+          ?.pedidosAcumulados || 0
+      ) + pedidosNuevos;
+
+    const ventaAcumulada =
+      Number(
+        resultadoAnterior
+          ?.ventaAcumulada || 0
+      ) + ventaNueva;
+
+    const costoPorPedido =
+      pedidosAcumulados > 0
+        ? gastoAcumulado /
+          pedidosAcumulados
+        : null;
+
+    let decisionActual =
+      "CONTINUAR MIDIENDO";
+
+    if (
+      pedidosAcumulados === 0 &&
+      gastoAcumulado >= 90
+    ) {
+      decisionActual =
+        "PAUSAR";
+    } else if (
+      pedidosAcumulados >= 3 &&
+      costoPorPedido !== null &&
+      costoPorPedido <= 30
+    ) {
+      decisionActual =
+        "ESCALAR";
+    }
+
+    const registroNuevo = {
+      fecha:
+        obtenerFechaHoy(),
+
+      gasto:
+        gastoNuevo,
+
+      pedidos:
+        pedidosNuevos,
+
+      venta:
+        ventaNueva,
+
+      registradoEn:
+        new Date().toISOString(),
+    };
+
+    const resultadoActualizado = {
+      gastoAcumulado,
+      pedidosAcumulados,
+      ventaAcumulada,
+      costoPorPedido,
+      decisionActual,
+
+      historial: [
+        ...(
+          resultadoAnterior
+            ?.historial ||
+          []
+        ),
+
+        registroNuevo,
+      ],
+    };
+
+    const campanaActualizada =
+      await actualizarCampanaMarketing(
+        campanaGuardada.id,
+        {
+          resultado:
+            resultadoActualizado,
+        }
+      );
+
+    setCampanaGuardada(
+      campanaActualizada
+    );
+
+    setGastoCampana("");
+    setPedidosCampana("");
+    setVentaCampana("");
+
+    setMensajeSeguimiento(
+      "Resultado guardado. MONYS actualizó la decisión."
+    );
+  } catch (error) {
+    console.error(
+      "Error guardando seguimiento:",
+      error
+    );
+
+    setErrorCampana(
+      error?.message ||
+        "MONYS no pudo guardar el seguimiento."
+    );
+  } finally {
+    setGuardandoSeguimiento(false);
+  }
+}
+
+async function cerrarCampanaMarketing() {
+  const resultadoActual =
+    campanaGuardada?.resultado ||
+    {};
+
+  const historial =
+    resultadoActual.historial ||
+    [];
+
+  if (!campanaGuardada?.id) {
+    setErrorCampana(
+      "No existe una campaña activa para cerrar."
+    );
+    return;
+  }
+
+  if (historial.length === 0) {
+    setErrorCampana(
+      "Antes de cerrar la campaña debes registrar por lo menos un avance real."
+    );
+    return;
+  }
+
+  const confirmarCierre =
+    window.confirm(
+      "¿Confirmas que la campaña terminó y que ya no se registrarán más avances?"
+    );
+
+  if (!confirmarCierre) {
+    return;
+  }
+
+  try {
+    setCerrandoCampana(true);
+    setErrorCampana("");
+    setMensajeSeguimiento("");
+
+       const gastoFinal =
+      Number(
+        resultadoActual.gastoAcumulado ||
+          0
+      );
+
+    const pedidosFinales =
+      Number(
+        resultadoActual.pedidosAcumulados ||
+          0
+      );
+
+    const ventaFinal =
+      Number(
+        resultadoActual.ventaAcumulada ||
+          0
+      );
+
+    const costoPorPedidoFinal =
+      pedidosFinales > 0
+        ? gastoFinal /
+          pedidosFinales
+        : null;
+
+    const retornoPorPesoInvertido =
+      gastoFinal > 0
+        ? ventaFinal /
+          gastoFinal
+        : null;
+
+    const decisionFinal =
+      resultadoActual.decisionActual ||
+      "CAMPAÑA_FINALIZADA";
+
+    const aprendizajeReal = {
+      tipoFuente: "DATO_REAL",
+
+      gastoFinal,
+      pedidosFinales,
+      ventaFinal,
+      costoPorPedidoFinal,
+      retornoPorPesoInvertido,
+
+      registrosAnalizados:
+        historial.length,
+
+      fechaCierre:
+        obtenerFechaHoy(),
+    };
+
+        const analisisAprendizaje =
+      await analizarCampanaFinalizadaIA({
+        campana:
+          campanaGuardada,
+
+        resultado:
+          resultadoActual,
+
+        aprendizajeBase:
+          aprendizajeReal,
+      });
+
+    await guardarAprendizajeCampana({
+      campanaId:
+        campanaGuardada.id,
+
+      resultado:
+        resultadoActual,
+
+      aprendizaje: {
+        ...aprendizajeReal,
+
+        resumenIA:
+          analisisAprendizaje
+            .resumen ||
+          "",
+
+        decisionFutura:
+          analisisAprendizaje
+            .decisionFutura ||
+          "REQUIERE_MAS_DATOS",
+
+        recomendacionFutura:
+          analisisAprendizaje
+            .recomendacionFutura ||
+          "",
+      },
+
+      analisisIA:
+        analisisAprendizaje,
+
+      decisionIA:
+        analisisAprendizaje
+          .decisionFutura ||
+        decisionFinal,
+
+      confianzaIA:
+        Number(
+          analisisAprendizaje
+            .confianza ||
+            0
+        ),
+    });
+
+    const campanaFinalizada =
+      await actualizarCampanaMarketing(
+        campanaGuardada.id,
+        {
+          estado: "FINALIZADA",
+
+          fecha_fin:
+            obtenerFechaHoy(),
+
+          resultado: {
+            ...resultadoActual,
+
+                       decisionFinal,
+          },
+        }
+      );
+
+    setCampanaGuardada(
+      campanaFinalizada
+    );
+
+    setMensajeSeguimiento(
+      "Campaña finalizada. MONYS conservará sus resultados para generar aprendizaje."
+    );
+  } catch (error) {
+    console.error(
+      "Error cerrando campaña:",
+      error
+    );
+
+    setErrorCampana(
+      error?.message ||
+        "MONYS no pudo cerrar la campaña."
+    );
+  } finally {
+    setCerrandoCampana(false);
+  }
+}
+
+  return (
+    <div
+      style={{
+        marginBottom: "16px",
+        padding: "14px",
+        borderRadius: "14px",
+        border:
+          "1px solid #ead4df",
+        background: "#fff9fc",
+      }}
+    >
+      <strong
+        style={{
+          display: "block",
+          color: "#9d245b",
+          marginBottom: "5px",
+          fontSize: "15px",
+        }}
+      >
+        🚀 Crear campaña con MONYS
+      </strong>
+
+      <div
+        style={{
+          fontSize: "12px",
+          color: "#7d6470",
+          marginBottom: "10px",
+        }}
+      >
+        Dile a MONYS qué quieres lograr.
+        El Director de Crecimiento te
+        propondrá cómo probarlo, medirlo
+        y decidir si escalar o detener.
+      </div>
+
+      <textarea
+        value={objetivoUsuario}
+        onChange={(event) =>
+          setObjetivoUsuario(
+            event.target.value
+          )
+        }
+        placeholder="Ejemplo: Quiero vender más la Base Flawless Stay sin gastar mucho dinero."
+        rows={3}
+        style={{
+          ...estiloInputMarketing,
+          resize: "vertical",
+          marginBottom: "9px",
+        }}
+      />
+
+      <input
+        value={producto}
+        onChange={(event) =>
+          setProducto(
+            event.target.value
+          )
+        }
+        placeholder="Producto (opcional)"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "9px",
+        }}
+      />
+
+      <select
+        value={canalPreferido}
+        onChange={(event) =>
+          setCanalPreferido(
+            event.target.value
+          )
+        }
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "9px",
+        }}
+      >
+        <option value="">
+          MONYS decide el canal
+        </option>
+
+        <option value="TikTok">
+          TikTok
+        </option>
+
+        <option value="TikTok Shop">
+          TikTok Shop
+        </option>
+
+        <option value="Instagram">
+          Instagram
+        </option>
+
+        <option value="Facebook">
+          Facebook / Meta
+        </option>
+
+        <option value="Mercado Libre">
+          Mercado Libre
+        </option>
+
+        <option value="ChatGPT Ads">
+          ChatGPT Ads
+        </option>
+
+        <option value="Multicanal">
+          Multicanal
+        </option>
+      </select>
+
+      <input
+        type="number"
+        min="0"
+        value={presupuestoMaximo}
+        onChange={(event) =>
+          setPresupuestoMaximo(
+            event.target.value
+          )
+        }
+        placeholder="Presupuesto máximo $ (opcional)"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "10px",
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={generar}
+        disabled={generando}
+        style={{
+          width: "100%",
+          border: "none",
+          borderRadius: "11px",
+          padding: "12px",
+          background:
+            generando
+              ? "#d2a9bc"
+              : "#9d245b",
+          color: "#ffffff",
+          fontWeight: "900",
+          cursor:
+            generando
+              ? "wait"
+              : "pointer",
+        }}
+      >
+        {generando
+          ? "🧠 MONYS está analizando..."
+          : "✨ Diseñar campaña"}
+      </button>
+
+    
+      {estrategia && (
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "13px",
+            borderRadius: "12px",
+            background: "#ffffff",
+            border:
+              "1px solid #ead4df",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: "900",
+              fontSize: "16px",
+              color: "#80204e",
+              marginBottom: "7px",
+            }}
+          >
+            {estrategia.nombre ||
+              "Campaña propuesta"}
+          </div>
+
+          <div
+            style={{
+              fontSize: "13px",
+              marginBottom: "7px",
+            }}
+          >
+            🎯{" "}
+            <strong>
+              {estrategia.objetivo}
+            </strong>
+            {" · "}
+            {estrategia.decision}
+            {" · "}
+            Confianza{" "}
+            {estrategia.confianza}/100
+          </div>
+
+          {estrategia.diagnostico && (
+            <div
+              style={{
+                fontSize: "12px",
+                lineHeight: 1.5,
+                marginBottom: "10px",
+              }}
+            >
+              <strong>
+                Diagnóstico:
+              </strong>{" "}
+              {estrategia.diagnostico}
+            </div>
+          )}
+
+          {estrategia.hipotesis && (
+            <div
+              style={{
+                fontSize: "12px",
+                lineHeight: 1.5,
+                marginBottom: "10px",
+              }}
+            >
+              <strong>
+                Hipótesis:
+              </strong>{" "}
+              {estrategia.hipotesis}
+            </div>
+          )}
+
+          {estrategia.canalPrincipal && (
+            <div
+              style={{
+                fontSize: "12px",
+                marginBottom: "7px",
+              }}
+            >
+              📣{" "}
+              <strong>Canal:</strong>{" "}
+              {estrategia.canalPrincipal}
+            </div>
+          )}
+
+          <div
+            style={{
+              fontSize: "12px",
+              marginBottom: "7px",
+            }}
+          >
+            💰{" "}
+            <strong>
+              Prueba inicial:
+            </strong>{" "}
+            $
+            {Number(
+              estrategia.presupuestoInicial ||
+                0
+            ).toLocaleString(
+              "es-MX"
+            )}
+          </div>
+
+          {estrategia.gancho && (
+            <div
+              style={{
+                fontSize: "12px",
+                marginBottom: "7px",
+              }}
+            >
+              🎬{" "}
+              <strong>
+                Gancho:
+              </strong>{" "}
+              {estrategia.gancho}
+            </div>
+          )}
+
+          {estrategia.cta && (
+            <div
+              style={{
+                fontSize: "12px",
+                marginBottom: "10px",
+              }}
+            >
+              👉{" "}
+              <strong>CTA:</strong>{" "}
+              {estrategia.cta}
+            </div>
+          )}
+
+         {Array.isArray(
+  estrategia.criteriosExito
+) &&
+  estrategia.criteriosExito.length >
+    0 && (
+    <div
+      style={{
+        marginTop: "12px",
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#ecfdf3",
+        textAlign: "left",
+        fontSize: "12px",
+        lineHeight: 1.5,
+      }}
+    >
+      <strong>
+        ✅ La campaña tendrá éxito si:
+      </strong>
+
+      <ul>
+        {estrategia.criteriosExito.map(
+          (criterio, indice) => (
+            <li key={indice}>
+              {criterio}
+            </li>
+          )
+        )}
+      </ul>
+    </div>
+  )}
+
+{Array.isArray(
+  estrategia.criteriosDetener
+) &&
+  estrategia.criteriosDetener.length >
+    0 && (
+    <div
+      style={{
+        marginTop: "10px",
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#fff1f2",
+        textAlign: "left",
+        fontSize: "12px",
+        lineHeight: 1.5,
+      }}
+    >
+      <strong>
+        🛑 Detener la campaña si:
+      </strong>
+
+      <ul>
+        {estrategia.criteriosDetener.map(
+          (criterio, indice) => (
+            <li key={indice}>
+              {criterio}
+            </li>
+          )
+        )}
+      </ul>
+    </div>
+  )}
+
+{Array.isArray(
+  estrategia.criteriosEscalar
+) &&
+  estrategia.criteriosEscalar.length >
+    0 && (
+    <div
+      style={{
+        marginTop: "10px",
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#eff6ff",
+        textAlign: "left",
+        fontSize: "12px",
+        lineHeight: 1.5,
+      }}
+    >
+      <strong>
+        🚀 Aumentar la inversión si:
+      </strong>
+
+      <ul>
+        {estrategia.criteriosEscalar.map(
+          (criterio, indice) => (
+            <li key={indice}>
+              {criterio}
+            </li>
+          )
+        )}
+      </ul>
+    </div>
+  )}
+
+{estrategia.siguienteAccionKary && (
+  <div
+    style={{
+      marginTop: "12px",
+      padding: "10px",
+      borderRadius: "10px",
+      background: "#fff3f8",
+      fontSize: "12px",
+      lineHeight: 1.5,
+      fontWeight: "700",
+    }}
+  >
+    ✅ Siguiente acción para Kary:
+    <br />
+    {
+      estrategia.siguienteAccionKary
+    }
+  </div>
+)}
+
+ {campanaGuardada?.estado ===
+"ACTIVA" ? (
+  <div
+    style={{
+      marginTop: "12px",
+      padding: "12px",
+      borderRadius: "10px",
+      background: "#dcfce7",
+      color: "#166534",
+      fontWeight: "800",
+      textAlign: "center",
+    }}
+  >
+    🟢 Campaña activa y en seguimiento
+  </div>
+) : (
+  <button
+    type="button"
+    onClick={
+      activarCampana
+    }
+    disabled={
+      activandoCampana ||
+      !campanaGuardada?.id
+    }
+    style={{
+      width: "100%",
+      marginTop: "12px",
+      padding: "14px",
+      border: "none",
+      borderRadius: "10px",
+      background:
+        activandoCampana
+          ? "#94a3b8"
+          : "#15803d",
+      color: "white",
+      fontWeight: "800",
+      cursor:
+        activandoCampana
+          ? "wait"
+          : "pointer",
+    }}
+  >
+    {activandoCampana
+      ? "Activando campaña..."
+      : "🚀 Activar campaña"}
+  </button>
+)}
+
+        </div>
+      )}
+        
+        {campanaGuardada?.estado ===
+  "ACTIVA" && (
+  <div
+    style={{
+      marginTop: "12px",
+      padding: "14px",
+      borderRadius: "12px",
+      border:
+        "1px solid #bbf7d0",
+      background: "#f0fdf4",
+    }}
+  >
+    <strong>
+      📊 Seguimiento de campaña
+    </strong>
+
+    <p
+      style={{
+        fontSize: "12px",
+        margin:
+          "6px 0 12px",
+      }}
+    >
+      Registra solamente los
+      resultados nuevos desde la
+      última captura.
+    </p>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "repeat(auto-fit, minmax(130px, 1fr))",
+        gap: "8px",
+      }}
+    >
+      <input
+        type="number"
+        min="0"
+        value={gastoCampana}
+        onChange={(evento) =>
+          setGastoCampana(
+            evento.target.value
+          )
+        }
+        placeholder="Gasto nuevo $"
+        style={{
+          padding: "10px",
+          borderRadius: "8px",
+          border:
+            "1px solid #cbd5e1",
+        }}
+      />
+
+      <input
+        type="number"
+        min="0"
+        value={pedidosCampana}
+        onChange={(evento) =>
+          setPedidosCampana(
+            evento.target.value
+          )
+        }
+        placeholder="Pedidos nuevos"
+        style={{
+          padding: "10px",
+          borderRadius: "8px",
+          border:
+            "1px solid #cbd5e1",
+        }}
+      />
+
+      <input
+        type="number"
+        min="0"
+        value={ventaCampana}
+        onChange={(evento) =>
+          setVentaCampana(
+            evento.target.value
+          )
+        }
+        placeholder="Venta nueva $"
+        style={{
+          padding: "10px",
+          borderRadius: "8px",
+          border:
+            "1px solid #cbd5e1",
+        }}
+      />
+    </div>
+
+    <button
+      type="button"
+      onClick={
+        guardarSeguimientoCampana
+      }
+      disabled={
+        guardandoSeguimiento
+      }
+      style={{
+        width: "100%",
+        marginTop: "10px",
+        padding: "12px",
+        border: "none",
+        borderRadius: "8px",
+        background: "#166534",
+        color: "white",
+        fontWeight: "800",
+      }}
+    >
+      {guardandoSeguimiento
+        ? "Guardando..."
+        : "💾 Guardar avance"}
+    </button>
+
+    {mensajeSeguimiento && (
+      <p
+        style={{
+          color: "#166534",
+          fontWeight: "700",
+          fontSize: "12px",
+        }}
+      >
+        ✅ {mensajeSeguimiento}
+      </p>
+    )}
+
+    {campanaGuardada
+      ?.resultado && (
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "12px",
+          borderRadius: "10px",
+          background: "white",
+          fontSize: "12px",
+          lineHeight: 1.6,
+        }}
+      >
+        <strong>
+          Decisión MONYS:{" "}
+        {
+  campanaGuardada
+    .resultado
+    .decisionActual ||
+  "ESPERANDO RESULTADOS"
+}
+        </strong>
+
+        <br />
+
+        Gasto acumulado: $
+        {Number(
+          campanaGuardada
+            .resultado
+            .gastoAcumulado ||
+            0
+        ).toFixed(2)}
+
+        <br />
+
+        Pedidos acumulados:{" "}
+        {Number(
+          campanaGuardada
+            .resultado
+            .pedidosAcumulados ||
+            0
+        )}
+
+        <br />
+
+        Venta acumulada: $
+        {Number(
+          campanaGuardada
+            .resultado
+            .ventaAcumulada ||
+            0
+        ).toFixed(2)}
+
+        <br />
+
+        Costo por pedido:{" "}
+{Number.isFinite(
+  Number(
+    campanaGuardada
+      .resultado
+      .costoPorPedido
+  )
+) &&
+campanaGuardada
+  .resultado
+  .costoPorPedido !== null
+  ? `$${Number(
+      campanaGuardada
+        .resultado
+        .costoPorPedido
+    ).toFixed(2)}`
+  : "Sin pedidos todavía"}
+      </div>
+    )}
+  </div>
+)}
+
+    <button
+      type="button"
+      onClick={
+        cerrarCampanaMarketing
+      }
+      disabled={
+        cerrandoCampana
+      }
+      style={{
+        width: "100%",
+        marginTop: "10px",
+        padding: "12px",
+        border:
+          "1px solid #991b1b",
+        borderRadius: "8px",
+        background:
+          cerrandoCampana
+            ? "#d1d5db"
+            : "#ffffff",
+        color:
+          cerrandoCampana
+            ? "#6b7280"
+            : "#991b1b",
+        fontWeight: "800",
+        cursor:
+          cerrandoCampana
+            ? "not-allowed"
+            : "pointer",
+      }}
+    >
+      {cerrandoCampana
+        ? "Finalizando..."
+        : "🏁 Finalizar campaña"}
+    </button>
+
+         {errorCampana && (
+      <div
+        style={{
+          marginTop: "10px",
+          padding: "10px",
+          borderRadius: "10px",
+          background: "#fff0f0",
+          border:
+            "1px solid #efb8b8",
+          color: "#a22525",
+          fontSize: "12px",
+          fontWeight: "700",
+        }}
+      >
+        ⚠️ {errorCampana}
+      </div>
+    )}
+
+    </div>
+  );
+}
+
+const estiloInputMarketing = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "10px",
+  borderRadius: "10px",
+  border: "1px solid #cedbd5",
+  fontFamily: "inherit",
+  fontSize: "14px",
+};
 
 const estiloFoto = {
   display: "inline-flex",

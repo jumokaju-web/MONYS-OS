@@ -485,132 +485,453 @@ export function normalizarInventarioUtilidad(filas) {
 }
 
 export function normalizarUtilidadVentas(filas) {
-  if (!Array.isArray(filas) || filas.length < 2) {
+  if (
+    !Array.isArray(filas) ||
+    filas.length < 2
+  ) {
     return [];
   }
 
-  const encabezadosOriginales = filas[0];
+  const encabezadosOriginales =
+    filas[0];
 
   const encabezadosLimpios =
-    encabezadosOriginales.map(limpiarEncabezado);
+    encabezadosOriginales.map(
+      limpiarEncabezado
+    );
 
   const columnas = {
-    documento: buscarColumna(encabezadosLimpios, [
-      "documento",
-    ]),
+    documento:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "documento",
+        ]
+      ),
 
-    fecha: buscarColumna(encabezadosLimpios, [
-      "fecha",
-    ]),
+    fecha:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "fecha",
+        ]
+      ),
 
-    folio: buscarColumna(encabezadosLimpios, [
-      "folio",
-    ]),
+    folio:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "folio",
+        ]
+      ),
 
-    cliente: buscarColumna(encabezadosLimpios, [
-      "cliente",
-    ]),
+    cliente:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "cliente",
+        ]
+      ),
 
-    caja: buscarColumna(encabezadosLimpios, [
-      "caja",
-    ]),
+    caja:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "caja",
+        ]
+      ),
 
-    usuario: buscarColumna(encabezadosLimpios, [
-      "usuario",
-      "vendedor",
-    ]),
+    usuario:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "usuario",
+          "vendedor",
+        ]
+      ),
 
-    totalVenta: buscarColumna(encabezadosLimpios, [
-      "total ven",
-      "total venta",
-      "total ventas",
-    ]),
+    totalVenta:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "total ven",
+          "total venta",
+          "total ventas",
+        ]
+      ),
 
-    totalCompra: buscarColumna(encabezadosLimpios, [
-      "total com",
-      "total compra",
-      "total compras",
-      "costo",
-    ]),
+    totalCompra:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "total com",
+          "total compra",
+          "total compras",
+          "costo",
+        ]
+      ),
 
-    utilidad: buscarColumna(encabezadosLimpios, [
-      "utilidad",
-    ]),
+    utilidad:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "utilidad",
+        ]
+      ),
   };
 
-  const datos = filas.slice(1);
+  const datos =
+    filas.slice(1);
 
   return datos
     .map((fila) => {
-      const ventaTotal = convertirNumero(
-        obtenerValor(fila, columnas.totalVenta)
-      );
+      const documento =
+        String(
+          obtenerValor(
+            fila,
+            columnas.documento
+          )
+        ).trim();
 
-      const costoTotal = convertirNumero(
-        obtenerValor(fila, columnas.totalCompra)
-      );
+      const folio =
+        String(
+          obtenerValor(
+            fila,
+            columnas.folio
+          )
+        ).trim();
 
-      const utilidad = convertirNumero(
-        obtenerValor(fila, columnas.utilidad)
-      );
+      const ventaTotal =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.totalVenta
+          )
+        );
+
+      const costoTotal =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.totalCompra
+          )
+        );
+
+      const utilidad =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.utilidad
+          )
+        );
 
       return {
-        documento: String(
-          obtenerValor(fila, columnas.documento)
-        ).trim(),
+        documento,
 
-        fecha: obtenerValor(
-          fila,
-          columnas.fecha
-        ),
+        fecha:
+          obtenerValor(
+            fila,
+            columnas.fecha
+          ),
 
-        folio: String(
-          obtenerValor(fila, columnas.folio)
-        ).trim(),
+        folio,
 
-        cliente: String(
-          obtenerValor(fila, columnas.cliente)
-        ).trim(),
+        cliente:
+          String(
+            obtenerValor(
+              fila,
+              columnas.cliente
+            )
+          ).trim(),
 
-        caja: String(
-          obtenerValor(fila, columnas.caja)
-        ).trim(),
+        caja:
+          String(
+            obtenerValor(
+              fila,
+              columnas.caja
+            )
+          ).trim(),
 
-        usuario: String(
-          obtenerValor(fila, columnas.usuario)
-        ).trim(),
+        usuario:
+          String(
+            obtenerValor(
+              fila,
+              columnas.usuario
+            )
+          ).trim(),
 
-        codigo: String(
-          obtenerValor(fila, columnas.folio)
-        ).trim(),
+        codigo:
+          folio,
 
         descripcion:
           String(
-            obtenerValor(fila, columnas.cliente)
+            obtenerValor(
+              fila,
+              columnas.cliente
+            )
           ).trim() ||
           "Venta sin cliente identificado",
 
-        categoria: "Utilidad de ventas",
+        categoria:
+          "Utilidad de ventas",
 
-        cantidad: 1,
+        cantidad:
+          1,
 
         ventaTotal,
         costoTotal,
         utilidad,
 
-        importe: ventaTotal,
-        costo: costoTotal,
+        importe:
+          ventaTotal,
 
-        tipoDato: "utilidad_ventas",
+        costo:
+          costoTotal,
+
+        tipoDato:
+          "utilidad_ventas",
+      };
+    })
+    .filter((fila) => {
+      const tieneIdentidadVenta =
+        fila.documento !== "" &&
+        fila.folio !== "";
+
+      const tieneMovimiento =
+        fila.ventaTotal !== 0 ||
+        fila.costoTotal !== 0 ||
+        fila.utilidad !== 0;
+
+      return (
+        tieneIdentidadVenta &&
+        tieneMovimiento
+      );
+    });
+}
+
+export function normalizarUtilidadArticulos(
+  filas
+) {
+  if (
+    !Array.isArray(filas) ||
+    filas.length < 2
+  ) {
+    return [];
+  }
+
+  const encabezadosOriginales =
+    filas[0];
+
+  const encabezadosLimpios =
+    encabezadosOriginales.map(
+      limpiarEncabezado
+    );
+
+  const columnas = {
+    codigo: buscarColumna(
+      encabezadosLimpios,
+      [
+        "clave",
+        "codigo",
+        "codigo art",
+        "codigo articulo",
+        "sku",
+      ]
+    ),
+
+    descripcion: buscarColumna(
+      encabezadosLimpios,
+      [
+        "descripcion",
+        "producto",
+        "articulo",
+        "nombre",
+      ]
+    ),
+
+    departamento: buscarColumna(
+      encabezadosLimpios,
+      [
+        "departamento",
+        "depto",
+      ]
+    ),
+
+    categoria: buscarColumna(
+      encabezadosLimpios,
+      [
+        "categoria",
+      ]
+    ),
+
+    cantidad: buscarColumna(
+      encabezadosLimpios,
+      [
+        "cant",
+        "cantidad",
+        "piezas",
+        "unidades",
+      ]
+    ),
+
+    totalCompra: buscarColumna(
+      encabezadosLimpios,
+      [
+        "total com",
+        "total compra",
+        "total compras",
+        "costo total",
+        "costototal",
+      ]
+    ),
+
+    totalVenta: buscarColumna(
+      encabezadosLimpios,
+      [
+        "total ven",
+        "total venta",
+        "total ventas",
+        "venta total",
+        "ventatotal",
+        "importe",
+      ]
+    ),
+
+    utilidadPorcentaje:
+      buscarColumna(
+        encabezadosLimpios,
+        [
+          "util %",
+          "utilidad %",
+          "util porcentaje",
+          "utilidad porcentaje",
+        ]
+      ),
+
+    utilidad: buscarColumna(
+      encabezadosLimpios,
+      [
+        "utilidad",
+        "utilidad total",
+        "utilidadtotal",
+      ]
+    ),
+  };
+
+  return filas
+    .slice(1)
+    .map((fila) => {
+      const codigo = String(
+        obtenerValor(
+          fila,
+          columnas.codigo
+        )
+      ).trim();
+
+      const descripcion = String(
+        obtenerValor(
+          fila,
+          columnas.descripcion
+        )
+      ).trim();
+
+      const departamento = String(
+        obtenerValor(
+          fila,
+          columnas.departamento
+        )
+      ).trim();
+
+      const categoria = String(
+        obtenerValor(
+          fila,
+          columnas.categoria
+        )
+      ).trim();
+
+      const cantidad =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.cantidad
+          )
+        );
+
+      const costoTotal =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.totalCompra
+          )
+        );
+
+      const ventaTotal =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.totalVenta
+          )
+        );
+
+      const utilidad =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.utilidad
+          )
+        );
+
+      const utilidadPorcentaje =
+        convertirNumero(
+          obtenerValor(
+            fila,
+            columnas.utilidadPorcentaje
+          )
+        );
+
+      const margenSobreVenta =
+        ventaTotal > 0
+          ? (
+              utilidad /
+              ventaTotal
+            ) * 100
+          : 0;
+
+      return {
+        codigo,
+        descripcion,
+
+        departamento,
+
+        categoria:
+          categoria ||
+          departamento ||
+          "Sin categoría",
+
+        cantidad,
+
+        ventaTotal,
+        costoTotal,
+        utilidad,
+
+        importe:
+          ventaTotal,
+
+        costo:
+          costoTotal,
+
+        utilidadPorcentaje,
+
+        margenSobreVenta,
+
+        tipoDato:
+          "utilidad_articulos",
       };
     })
     .filter(
       (fila) =>
-        fila.documento !== "" ||
-        fila.folio !== "" ||
-        fila.ventaTotal !== 0 ||
-        fila.costoTotal !== 0 ||
-        fila.utilidad !== 0
+        fila.codigo !== "" ||
+        fila.descripcion !== ""
     );
 }
 
