@@ -3418,6 +3418,34 @@ async function cerrarCampanaMarketing() {
             {estrategia.confianza}/100
           </div>
 
+          <details
+            style={{
+              marginBottom: "10px",
+              border:
+                "1px solid #ead4df",
+              borderRadius: "10px",
+              background: "#fff8fb",
+              textAlign: "left",
+            }}
+          >
+            <summary
+              style={{
+                padding: "11px",
+                cursor: "pointer",
+                color: "#80204e",
+                fontSize: "13px",
+                fontWeight: "900",
+              }}
+            >
+              Ver estrategia completa
+            </summary>
+
+            <div
+              style={{
+                padding: "0 11px 11px",
+              }}
+            >
+
           {estrategia.diagnostico && (
             <div
               style={{
@@ -3603,6 +3631,9 @@ async function cerrarCampanaMarketing() {
       </ul>
     </div>
   )}
+
+            </div>
+          </details>
 
 {estrategia.siguienteAccionKary && (
   <div
