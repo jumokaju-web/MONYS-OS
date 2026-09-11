@@ -3236,6 +3236,9 @@ async function cerrarCampanaMarketing() {
         background: "#fff9fc",
       }}
     >
+      {campanaGuardada?.estado !==
+        "ACTIVA" && (
+        <>
       <strong
         style={{
           display: "block",
@@ -3376,6 +3379,8 @@ async function cerrarCampanaMarketing() {
           ? "🧠 MONYS está analizando..."
           : "✨ Diseñar campaña"}
       </button>
+        </>
+      )}
 
     
       {estrategia && (
