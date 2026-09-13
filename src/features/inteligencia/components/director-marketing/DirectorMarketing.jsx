@@ -17,6 +17,7 @@ import {
 } from "../../../usuarios/services/usuariosService";
 
 import {
+  crearPlanSemanalMarketing,
   crearTareaAutomaticaDesdePrioridad,
 } from "../../services/tareasOperativasService";
 
@@ -37,6 +38,74 @@ function formatearDinero(valor) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(convertirNumero(valor));
+}
+
+function formatearFechaISO(fecha) {
+  const year = fecha.getFullYear();
+
+  const month = String(
+    fecha.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    fecha.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function obtenerLunesDelPlan() {
+  const hoy = new Date();
+
+  hoy.setHours(0, 0, 0, 0);
+
+  const diaSemana = hoy.getDay();
+
+  const diasHastaLunes =
+    diaSemana === 1
+      ? 0
+      : (8 - diaSemana) % 7;
+
+  const lunes = new Date(hoy);
+
+  lunes.setDate(
+    hoy.getDate() +
+      diasHastaLunes
+  );
+
+  return lunes;
+}
+
+function sumarDias(fecha, dias) {
+  const resultado = new Date(fecha);
+
+  resultado.setDate(
+    fecha.getDate() + dias
+  );
+
+  return resultado;
+}
+
+function etiquetaFechaPlan(fechaISO) {
+  const [year, month, day] =
+    String(fechaISO)
+      .split("-")
+      .map(Number);
+
+  const fecha = new Date(
+    year,
+    month - 1,
+    day
+  );
+
+  return new Intl.DateTimeFormat(
+    "es-MX",
+    {
+      weekday: "long",
+      day: "numeric",
+      month: "short",
+    }
+  ).format(fecha);
 }
 
 function etiquetaAutorizacionCampana(
@@ -127,6 +196,31 @@ export default function DirectorMarketing({
     setSucursales,
   ] = useState([]);
 
+  const [
+    sucursalPlanId,
+    setSucursalPlanId,
+  ] = useState("");
+
+  const [
+    planSemanal,
+    setPlanSemanal,
+  ] = useState([]);
+
+  const [
+    guardandoPlan,
+    setGuardandoPlan,
+  ] = useState(false);
+
+  const [
+    mensajePlan,
+    setMensajePlan,
+  ] = useState("");
+
+  const [
+    errorPlan,
+    setErrorPlan,
+  ] = useState("");
+
      
        useEffect(() => {
     async function cargarDatosCampanas() {
@@ -162,12 +256,28 @@ export default function DirectorMarketing({
           campanas
         );
 
-        setSucursales(
+        const sucursalesNegocio =
           sucursalesActivas.filter(
             (sucursal) =>
               sucursal.business_id ===
               usuario.business_id
-          )
+          );
+
+        setSucursales(
+          sucursalesNegocio
+        );
+
+        setSucursalPlanId(
+          (actual) =>
+            actual ||
+            usuario?.branch_id ||
+            campanas.find(
+              (campana) =>
+                campana.branch_id
+            )?.branch_id ||
+            sucursalesNegocio[0]
+              ?.id ||
+            ""
         );
       } catch (error) {
         console.error(
@@ -604,6 +714,229 @@ export default function DirectorMarketing({
     }
   }
 
+  function prepararPlanSemanal() {
+    if (!sucursalPlanId) {
+      setErrorPlan(
+        "Selecciona la sucursal del plan."
+      );
+      return;
+    }
+
+    setErrorPlan("");
+    setMensajePlan("");
+
+    const lunes =
+      obtenerLunesDelPlan();
+
+    const campanaSucursal =
+      campanasActivas.find(
+        (campana) =>
+          campana.branch_id ===
+          sucursalPlanId
+      ) || null;
+
+    const nombreProducto =
+      productoLider?.nombre ||
+      productosParaRotar[0]
+        ?.producto ||
+      productosParaRotar[0]
+        ?.nombre ||
+      campanaSucursal?.producto ||
+      "producto con mejor oportunidad";
+
+    const nombreCampana =
+      campanaSucursal?.nombre ||
+      campanaSucursal?.producto ||
+      "sin campaña activa";
+
+    const canalCampana =
+      campanaSucursal
+        ?.canal_principal
+        ?.split(",")[0]
+        ?.trim() ||
+      "canal orgánico principal";
+
+    const piezasProducto =
+      convertirNumero(
+        productoLider?.piezas
+      );
+
+    const existenciaProducto =
+      convertirNumero(
+        inventarioProductoLider
+          ?.existencia
+      );
+
+    const coberturaProducto =
+      convertirNumero(
+        inventarioProductoLider
+          ?.diasCobertura
+      );
+
+    const plan = [
+      {
+        titulo:
+          "Marketing · Definir el enfoque de ventas de la semana",
+        fecha:
+          formatearFechaISO(
+            sumarDias(lunes, 0)
+          ),
+        horaLimite: "10:30",
+        prioridad: "alta",
+        descripcion:
+          `Revisar el enfoque con datos reales: ventas analizadas ${formatearDinero(
+            ventasTotales
+          )}, margen ${convertirNumero(
+            margenUtilidad
+          ).toFixed(2)}% y producto de referencia ${nombreProducto}.`,
+        instrucciones:
+          "1. Confirmar producto y existencia disponible.\n2. Definir una meta concreta de ventas o prospectos.\n3. Escribir el mensaje principal y el canal.\n4. No prometer inventario, precio o descuento sin verificar.",
+        requiereEvidencia: false,
+        criterioExito:
+          "Enfoque semanal definido con producto, meta, mensaje y canal respaldados por datos reales.",
+      },
+      {
+        titulo:
+          `Marketing · Crear contenido que vende: ${nombreProducto}`,
+        fecha:
+          formatearFechaISO(
+            sumarDias(lunes, 1)
+          ),
+        horaLimite: "12:00",
+        prioridad: "alta",
+        descripcion:
+          `Preparar contenido del producto elegido. Referencia real disponible: ${piezasProducto} piezas vendidas, existencia ${existenciaProducto} y cobertura ${coberturaProducto.toFixed(
+            1
+          )} días. Si algún dato aparece en cero, confirmarlo antes de publicar.`,
+        instrucciones:
+          "1. Mostrar el producto en uso o su beneficio principal.\n2. Abrir con un gancho claro durante los primeros segundos.\n3. Incluir precio y llamada a la acción solo después de verificarlos.\n4. Usar Revisión antes de publicar con MONYS.\n5. Guardar evidencia final.",
+        requiereEvidencia: true,
+        criterioExito:
+          "Contenido terminado, revisado por MONYS y respaldado con evidencia antes de publicarse.",
+      },
+      {
+        titulo:
+          `Marketing · Publicar y atender prospectos en ${canalCampana}`,
+        fecha:
+          formatearFechaISO(
+            sumarDias(lunes, 2)
+          ),
+        horaLimite: "18:00",
+        prioridad: "normal",
+        descripcion:
+          "Publicar el contenido autorizado, responder mensajes y convertir preguntas en conversaciones de venta.",
+        instrucciones:
+          "1. Publicar el contenido aprobado.\n2. Responder comentarios y mensajes.\n3. Registrar alcance, mensajes o prospectos.\n4. Anotar las dudas y objeciones más repetidas.\n5. No registrar ventas que todavía no estén confirmadas.",
+        requiereEvidencia: true,
+        criterioExito:
+          "Publicación comprobada y resultados reales de alcance y prospectos registrados.",
+      },
+      {
+        titulo:
+          "Marketing · Revisar campaña y embudo de ventas",
+        fecha:
+          formatearFechaISO(
+            sumarDias(lunes, 3)
+          ),
+        horaLimite: "17:00",
+        prioridad: "alta",
+        descripcion:
+          `Revisar la campaña ${nombreCampana}. Comparar contenido visto, mensajes, pedidos, venta y gasto sin inventar resultados.`,
+        instrucciones:
+          "1. Revisar vistas o alcance.\n2. Registrar mensajes o prospectos.\n3. Confirmar pedidos y ventas reales.\n4. Registrar gasto nuevo.\n5. Si hay campaña activa, guardar el avance para que MONYS actualice la decisión.",
+        requiereEvidencia: false,
+        criterioExito:
+          "Embudo actualizado con alcance, prospectos, pedidos, ventas y gasto reales disponibles.",
+      },
+      {
+        titulo:
+          "Marketing · Cerrar resultados y proponer la siguiente acción",
+        fecha:
+          formatearFechaISO(
+            sumarDias(lunes, 4)
+          ),
+        horaLimite: "17:30",
+        prioridad: "alta",
+        descripcion:
+          "Cerrar la semana separando lo que produjo ventas de lo que solo produjo actividad, y preparar la siguiente decisión.",
+        instrucciones:
+          "1. Registrar resultados finales reales.\n2. Identificar el contenido con más respuesta.\n3. Anotar qué objeción frenó ventas.\n4. Recomendar mantener, mejorar, aumentar o detener.\n5. No aumentar presupuesto sin autorización del dueño.",
+        requiereEvidencia: false,
+        criterioExito:
+          "Resultado semanal registrado y siguiente acción recomendada con evidencia suficiente para decisión del dueño.",
+      },
+    ];
+
+    setPlanSemanal(plan);
+  }
+
+  async function autorizarPlanSemanal() {
+    if (
+      !sucursalPlanId ||
+      planSemanal.length === 0
+    ) {
+      setErrorPlan(
+        "Primero prepara el plan semanal."
+      );
+      return;
+    }
+
+    const sucursal =
+      sucursales.find(
+        (registro) =>
+          registro.id ===
+          sucursalPlanId
+      );
+
+    const confirmar =
+      window.confirm(
+        `¿Autorizas enviar ${planSemanal.length} tareas del plan de marketing a ${sucursal?.name || "la sucursal seleccionada"}? MONYS buscará automáticamente a la responsable de Marketing y evitará tareas duplicadas.`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      setGuardandoPlan(true);
+      setErrorPlan("");
+      setMensajePlan("");
+
+      const resultado =
+        await crearPlanSemanalMarketing({
+          organizationId:
+            usuario?.organization_id ||
+            null,
+          businessId:
+            usuario?.business_id ||
+            null,
+          branchId:
+            sucursalPlanId,
+          creadaPor:
+            usuario?.nombre ||
+            "Dueño",
+          tareas:
+            planSemanal,
+        });
+
+      setMensajePlan(
+        `Plan autorizado: ${resultado?.tareas?.length || 0} tareas quedaron asignadas a ${resultado?.responsable || "Marketing"}.`
+      );
+    } catch (error) {
+      console.error(
+        "Error autorizando plan semanal de marketing:",
+        error
+      );
+
+      setErrorPlan(
+        error?.message ||
+          "MONYS no pudo crear el plan semanal."
+      );
+    } finally {
+      setGuardandoPlan(false);
+    }
+  }
+
     const campanasActivas =
     campanasMarketing.filter(
       (campana) =>
@@ -735,6 +1068,329 @@ export default function DirectorMarketing({
           {sinPresupuesto ? "🔴 " : "🟢 "}
           {estadoGeneral || "Analizando"}
         </div>
+      </div>
+
+      {/* PLAN SEMANAL AUTORIZADO POR EL DUEÑO */}
+
+      <div
+        style={{
+          marginTop: "24px",
+          padding: "20px",
+          borderRadius: "18px",
+          background:
+            "linear-gradient(135deg, #fff8fb 0%, #ffffff 100%)",
+          border:
+            "1px solid #e7b8ce",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                margin: "0 0 6px",
+                color: "#7d3157",
+              }}
+            >
+              🗓️ Plan semanal de crecimiento
+            </h3>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#765f6b",
+                lineHeight: 1.5,
+                maxWidth: "720px",
+              }}
+            >
+              MONYS convierte ventas,
+              margen, inventario y campañas
+              reales de la sucursal actual
+              en tareas para Marketing.
+              Primero revisas el plan y después
+              decides si se envía.
+            </p>
+          </div>
+
+          <span
+            style={{
+              padding: "7px 10px",
+              borderRadius: "999px",
+              background: "#f5e4ec",
+              color: "#8f2858",
+              fontWeight: "800",
+              fontSize: "12px",
+            }}
+          >
+            🛡️ Requiere autorización
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "10px",
+            marginTop: "16px",
+          }}
+        >
+          <select
+            value={sucursalPlanId}
+            onChange={(evento) => {
+              setSucursalPlanId(
+                evento.target.value
+              );
+              setPlanSemanal([]);
+              setMensajePlan("");
+              setErrorPlan("");
+            }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: "10px",
+              border:
+                "1px solid #d9bdca",
+              background: "#ffffff",
+              fontWeight: "700",
+            }}
+          >
+            <option value="">
+              Selecciona sucursal
+            </option>
+
+            {sucursales
+              .filter(
+                (sucursal) =>
+                  !usuario?.branch_id ||
+                  sucursal.id ===
+                    usuario.branch_id
+              )
+              .map(
+              (sucursal) => (
+                <option
+                  key={sucursal.id}
+                  value={sucursal.id}
+                >
+                  {sucursal.name ||
+                    sucursal.nombre ||
+                    "Sucursal"}
+                </option>
+              )
+            )}
+          </select>
+
+          <button
+            type="button"
+            onClick={
+              prepararPlanSemanal
+            }
+            disabled={
+              !sucursalPlanId
+            }
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "none",
+              borderRadius: "10px",
+              background:
+                sucursalPlanId
+                  ? "#8f2858"
+                  : "#d8c7cf",
+              color: "#ffffff",
+              fontWeight: "900",
+              cursor:
+                sucursalPlanId
+                  ? "pointer"
+                  : "not-allowed",
+            }}
+          >
+            ✨ Preparar plan con datos reales
+          </button>
+        </div>
+
+        {errorPlan && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "11px",
+              borderRadius: "10px",
+              background: "#fff0f0",
+              border:
+                "1px solid #efb8b8",
+              color: "#a52d2d",
+              fontWeight: "700",
+            }}
+          >
+            ⚠️ {errorPlan}
+          </div>
+        )}
+
+        {mensajePlan && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "11px",
+              borderRadius: "10px",
+              background: "#eaf8f0",
+              border:
+                "1px solid #b8e5ca",
+              color: "#207a4a",
+              fontWeight: "800",
+            }}
+          >
+            ✅ {mensajePlan}
+          </div>
+        )}
+
+        {planSemanal.length > 0 && (
+          <div
+            style={{
+              marginTop: "16px",
+            }}
+          >
+            <div
+              style={{
+                padding: "11px",
+                borderRadius: "10px",
+                background: "#fff7dc",
+                border:
+                  "1px solid #ead28a",
+                color: "#765800",
+                fontWeight: "700",
+                textAlign: "center",
+              }}
+            >
+              Vista previa: todavía no se ha
+              enviado ninguna tarea.
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                marginTop: "12px",
+              }}
+            >
+              {planSemanal.map(
+                (tarea, indice) => (
+                  <div
+                    key={`${tarea.fecha}-${tarea.titulo}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "48px minmax(0, 1fr)",
+                      gap: "10px",
+                      padding: "12px",
+                      borderRadius: "12px",
+                      background: "#ffffff",
+                      border:
+                        "1px solid #ead7e1",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "12px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent:
+                          "center",
+                        background: "#f8e5ee",
+                        color: "#8f2858",
+                        fontWeight: "900",
+                      }}
+                    >
+                      {indice + 1}
+                    </div>
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                      }}
+                    >
+                      <strong
+                        style={{
+                          display: "block",
+                          color: "#34242c",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {tarea.titulo}
+                      </strong>
+
+                      <div
+                        style={{
+                          marginTop: "4px",
+                          color: "#8f2858",
+                          fontSize: "13px",
+                          fontWeight: "800",
+                          textTransform:
+                            "capitalize",
+                        }}
+                      >
+                        {etiquetaFechaPlan(
+                          tarea.fecha
+                        )}
+                        {" · "}
+                        {tarea.horaLimite}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          color: "#74636c",
+                          fontSize: "13px",
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {tarea.descripcion}
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                autorizarPlanSemanal
+              }
+              disabled={guardandoPlan}
+              style={{
+                width: "100%",
+                marginTop: "14px",
+                padding: "13px",
+                border: "none",
+                borderRadius: "11px",
+                background:
+                  guardandoPlan
+                    ? "#c5a8b6"
+                    : "#176b3a",
+                color: "#ffffff",
+                fontWeight: "900",
+                cursor:
+                  guardandoPlan
+                    ? "wait"
+                    : "pointer",
+              }}
+            >
+              {guardandoPlan
+                ? "Enviando plan..."
+                : "🛡️ Autorizar y enviar a Marketing"}
+            </button>
+          </div>
+        )}
       </div>
 
              {/* CAMPAÑAS ACTIVAS */}

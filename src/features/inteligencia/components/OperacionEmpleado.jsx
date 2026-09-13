@@ -79,7 +79,10 @@ function formatearFechaLocal(fecha) {
   return `${year}-${month}-${day}`;
 }
 
-function obtenerDiasSemana(fechaBase) {
+function obtenerDiasSemana(
+  fechaBase,
+  desplazamientoSemanas = 0
+) {
   const fecha =
     convertirFechaLocal(fechaBase);
 
@@ -94,7 +97,8 @@ function obtenerDiasSemana(fechaBase) {
 
   lunes.setDate(
     fecha.getDate() +
-      diferenciaLunes
+      diferenciaLunes +
+      desplazamientoSemanas * 7
   );
 
   return Array.from(
@@ -127,6 +131,37 @@ function obtenerDiasSemana(fechaBase) {
   );
 }
 
+function etiquetaRangoSemana(
+  diasSemana
+) {
+  const fechaInicial =
+    convertirFechaLocal(
+      diasSemana[0]?.fecha
+    );
+
+  const fechaFinal =
+    convertirFechaLocal(
+      diasSemana[
+        diasSemana.length - 1
+      ]?.fecha
+    );
+
+  const formato =
+    new Intl.DateTimeFormat(
+      "es-MX",
+      {
+        day: "numeric",
+        month: "short",
+      }
+    );
+
+  return `${formato.format(
+    fechaInicial
+  )} – ${formato.format(
+    fechaFinal
+  )}`;
+}
+
 function normalizarTexto(valor) {
   return String(valor || "")
     .normalize("NFD")
@@ -137,6 +172,78 @@ function normalizarTexto(valor) {
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
+}
+
+function coincideResponsableUsuario(
+  responsable,
+  nombreUsuario
+) {
+  const responsableNormalizado =
+    normalizarTexto(responsable);
+
+  const usuarioNormalizado =
+    normalizarTexto(nombreUsuario);
+
+  if (
+    !responsableNormalizado ||
+    !usuarioNormalizado
+  ) {
+    return false;
+  }
+
+  if (
+    responsableNormalizado ===
+    usuarioNormalizado
+  ) {
+    return true;
+  }
+
+  const partesResponsable =
+    responsableNormalizado.split(" ");
+
+  const partesUsuario =
+    usuarioNormalizado.split(" ");
+
+  const apellidoResponsable =
+    partesResponsable[
+      partesResponsable.length - 1
+    ];
+
+  const apellidoUsuario =
+    partesUsuario[
+      partesUsuario.length - 1
+    ];
+
+  if (
+    apellidoResponsable !==
+    apellidoUsuario
+  ) {
+    return false;
+  }
+
+  const nombresResponsable =
+    partesResponsable.slice(0, -1);
+
+  const nombresUsuario =
+    partesUsuario.slice(0, -1);
+
+  return nombresResponsable.some(
+    (nombreResponsable) =>
+      nombresUsuario.some(
+        (nombreCorto) =>
+          nombreResponsable.length >=
+            4 &&
+          nombreCorto.length >= 4 &&
+          (
+            nombreResponsable.startsWith(
+              nombreCorto
+            ) ||
+            nombreCorto.startsWith(
+              nombreResponsable
+            )
+          )
+      )
+  );
 }
 
 function etiquetaEstado(estado) {
@@ -180,6 +287,11 @@ export default function OperacionEmpleado({
   ] = useState([]);
 
   const [
+    desplazamientoSemana,
+    setDesplazamientoSemana,
+  ] = useState(0);
+
+  const [
     correccionesDisponibles,
     setCorreccionesDisponibles,
   ] = useState([]);
@@ -205,9 +317,13 @@ export default function OperacionEmpleado({
     useMemo(
       () =>
         obtenerDiasSemana(
-          fechaHoy
+          fechaHoy,
+          desplazamientoSemana
         ),
-      [fechaHoy]
+      [
+        fechaHoy,
+        desplazamientoSemana,
+      ]
     );
 
   const nombreEmpleado =
@@ -267,29 +383,38 @@ export default function OperacionEmpleado({
       const propias =
         (registros || []).filter(
           (tarea) =>
-            normalizarTexto(
-              tarea.responsable
-            ) === nombreEmpleado
+            coincideResponsableUsuario(
+              tarea.responsable,
+              usuario?.nombre
+            )
         );
 
       const registrosCalendarioCompletos = [
         ...(registrosCalendario || []),
-        ...(registros || []).filter(
-          (tareaHoy) =>
-            !(registrosCalendario || []).some(
-              (tareaCalendario) =>
-                tareaCalendario.id ===
-                tareaHoy.id
-            )
+        ...(
+          desplazamientoSemana === 0
+            ? (registros || []).filter(
+                (tareaHoy) =>
+                  !(
+                    registrosCalendario ||
+                    []
+                  ).some(
+                    (tareaCalendario) =>
+                      tareaCalendario.id ===
+                      tareaHoy.id
+                  )
+              )
+            : []
         ),
       ];
 
       const propiasCalendario =
         registrosCalendarioCompletos.filter(
           (tarea) =>
-            normalizarTexto(
-              tarea.responsable
-            ) === nombreEmpleado
+            coincideResponsableUsuario(
+              tarea.responsable,
+              usuario?.nombre
+            )
         );
 
       setTareas(propias);
@@ -813,6 +938,105 @@ export default function OperacionEmpleado({
           >
             {tareasCalendario.length}
           </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "auto minmax(0, 1fr) auto",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "12px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() =>
+              setDesplazamientoSemana(
+                (actual) =>
+                  actual - 1
+              )
+            }
+            style={{
+              border:
+                "1px solid #e5cad7",
+              borderRadius: "10px",
+              background: "#ffffff",
+              color: "#8f2858",
+              padding: "9px 11px",
+              fontWeight: "900",
+              cursor: "pointer",
+            }}
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setDesplazamientoSemana(0)
+            }
+            style={{
+              border: "none",
+              borderRadius: "10px",
+              background:
+                desplazamientoSemana ===
+                0
+                  ? "#f8e5ee"
+                  : "#f8f4f6",
+              color: "#6f3651",
+              padding: "9px 8px",
+              fontWeight: "800",
+              cursor: "pointer",
+              minWidth: 0,
+            }}
+          >
+            {desplazamientoSemana === 0
+              ? "Esta semana"
+              : desplazamientoSemana ===
+                  1
+                ? "Próxima semana"
+                : desplazamientoSemana ===
+                    -1
+                  ? "Semana anterior"
+                  : "Semana seleccionada"}
+            <span
+              style={{
+                display: "block",
+                marginTop: "2px",
+                fontSize: "11px",
+                fontWeight: "700",
+                color: "#957987",
+              }}
+            >
+              {etiquetaRangoSemana(
+                diasSemana
+              )}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setDesplazamientoSemana(
+                (actual) =>
+                  actual + 1
+              )
+            }
+            style={{
+              border:
+                "1px solid #e5cad7",
+              borderRadius: "10px",
+              background: "#ffffff",
+              color: "#8f2858",
+              padding: "9px 11px",
+              fontWeight: "900",
+              cursor: "pointer",
+            }}
+          >
+            ›
+          </button>
         </div>
 
         <div

@@ -371,6 +371,218 @@ export async function crearTareaOperativa({
   return data;
 }
 
+
+// ======================================================
+// CREAR PLAN SEMANAL DE MARKETING
+// ======================================================
+
+async function resolverResponsableMarketing({
+  branchId,
+  responsable = null,
+}) {
+  const responsableIndicado =
+    String(responsable || "").trim();
+
+  if (responsableIndicado) {
+    return responsableIndicado;
+  }
+
+  const normalizar = (valor) =>
+    String(valor || "")
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .trim()
+      .toUpperCase();
+
+  const {
+    data: tareasMarketing,
+    error: errorTareasMarketing,
+  } = await supabase
+    .from("tareas_operativas")
+    .select(`
+      responsable,
+      area,
+      titulo,
+      created_at
+    `)
+    .eq(
+      "branch_id",
+      branchId
+    )
+    .not(
+      "responsable",
+      "is",
+      null
+    )
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(100);
+
+  if (errorTareasMarketing) {
+    console.error(
+      "Error buscando responsable de marketing:",
+      errorTareasMarketing
+    );
+  }
+
+  const tareaMarketingAnterior =
+    (tareasMarketing || []).find(
+      (tarea) =>
+        normalizar(
+          tarea.area
+        ).includes(
+          "MARKETING"
+        ) ||
+        normalizar(
+          tarea.titulo
+        ).includes(
+          "MARKETING"
+        )
+    );
+
+  if (
+    String(
+      tareaMarketingAnterior
+        ?.responsable || ""
+    ).trim()
+  ) {
+    return String(
+      tareaMarketingAnterior
+        .responsable
+    ).trim();
+  }
+
+  try {
+    const asignacion =
+      await asignarResponsableAutomatico({
+        branchId,
+        titulo:
+          "Ejecutar plan semanal de marketing",
+        descripcion:
+          "Crear contenido, revisar campañas y registrar resultados reales de ventas.",
+        area: "marketing",
+        fecha: new Date()
+          .toISOString()
+          .slice(0, 10),
+      });
+
+    return String(
+      asignacion?.nombre || ""
+    ).trim();
+  } catch (
+    errorAsignacion
+  ) {
+    console.error(
+      "Error asignando responsable de marketing:",
+      errorAsignacion
+    );
+
+    return "";
+  }
+}
+
+export async function crearPlanSemanalMarketing({
+  organizationId = null,
+  businessId = null,
+  branchId,
+  responsable = null,
+  creadaPor = "Director Marketing MONYS",
+  tareas = [],
+} = {}) {
+  if (!branchId) {
+    throw new Error(
+      "Selecciona la sucursal del plan de marketing."
+    );
+  }
+
+  const tareasValidas =
+    (Array.isArray(tareas)
+      ? tareas
+      : []
+    ).filter(
+      (tarea) =>
+        String(
+          tarea?.titulo || ""
+        ).trim() &&
+        String(
+          tarea?.fecha || ""
+        ).trim()
+    );
+
+  if (tareasValidas.length === 0) {
+    throw new Error(
+      "El plan semanal no contiene tareas válidas."
+    );
+  }
+
+  const responsableFinal =
+    await resolverResponsableMarketing({
+      branchId,
+      responsable,
+    });
+
+  if (!responsableFinal) {
+    throw new Error(
+      "No encontramos una persona responsable de Marketing en esta sucursal."
+    );
+  }
+
+  const tareasCreadas = [];
+
+  for (const tarea of tareasValidas) {
+    const tareaCreada =
+      await crearTareaOperativa({
+        organizationId,
+        businessId,
+        branchId,
+        titulo:
+          String(
+            tarea.titulo
+          ).trim(),
+        descripcion:
+          tarea.descripcion || null,
+        area: "marketing",
+        responsable:
+          responsableFinal,
+        prioridad:
+          tarea.prioridad ||
+          "normal",
+        fecha:
+          String(
+            tarea.fecha
+          ).trim(),
+        horaLimite:
+          tarea.horaLimite || null,
+        instrucciones:
+          tarea.instrucciones ||
+          null,
+        creadaPor,
+        requiereEvidencia:
+          Boolean(
+            tarea.requiereEvidencia
+          ),
+        criterioExito:
+          tarea.criterioExito ||
+          null,
+      });
+
+    tareasCreadas.push(
+      tareaCreada
+    );
+  }
+
+  return {
+    responsable:
+      responsableFinal,
+    tareas:
+      tareasCreadas,
+  };
+}
+
 export async function crearTareaCorreccionInventario({
   organizationId = null,
   businessId = null,
