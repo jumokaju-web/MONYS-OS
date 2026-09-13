@@ -292,6 +292,11 @@ export default function OperacionEmpleado({
   ] = useState(0);
 
   const [
+    tareaCalendarioAbiertaId,
+    setTareaCalendarioAbiertaId,
+  ] = useState(null);
+
+  const [
     correccionesDisponibles,
     setCorreccionesDisponibles,
   ] = useState([]);
@@ -383,6 +388,8 @@ export default function OperacionEmpleado({
       const propias =
         (registros || []).filter(
           (tarea) =>
+            tarea.estado !==
+              "cancelada" &&
             coincideResponsableUsuario(
               tarea.responsable,
               usuario?.nombre
@@ -411,6 +418,8 @@ export default function OperacionEmpleado({
       const propiasCalendario =
         registrosCalendarioCompletos.filter(
           (tarea) =>
+            tarea.estado !==
+              "cancelada" &&
             coincideResponsableUsuario(
               tarea.responsable,
               usuario?.nombre
@@ -1149,13 +1158,30 @@ export default function OperacionEmpleado({
                   ) : (
                     tareasDia.map(
                       (tarea) => (
-                        <div
+                        <button
+                          type="button"
                           key={tarea.id}
+                          onClick={() =>
+                            setTareaCalendarioAbiertaId(
+                              (actual) =>
+                                actual ===
+                                tarea.id
+                                  ? null
+                                  : tarea.id
+                            )
+                          }
                           style={{
+                            width: "100%",
                             padding:
                               "8px 9px",
+                            border: "none",
                             borderRadius:
                               "10px",
+                            textAlign: "left",
+                            fontFamily:
+                              "inherit",
+                            cursor:
+                              "pointer",
                             background:
                               tarea.estado ===
                               "terminada"
@@ -1208,7 +1234,91 @@ export default function OperacionEmpleado({
                               tarea.estado
                             )}
                           </div>
-                        </div>
+
+                          <div
+                            style={{
+                              marginTop:
+                                "5px",
+                              color:
+                                "#9b235b",
+                              fontSize:
+                                "11px",
+                              fontWeight:
+                                "800",
+                            }}
+                          >
+                            {tareaCalendarioAbiertaId ===
+                            tarea.id
+                              ? "Ocultar detalle ▲"
+                              : "Ver detalle ▼"}
+                          </div>
+
+                          {tareaCalendarioAbiertaId ===
+                            tarea.id && (
+                            <div
+                              style={{
+                                marginTop:
+                                  "8px",
+                                padding:
+                                  "9px",
+                                borderRadius:
+                                  "9px",
+                                background:
+                                  "#ffffff",
+                                border:
+                                  "1px solid #ead6e0",
+                                color:
+                                  "#493740",
+                                fontSize:
+                                  "12px",
+                                lineHeight:
+                                  1.5,
+                              }}
+                            >
+                              {tarea.descripcion && (
+                                <div
+                                  style={{
+                                    marginBottom:
+                                      "7px",
+                                  }}
+                                >
+                                  {tarea.descripcion}
+                                </div>
+                              )}
+
+                              {tarea.instrucciones && (
+                                <div
+                                  style={{
+                                    whiteSpace:
+                                      "pre-line",
+                                    fontWeight:
+                                      "700",
+                                  }}
+                                >
+                                  {tarea.instrucciones}
+                                </div>
+                              )}
+
+                              {tarea.criterio_exito && (
+                                <div
+                                  style={{
+                                    marginTop:
+                                      "8px",
+                                    paddingTop:
+                                      "7px",
+                                    borderTop:
+                                      "1px solid #eee2e8",
+                                  }}
+                                >
+                                  <strong>
+                                    Resultado esperado:
+                                  </strong>{" "}
+                                  {tarea.criterio_exito}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </button>
                       )
                     )
                   )}
