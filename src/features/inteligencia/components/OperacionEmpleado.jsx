@@ -6,6 +6,7 @@ import {
 
 import {
   obtenerTareasOperativas,
+  obtenerCalendarioTareasOperativas,
   obtenerCorreccionesInventarioDisponibles,
   tomarCorreccionInventario,
   cambiarEstadoTareaOperativa,
@@ -45,6 +46,85 @@ function obtenerFechaHoy() {
   ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function convertirFechaLocal(valor) {
+  const [year, month, day] =
+    String(valor || "")
+      .split("-")
+      .map(Number);
+
+  if (!year || !month || !day) {
+    return new Date();
+  }
+
+  return new Date(
+    year,
+    month - 1,
+    day
+  );
+}
+
+function formatearFechaLocal(fecha) {
+  const year = fecha.getFullYear();
+
+  const month = String(
+    fecha.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    fecha.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function obtenerDiasSemana(fechaBase) {
+  const fecha =
+    convertirFechaLocal(fechaBase);
+
+  const numeroDia = fecha.getDay();
+
+  const diferenciaLunes =
+    numeroDia === 0
+      ? -6
+      : 1 - numeroDia;
+
+  const lunes = new Date(fecha);
+
+  lunes.setDate(
+    fecha.getDate() +
+      diferenciaLunes
+  );
+
+  return Array.from(
+    {
+      length: 7,
+    },
+    (_, indice) => {
+      const dia = new Date(lunes);
+
+      dia.setDate(
+        lunes.getDate() + indice
+      );
+
+      return {
+        fecha:
+          formatearFechaLocal(dia),
+
+        nombre: new Intl.DateTimeFormat(
+          "es-MX",
+          {
+            weekday: "short",
+          }
+        )
+          .format(dia)
+          .replace(".", ""),
+
+        numero: dia.getDate(),
+      };
+    }
+  );
 }
 
 function normalizarTexto(valor) {
@@ -95,6 +175,11 @@ export default function OperacionEmpleado({
     useState([]);
 
   const [
+    tareasCalendario,
+    setTareasCalendario,
+  ] = useState([]);
+
+  const [
     correccionesDisponibles,
     setCorreccionesDisponibles,
   ] = useState([]);
@@ -116,6 +201,15 @@ export default function OperacionEmpleado({
   const fechaHoy =
     obtenerFechaHoy();
 
+  const diasSemana =
+    useMemo(
+      () =>
+        obtenerDiasSemana(
+          fechaHoy
+        ),
+      [fechaHoy]
+    );
+
   const nombreEmpleado =
     normalizarTexto(
       usuario?.nombre
@@ -129,6 +223,7 @@ export default function OperacionEmpleado({
       const [
         registros,
         correcciones,
+        registrosCalendario,
       ] = await Promise.all([
         obtenerTareasOperativas({
           branchId,
@@ -138,6 +233,16 @@ export default function OperacionEmpleado({
         obtenerCorreccionesInventarioDisponibles({
           branchId,
           fecha: fechaHoy,
+        }),
+
+        obtenerCalendarioTareasOperativas({
+          branchId,
+          fechaInicio:
+            diasSemana[0].fecha,
+          fechaFin:
+            diasSemana[
+              diasSemana.length - 1
+            ].fecha,
         }),
       ]);
 
@@ -167,7 +272,31 @@ export default function OperacionEmpleado({
             ) === nombreEmpleado
         );
 
+      const registrosCalendarioCompletos = [
+        ...(registrosCalendario || []),
+        ...(registros || []).filter(
+          (tareaHoy) =>
+            !(registrosCalendario || []).some(
+              (tareaCalendario) =>
+                tareaCalendario.id ===
+                tareaHoy.id
+            )
+        ),
+      ];
+
+      const propiasCalendario =
+        registrosCalendarioCompletos.filter(
+          (tarea) =>
+            normalizarTexto(
+              tarea.responsable
+            ) === nombreEmpleado
+        );
+
       setTareas(propias);
+
+      setTareasCalendario(
+        propiasCalendario
+      );
 
       const pares =
         await Promise.all(
@@ -223,6 +352,7 @@ export default function OperacionEmpleado({
     branchId,
     fechaHoy,
     nombreEmpleado,
+    diasSemana,
   ]);
 
   async function cargarEvidencias(
@@ -617,6 +747,252 @@ export default function OperacionEmpleado({
               : "tareas urgentes"}
           </div>
         )}
+      </div>
+
+      {/* CALENDARIO SEMANAL DE MARKETING */}
+
+      <div
+        style={{
+          marginBottom: "20px",
+          padding: "15px",
+          borderRadius: "18px",
+          border:
+            "1px solid #ead7e1",
+          background:
+            "linear-gradient(180deg, #fffafd 0%, #ffffff 100%)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "12px",
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                margin: 0,
+                color: "#7d3157",
+                fontSize: "18px",
+              }}
+            >
+              📅 Tu semana de marketing
+            </h3>
+
+            <div
+              style={{
+                marginTop: "4px",
+                color: "#806d76",
+                fontSize: "12px",
+              }}
+            >
+              Tareas reales programadas
+              para esta semana
+            </div>
+          </div>
+
+          <span
+            style={{
+              minWidth: "30px",
+              height: "30px",
+              padding: "0 9px",
+              borderRadius: "999px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent:
+                "center",
+              background: "#f9e6ef",
+              color: "#8f2858",
+              fontWeight: "900",
+              fontSize: "13px",
+            }}
+          >
+            {tareasCalendario.length}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: "8px",
+          }}
+        >
+          {diasSemana.map((dia) => {
+            const esHoy =
+              dia.fecha === fechaHoy;
+
+            const tareasDia =
+              tareasCalendario.filter(
+                (tarea) => {
+                  const esPendienteAnterior =
+                    Boolean(
+                      tarea.fecha
+                    ) &&
+                    tarea.fecha <
+                      diasSemana[0].fecha &&
+                    [
+                      "pendiente",
+                      "en_proceso",
+                      "analizando",
+                    ].includes(
+                      tarea.estado
+                    );
+
+                  return (
+                    tarea.fecha ===
+                      dia.fecha ||
+                    (
+                      esHoy &&
+                      esPendienteAnterior
+                    )
+                  );
+                }
+              );
+
+            return (
+              <div
+                key={dia.fecha}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "54px minmax(0, 1fr)",
+                  gap: "10px",
+                  padding: "10px",
+                  borderRadius: "14px",
+                  border: esHoy
+                    ? "2px solid #cf4f86"
+                    : "1px solid #eee2e8",
+                  background: esHoy
+                    ? "#fff3f8"
+                    : "#ffffff",
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: esHoy
+                        ? "#a91f5d"
+                        : "#8b7580",
+                      fontSize: "11px",
+                      fontWeight: "900",
+                      textTransform:
+                        "uppercase",
+                    }}
+                  >
+                    {esHoy
+                      ? "Hoy"
+                      : dia.nombre}
+                  </div>
+
+                  <div
+                    style={{
+                      color: "#2a1d24",
+                      fontSize: "21px",
+                      fontWeight: "900",
+                    }}
+                  >
+                    {dia.numero}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "7px",
+                    minWidth: 0,
+                  }}
+                >
+                  {tareasDia.length ===
+                  0 ? (
+                    <div
+                      style={{
+                        alignSelf:
+                          "center",
+                        color: "#a08e97",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Sin tareas programadas
+                    </div>
+                  ) : (
+                    tareasDia.map(
+                      (tarea) => (
+                        <div
+                          key={tarea.id}
+                          style={{
+                            padding:
+                              "8px 9px",
+                            borderRadius:
+                              "10px",
+                            background:
+                              tarea.estado ===
+                              "terminada"
+                                ? "#eaf8ef"
+                                : tarea.estado ===
+                                    "en_proceso"
+                                  ? "#fff5dc"
+                                  : "#f8edf3",
+                          }}
+                        >
+                          <strong
+                            style={{
+                              display:
+                                "block",
+                              color:
+                                "#3a2931",
+                              fontSize:
+                                "13px",
+                              lineHeight:
+                                1.35,
+                            }}
+                          >
+                            {tarea.titulo}
+                          </strong>
+
+                          <div
+                            style={{
+                              marginTop:
+                                "3px",
+                              color:
+                                "#806d76",
+                              fontSize:
+                                "11px",
+                            }}
+                          >
+                            {Boolean(
+                              tarea.fecha
+                            ) &&
+                            tarea.fecha <
+                              diasSemana[0]
+                                .fecha
+                              ? "⚠️ Pendiente anterior · "
+                              : ""}
+
+                            {tarea.hora_limite
+                              ? `⏰ ${tarea.hora_limite} · `
+                              : ""}
+
+                            {etiquetaEstado(
+                              tarea.estado
+                            )}
+                          </div>
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {error && (

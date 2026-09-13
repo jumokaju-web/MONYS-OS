@@ -85,6 +85,103 @@ export async function obtenerTareasOperativas({
 
 
 // ======================================================
+// OBTENER CALENDARIO DE TAREAS
+// ======================================================
+
+export async function obtenerCalendarioTareasOperativas({
+  branchId = null,
+  fechaInicio,
+  fechaFin,
+  area = null,
+  responsable = null,
+} = {}) {
+  if (!fechaInicio || !fechaFin) {
+    throw new Error(
+      "Indica la fecha inicial y final del calendario."
+    );
+  }
+
+  let consulta = supabase
+    .from("tareas_operativas")
+    .select(`
+      id,
+      organization_id,
+      business_id,
+      branch_id,
+      titulo,
+      descripcion,
+      area,
+      responsable,
+      prioridad,
+      estado,
+      fecha,
+      hora_limite,
+      instrucciones,
+      resultado,
+      requiere_evidencia,
+      criterio_exito,
+      checklist,
+      created_at,
+      updated_at
+    `)
+    .gte(
+      "fecha",
+      fechaInicio
+    )
+    .lte(
+      "fecha",
+      fechaFin
+    )
+    .order("fecha", {
+      ascending: true,
+    })
+    .order("hora_limite", {
+      ascending: true,
+      nullsFirst: false,
+    });
+
+  if (branchId) {
+    consulta = consulta.eq(
+      "branch_id",
+      branchId
+    );
+  }
+
+  if (area) {
+    consulta = consulta.ilike(
+      "area",
+      String(area).trim()
+    );
+  }
+
+  if (responsable) {
+    consulta = consulta.ilike(
+      "responsable",
+      String(responsable).trim()
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await consulta;
+
+  if (error) {
+    console.error(
+      "Error al obtener el calendario de tareas:",
+      error
+    );
+
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data
+    : [];
+}
+
+
+// ======================================================
 // CREAR TAREA
 // ======================================================
 
