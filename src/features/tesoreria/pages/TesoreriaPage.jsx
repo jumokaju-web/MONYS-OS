@@ -1,10 +1,20 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import FormularioMovimiento from "../components/FormularioMovimiento";
 import "./TesoreriaPage.css";
 import HistorialMovimientos from "../components/HistorialMovimientos";
+import ResumenBancario from "../components/ResumenBancario";
 import {
   guardarMovimientoTesoreria,
+  actualizarMovimientoTesoreria,
+  eliminarMovimientoTesoreria,
 } from "../services/tesoreriaService";
+
+import {
+  obtenerSaldosBancariosActuales,
+} from "../services/cuentasFinancierasService";
 
 function TesoreriaPage({
   volverAlDashboard,
@@ -13,13 +23,108 @@ function TesoreriaPage({
   formatoDinero,
   onCambiarEstado,
 }) {
-
   const [tipoMovimiento, setTipoMovimiento] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("");
   const [guardando, setGuardando] = useState(false);
 
+    const [
+    resumenBancario,
+    setResumenBancario,
+  ] = useState({
+    cuentas: [],
+    saldoTotal: 0,
+  });
+
+  const [
+    cargandoSaldos,
+    setCargandoSaldos,
+  ] = useState(true);
+
+  const [
+    errorSaldos,
+    setErrorSaldos,
+  ] = useState("");
+
+  useEffect(() => {
+    let componenteActivo = true;
+
+    const cargarSaldosBancarios =
+      async () => {
+        try {
+          setCargandoSaldos(true);
+          setErrorSaldos("");
+
+          const resumen =
+            await obtenerSaldosBancariosActuales();
+
+          if (componenteActivo) {
+            setResumenBancario(
+              resumen
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Error al cargar saldos:",
+            error
+          );
+
+          if (componenteActivo) {
+            setErrorSaldos(
+              error?.message ||
+                "No fue posible consultar los saldos bancarios."
+            );
+          }
+        } finally {
+          if (componenteActivo) {
+            setCargandoSaldos(
+              false
+            );
+          }
+        }
+      };
+
+    cargarSaldosBancarios();
+
+    return () => {
+      componenteActivo = false;
+    };
+  }, []);
+
   const formularioVisible = tipoMovimiento !== null;
+
+    const movimientosPorAclarar =
+    movimientos.filter((movimiento) => {
+      const estado =
+        movimiento.estado ||
+        movimiento.status ||
+        "";
+
+      const concepto = String(
+        movimiento.concepto ||
+        movimiento.concept ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+      const cantidadPalabras =
+        concepto.split(/\s+/).filter(Boolean)
+          .length;
+
+      const conceptoGenerico =
+        concepto.includes("sin comentario") ||
+        concepto.includes(
+          "movimiento importado desde sicar"
+        ) ||
+        concepto.includes("por aclarar") ||
+        cantidadPalabras < 2;
+
+      return (
+        estado === "Pendiente de revisión" &&
+        conceptoGenerico
+      );
+    });
 
   const abrirFormularioMovimiento = (tipo) => {
     setMensaje("");
@@ -28,9 +133,7 @@ function TesoreriaPage({
   };
 
   const cerrarFormulario = () => {
-    if (guardando) {
-      return;
-    }
+    if (guardando) return;
 
     setTipoMovimiento(null);
     setMensaje("");
@@ -43,17 +146,11 @@ function TesoreriaPage({
       setMensaje("");
       setTipoMensaje("");
 
-      const movimientoGuardado =
-        await guardarMovimientoTesoreria(movimiento);
+      await guardarMovimientoTesoreria(movimiento);
 
       if (onMovimientoGuardado) {
         await onMovimientoGuardado();
       }
-
-      console.log(
-        "Movimiento guardado correctamente:",
-        movimientoGuardado
-      );
 
       setMensaje(
         movimiento.tipo === "salida"
@@ -64,12 +161,76 @@ function TesoreriaPage({
       setTipoMensaje("exito");
     } catch (error) {
       console.error("Error al guardar:", error);
-
       setMensaje(
-        error.message ||
+        error?.message ||
           "No fue posible guardar el movimiento."
       );
+      setTipoMensaje("error");
+    } finally {
+      setGuardando(false);
+    }
+  };
 
+  const editarMovimiento = async (
+    movimientoId,
+    cambios
+  ) => {
+    try {
+      setGuardando(true);
+      setMensaje("");
+      setTipoMensaje("");
+
+      await actualizarMovimientoTesoreria(
+        movimientoId,
+        cambios
+      );
+
+      if (onMovimientoGuardado) {
+        await onMovimientoGuardado();
+      }
+
+      setMensaje(
+        "Movimiento actualizado correctamente."
+      );
+      setTipoMensaje("exito");
+    } catch (error) {
+      console.error("Error al actualizar:", error);
+      setMensaje(
+        error?.message ||
+          "No fue posible actualizar el movimiento."
+      );
+      setTipoMensaje("error");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const eliminarMovimiento = async (
+    movimientoId
+  ) => {
+    try {
+      setGuardando(true);
+      setMensaje("");
+      setTipoMensaje("");
+
+      await eliminarMovimientoTesoreria(
+        movimientoId
+      );
+
+      if (onMovimientoGuardado) {
+        await onMovimientoGuardado();
+      }
+
+      setMensaje(
+        "Movimiento cancelado correctamente."
+      );
+      setTipoMensaje("exito");
+    } catch (error) {
+      console.error("Error al cancelar:", error);
+      setMensaje(
+        error?.message ||
+          "No fue posible cancelar el movimiento."
+      );
       setTipoMensaje("error");
     } finally {
       setGuardando(false);
@@ -77,9 +238,7 @@ function TesoreriaPage({
   };
 
   const regresarAlDashboard = () => {
-    if (guardando) {
-      return;
-    }
+    if (guardando) return;
 
     setTipoMovimiento(null);
     setMensaje("");
@@ -113,10 +272,17 @@ function TesoreriaPage({
         <h1>Control financiero</h1>
 
         <p>
-          Registra y consulta las entradas y salidas de dinero de
-          Corporativo Monys.
+          Registra y consulta las entradas y salidas
+          de dinero de Corporativo Monys.
         </p>
       </section>
+
+             <ResumenBancario
+        resumen={resumenBancario}
+        cargando={cargandoSaldos}
+        error={errorSaldos}
+        formatoDinero={formatoDinero}
+      />
 
       <section className="acciones">
         {!formularioVisible && (
@@ -160,7 +326,9 @@ function TesoreriaPage({
               boxSizing: "border-box",
             }}
           >
-            {tipoMensaje === "exito" ? "✅ " : "⚠️ "}
+            {tipoMensaje === "exito"
+              ? "✅ "
+              : "⚠️ "}
             {mensaje}
           </div>
         )}
@@ -174,13 +342,58 @@ function TesoreriaPage({
           />
         )}
 
-         {!formularioVisible && (
-  <HistorialMovimientos
-    movimientos={movimientos}
-    formatoDinero={formatoDinero}
-    onCambiarEstado={onCambiarEstado}
-  />
-)}
+                {!formularioVisible && (
+          <>
+            {movimientosPorAclarar.length > 0 && (
+              <section
+                role="alert"
+                style={{
+                  maxWidth: "900px",
+                  margin: "20px auto",
+                  padding: "18px 20px",
+                  border: "1px solid #e6a23c",
+                  borderRadius: "14px",
+                  background: "#fff8e8",
+                  color: "#7a4b00",
+                  boxSizing: "border-box",
+                }}
+              >
+                <strong
+                  style={{
+                    display: "block",
+                    fontSize: "18px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  ⚠️ {movimientosPorAclarar.length}{" "}
+                  {movimientosPorAclarar.length === 1
+                    ? "salida necesita"
+                    : "salidas necesitan"}{" "}
+                  aclaración
+                </strong>
+
+                <span>
+                  Falta explicar para qué salió el dinero
+                  o quién lo recibió. MONYS mantendrá estos
+                  movimientos pendientes hasta confirmar
+                  la información.
+                </span>
+              </section>
+            )}
+
+            <HistorialMovimientos
+              movimientos={movimientos}
+              formatoDinero={formatoDinero}
+              onCambiarEstado={onCambiarEstado}
+              onEditarMovimiento={
+                editarMovimiento
+              }
+              onEliminarMovimiento={
+                eliminarMovimiento
+              }
+            />
+          </>
+        )}
 
         <button
           type="button"

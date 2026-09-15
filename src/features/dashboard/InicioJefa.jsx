@@ -1,5 +1,12 @@
+import {
+  useEffect,
+  useState,
+} from "react";
 import Header from "../../components/layout/Header";
-
+import AgendaJefa from "./components/AgendaJefa";
+import {
+  obtenerRecordatoriosJefa,
+} from "./services/recordatoriosJefaService";
 export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
@@ -21,8 +28,74 @@ export default function InicioJefa({
   contenidoSicar = null,
   contenidoCierre = null,
 }) {
+  const [
+    recordatoriosJefa,
+    setRecordatoriosJefa,
+  ] = useState([]);
+
+  const [
+    cargandoRecordatorios,
+    setCargandoRecordatorios,
+  ] = useState(true);
+
+  const [
+    errorRecordatorios,
+    setErrorRecordatorios,
+  ] = useState("");
+
+  useEffect(() => {
+    let componenteActivo = true;
+
+    const cargarRecordatorios =
+      async () => {
+        try {
+          setCargandoRecordatorios(
+            true
+          );
+
+          setErrorRecordatorios(
+            ""
+          );
+
+          const resultado =
+            await obtenerRecordatoriosJefa();
+
+          if (componenteActivo) {
+            setRecordatoriosJefa(
+              resultado.recordatorios ||
+                []
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Error al cargar recordatorios:",
+            error
+          );
+
+          if (componenteActivo) {
+            setErrorRecordatorios(
+              error?.message ||
+                "No fue posible revisar las tareas pendientes."
+            );
+          }
+        } finally {
+          if (componenteActivo) {
+            setCargandoRecordatorios(
+              false
+            );
+          }
+        }
+      };
+
+    cargarRecordatorios();
+
+    return () => {
+      componenteActivo = false;
+    };
+  }, []);
+
   const movimientosPendientes =
-    movimientos.filter((movimiento) => {
+     movimientos.filter((movimiento) => {
       const estado = String(
         movimiento?.estado || ""
       ).toLowerCase();
@@ -138,7 +211,7 @@ const utilidadConsolidada =
           />
 
           <MetricaJefa
-            titulo="Disponible"
+            titulo="Flujo neto del periodo"
             valor={formatoDinero(
               disponible
             )}
@@ -147,8 +220,31 @@ const utilidadConsolidada =
 
         {/* ATENCIÓN */}
 
+                <AgendaJefa
+          recordatorios={
+            recordatoriosJefa
+          }
+          movimientosPendientes={
+            movimientosPendientes
+          }
+          cargando={
+            cargandoRecordatorios
+          }
+          error={
+            errorRecordatorios
+          }
+          abrirTesoreria={
+            abrirTesoreria
+          }
+          abrirImportador={
+            abrirImportador
+          }
+        />
+
+
         <section
           style={{
+           display: "none",
             background: hayPendientes
               ? "#fff7f3"
               : "#f3faf6",
