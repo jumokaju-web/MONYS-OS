@@ -267,6 +267,12 @@ function App() {
                   registro.amount
                 ) || 0,
 
+                expense_category:
+  registro.expense_category || null,
+
+expense_behavior:
+  registro.expense_behavior || null,
+
               concepto:
                 registro.concept ||
                 "",
@@ -358,47 +364,192 @@ receiptStatus:
       }
     };
 
-  const entradas =
-    movimientos
-      .filter(
-        (movimiento) =>
-          movimiento.tipo ===
-          "ENTRADA"
-      )
-      .reduce(
-        (
-          total,
-          movimiento
-        ) =>
-          total +
-          movimiento.monto,
-        0
+ 
+    const metricasVentas =
+  datosDashboard?.metricas || {};
+
+const convertirFechaPeriodo = (valor) => {
+  if (!valor) {
+    return null;
+  }
+
+  const texto = String(valor).trim();
+
+  const fechaSolo =
+    texto.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
+  if (fechaSolo) {
+    return new Date(
+      Number(fechaSolo[1]),
+      Number(fechaSolo[2]) - 1,
+      Number(fechaSolo[3])
+    );
+  }
+
+  const fecha = new Date(valor);
+
+  return Number.isNaN(fecha.getTime())
+    ? null
+    : fecha;
+};
+
+const fechaInicialFlujo =
+  convertirFechaPeriodo(
+    metricasVentas.fechaInicial
+  );
+
+const fechaFinalFlujo =
+  convertirFechaPeriodo(
+    metricasVentas.fechaFinal
+  );
+
+if (fechaInicialFlujo) {
+  fechaInicialFlujo.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+}
+
+if (fechaFinalFlujo) {
+  fechaFinalFlujo.setHours(
+    23,
+    59,
+    59,
+    999
+  );
+}
+
+const movimientosDelPeriodo =
+  movimientos.filter(
+    (movimiento) => {
+      const valorFecha =
+        movimiento.fecha ??
+        movimiento.fecha_movimiento ??
+        movimiento.movement_date ??
+        movimiento.occurred_at ??
+        movimiento.created_at ??
+        movimiento.date ??
+        null;
+
+      const fechaMovimiento =
+        convertirFechaPeriodo(
+          valorFecha
+        );
+
+      if (
+        !fechaMovimiento ||
+        !fechaInicialFlujo ||
+        !fechaFinalFlujo
+      ) {
+        return false;
+      }
+
+      return (
+        fechaMovimiento >=
+          fechaInicialFlujo &&
+        fechaMovimiento <=
+          fechaFinalFlujo
       );
+    }
+  );
 
-  const salidas =
-    movimientos
-      .filter(
-        (movimiento) =>
-          movimiento.tipo ===
-          "SALIDA"
-      )
-      .reduce(
-        (
-          total,
-          movimiento
-        ) =>
-          total +
-          movimiento.monto,
+const obtenerDatosMovimiento =
+  (movimiento) => {
+    const tipo = String(
+      movimiento.tipo ??
+        movimiento.movement_type ??
+        ""
+    )
+      .trim()
+      .toUpperCase();
+
+    const estado = String(
+      movimiento.estado ??
+        movimiento.status ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const categoria = String(
+      movimiento.categoria ??
+        movimiento.expenseCategory ??
+        movimiento.expense_category ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const monto = Number(
+      movimiento.monto ??
+        movimiento.amount ??
         0
-      );
+    );
 
-  const disponible =
-    entradas - salidas;
+    return {
+      tipo,
+      estado,
+      categoria,
+      monto:
+        Number.isFinite(monto)
+          ? monto
+          : 0,
+    };
+  };
 
-  const metricasVentas =
-    datosDashboard?.metricas ||
-    {};
+const entradas =
+  movimientosDelPeriodo.reduce(
+    (total, movimiento) => {
+      const datos =
+        obtenerDatosMovimiento(
+          movimiento
+        );
 
+      if (
+        datos.tipo !== "ENTRADA" ||
+        datos.estado === "cancelado" ||
+        datos.categoria.includes(
+          "traspaso"
+        )
+      ) {
+        return total;
+      }
+
+      return total + datos.monto;
+    },
+    0
+  );
+
+const salidas =
+  movimientosDelPeriodo.reduce(
+    (total, movimiento) => {
+      const datos =
+        obtenerDatosMovimiento(
+          movimiento
+        );
+
+      if (
+        datos.tipo !== "SALIDA" ||
+        datos.estado === "cancelado" ||
+        datos.categoria.includes(
+          "traspaso"
+        )
+      ) {
+        return total;
+      }
+
+      return total + datos.monto;
+    },
+    0
+  );
+
+const disponible =
+  entradas - salidas;
+  
   const ventasTotales =
     Number(
       metricasVentas.ventasTotales
@@ -806,13 +957,19 @@ if (
   }
 
   return (
-    <CompraMaestraPage
-      volverAlDashboard={() =>
-        setPantallaActual(
-          "dashboard"
-        )
-      }
-    />
+   <CompraMaestraPage
+  datosDashboard={
+    datosDashboard
+  }
+  movimientos={
+    movimientos
+  }
+  volverAlDashboard={() =>
+    setPantallaActual(
+      "dashboard"
+    )
+  }
+/>
   );
 }
 
