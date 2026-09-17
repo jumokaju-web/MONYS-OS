@@ -23,7 +23,8 @@ import {
   actualizarCampanaMarketing,
   crearCampanaMarketing,
   generarEstrategiaCampanaIA,
-  guardarAprendizajeCampana,  
+  generarKitMarketingIA,
+  guardarAprendizajeCampana,
   obtenerCampanasMarketing,
   obtenerContextoRealProductoCampana,
 } from "../services/campanasMarketingService";
@@ -2535,7 +2536,7 @@ function RevisionMarketingTarea({
 
       const resultado =
         await revisarContenidoMarketing({
-       
+
                 texto,
     });
 
@@ -3074,7 +3075,7 @@ function ResultadoMarketingTarea({
   💾 Guardar resultado
 </button>
 
-     
+
     </div>
   );
 }
@@ -3103,10 +3104,40 @@ function CrearCampanaMarketingTarea({
     setCanalPreferido,
   ] = useState("");
 
-  const [
+   const [
     presupuestoMaximo,
     setPresupuestoMaximo,
   ] = useState("");
+
+  const [
+    precioProducto,
+    setPrecioProducto,
+  ] = useState("");
+
+    const [
+    existenciaProducto,
+    setExistenciaProducto,
+  ] = useState("");
+
+  const [
+    audienciaProducto,
+    setAudienciaProducto,
+  ] = useState("");
+
+  const [
+    ofertaProducto,
+    setOfertaProducto,
+  ] = useState("");
+
+  const [
+    kitMarketing,
+    setKitMarketing,
+  ] = useState(null);
+
+  const [
+    generandoKit,
+    setGenerandoKit,
+  ] = useState(false);
 
   const [
     generando,
@@ -3228,6 +3259,114 @@ const [
   usuario?.business_id,
   branchId,
 ]);
+
+async function generarKit() {
+  try {
+    setErrorCampana("");
+    setKitMarketing(null);
+
+    if (
+      !String(producto || "").trim() ||
+      !String(objetivoUsuario || "").trim() ||
+      !String(precioProducto || "").trim() ||
+      !String(existenciaProducto || "").trim() ||
+      !String(audienciaProducto || "").trim() ||
+      !String(ofertaProducto || "").trim()
+    ) {
+      setErrorCampana(
+        "Para generar el kit captura producto, objetivo, precio, existencia, cliente ideal y oferta real."
+      );
+      return;
+    }
+
+    setGenerandoKit(true);
+
+    const contextoReal =
+      await obtenerContextoRealProductoCampana({
+        branchId,
+        producto,
+      });
+
+    const kit = await generarKitMarketingIA({
+      negocio: {
+        nombre: "Monys Glam",
+        sucursalId: branchId || null,
+      },
+
+      producto: {
+        nombre: producto.trim(),
+        precio: Number(precioProducto),
+        existencia: Number(existenciaProducto),
+      },
+
+      estrategia: {
+        objetivo: objetivoUsuario.trim(),
+        audiencia: audienciaProducto.trim(),
+        oferta: ofertaProducto.trim(),
+      },
+
+      campana: {
+        canalPrincipal: canalPreferido || null,
+        presupuesto: Number(
+          presupuestoMaximo || 0
+        ),
+      },
+
+      canales: canalPreferido
+        ? [canalPreferido]
+        : undefined,
+
+      datosReales: {
+        fuenteCaptura: "KARY",
+        productoBuscado: producto.trim(),
+
+        contextoSupabase: {
+          encontrado:
+            contextoReal?.encontrado || false,
+
+          ventas:
+            contextoReal?.ventas || {},
+
+          inventario:
+            contextoReal?.inventario || {},
+
+          periodo:
+            contextoReal?.periodo || null,
+
+          fuentes:
+            contextoReal?.fuentes || {},
+
+          confianzaCoincidencia:
+            contextoReal
+              ?.confianzaCoincidencia || 0,
+
+          confianzaDatos:
+            contextoReal?.confianzaDatos || 0,
+        },
+      },
+
+      notas: `Tarea actual: ${
+        tarea?.titulo || ""
+      }. Sucursal: ${
+        branchId || "no identificada"
+      }. MONYS debe usar únicamente datos reales y marcar cualquier estimación o hipótesis.`,
+    });
+
+    setKitMarketing(kit);
+  } catch (error) {
+    console.error(
+      "Error generando kit de marketing:",
+      error
+    );
+
+    setErrorCampana(
+      error?.message ||
+        "MONYS no pudo generar el kit de publicación."
+    );
+  } finally {
+    setGenerandoKit(false);
+  }
+}
 
   async function generar() {
     try {
@@ -3507,7 +3646,7 @@ businessId:
 
 setEstrategia(
   resultado
-);   
+);
 
     } catch (error) {
       console.error(
@@ -4064,6 +4203,67 @@ async function cerrarCampanaMarketing() {
         }}
       />
 
+            <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={precioProducto}
+        onChange={(event) =>
+          setPrecioProducto(
+            event.target.value
+          )
+        }
+        placeholder="Precio real del producto $"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "9px",
+        }}
+      />
+
+            <input
+        type="number"
+        min="0"
+        value={existenciaProducto}
+        onChange={(event) =>
+          setExistenciaProducto(
+            event.target.value
+          )
+        }
+        placeholder="Existencia real disponible (piezas)"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "9px",
+        }}
+      />
+
+      <input
+        value={audienciaProducto}
+        onChange={(event) =>
+          setAudienciaProducto(
+            event.target.value
+          )
+        }
+        placeholder="Cliente ideal (edad, necesidad o tipo de piel)"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "9px",
+        }}
+      />
+
+      <input
+        value={ofertaProducto}
+        onChange={(event) =>
+          setOfertaProducto(
+            event.target.value
+          )
+        }
+        placeholder="Oferta real autorizada (opcional)"
+        style={{
+          ...estiloInputMarketing,
+          marginBottom: "10px",
+        }}
+      />
+
       <button
         type="button"
         onClick={generar}
@@ -4089,10 +4289,34 @@ async function cerrarCampanaMarketing() {
           ? "🧠 MONYS está analizando..."
           : "✨ Diseñar campaña"}
       </button>
+            <button
+        type="button"
+        onClick={generarKit}
+        disabled={generandoKit}
+        style={{
+          width: "100%",
+          marginTop: "9px",
+          border: "1px solid #8f2858",
+          borderRadius: "11px",
+          padding: "12px",
+          background: generandoKit
+            ? "#ead5df"
+            : "#ffffff",
+          color: "#8f2858",
+          fontWeight: "900",
+          cursor: generandoKit
+            ? "wait"
+            : "pointer",
+        }}
+      >
+        {generandoKit
+          ? "🧠 MONYS preparando publicaciones..."
+          : "📣 Generar kit listo para publicar"}
+      </button>
         </>
       )}
 
-    
+
       {estrategia && (
         <div
           style={{
@@ -4369,7 +4593,59 @@ async function cerrarCampanaMarketing() {
     }
   </div>
 )}
+  {kitMarketing && (
+  <div
+    style={{
+      marginTop: "12px",
+      marginBottom: "12px",
+      padding: "14px",
+      borderRadius: "12px",
+      border: "1px solid #c7d9f5",
+      background: "#f5f9ff",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        color: "#24558c",
+        marginBottom: "8px",
+      }}
+    >
+      📣 Kit de publicación MONYS
+    </strong>
 
+    <div
+      style={{
+        fontSize: "12px",
+        color: "#526579",
+        marginBottom: "10px",
+      }}
+    >
+      Aquí Kary puede consultar qué publicar,
+      dónde publicarlo y cómo medirlo.
+    </div>
+
+    <pre
+      style={{
+        margin: 0,
+        padding: "10px",
+        borderRadius: "9px",
+        background: "#ffffff",
+        whiteSpace: "pre-wrap",
+        fontFamily: "inherit",
+        fontSize: "12px",
+        lineHeight: 1.45,
+        color: "#263746",
+      }}
+    >
+      {JSON.stringify(
+        kitMarketing,
+        null,
+        2
+      )}
+    </pre>
+  </div>
+)}
  {campanaGuardada?.estado ===
 "ACTIVA" ? (
   <div
@@ -4421,7 +4697,7 @@ async function cerrarCampanaMarketing() {
 
         </div>
       )}
-        
+
         {campanaGuardada?.estado ===
   "ACTIVA" && (
   <div
@@ -4434,6 +4710,58 @@ async function cerrarCampanaMarketing() {
       background: "#f0fdf4",
     }}
   >
+            {kitMarketing && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "14px",
+              borderRadius: "12px",
+              border: "1px solid #c7d9f5",
+              background: "#f5f9ff",
+            }}
+          >
+            <strong
+              style={{
+                display: "block",
+                color: "#24558c",
+                marginBottom: "8px",
+              }}
+            >
+              📣 Kit de publicación MONYS
+            </strong>
+
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#526579",
+                marginBottom: "10px",
+              }}
+            >
+              Aquí Kary puede consultar qué publicar,
+              dónde publicarlo y cómo medirlo.
+            </div>
+
+            <pre
+              style={{
+                margin: 0,
+                padding: "10px",
+                borderRadius: "9px",
+                background: "#ffffff",
+                whiteSpace: "pre-wrap",
+                fontFamily: "inherit",
+                fontSize: "12px",
+                lineHeight: 1.45,
+                color: "#263746",
+              }}
+            >
+              {JSON.stringify(
+                kitMarketing,
+                null,
+                2
+              )}
+            </pre>
+          </div>
+        )}
     <strong>
       📊 Seguimiento de campaña
     </strong>

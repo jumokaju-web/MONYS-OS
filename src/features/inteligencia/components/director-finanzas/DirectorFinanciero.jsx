@@ -7,9 +7,6 @@ import {
   useEffect,
   useState,
 } from "react";
-import {
-  obtenerCreditosProveedoresActuales,
-} from "../../services/creditosProveedoresService";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
@@ -20,8 +17,9 @@ import {
   obtenerHistorialDecisiones,
 } from "../../services/decisionesService";
 
-function DirectorFinanciero({
+   function DirectorFinanciero({
   datosDashboard,
+  sucursalesDashboard = [],
   movimientos = [],
 }) {
 
@@ -54,7 +52,7 @@ const [
   resultadosEjecucion,
   setResultadosEjecucion,
 ] = useState({});
-  
+
 const [
   creditosProveedores,
   setCreditosProveedores,
@@ -67,6 +65,47 @@ const [
   const metricas =
     datosDashboard?.metricas || {};
 
+  const hayDatosConsolidados =
+  Array.isArray(
+    sucursalesDashboard
+  ) &&
+  sucursalesDashboard.length > 0;
+
+const ventasConsolidadas =
+  sucursalesDashboard.reduce(
+    (total, sucursal) =>
+      total +
+      (Number(
+        sucursal?.ventasTotales
+      ) || 0),
+    0
+  );
+
+const utilidadConsolidada =
+  sucursalesDashboard.reduce(
+    (total, sucursal) =>
+      total +
+      (Number(
+        sucursal?.utilidadTotal
+      ) || 0),
+    0
+  );
+
+const costoConsolidado =
+  Math.max(
+    ventasConsolidadas -
+      utilidadConsolidada,
+    0
+  );
+
+const margenConsolidado =
+  ventasConsolidadas > 0
+    ? (
+        utilidadConsolidada /
+        ventasConsolidadas
+      ) * 100
+    : 0;
+
 const branchId =
   datosDashboard?.branch_id || null;
 
@@ -76,16 +115,24 @@ const branchId =
       movimientos,
 
       ventasTotales:
-        metricas.ventasTotales ?? 0,
+  hayDatosConsolidados
+    ? ventasConsolidadas
+    : metricas.ventasTotales ?? 0,
 
-      costoTotal:
-        metricas.costoTotal ?? 0,
+costoTotal:
+  hayDatosConsolidados
+    ? costoConsolidado
+    : metricas.costoTotal ?? 0,
 
-      utilidadTotal:
-        metricas.utilidadTotal ?? 0,
+utilidadTotal:
+  hayDatosConsolidados
+    ? utilidadConsolidada
+    : metricas.utilidadTotal ?? 0,
 
-      margenUtilidad:
-        metricas.margenUtilidad ?? 0,
+margenUtilidad:
+  hayDatosConsolidados
+    ? margenConsolidado
+    : metricas.margenUtilidad ?? 0,
 
       fechaInicial:
         metricas.fechaInicial ?? null,
@@ -97,14 +144,30 @@ const branchId =
         metricas.diasAnalizados ?? 0,
 
       ventaPromedioDiaria:
-        metricas.ventaPromedioDiaria ?? 0,
+  hayDatosConsolidados &&
+  Number(
+    metricas.diasAnalizados
+  ) > 0
+    ? ventasConsolidadas /
+      Number(
+        metricas.diasAnalizados
+      )
+    : metricas.ventaPromedioDiaria ?? 0,
 
-      utilidadPromedioDiaria:
-        metricas.utilidadPromedioDiaria ?? 0,
-       
+utilidadPromedioDiaria:
+  hayDatosConsolidados &&
+  Number(
+    metricas.diasAnalizados
+  ) > 0
+    ? utilidadConsolidada /
+      Number(
+        metricas.diasAnalizados
+      )
+    : metricas.utilidadPromedioDiaria ?? 0,
+
       saldoProveedores:
   creditosProveedores?.saldoTotal ?? 0,
-    
+
      creditosProveedores:
   creditosProveedores?.creditos ?? [],
 
@@ -115,14 +178,22 @@ const branchId =
     costoTotal,
     utilidadTotal,
     margenUtilidad,
+ventaPromedioDiaria,
+utilidadPromedioDiaria,
 
-    entradasTesoreria,
+entradasTesoreria,
     salidasTesoreria,
     dineroDisponible,
 
     movimientosPendientes,
     porcentajeGastos,
-
+    gastosFijos,
+gastosVariables,
+gastosSinClasificar,
+utilidadNetaEstimada,
+margenConGastos,
+puntoEquilibrioVentas,
+ventasSobrePuntoEquilibrio,
     proyeccionVentasMes,
     proyeccionUtilidadMes,
 
@@ -146,43 +217,12 @@ const branchId =
     recomendacion,
   } = analisisFinanciero;
 
-     useEffect(() => {
-  async function cargarCreditosProveedores() {
-    if (!branchId) {
-      setCreditosProveedores({
-        importacion: null,
-        creditos: [],
-        saldoTotal: 0,
-      });
-
-      return;
-    }
-
-    try {
-      const datos =
-        await obtenerCreditosProveedoresActuales(
-          branchId
-        );
-
-      setCreditosProveedores(datos);
-
-  
-     
-    } catch (error) {
-      console.error(
-        "Error al cargar créditos de proveedores:",
-        error
-      );
-
-      setCreditosProveedores({
-        importacion: null,
-        creditos: [],
-        saldoTotal: 0,
-      });
-    }
-  }
-
-  cargarCreditosProveedores();
+    useEffect(() => {
+  setCreditosProveedores({
+    importacion: null,
+    creditos: [],
+    saldoTotal: 0,
+  });
 }, [branchId]);
 
      useEffect(() => {
@@ -190,7 +230,7 @@ const branchId =
 
     async function cargarDecisionesGuardadas() {
       try {
-      
+
         const importacionActual =
   datosDashboard
     ?.importacion
@@ -206,7 +246,7 @@ const historial =
         if (!activo) {
           return;
         }
-       
+
         const decisionesRecuperadas = {};
 
         accionesPrioritarias.forEach(
@@ -586,21 +626,25 @@ const historial =
 
         📅 Periodo analizado:{" "}
         <strong>
-          {metricas.fechaInicial
-            ? new Date(
-                metricas.fechaInicial
-              ).toLocaleDateString("es-MX")
-            : "Sin fecha"}
+        {metricas.fechaInicial
+  ? new Date(
+      `${String(
+        metricas.fechaInicial
+      ).slice(0, 10)}T12:00:00`
+    ).toLocaleDateString("es-MX")
+  : "Sin fecha"}
         </strong>
 
         {" "}a{" "}
 
         <strong>
-          {metricas.fechaFinal
-            ? new Date(
-                metricas.fechaFinal
-              ).toLocaleDateString("es-MX")
-            : "Sin fecha"}
+         {metricas.fechaFinal
+  ? new Date(
+      `${String(
+        metricas.fechaFinal
+      ).slice(0, 10)}T12:00:00`
+    ).toLocaleDateString("es-MX")
+  : "Sin fecha"}
         </strong>
 
         {" · "}
@@ -616,18 +660,18 @@ const historial =
 
         💵 Venta promedio diaria:{" "}
         <strong>
-          {formatoDinero(
-            metricas.ventaPromedioDiaria
-          )}
+         {formatoDinero(
+  ventaPromedioDiaria
+)}
         </strong>
 
         {" · "}
 
         📈 Utilidad promedio diaria:{" "}
         <strong>
-          {formatoDinero(
-            metricas.utilidadPromedioDiaria
-          )}
+         {formatoDinero(
+  utilidadPromedioDiaria
+)}
         </strong>
       </p>
 
@@ -646,13 +690,11 @@ const historial =
           icono="🛒"
         />
 
-        <TarjetaIndicador
-           titulo="Saldo con proveedores"
-           valor={formatoDinero(
-           creditosProveedores?.saldoTotal || 0
-           )}
-           icono="💳"
-           />
+       <TarjetaIndicador
+  titulo="Reporte de proveedores"
+  valor="Sin reporte confirmado"
+  icono="💳"
+/>
 
         <TarjetaIndicador
           titulo="Costo Total"
@@ -682,7 +724,7 @@ const historial =
           fontSize: "20px",
         }}
       >
-        Flujo real de Tesorería
+       Flujo de Tesorería del periodo
       </h3>
 
       <div
@@ -711,7 +753,7 @@ const historial =
         />
 
         <TarjetaIndicador
-          titulo="Disponible"
+         titulo="Flujo neto del periodo"
           valor={formatoDinero(
             dineroDisponible
           )}
@@ -734,7 +776,55 @@ const historial =
           icono="📉"
         />
       </div>
+         <TarjetaIndicador
+  titulo="Gastos fijos"
+  valor={formatoDinero(gastosFijos)}
+  icono="🏢"
+/>
 
+<TarjetaIndicador
+  titulo="Gastos variables"
+  valor={formatoDinero(gastosVariables)}
+  icono="🔄"
+/>
+
+<TarjetaIndicador
+  titulo="Gastos sin clasificar"
+  valor={formatoDinero(
+    gastosSinClasificar
+  )}
+  icono="⚠️"
+/>
+
+<TarjetaIndicador
+  titulo="Utilidad neta estimada"
+  valor={formatoDinero(
+    utilidadNetaEstimada
+  )}
+  icono="📈"
+/>
+
+<TarjetaIndicador
+  titulo="Margen después de gastos"
+  valor={formatoPorcentaje(
+    margenConGastos
+  )}
+  icono="📊"
+/>
+
+<TarjetaIndicador
+  titulo="Punto de equilibrio"
+  valor={
+    Number.isFinite(
+      Number(puntoEquilibrioVentas)
+    )
+      ? formatoDinero(
+          puntoEquilibrioVentas
+        )
+      : "Sin base suficiente"
+  }
+  icono="⚖️"
+/>
       <h3
         style={{
           marginTop: "32px",
@@ -789,6 +879,10 @@ const historial =
 
         <div
   style={{
+    display:
+      creditosProveedores?.importacion
+        ? "block"
+        : "none",
     marginTop: "28px",
     padding: "22px",
     borderRadius: "18px",

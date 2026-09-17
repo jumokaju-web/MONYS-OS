@@ -305,6 +305,7 @@ async function eliminarPlanIncompleto(
 export async function guardarPlanCompra({
   compraMaestra,
   businessId = null,
+  decisionFinanciera = null,
 }) {
   if (!compraMaestra) {
     throw new Error(
@@ -341,6 +342,41 @@ export async function guardarPlanCompra({
   let planId = null;
 
   try {
+    const inversionPropuesta =
+      Math.max(
+        0,
+        convertirNumero(
+          decisionFinanciera
+            ?.inversionPropuesta ??
+            compraMaestra
+              ?.inversionTotal
+        )
+      );
+
+    const capacidadAutorizable =
+      Math.max(
+        0,
+        convertirNumero(
+          decisionFinanciera
+            ?.capacidadAutorizable
+        )
+      );
+
+    const compraAutorizable =
+      decisionFinanciera
+        ?.compraAutorizable === true;
+
+    const faltanteParaAutorizar =
+      Math.max(
+        0,
+        convertirNumero(
+          decisionFinanciera
+            ?.faltanteParaAutorizar
+        ) ||
+          inversionPropuesta -
+            capacidadAutorizable
+      );
+
     const resumen = {
       totalProductosRevisionInventario:
         convertirNumero(
@@ -374,6 +410,30 @@ export async function guardarPlanCompra({
 
       version:
         "compra_maestra_v1",
+
+      decisionFinanciera: {
+        compraAutorizable,
+
+        estado:
+          compraAutorizable
+            ? "AUTORIZABLE"
+            : "NO_AUTORIZABLE",
+
+        inversionPropuesta,
+
+        capacidadAutorizable,
+
+        faltanteParaAutorizar,
+
+        motivo:
+          limpiarTexto(
+            decisionFinanciera
+              ?.motivo
+          ) ||
+          (compraAutorizable
+            ? "La inversión propuesta está dentro de la capacidad financiera disponible."
+            : "La inversión propuesta supera la capacidad financiera disponible."),
+      },
     };
 
     const {

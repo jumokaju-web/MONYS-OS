@@ -76,6 +76,151 @@ function obtenerTextoEstado(
   }
 }
 
+function DecisionFinancieraPlan({
+  plan,
+}) {
+  const decision =
+    plan?.resumen
+      ?.decisionFinanciera;
+
+  if (!decision) {
+    return (
+      <div
+        style={{
+          marginTop: "16px",
+          padding: "14px",
+          borderRadius: "12px",
+          border:
+            "1px solid #e3dfe1",
+          backgroundColor:
+            "#faf7f8",
+          color: "#766b70",
+          fontSize: "13px",
+        }}
+      >
+        ℹ️ Decisión financiera no registrada en este plan anterior.
+      </div>
+    );
+  }
+
+  const compraAutorizable =
+    decision
+      ?.compraAutorizable === true;
+
+  return (
+    <div
+      style={{
+        marginTop: "16px",
+        padding: "16px",
+        borderRadius: "14px",
+        border: compraAutorizable
+          ? "1px solid #b9dfc7"
+          : "1px solid #efb7b7",
+        backgroundColor:
+          compraAutorizable
+            ? "#f3fbf6"
+            : "#fff5f5",
+      }}
+    >
+      <strong
+        style={{
+          display: "block",
+          color: compraAutorizable
+            ? "#207a4a"
+            : "#a52d2d",
+        }}
+      >
+        {compraAutorizable
+          ? "✅ Compra financieramente autorizable"
+          : "⛔ Compra no autorizable"}
+      </strong>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: "12px",
+          marginTop: "13px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#766b70",
+              fontSize: "12px",
+            }}
+          >
+            Inversión propuesta
+          </div>
+
+          <strong>
+            {formatearDinero(
+              decision
+                ?.inversionPropuesta
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <div
+            style={{
+              color: "#766b70",
+              fontSize: "12px",
+            }}
+          >
+            Capacidad autorizable
+          </div>
+
+          <strong>
+            {formatearDinero(
+              decision
+                ?.capacidadAutorizable
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <div
+            style={{
+              color: "#766b70",
+              fontSize: "12px",
+            }}
+          >
+            Faltante para autorizar
+          </div>
+
+          <strong
+            style={{
+              color: compraAutorizable
+                ? "#207a4a"
+                : "#a52d2d",
+            }}
+          >
+            {formatearDinero(
+              decision
+                ?.faltanteParaAutorizar
+            )}
+          </strong>
+        </div>
+      </div>
+
+      {decision?.motivo && (
+        <div
+          style={{
+            marginTop: "12px",
+            color: "#6f666a",
+            fontSize: "13px",
+            lineHeight: 1.5,
+          }}
+        >
+          {decision.motivo}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HistorialCompraMaestra() {
   const [
     planes,
@@ -403,6 +548,10 @@ export default function HistorialCompraMaestra() {
                       )}
                     </span>
                   </div>
+
+                  <DecisionFinancieraPlan
+                    plan={plan}
+                  />
 
                   <div
                     style={{

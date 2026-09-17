@@ -808,14 +808,17 @@ const analisisRH =
 
       {directorAbierto ===
         "financiero" && (
-        <DirectorFinanciero
-          datosDashboard={
-            datosDashboard
-          }
-          movimientos={
-            movimientos
-          }
-        />
+       <DirectorFinanciero
+  datosDashboard={
+    datosDashboard
+  }
+  sucursalesDashboard={
+    sucursalesDashboard
+  }
+  movimientos={
+    movimientos
+  }
+/>
       )}
 
       {directorAbierto ===

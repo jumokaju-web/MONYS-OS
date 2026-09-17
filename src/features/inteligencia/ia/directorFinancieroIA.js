@@ -37,6 +37,56 @@ const convertirFecha = (valor) => {
     : fecha;
 };
 
+const obtenerClaveFecha = (valor) => {
+  if (!valor) {
+    return null;
+  }
+
+  const texto = String(valor).trim();
+
+  const fechaISO = texto.match(
+    /^(\d{4})-(\d{2})-(\d{2})/
+  );
+
+  if (fechaISO) {
+    return `${fechaISO[1]}-${fechaISO[2]}-${fechaISO[3]}`;
+  }
+
+  const fechaLatina = texto.match(
+    /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/
+  );
+
+  if (fechaLatina) {
+    const dia = fechaLatina[1].padStart(
+      2,
+      "0"
+    );
+
+    const mes = fechaLatina[2].padStart(
+      2,
+      "0"
+    );
+
+    return `${fechaLatina[3]}-${mes}-${dia}`;
+  }
+
+  const fecha = convertirFecha(valor);
+
+  if (!fecha) {
+    return null;
+  }
+
+  const anio = fecha.getFullYear();
+  const mes = String(
+    fecha.getMonth() + 1
+  ).padStart(2, "0");
+  const dia = String(
+    fecha.getDate()
+  ).padStart(2, "0");
+
+  return `${anio}-${mes}-${dia}`;
+};
+
  export function generarAnalisisFinanciero({
   movimientos = [],
  
@@ -82,6 +132,18 @@ const convertirFecha = (valor) => {
 
   const fin =
     convertirFecha(fechaFinal);
+
+  const claveInicioPeriodo =
+    obtenerClaveFecha(fechaInicial);
+
+  const claveFinPeriodo =
+    obtenerClaveFecha(fechaFinal);
+
+  const hayPeriodoCompleto =
+    Boolean(
+      claveInicioPeriodo &&
+        claveFinPeriodo
+    );
 
     const hoy =
   new Date();
@@ -166,64 +228,391 @@ const vencimientos60Dias =
 const vencimientos90Dias =
   calcularMontoPorHorizonte(90);
 
+   const normalizarValor = (
+    valor = ""
+  ) =>
+    String(valor)
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .trim()
+      .toLowerCase();
+
+  const obtenerTipoMovimiento = (
+    movimiento
+  ) =>
+    normalizarValor(
+      movimiento?.tipo ||
+        movimiento?.movement_type
+    );
+
+  const obtenerEstadoMovimiento = (
+    movimiento
+  ) =>
+    movimiento?.estado ||
+    movimiento?.status ||
+    "";
+
+  const obtenerCategoriaMovimiento = (
+    movimiento
+  ) =>
+    normalizarValor(
+      movimiento?.expense_category ||
+        movimiento?.expenseCategory
+    );
+
+  const obtenerComportamientoMovimiento =
+    (movimiento) =>
+      normalizarValor(
+        movimiento?.expense_behavior ||
+          movimiento?.expenseBehavior
+      );
+
+  const obtenerFechaMovimiento = (
+    movimiento
+  ) =>
+    obtenerClaveFecha(
+      movimiento?.occurred_at ??
+        movimiento?.occurredAt ??
+        movimiento?.fechaISO ??
+        movimiento?.fecha_iso ??
+        movimiento?.fecha
+    );
+
+  const movimientoDentroDelPeriodo = (
+    movimiento
+  ) => {
+    if (!hayPeriodoCompleto) {
+      return true;
+    }
+
+    const claveMovimiento =
+      obtenerFechaMovimiento(
+        movimiento
+      );
+
+    if (!claveMovimiento) {
+      return false;
+    }
+
+    return (
+      claveMovimiento >=
+        claveInicioPeriodo &&
+      claveMovimiento <=
+        claveFinPeriodo
+    );
+  };
+
   const movimientosValidos =
     Array.isArray(movimientos)
       ? movimientos.filter(
-          (movimiento) =>
-            movimiento?.estado !== "Cancelado"
+          (movimiento) => {
+            const estado =
+              normalizarValor(
+                obtenerEstadoMovimiento(
+                  movimiento
+                )
+              );
+
+            return (
+              estado !== "cancelado" &&
+              movimientoDentroDelPeriodo(
+                movimiento
+              )
+            );
+          }
         )
       : [];
+
+  const movimientosPendientes =
+    movimientosValidos.filter(
+      (movimiento) => {
+        const estado =
+          obtenerEstadoMovimiento(
+            movimiento
+          );
+
+        return (
+          estado ===
+            "Pendiente de revisión" ||
+          estado ===
+            "En revisión"
+        );
+      }
+    ).length;
+
+  /*
+    Los cortes de caja son traspasos internos:
+    el dinero cambia de ubicación, pero no sale
+    del negocio.
+  */
+  const esTraspasoInterno = (
+    movimiento
+  ) =>
+    obtenerCategoriaMovimiento(
+      movimiento
+    ) === "traspaso_caja";
 
   const entradasTesoreria =
     movimientosValidos
       .filter(
         (movimiento) =>
-          movimiento?.tipo === "ENTRADA"
+          obtenerTipoMovimiento(
+            movimiento
+          ) === "entrada"
       )
       .reduce(
         (total, movimiento) =>
           total +
           convertirNumero(
-            movimiento?.monto
+            movimiento?.monto ??
+              movimiento?.amount
           ),
         0
       );
 
-  const salidasTesoreria =
+  /*
+    Salidas registradas originalmente,
+    incluyendo los cortes de caja.
+  */
+  const salidasTesoreriaBrutas =
     movimientosValidos
       .filter(
         (movimiento) =>
-          movimiento?.tipo === "SALIDA"
+          obtenerTipoMovimiento(
+            movimiento
+          ) === "salida"
       )
       .reduce(
         (total, movimiento) =>
           total +
           convertirNumero(
-            movimiento?.monto
+            movimiento?.monto ??
+              movimiento?.amount
           ),
         0
       );
 
-  const dineroDisponible =
+  const traspasosCaja =
+    movimientosValidos
+      .filter(
+        (movimiento) =>
+          obtenerTipoMovimiento(
+            movimiento
+          ) === "salida" &&
+          esTraspasoInterno(
+            movimiento
+          )
+      )
+      .reduce(
+        (total, movimiento) =>
+          total +
+          convertirNumero(
+            movimiento?.monto ??
+              movimiento?.amount
+          ),
+        0
+      );
+
+  /*
+    Salidas que realmente abandonaron
+    el negocio durante el periodo.
+  */
+  const salidasTesoreria =
+    salidasTesoreriaBrutas -
+    traspasosCaja;
+
+  /*
+    Por ahora esta cifra representa el flujo
+    neto del periodo, no el saldo bancario real.
+
+    Más adelante se conectará con los saldos
+    iniciales de caja y bancos.
+  */
+  const flujoNetoTesoreria =
     entradasTesoreria -
     salidasTesoreria;
 
-  const movimientosPendientes =
+  /*
+    Se conserva este nombre temporalmente
+    para no romper los componentes existentes.
+  */
+  const dineroDisponible =
+    flujoNetoTesoreria;
+
+  /*
+    Para calcular gastos operativos solamente
+    se usan salidas revisadas y clasificadas
+    como fijas o variables.
+  */
+  const salidasClasificadas =
     movimientosValidos.filter(
-      (movimiento) =>
-        movimiento?.estado ===
-          "Pendiente de revisión" ||
-        movimiento?.estado ===
-          "En revisión"
-    ).length;
+      (movimiento) => {
+        const tipo =
+          obtenerTipoMovimiento(
+            movimiento
+          );
+
+        const estado =
+          obtenerEstadoMovimiento(
+            movimiento
+          );
+
+        const comportamiento =
+          obtenerComportamientoMovimiento(
+            movimiento
+          );
+
+        return (
+          tipo === "salida" &&
+          estado === "Revisado" &&
+          (
+            comportamiento === "fijo" ||
+            comportamiento === "variable"
+          )
+        );
+      }
+    );
+
+  const gastosFijos =
+    salidasClasificadas
+      .filter(
+        (movimiento) =>
+          obtenerComportamientoMovimiento(
+            movimiento
+          ) === "fijo"
+      )
+      .reduce(
+        (total, movimiento) =>
+          total +
+          convertirNumero(
+            movimiento?.monto ??
+              movimiento?.amount
+          ),
+        0
+      );
+
+  const gastosVariables =
+    salidasClasificadas
+      .filter(
+        (movimiento) =>
+          obtenerComportamientoMovimiento(
+            movimiento
+          ) === "variable"
+      )
+      .reduce(
+        (total, movimiento) =>
+          total +
+          convertirNumero(
+            movimiento?.monto ??
+              movimiento?.amount
+          ),
+        0
+      );
+
+  const gastosOperativos =
+    gastosFijos +
+    gastosVariables;
+
+  /*
+    Incluye únicamente salidas que todavía
+    requieren una decisión humana.
+  */
+  const gastosSinClasificar =
+    movimientosValidos
+      .filter(
+        (movimiento) => {
+          const tipo =
+            obtenerTipoMovimiento(
+              movimiento
+            );
+
+          const estado =
+            obtenerEstadoMovimiento(
+              movimiento
+            );
+
+          return (
+            tipo === "salida" &&
+            (
+              estado ===
+                "Pendiente de revisión" ||
+              estado ===
+                "En revisión"
+            )
+          );
+        }
+      )
+      .reduce(
+        (total, movimiento) =>
+          total +
+          convertirNumero(
+            movimiento?.monto ??
+              movimiento?.amount
+          ),
+        0
+      );
+
+  /*
+    Los gastos se comparan contra ventas.
+    Si todavía no hay ventas, se utilizan
+    las entradas de Tesorería como respaldo.
+  */
+  const basePorcentajeGastos =
+    ventas > 0
+      ? ventas
+      : entradasTesoreria;
+
+  const nombreBasePorcentajeGastos =
+    ventas > 0
+      ? "las ventas"
+      : "las entradas de Tesorería";
 
   const porcentajeGastos =
-    entradasTesoreria > 0
+    basePorcentajeGastos > 0
       ? (
-          salidasTesoreria /
-          entradasTesoreria
+          gastosOperativos /
+          basePorcentajeGastos
         ) * 100
       : 0;
+
+  const utilidadNetaEstimada =
+    utilidad -
+    gastosOperativos;
+
+  const margenConGastos =
+    ventas > 0
+      ? (
+          utilidadNetaEstimada /
+          ventas
+        ) * 100
+      : 0;
+
+  const margenContribucion =
+    ventas > 0
+      ? (
+          (
+            ventas -
+            costos -
+            gastosVariables
+          ) /
+          ventas
+        )
+      : 0;
+
+  const puntoEquilibrioVentas =
+    margenContribucion > 0
+      ? gastosFijos /
+        margenContribucion
+      : null;
+
+  const ventasSobrePuntoEquilibrio =
+    puntoEquilibrioVentas !== null
+      ? ventas -
+        puntoEquilibrioVentas
+      : null;
 
   const tieneDatosVentas =
     ventas > 0 ||
@@ -297,9 +686,9 @@ const vencimientos90Dias =
     utilidad
   )} y margen de ${formatoPorcentaje(
     margen
-  )}. Las salidas representan ${formatoPorcentaje(
+  )}. Los gastos operativos clasificados representan ${formatoPorcentaje(
     porcentajeGastos
-  )} de las entradas de Tesorería.${
+  )} de ${nombreBasePorcentajeGastos}.${
     saldoProveedores > 0
       ? ` Además, existen ${formatoDinero(
           saldoProveedores
@@ -351,7 +740,7 @@ recomendacion =
           ventas
         )}, margen de ${formatoPorcentaje(
           margen
-        )} y saldo de Tesorería de ${formatoDinero(
+        )} y flujo neto del periodo de ${formatoDinero(
           dineroDisponible
         )}.`;
 
@@ -390,11 +779,11 @@ recomendacion =
         "Liquidez ajustada";
 
       mensaje =
-        `Las salidas representan ${formatoPorcentaje(
+        `Los gastos operativos clasificados representan ${formatoPorcentaje(
           porcentajeGastos
-        )} de las entradas y quedan ${formatoDinero(
+        )} de ${nombreBasePorcentajeGastos}. El flujo neto del periodo es ${formatoDinero(
           dineroDisponible
-        )} disponibles.`;
+        )}.`;
 
       recomendacion =
         "Revisa pagos próximos y conserva una reserva antes de autorizar nuevas compras.";
@@ -405,9 +794,9 @@ recomendacion =
         "Flujo de efectivo favorable";
 
       mensaje =
-        `Las entradas superan las salidas. Actualmente existen ${formatoDinero(
+        `Las entradas superan las salidas. El flujo neto del periodo es ${formatoDinero(
           dineroDisponible
-        )} disponibles según Tesorería.`;
+        )}.`;
 
       recomendacion =
         "Mantén el registro diario y completa los reportes de SICAR.";
@@ -471,35 +860,17 @@ recomendacion =
   // ======================================================
 
   const reservaRecomendada =
-    dineroDisponible > 0
-      ? dineroDisponible * 0.20
+    flujoNetoTesoreria > 0
+      ? flujoNetoTesoreria * 0.20
       : 0;
 
-   const disponibleDespuesReserva =
-  Math.max(
-    0,
-    dineroDisponible -
-      reservaRecomendada
-  );
-
-const disponibleDespuesCompromisos =
-  Math.max(
-    0,
-    disponibleDespuesReserva -
-      vencimientos30Dias
-  );
-
-const limiteCompraPorUtilidad =
-  Math.max(
-    0,
-    utilidad * 0.40
-  );
-
-const capacidadCompra =
-  Math.min(
-    disponibleDespuesCompromisos,
-    limiteCompraPorUtilidad
-  );
+  /*
+    No se autoriza una capacidad de compra
+    hasta conectar saldos reales de cajas y
+    bancos, obligaciones confirmadas e
+    inventario necesario.
+  */
+  const capacidadCompra = 0;
 
   // ======================================================
   // ALERTAS
@@ -524,7 +895,7 @@ const capacidadCompra =
 
   if (porcentajeGastos >= 90) {
     alertasFinancieras.push(
-      "Las salidas están consumiendo más del 90% de las entradas registradas."
+      `Los gastos operativos clasificados superan el 90% de ${nombreBasePorcentajeGastos}.`
     );
   }
 
@@ -631,9 +1002,9 @@ if (dineroDisponible < 0) {
       prioridad: "ALTA",
       titulo: "Frenar gastos no prioritarios",
       descripcion:
-        `Las salidas representan ${formatoPorcentaje(
+        `Los gastos operativos clasificados representan ${formatoPorcentaje(
           porcentajeGastos
-        )} de las entradas registradas.`,
+        )} de ${nombreBasePorcentajeGastos}.`,
       impacto: "ALTO",
     });
   }
@@ -735,12 +1106,25 @@ if (dineroDisponible < 0) {
     utilidadTotal: utilidad,
     margenUtilidad: margen,
 
-    entradasTesoreria,
-    salidasTesoreria,
-    dineroDisponible,
+   entradasTesoreria,
+salidasTesoreriaBrutas,
+traspasosCaja,
+salidasTesoreria,
+flujoNetoTesoreria,
+dineroDisponible,
+gastosOperativos,
 
     movimientosPendientes,
     porcentajeGastos,
+    gastosFijos,
+gastosVariables,
+gastosSinClasificar,
+utilidadNetaEstimada,
+margenConGastos,
+margenContribucion:
+  margenContribucion * 100,
+puntoEquilibrioVentas,
+ventasSobrePuntoEquilibrio,
 
     fechaInicial: inicio,
     fechaFinal: fin,

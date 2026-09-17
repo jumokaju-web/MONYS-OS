@@ -1088,3 +1088,101 @@ export async function analizarCampanaFinalizadaIA({
 
   return data.analisis;
 }
+
+export async function generarKitMarketingIA({
+  negocio = {},
+  producto = {},
+  estrategia = {},
+  campana = {},
+  canales,
+  resultadosAnteriores = {},
+  notas = "",
+  datosReales = {},
+} = {}) {
+  const nombreProducto =
+    String(producto?.nombre || "").trim();
+
+  const objetivo =
+    String(estrategia?.objetivo || "").trim();
+
+  if (!nombreProducto) {
+    throw new Error(
+      "Falta indicar el producto."
+    );
+  }
+
+  if (!objetivo) {
+    throw new Error(
+      "Falta indicar el objetivo."
+    );
+  }
+
+  const { data, error } =
+    await supabase.functions.invoke(
+      "generar-kit-marketing",
+      {
+        body: {
+          negocio,
+
+          producto: {
+            ...producto,
+            nombre: nombreProducto,
+            precio: Number(
+              producto?.precio || 0
+            ),
+            existencia: Number(
+              producto?.existencia || 0
+            ),
+          },
+
+          estrategia: {
+            ...estrategia,
+            objetivo,
+            audiencia: String(
+              estrategia?.audiencia || ""
+            ).trim(),
+            oferta: String(
+              estrategia?.oferta || ""
+            ).trim(),
+          },
+
+          campana,
+
+          canales,
+
+          resultadosAnteriores,
+
+          notas,
+
+          datosReales,
+        },
+      }
+    );
+
+  if (error) {
+    console.error(
+      "Error generando kit de marketing:",
+      error
+    );
+
+    throw new Error(
+      "MONYS no pudo generar el kit de publicación."
+    );
+  }
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ||
+        "MONYS no pudo completar el kit."
+    );
+  }
+
+  if (!data?.kit && !data?.listo) {
+    throw new Error(
+      data?.mensaje ||
+        "MONYS no devolvió un kit válido."
+    );
+  }
+
+  return data?.kit || data;
+}

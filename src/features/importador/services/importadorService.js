@@ -45,9 +45,10 @@ export async function guardarImportacion({
 
   console.log(detalles[0]);
 
-  const { error: errorDetalles } = await supabase
-    .from("importacion_detalle")
-    .insert(detalles);
+  const { error: errorDetalles } =
+    await supabase
+      .from("importacion_detalle")
+      .insert(detalles);
 
   if (errorDetalles) {
     throw new Error(
@@ -59,6 +60,7 @@ export async function guardarImportacion({
     tipoReporte,
     datosNormalizados,
     importacionId: importacion.id,
+    branchId,
   });
 
   return importacion;
@@ -68,57 +70,69 @@ async function guardarDatosPorTipoReporte({
   tipoReporte,
   datosNormalizados,
   importacionId,
+  branchId,
 }) {
   switch (tipoReporte) {
-   
     case "Ventas por artículo":
-case "Utilidad por artículos": {
-  console.log(
-    "Guardando ventas por artículo...",
-    datosNormalizados.length
-  );
+    case "Utilidad por artículos": {
+      console.log(
+        "Guardando ventas por artículo...",
+        datosNormalizados.length
+      );
 
-  const registros = datosNormalizados.map(
-    (articulo) => ({
-      importacion_id: importacionId,
+      const registros =
+        datosNormalizados.map(
+          (articulo) => ({
+            importacion_id:
+              importacionId,
 
-      codigo: articulo.codigo || null,
+            codigo:
+              articulo.codigo || null,
 
-      descripcion: articulo.descripcion,
+            descripcion:
+              articulo.descripcion,
 
-      categoria: articulo.categoria || null,
+            categoria:
+              articulo.categoria || null,
 
-      cantidad: articulo.cantidad || 0,
+            cantidad:
+              articulo.cantidad || 0,
 
-      costo: articulo.costo || 0,
+            costo:
+              articulo.costo || 0,
 
-      importe: articulo.importe || 0,
+            importe:
+              articulo.importe || 0,
 
-      descuento: articulo.descuento || 0,
+            descuento:
+              articulo.descuento || 0,
 
-      utilidad: articulo.utilidad || 0,
+            utilidad:
+              articulo.utilidad || 0,
 
-      sucursal: articulo.sucursal || null,
+            sucursal:
+              articulo.sucursal || null,
 
-      fecha: articulo.fecha || null,
+            fecha:
+              articulo.fecha || null,
 
-      folio_venta:
-        articulo.folioVenta || null,
-    })
-  );
+            folio_venta:
+              articulo.folioVenta || null,
+          })
+        );
 
-  const { error } = await supabase
-    .from("ventas_articulos")
-    .insert(registros);
+      const { error } = await supabase
+        .from("ventas_articulos")
+        .insert(registros);
 
-  if (error) {
-    throw new Error(
-      `Error al guardar ventas: ${error.message}`
-    );
-  }
+      if (error) {
+        throw new Error(
+          `Error al guardar ventas: ${error.message}`
+        );
+      }
 
-  break;
-}
+      break;
+    }
 
     case "Inventario":
       console.log(
@@ -148,42 +162,53 @@ case "Utilidad por artículos": {
       );
       break;
 
-  case "Movimientos de caja": {
-  console.log(
-    "Guardando movimientos de caja...",
-    datosNormalizados.length
-  );
+    case "Movimientos de caja": {
+      console.log(
+        "Guardando movimientos de caja...",
+        datosNormalizados.length
+      );
 
-  await guardarMovimientosTesoreriaMasivos(
-    datosNormalizados
-  );
+      await guardarMovimientosTesoreriaMasivos(
+        datosNormalizados,
+        {
+          branchId:
+            branchId || null,
+          importacionId,
+        }
+      );
 
-  break;
-}
+      break;
+    }
 
-   
     case "Créditos de proveedores": {
       console.log(
         "Guardando créditos de proveedores...",
         datosNormalizados.length
       );
 
-      const registros = datosNormalizados.map(
-        (proveedor) => ({
-          importacion_id: importacionId,
+      const registros =
+        datosNormalizados.map(
+          (proveedor) => ({
+            importacion_id:
+              importacionId,
 
-          numero_proveedor:
-            proveedor.numeroProveedor || null,
+            numero_proveedor:
+              proveedor.numeroProveedor ||
+              null,
 
-          nombre: proveedor.nombre,
+            nombre:
+              proveedor.nombre,
 
-          telefono: proveedor.telefono || null,
+            telefono:
+              proveedor.telefono || null,
 
-          celular: proveedor.celular || null,
+            celular:
+              proveedor.celular || null,
 
-          saldo: proveedor.saldo || 0,
-        })
-      );
+            saldo:
+              proveedor.saldo || 0,
+          })
+        );
 
       const { error } = await supabase
         .from("creditos_proveedores")

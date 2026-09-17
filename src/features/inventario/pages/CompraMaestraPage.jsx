@@ -18,6 +18,14 @@ import {
   verificarPlanActualGuardado,
 } from "../services/compraPlanService";
 
+import {
+  generarAnalisisFinanciero,
+} from "../../inteligencia/ia/directorFinancieroIA";
+
+import {
+  obtenerCreditosProveedoresActuales,
+} from "../../inteligencia/services/creditosProveedoresService";
+
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -48,15 +56,18 @@ function formatearNumero(valor) {
   );
 }
 
+
 export default function CompraMaestraPage({
   volverAlDashboard,
+  datosDashboard = null,
+  movimientos = [],
 }) {
   const [
     compraMaestra,
     setCompraMaestra,
   ] = useState(null);
 
-    const [
+  const [
     guardandoPlan,
     setGuardandoPlan,
   ] = useState(false);
@@ -101,12 +112,150 @@ export default function CompraMaestraPage({
     setSucursalSeleccionada,
   ] = useState(null);
 
-    const [
+  const [
     seccionActiva,
     setSeccionActiva,
   ] = useState("resumen");
 
-   async function guardarPlanActual() {
+  const [
+    contextoProveedores,
+    setContextoProveedores,
+  ] = useState({
+    saldoTotal: 0,
+    creditos: [],
+  });
+
+  const [
+    cargandoContextoFinanciero,
+    setCargandoContextoFinanciero,
+  ] = useState(true);
+
+  useEffect(() => {
+    let activo = true;
+
+  async function cargarContextoFinanciero() {
+    const branchId =
+      datosDashboard?.branch_id;
+
+      if (!branchId) {
+        setCargandoContextoFinanciero(false);
+        return;
+      }
+
+    try {
+      const resultado =
+        await obtenerCreditosProveedoresActuales(
+          branchId
+        );
+
+      if (activo) {
+        setContextoProveedores({
+          saldoTotal:
+            convertirNumero(
+              resultado?.saldoTotal
+            ),
+
+          creditos:
+            Array.isArray(
+              resultado?.creditos
+            )
+              ? resultado.creditos
+              : [],
+        });
+      }
+      } catch (errorContexto) {
+        console.error(
+          "No fue posible cargar el contexto financiero de Compra Maestra:",
+          errorContexto
+        );
+      } finally {
+        if (activo) {
+          setCargandoContextoFinanciero(false);
+        }
+      }
+    }
+
+    cargarContextoFinanciero();
+
+    return () => {
+      activo = false;
+    };
+  }, [datosDashboard?.branch_id]);
+
+const metricasFinancieras =
+  datosDashboard?.metricas || {};
+
+const analisisFinancieroCompra =
+  generarAnalisisFinanciero({
+    movimientos,
+
+    ventasTotales:
+      metricasFinancieras
+        ?.ventasTotales || 0,
+
+    costoTotal:
+      metricasFinancieras
+        ?.costoTotal || 0,
+
+    utilidadTotal:
+      metricasFinancieras
+        ?.utilidadTotal || 0,
+
+    margenUtilidad:
+      metricasFinancieras
+        ?.margenUtilidad || 0,
+
+    fechaInicial:
+      metricasFinancieras
+        ?.fechaInicial || null,
+
+    fechaFinal:
+      metricasFinancieras
+        ?.fechaFinal || null,
+
+    diasAnalizados:
+      metricasFinancieras
+        ?.diasAnalizados || 0,
+
+    ventaPromedioDiaria:
+      metricasFinancieras
+        ?.ventaPromedioDiaria || 0,
+
+    utilidadPromedioDiaria:
+      metricasFinancieras
+        ?.utilidadPromedioDiaria || 0,
+
+    saldoProveedores:
+      contextoProveedores.saldoTotal,
+
+    creditosProveedores:
+      contextoProveedores.creditos,
+  });
+
+const capacidadCompraAutorizable =
+  convertirNumero(
+    analisisFinancieroCompra
+      ?.capacidadCompra
+  );
+
+  const inversionCompraPropuesta =
+    convertirNumero(
+      compraMaestra?.inversionTotal
+    );
+
+  const compraSuperaCapacidad =
+    !cargandoContextoFinanciero &&
+    inversionCompraPropuesta >
+      capacidadCompraAutorizable;
+
+  const faltanteParaAutorizar =
+    Math.max(
+      0,
+      inversionCompraPropuesta -
+        capacidadCompraAutorizable
+    );
+
+  async function guardarPlanActual() {
     if (
       !compraMaestra ||
       guardandoPlan ||
@@ -168,7 +317,7 @@ export default function CompraMaestraPage({
         setCompraMaestra(
           resultado
         );
-      
+
                 try {
           const verificacion =
             await verificarPlanActualGuardado(
@@ -670,7 +819,124 @@ export default function CompraMaestraPage({
         </div>
       </div>
 
-               <div
+      <div
+        style={{
+          marginBottom: "28px",
+          padding: "20px",
+          borderRadius: "18px",
+          border: cargandoContextoFinanciero
+            ? "1px solid #d9e8ff"
+            : compraSuperaCapacidad
+              ? "1px solid #efb7b7"
+              : "1px solid #b9dfc7",
+          backgroundColor: cargandoContextoFinanciero
+            ? "#f4f8ff"
+            : compraSuperaCapacidad
+              ? "#fff5f5"
+              : "#f3fbf6",
+        }}
+      >
+        <strong
+          style={{
+            display: "block",
+            fontSize: "18px",
+            color: cargandoContextoFinanciero
+              ? "#315b86"
+              : compraSuperaCapacidad
+                ? "#a52d2d"
+                : "#207a4a",
+          }}
+        >
+          {cargandoContextoFinanciero
+            ? "⏳ Calculando capacidad financiera..."
+            : compraSuperaCapacidad
+              ? "⛔ La compra completa no es autorizable"
+              : "✅ La compra está dentro de la capacidad financiera"}
+        </strong>
+
+        {!cargandoContextoFinanciero && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(210px, 1fr))",
+              gap: "12px",
+              marginTop: "16px",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "#6f666a",
+                  fontSize: "14px",
+                }}
+              >
+                Inversión propuesta
+              </div>
+
+              <strong>
+                {formatearDinero(
+                  inversionCompraPropuesta
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  color: "#6f666a",
+                  fontSize: "14px",
+                }}
+              >
+                Capacidad autorizable
+              </div>
+
+              <strong>
+                {formatearDinero(
+                  capacidadCompraAutorizable
+                )}
+              </strong>
+            </div>
+
+            {compraSuperaCapacidad && (
+              <div>
+                <div
+                  style={{
+                    color: "#6f666a",
+                    fontSize: "14px",
+                  }}
+                >
+                  Faltante para autorizar
+                </div>
+
+                <strong
+                  style={{
+                    color: "#a52d2d",
+                  }}
+                >
+                  {formatearDinero(
+                    faltanteParaAutorizar
+                  )}
+                </strong>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: "14px",
+            color: "#6f666a",
+            fontSize: "14px",
+            lineHeight: 1.5,
+          }}
+        >
+          Guardar el plan conserva una fotografía para análisis e historial;
+          no autoriza ni ejecuta la compra.
+        </div>
+      </div>
+
+      <div
         style={{
           marginBottom: "28px",
           padding: "18px 20px",
@@ -830,10 +1096,10 @@ export default function CompraMaestraPage({
           }
         />
       )}
-    
 
-   
- 
+
+
+
      {seccionActiva === "compra" && (
 
       <div
