@@ -549,7 +549,7 @@ const salidas =
 
 const disponible =
   entradas - salidas;
-  
+
   const ventasTotales =
     Number(
       metricasVentas.ventasTotales
@@ -1137,6 +1137,14 @@ errorSucursales={
       disponible={
         disponible
       }
+  
+      fechaInicial={
+  metricasVentas.fechaInicial
+}
+fechaFinal={
+  metricasVentas.fechaFinal
+}
+
       movimientos={
         movimientos
       }

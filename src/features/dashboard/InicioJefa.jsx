@@ -11,7 +11,9 @@ export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
-  movimientos = [],
+fechaInicial = null,
+fechaFinal = null,
+movimientos = [],
   formatoDinero,
   abrirJuntaDirectiva,
   abrirTesoreria,
@@ -28,6 +30,41 @@ export default function InicioJefa({
   contenidoSicar = null,
   contenidoCierre = null,
 }) {
+
+    const formatearFechaPeriodo = (valor) => {
+    if (!valor) {
+      return "";
+    }
+
+    const fechaTexto =
+      String(valor).slice(0, 10);
+
+    const [
+      anio,
+      mes,
+      dia,
+    ] = fechaTexto.split("-");
+
+    if (
+      !anio ||
+      !mes ||
+      !dia
+    ) {
+      return fechaTexto;
+    }
+
+    return `${dia}/${mes}/${anio}`;
+  };
+
+  const detallePeriodo =
+    fechaInicial && fechaFinal
+      ? `${formatearFechaPeriodo(
+          fechaInicial
+        )} al ${formatearFechaPeriodo(
+          fechaFinal
+        )}`
+      : "Periodo no disponible";
+
   const [
     recordatoriosJefa,
     setRecordatoriosJefa,
@@ -210,12 +247,14 @@ const utilidadConsolidada =
             )}
           />
 
-          <MetricaJefa
-            titulo="Flujo neto del periodo"
-            valor={formatoDinero(
-              disponible
-            )}
-          />
+         <MetricaJefa
+  titulo="Flujo neto del periodo"
+  valor={formatoDinero(
+    disponible
+  )}
+  detalle={detallePeriodo}
+/>
+
         </div>
 
         {/* ATENCIÓN */}
@@ -830,6 +869,8 @@ function DatoSucursal({
   titulo,
   valor,
 }) {
+
+  
   return (
     <div
       style={{
@@ -858,8 +899,9 @@ function DatoSucursal({
           fontSize: "13px",
         }}
       >
-        {valor}
-      </strong>
+           {valor}
+    </strong>
+
     </div>
   );
 }
@@ -867,13 +909,13 @@ function DatoSucursal({
 function MetricaJefa({
   titulo,
   valor,
+  detalle = "",
 }) {
   return (
     <div
       style={{
         background: "#ffffff",
-        border:
-          "1px solid #eadde4",
+        border: "1px solid #eadde4",
         borderRadius: "14px",
         padding: "11px 7px",
         textAlign: "center",
@@ -893,16 +935,30 @@ function MetricaJefa({
 
       <strong
         style={{
-          color: "#2d2027",
+          color: "#2d2026",
           fontSize: "13px",
           wordBreak: "break-word",
         }}
       >
         {valor}
       </strong>
+
+      {detalle && (
+        <div
+          style={{
+            marginTop: "4px",
+            color: "#8a7680",
+            fontSize: "10px",
+            fontWeight: "600",
+          }}
+        >
+          {detalle}
+        </div>
+      )}
     </div>
   );
 }
+
 
 function Acceso({
   icono,
