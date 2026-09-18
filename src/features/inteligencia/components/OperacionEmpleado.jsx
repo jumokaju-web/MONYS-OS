@@ -427,7 +427,45 @@ export default function OperacionEmpleado({
             )
         );
 
-      setTareas(propias);
+                  const tareasParaHoy = [
+        ...propias,
+        ...propiasCalendario.filter(
+          (tarea) => {
+            const esDeHoy =
+              tarea.fecha === fechaHoy;
+
+            const esPendienteAnterior =
+              Boolean(tarea.fecha) &&
+              tarea.fecha < fechaHoy &&
+              [
+                "pendiente",
+                "en_proceso",
+                "analizando",
+              ].includes(
+                tarea.estado
+              );
+
+            return (
+              esDeHoy ||
+              esPendienteAnterior
+            );
+          }
+        ),
+      ].filter(
+        (
+          tarea,
+          indice,
+          lista
+        ) =>
+          lista.findIndex(
+            (elemento) =>
+              elemento.id === tarea.id
+          ) === indice
+      );
+
+      setTareas(
+        tareasParaHoy
+      );
 
       setTareasCalendario(
         propiasCalendario
@@ -435,7 +473,8 @@ export default function OperacionEmpleado({
 
       const pares =
         await Promise.all(
-          propias.map(
+          tareasParaHoy.map(
+
             async (tarea) => {
               try {
                 const evidencias =
@@ -667,15 +706,25 @@ export default function OperacionEmpleado({
     }
   }
 
-  const activas =
+     const activas =
     useMemo(
       () =>
         tareas.filter(
-          (tarea) =>
-            tarea.estado ===
-              "pendiente" ||
-            tarea.estado ===
-              "en_proceso"
+          (tarea) => {
+            const estado =
+              normalizarTexto(
+                tarea.estado
+              );
+
+            return (
+              estado ===
+                "PENDIENTE" ||
+              estado ===
+                "EN_PROCESO" ||
+              estado ===
+                "ANALIZANDO"
+            );
+          }
         ),
       [tareas]
     );
@@ -685,8 +734,9 @@ export default function OperacionEmpleado({
       () =>
         tareas.filter(
           (tarea) =>
-            tarea.estado ===
-            "terminada"
+            normalizarTexto(
+              tarea.estado
+            ) === "TERMINADA"
         ),
       [tareas]
     );
@@ -694,18 +744,29 @@ export default function OperacionEmpleado({
   const pendientes =
     activas.filter(
       (tarea) =>
-        tarea.estado ===
-        "pendiente"
+        normalizarTexto(
+          tarea.estado
+        ) === "PENDIENTE"
     ).length;
 
   const enProceso =
     activas.filter(
-      (tarea) =>
-        tarea.estado ===
-        "en_proceso"
+      (tarea) => {
+        const estado =
+          normalizarTexto(
+            tarea.estado
+          );
+
+        return (
+          estado ===
+            "EN_PROCESO" ||
+          estado ===
+            "ANALIZANDO"
+        );
+      }
     ).length;
 
-  const urgentes =
+   const urgentes =
     activas.filter(
       (tarea) =>
         tarea.prioridad ===
