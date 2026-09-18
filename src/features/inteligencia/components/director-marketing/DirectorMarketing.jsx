@@ -539,6 +539,7 @@ export default function DirectorMarketing({
             descripcion:
               "La campaña activa llegó a 24 horas desde la última actualización del registro y continúa con 0 avances reales. Verificar ejecución y registrar únicamente gasto, pedidos y venta nuevos reales.",
             prioridad: "ALTA",
+            area: "marketing",
           },
           organizationId:
             usuario?.organization_id || null,

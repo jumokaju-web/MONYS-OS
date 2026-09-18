@@ -2535,6 +2535,13 @@ export async function crearTareaAutomaticaDesdePrioridad({
         )}%.`
       : descripcionBase;
 
+        const areaTarea =
+    String(
+      prioridad.area ||
+      "operacion"
+    )
+      .trim()
+      .toLowerCase();
 
   // --------------------------------------
   // PRIMERO: revisar duplicado
@@ -2575,8 +2582,8 @@ export async function crearTareaAutomaticaDesdePrioridad({
         branchId,
         titulo,
         descripcion,
-        area:
-          "operacion",
+       area:
+  areaTarea,
         fecha,
       });
   } catch (
