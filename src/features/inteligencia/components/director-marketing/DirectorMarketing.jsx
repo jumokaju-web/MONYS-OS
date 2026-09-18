@@ -22,6 +22,7 @@ import {
 } from "../../services/tareasOperativasService";
 
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import CentroAgenciaMarketing from "./CentroAgenciaMarketing";
 
 function convertirNumero(valor) {
   const numero = Number(valor);
@@ -1393,9 +1394,24 @@ export default function DirectorMarketing({
         )}
       </div>
 
+            <CentroAgenciaMarketing
+  productoLider={productoLider}
+  inventarioProductoLider={
+    inventarioProductoLider
+  }
+  campanasActivas={campanasActivas}
+  accionesPrioritarias={
+    listaAcciones
+  }
+  onPrepararPlan={
+    prepararPlanSemanal
+  }
+/>
+
              {/* CAMPAÑAS ACTIVAS */}
 
       <div
+  id="campanas-marketing-activas"
         style={{
           marginTop: "24px",
           padding: "20px",
@@ -1413,7 +1429,9 @@ export default function DirectorMarketing({
         </h3>
 
                  {mensajeAccionCampana && (
-          <div
+        
+        <div
+        
             style={{
               marginBottom: "12px",
               padding: "11px",
