@@ -1880,15 +1880,25 @@ export default function OperacionEmpleado({
 />
 )}
 
-             {normalizarTexto(tarea.area) ===
-  "MARKETING" && (
+       {normalizarTexto(tarea.area) ===
+  "MARKETING" &&
+  !String(tarea.titulo || "")
+    .toLowerCase()
+    .includes(
+      "dar seguimiento a campaña sin avances"
+    ) && (
   <RevisionMarketingTarea
     tarea={tarea}
   />
 )}
 
-                {normalizarTexto(tarea.area) ===
-  "MARKETING" && (
+       {normalizarTexto(tarea.area) ===
+  "MARKETING" &&
+  !String(tarea.titulo || "")
+    .toLowerCase()
+    .includes(
+      "dar seguimiento a campaña sin avances"
+    ) && (
   <ResultadoMarketingTarea
     tarea={tarea}
   />
