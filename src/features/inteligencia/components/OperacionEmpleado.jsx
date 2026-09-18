@@ -1880,29 +1880,29 @@ export default function OperacionEmpleado({
 />
 )}
 
-       {normalizarTexto(tarea.area) ===
+ {normalizarTexto(tarea.area) ===
   "MARKETING" &&
-  !String(tarea.titulo || "")
-    .toLowerCase()
-    .includes(
-      "dar seguimiento a campaña sin avances"
-    ) && (
-  <RevisionMarketingTarea
-    tarea={tarea}
-  />
-)}
+  !normalizarTexto(
+    tarea.titulo
+  ).includes(
+    "DAR SEGUIMIENTO A CAMPANA SIN AVANCES"
+  ) && (
+    <RevisionMarketingTarea
+      tarea={tarea}
+    />
+  )}
 
-       {normalizarTexto(tarea.area) ===
+{normalizarTexto(tarea.area) ===
   "MARKETING" &&
-  !String(tarea.titulo || "")
-    .toLowerCase()
-    .includes(
-      "dar seguimiento a campaña sin avances"
-    ) && (
-  <ResultadoMarketingTarea
-    tarea={tarea}
-  />
-)}
+  !normalizarTexto(
+    tarea.titulo
+  ).includes(
+    "DAR SEGUIMIENTO A CAMPANA SIN AVANCES"
+  ) && (
+    <ResultadoMarketingTarea
+      tarea={tarea}
+    />
+  )}
 
 {normalizarTexto(tarea.area) ===
   "MARKETING" && (
