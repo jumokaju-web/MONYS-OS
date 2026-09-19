@@ -481,15 +481,6 @@ const analisisRH =
       }}
     >
 
-      <OperacionHoy
-  organizationId={organizationId}
-  businessId={businessId}
-  branchId={branchId}
-/>
-
-<DirectorInventarioPanel
-  branchId={branchId}
-/>
 
       <button
         type="button"
@@ -845,7 +836,7 @@ const analisisRH =
   branchId={
     branchId
   }
- 
+
   empleados={
   usuariosRH
 }
@@ -865,6 +856,73 @@ const analisisRH =
           }
         />
       )}
+
+       <details
+  style={{
+    marginTop: "32px",
+    backgroundColor: "#ffffff",
+    border: "1px solid #eadde4",
+    borderRadius: "16px",
+    overflow: "hidden",
+  }}
+>
+  <summary
+    style={{
+      padding: "16px",
+      cursor: "pointer",
+      color: "#6e4058",
+      fontWeight: "800",
+      fontSize: "16px",
+    }}
+  >
+    ⚡ Ver operación completa
+  </summary>
+
+  <div
+    style={{
+      padding: "0 16px 16px",
+    }}
+  >
+    <OperacionHoy
+      organizationId={organizationId}
+      businessId={businessId}
+      branchId={branchId}
+    />
+  </div>
+</details>
+
+<details
+  style={{
+    marginTop: "12px",
+    backgroundColor: "#ffffff",
+    border: "1px solid #eadde4",
+    borderRadius: "16px",
+    overflow: "hidden",
+  }}
+>
+  <summary
+    style={{
+      padding: "16px",
+      cursor: "pointer",
+      color: "#6e4058",
+      fontWeight: "800",
+      fontSize: "16px",
+    }}
+  >
+    📦 Ver operación completa de inventario
+  </summary>
+
+  <div
+    style={{
+      padding: "0 16px 16px",
+    }}
+  >
+    <DirectorInventarioPanel
+      branchId={branchId}
+    />
+  </div>
+</details>
+
     </main>
   );
 }
