@@ -431,24 +431,9 @@ export default function OperacionEmpleado({
         ...propias,
         ...propiasCalendario.filter(
           (tarea) => {
-            const esDeHoy =
-              tarea.fecha === fechaHoy;
-
-            const esPendienteAnterior =
-              Boolean(tarea.fecha) &&
-              tarea.fecha < fechaHoy &&
-              [
-                "pendiente",
-                "en_proceso",
-                "analizando",
-              ].includes(
-                tarea.estado
-              );
-
-            return (
-              esDeHoy ||
-              esPendienteAnterior
-            );
+           return (
+  tarea.fecha === fechaHoy
+);
           }
         ),
       ].filter(

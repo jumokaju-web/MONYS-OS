@@ -59,8 +59,9 @@ export async function obtenerTareasOperativas({
   }
 
   if (fecha) {
-  consulta = consulta.or(
-    `fecha.eq.${fecha},and(fecha.lt.${fecha},estado.in.(pendiente,en_proceso,analizando))`
+  consulta = consulta.eq(
+    "fecha",
+    fecha
   );
 }
 
@@ -2209,150 +2210,18 @@ async function obtenerCargaActivaPorResponsable({
 // ======================================================
 
 async function equilibrarAsignacion({
-  branchId,
-  fecha,
   asignacionPreferida,
 }) {
-  if (!branchId) {
-    return (
-      asignacionPreferida ||
-      null
-    );
-  }
-
-  const empleados =
-    await obtenerEmpleadosActivosParaAsignacion(
-      branchId
-    );
-
-  if (
-    empleados.length === 0
-  ) {
-    return (
-      asignacionPreferida ||
-      null
-    );
-  }
-
-  const carga =
-    await obtenerCargaActivaPorResponsable({
-      branchId,
-      fecha,
-    });
-
-  const empleadosConCarga =
-    empleados
-      .map(
-        (empleado) => ({
-          empleado,
-
-          carga:
-            carga[
-              normalizarTextoAutomatizacion(
-                empleado.nombre
-              )
-            ] || 0,
-        })
-      )
-      .sort(
-        (a, b) =>
-          a.carga -
-          b.carga
-      );
-
-  const menorCarga =
-    empleadosConCarga[0];
-
-  if (!menorCarga) {
-    return (
-      asignacionPreferida ||
-      null
-    );
-  }
-
-  // Si no encontró perfil,
-  // usa a quien tiene menos carga.
-  if (
-    !asignacionPreferida
-      ?.nombre
-  ) {
-    return {
-      empleadoId:
-        menorCarga.empleado.id,
-
-      usuarioId:
-        menorCarga.empleado
-          .usuario_id ||
-        null,
-
-      nombre:
-        menorCarga.empleado
-          .nombre,
-
-      puesto:
-        menorCarga.empleado
-          .puesto ||
-        null,
-
-      cargaActual:
-        menorCarga.carga,
-
-      metodo:
-        "MENOR_CARGA",
-    };
-  }
-
-  const cargaPreferida =
-    carga[
-      normalizarTextoAutomatizacion(
-        asignacionPreferida
-          .nombre
-      )
-    ] || 0;
-
   /*
-    REGLA DE REPARTO:
-
-    Si la persona elegida por perfil
-    ya tiene 2 o más tareas que la
-    persona menos cargada,
-    la siguiente se reparte.
-  */
-
-  if (
-    cargaPreferida -
-      menorCarga.carga >=
-    2
-  ) {
-    return {
-      empleadoId:
-        menorCarga.empleado.id,
-
-      usuarioId:
-        menorCarga.empleado
-          .usuario_id ||
-        null,
-
-      nombre:
-        menorCarga.empleado
-          .nombre,
-
-      puesto:
-        menorCarga.empleado
-          .puesto ||
-        null,
-
-      cargaActual:
-        menorCarga.carga,
-
-      metodo:
-        "BALANCE_CARGA",
-    };
-  }
-
-  return asignacionPreferida;
+   * La distribución por carga ya se realiza
+   * entre empleados compatibles dentro de
+   * asignarResponsableAutomatico.
+   *
+   * Aquí conservamos esa elección para evitar
+   * enviar tareas a personas de otra área.
+   */
+  return asignacionPreferida || null;
 }
-
 
 // ======================================================
 // DEDUPLICAR PRIORIDADES DEL MISMO ANÁLISIS
@@ -2642,8 +2511,8 @@ export async function crearTareaAutomaticaDesdePrioridad({
 
       descripcion,
 
-      area:
-        "operacion",
+area:
+  areaTarea,
 
       responsable:
         responsableAutomatico,
@@ -2839,4 +2708,75 @@ export async function crearTareasAutomaticasDesdePatrones({
 
     resultados,
   };
+}
+// ======================================================
+// CANCELAR SEGUIMIENTO DE CAMPAÑA PAUSADA
+// ======================================================
+
+export async function cancelarSeguimientosCampanaPausada({
+  branchId,
+  nombreCampana,
+} = {}) {
+  const nombreLimpio =
+    String(
+      nombreCampana || ""
+    ).trim();
+
+  if (
+    !branchId ||
+    !nombreLimpio
+  ) {
+    return [];
+  }
+
+  const tituloSeguimiento =
+    `Dar seguimiento a campaña sin avances: ${nombreLimpio}`;
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("tareas_operativas")
+    .update({
+      estado: "cancelada",
+
+      resultado:
+        "Cancelada automáticamente porque el dueño pausó la campaña.",
+
+      completada_por: null,
+      completada_at: null,
+
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "branch_id",
+      branchId
+    )
+    .eq(
+      "titulo",
+      tituloSeguimiento
+    )
+    .in(
+      "estado",
+      [
+        "pendiente",
+        "en_proceso",
+        "analizando",
+      ]
+    )
+    .select();
+
+  if (error) {
+    console.error(
+      "Error cancelando seguimiento de campaña pausada:",
+      error
+    );
+
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data
+    : [];
 }

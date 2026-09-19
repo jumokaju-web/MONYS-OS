@@ -17,6 +17,7 @@ import {
 } from "../../../usuarios/services/usuariosService";
 
 import {
+  cancelarSeguimientosCampanaPausada,
   crearPlanSemanalMarketing,
   crearTareaAutomaticaDesdePrioridad,
 } from "../../services/tareasOperativasService";
@@ -257,6 +258,37 @@ export default function DirectorMarketing({
           campanas
         );
 
+        const campanasPausadas =
+  (campanas || []).filter(
+    (campana) =>
+      campana.estado ===
+      "PAUSADA"
+  );
+
+for (
+  const campanaPausada
+  of campanasPausadas
+) {
+  try {
+    await cancelarSeguimientosCampanaPausada({
+      branchId:
+        campanaPausada.branch_id,
+
+      nombreCampana:
+        campanaPausada.nombre ||
+        campanaPausada.producto ||
+        "campaña seleccionada",
+    });
+  } catch (
+    errorLimpiandoSeguimiento
+  ) {
+    console.error(
+      "No se pudo limpiar el seguimiento de una campaña pausada:",
+      errorLimpiandoSeguimiento
+    );
+  }
+}
+
         const sucursalesNegocio =
           sucursalesActivas.filter(
             (sucursal) =>
@@ -371,6 +403,25 @@ export default function DirectorMarketing({
             },
           }
         );
+
+        try {
+  await cancelarSeguimientosCampanaPausada({
+    branchId:
+      campana.branch_id,
+
+    nombreCampana:
+      campana.nombre ||
+      campana.producto ||
+      "campaña seleccionada",
+  });
+} catch (
+  errorCancelandoSeguimiento
+) {
+  console.error(
+    "La campaña se pausó, pero no se pudo cancelar su tarea de seguimiento:",
+    errorCancelandoSeguimiento
+  );
+}
 
       setCampanasMarketing(
         (campanasActuales) =>

@@ -428,26 +428,20 @@ export async function asignarResponsableAutomatico({
     return null;
   }
 
-
   const empleados =
     await obtenerEmpleadosActivosParaAsignacion(
       branchId
     );
 
-
-  if (
-    empleados.length === 0
-  ) {
+  if (empleados.length === 0) {
     return null;
   }
-
 
   const fechaTarea =
     fecha ||
     new Date()
       .toISOString()
       .slice(0, 10);
-
 
   const perfilTarea =
     detectarPerfilTarea({
@@ -456,71 +450,75 @@ export async function asignarResponsableAutomatico({
       area,
     });
 
-
   const cargaActual =
     await obtenerCargaActualEmpleados({
       branchId,
-      fecha:
-        fechaTarea,
+      fecha: fechaTarea,
     });
 
+  const perfilesEspecificos = [
+    "marketing",
+    "tienda",
+    "ventas",
+    "rh",
+    "administracion",
+    "flotilla",
+  ];
+
+  const requierePerfilEspecifico =
+    perfilesEspecificos.includes(
+      perfilTarea
+    );
 
   const candidatos =
     empleados
-      .map(
-        (empleado) => {
-          const compatibilidad =
-            calcularCompatibilidadEmpleado({
-              empleado,
-              perfilTarea,
-            });
-
-          const nombreNormalizado =
-            normalizarTexto(
-              empleado.nombre
-            );
-
-          const carga =
-            cargaActual[
-              nombreNormalizado
-            ] || 0;
-
-
-          return {
+      .map((empleado) => {
+        const compatibilidad =
+          calcularCompatibilidadEmpleado({
             empleado,
-            compatibilidad,
-            carga,
-          };
-        }
-      )
-      .sort(
-        (a, b) => {
-          if (
-            b.compatibilidad !==
-            a.compatibilidad
-          ) {
-            return (
-              b.compatibilidad -
-              a.compatibilidad
-            );
-          }
+            perfilTarea,
+          });
 
+        const nombreNormalizado =
+          normalizarTexto(
+            empleado.nombre
+          );
+
+        const carga =
+          cargaActual[
+            nombreNormalizado
+          ] || 0;
+
+        return {
+          empleado,
+          compatibilidad,
+          carga,
+        };
+      })
+      .filter(
+        (candidato) =>
+          !requierePerfilEspecifico ||
+          candidato.compatibilidad >= 10
+      )
+      .sort((a, b) => {
+        if (
+          b.compatibilidad !==
+          a.compatibilidad
+        ) {
           return (
-            a.carga -
-            b.carga
+            b.compatibilidad -
+            a.compatibilidad
           );
         }
-      );
 
+        return a.carga - b.carga;
+      });
 
-  const mejor =
-    candidatos[0];
-
+  const mejor = candidatos[0];
 
   if (!mejor?.empleado) {
     return null;
   }
-
 
   return {
     empleadoId:
@@ -546,7 +544,7 @@ export async function asignarResponsableAutomatico({
       mejor.carga,
 
     metodo:
-      mejor.compatibilidad >= 10
+      requierePerfilEspecifico
         ? "PUESTO_COMPATIBLE"
         : "MENOR_CARGA",
   };
