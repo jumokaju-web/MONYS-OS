@@ -1139,7 +1139,7 @@ export default function OperacionEmpleado({
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "54px minmax(0, 1fr)",
+                   "1fr",
                   gap: "10px",
                   padding: "10px",
                   borderRadius: "14px",
