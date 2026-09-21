@@ -1624,6 +1624,13 @@ export default function OperacionEmpleado({
           </div>
         )}
       </div>
+             <CrearCampanaMarketingTarea
+        tarea={{
+          titulo: "Crear campaña con MONYS",
+          area: "MARKETING",
+        }}
+        branchId={branchId}
+      />
 
       {/* TAREAS */}
 
@@ -3343,6 +3350,11 @@ async function generarKit() {
         producto,
       });
 
+       console.log(
+  "MONYS CONTEXTO REAL CAMPAÑA:",
+  contextoReal
+);
+
     const kit = await generarKitMarketingIA({
       negocio: {
         nombre: "Monys Glam",
@@ -3447,6 +3459,7 @@ async function generarKit() {
     branchId,
     producto,
   });
+
 
 const resultado =
   await generarEstrategiaCampanaIA({

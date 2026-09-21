@@ -181,6 +181,7 @@ export async function obtenerContextoRealProductoCampana({
   const inventario =
     resultadoInventario?.detalles || [];
 
+   
   const metricas =
     calcularMetricasDashboard(
       ventas,
