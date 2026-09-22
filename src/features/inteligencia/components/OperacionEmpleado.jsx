@@ -27,6 +27,7 @@ import {
   guardarAprendizajeCampana,
   obtenerCampanasMarketing,
   obtenerContextoRealProductoCampana,
+  obtenerOportunidadesGrowthOS,
 } from "../services/campanasMarketingService";
 
 import {
@@ -1896,13 +1897,6 @@ export default function OperacionEmpleado({
     />
   )}
 
-{normalizarTexto(tarea.area) ===
-  "MARKETING" && (
- <CrearCampanaMarketingTarea
-  tarea={tarea}
-  branchId={branchId}
-/>
-)}
 
                       <div
                         style={{
@@ -3158,6 +3152,26 @@ function CrearCampanaMarketingTarea({
   ] = useState("");
 
   const [
+  seccionGrowthActiva,
+  setSeccionGrowthActiva,
+] = useState("HOY");
+
+ const [
+  oportunidadesGrowth,
+  setOportunidadesGrowth,
+] = useState([]);
+
+const [
+  cargandoOportunidadesGrowth,
+  setCargandoOportunidadesGrowth,
+] = useState(false);
+
+const [
+  errorOportunidadesGrowth,
+  setErrorOportunidadesGrowth,
+] = useState("");
+
+  const [
     producto,
     setProducto,
   ] = useState("");
@@ -3300,6 +3314,17 @@ const [
     setEstrategia(
       ultimaCampana.estrategia_ia
     );
+
+    setProducto(
+  ultimaCampana?.estrategia_ia
+    ?.producto || ""
+);
+
+setObjetivoUsuario(
+  ultimaCampana?.estrategia_ia
+    ?.objetivo || ""
+);
+
   }
 }
 
@@ -3323,24 +3348,64 @@ const [
   branchId,
 ]);
 
+async function cargarOportunidadesGrowth() {
+  try {
+    setCargandoOportunidadesGrowth(true);
+    setErrorOportunidadesGrowth("");
+
+    const resultado =
+      await obtenerOportunidadesGrowthOS({
+        branchId,
+      });
+
+    setOportunidadesGrowth(
+      Array.isArray(resultado?.oportunidades)
+        ? resultado.oportunidades
+        : []
+    );
+  } catch (error) {
+    console.error(
+      "Error cargando oportunidades Growth OS:",
+      error
+    );
+
+    setErrorOportunidadesGrowth(
+      error?.message ||
+        "MONYS no pudo cargar las oportunidades."
+    );
+  } finally {
+    setCargandoOportunidadesGrowth(false);
+  }
+}
+
 async function generarKit() {
   try {
     setErrorCampana("");
     setKitMarketing(null);
 
-    if (
-      !String(producto || "").trim() ||
-      !String(objetivoUsuario || "").trim() ||
-      !String(precioProducto || "").trim() ||
-      !String(existenciaProducto || "").trim() ||
-      !String(audienciaProducto || "").trim() ||
-      !String(ofertaProducto || "").trim()
-    ) {
-      setErrorCampana(
-        "Para generar el kit captura producto, objetivo, precio, existencia, cliente ideal y oferta real."
-      );
-      return;
-    }
+    const audienciaFinal =
+  String(
+    audienciaProducto ||
+    estrategia?.audiencia ||
+    ""
+  ).trim();
+
+const ofertaFinal =
+  String(
+    ofertaProducto ||
+    estrategia?.oferta ||
+    ""
+  ).trim();
+
+   if (
+  !String(producto || "").trim() ||
+  !String(objetivoUsuario || "").trim()
+) {
+  setErrorCampana(
+    "MONYS necesita producto y objetivo para generar el kit."
+  );
+  return;
+}
 
     setGenerandoKit(true);
 
@@ -3350,7 +3415,7 @@ async function generarKit() {
         producto,
       });
 
-       console.log(
+    console.log(
   "MONYS CONTEXTO REAL CAMPAÑA:",
   contextoReal
 );
@@ -3361,17 +3426,49 @@ async function generarKit() {
         sucursalId: branchId || null,
       },
 
-      producto: {
-        nombre: producto.trim(),
-        precio: Number(precioProducto),
-        existencia: Number(existenciaProducto),
-      },
+    producto: {
+  nombre: producto.trim(),
 
-      estrategia: {
-        objetivo: objetivoUsuario.trim(),
-        audiencia: audienciaProducto.trim(),
-        oferta: ofertaProducto.trim(),
-      },
+ precio:
+  Number(precioProducto) ||
+  (
+    Number(
+      contextoReal?.ventas?.piezas || 0
+    ) > 0
+      ? Number(
+          contextoReal?.ventas?.importe || 0
+        ) /
+        Number(
+          contextoReal?.ventas?.piezas || 1
+        )
+      : 0
+  ),
+
+  existencia:
+    Number(existenciaProducto) ||
+    Number(
+      contextoReal?.inventario
+        ?.existencia || 0
+    ),
+},
+
+     estrategia: {
+  objetivo: objetivoUsuario.trim(),
+
+  audiencia:
+    String(
+      audienciaProducto ||
+      estrategia?.audiencia ||
+      ""
+    ).trim(),
+
+  oferta:
+    String(
+      ofertaProducto ||
+      estrategia?.oferta ||
+      ""
+    ).trim(),
+},
 
       campana: {
         canalPrincipal: canalPreferido || null,
@@ -3697,8 +3794,27 @@ businessId:
     resultado?.presupuestoInicial ||
     0,
 
-  estrategiaIA:
-    resultado,
+   estrategiaIA: {
+  ...resultado,
+
+  datosRentabilidadBase: {
+    margenReal:
+      contextoReal?.ventas
+        ?.margenReal ?? null,
+
+    utilidadBase:
+      contextoReal?.ventas
+        ?.utilidad ?? 0,
+
+    costoBase:
+      contextoReal?.ventas
+        ?.costo ?? 0,
+
+    importeBase:
+      contextoReal?.ventas
+        ?.importe ?? 0,
+  },
+},
 
   confianzaIA:
     resultado?.confianza ||
@@ -3770,6 +3886,64 @@ setEstrategia(
     );
   } finally {
     setActivandoCampana(false);
+  }
+}
+
+async function pausarCampanaActiva() {
+  if (!campanaGuardada?.id) {
+    setErrorCampana(
+      "No se encontró la campaña para pausar."
+    );
+    return;
+  }
+
+  const confirmar = window.confirm(
+    "¿Quieres pausar esta campaña? No se borrará ningún dato."
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  try {
+    setErrorCampana("");
+
+    const resultadoActual =
+      campanaGuardada?.resultado || {};
+
+    const campanaPausada =
+      await actualizarCampanaMarketing(
+        campanaGuardada.id,
+        {
+          estado: "PAUSADA",
+
+          resultado: {
+            ...resultadoActual,
+
+            pausaManual: {
+              fecha:
+                new Date().toISOString(),
+
+              motivo:
+                "Pausa manual desde MONYS Growth OS",
+            },
+          },
+        }
+      );
+
+    setCampanaGuardada(
+      campanaPausada
+    );
+  } catch (error) {
+    console.error(
+      "Error pausando campaña:",
+      error
+    );
+
+    setErrorCampana(
+      error?.message ||
+        "MONYS no pudo pausar la campaña."
+    );
   }
 }
 
@@ -3874,24 +4048,49 @@ async function guardarSeguimientoCampana() {
         ? gastoAcumulado /
           pedidosAcumulados
         : null;
+    const margenRealBase =
+  Number(
+    campanaGuardada
+      ?.estrategia_ia
+      ?.datosRentabilidadBase
+      ?.margenReal ?? 0
+  );
+
+const utilidadEstimadaCampana =
+  margenRealBase > 0
+    ? ventaAcumulada *
+      (margenRealBase / 100) -
+      gastoAcumulado
+    : null;
 
     let decisionActual =
-      "CONTINUAR MIDIENDO";
+  "CONTINUAR MIDIENDO";
 
-    if (
-      pedidosAcumulados === 0 &&
-      gastoAcumulado >= 90
-    ) {
-      decisionActual =
-        "PAUSAR";
-    } else if (
-      pedidosAcumulados >= 3 &&
-      costoPorPedido !== null &&
-      costoPorPedido <= 30
-    ) {
-      decisionActual =
-        "ESCALAR";
-    }
+if (
+  pedidosAcumulados === 0 &&
+  gastoAcumulado >= 90
+) {
+  decisionActual =
+    "PAUSAR";
+} else if (
+  margenRealBase > 0 &&
+  utilidadEstimadaCampana !== null &&
+  utilidadEstimadaCampana <= 0 &&
+  gastoAcumulado >= 90
+) {
+  decisionActual =
+    "PAUSAR";
+} else if (
+  pedidosAcumulados >= 3 &&
+  costoPorPedido !== null &&
+  costoPorPedido <= 30 &&
+  margenRealBase > 0 &&
+  utilidadEstimadaCampana !== null &&
+  utilidadEstimadaCampana > 0
+) {
+  decisionActual =
+    "ESCALAR";
+}
 
     const registroNuevo = {
       fecha:
@@ -3910,12 +4109,16 @@ async function guardarSeguimientoCampana() {
         new Date().toISOString(),
     };
 
-    const resultadoActualizado = {
-      gastoAcumulado,
-      pedidosAcumulados,
-      ventaAcumulada,
-      costoPorPedido,
-      decisionActual,
+     const resultadoActualizado = {
+  ...resultadoAnterior,
+
+  gastoAcumulado,
+  pedidosAcumulados,
+  ventaAcumulada,
+  costoPorPedido,
+  margenRealBase,
+utilidadEstimadaCampana,
+  decisionActual,
 
       historial: [
         ...(
@@ -4165,7 +4368,7 @@ async function cerrarCampanaMarketing() {
           fontSize: "15px",
         }}
       >
-        🚀 Crear campaña con MONYS
+        🚀 MONYS Growth OS
       </strong>
 
       <div
@@ -4175,11 +4378,488 @@ async function cerrarCampanaMarketing() {
           marginBottom: "10px",
         }}
       >
-        Dile a MONYS qué quieres lograr.
-        El Director de Crecimiento te
-        propondrá cómo probarlo, medirlo
-        y decidir si escalar o detener.
+      Tu centro de crecimiento inteligente.
+
+MONYS analiza ventas, inventario, margen, rotación y resultados reales para decirte qué producto impulsar, qué acción hacer hoy, qué probar y cuándo escalar, mejorar, pausar o detener.
       </div>
+
+       <div
+  style={{
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: "8px",
+    marginBottom: "12px",
+  }}
+>
+   <div
+  onClick={() =>
+    setSeccionGrowthActiva("HOY")
+  }
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "HOY"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "HOY"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  🎯 Qué hacer hoy
+</div>
+
+ <div
+  onClick={() => {
+  setSeccionGrowthActiva("OPORTUNIDADES");
+  cargarOportunidadesGrowth();
+}}
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "OPORTUNIDADES"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "OPORTUNIDADES"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  💡 Oportunidades
+</div>
+
+ <div
+  onClick={() =>
+    setSeccionGrowthActiva("CONTENIDO")
+  }
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "CONTENIDO"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "CONTENIDO"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  🎬 Contenido
+</div>
+
+   <div
+  onClick={() =>
+    setSeccionGrowthActiva("CAMPANAS")
+  }
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "CAMPANAS"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "CAMPANAS"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  📣 Campañas
+</div>
+
+  <div
+  onClick={() =>
+    setSeccionGrowthActiva("RESULTADOS")
+  }
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "RESULTADOS"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "RESULTADOS"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  📈 Resultados
+</div>
+
+   <div
+  onClick={() =>
+    setSeccionGrowthActiva("APRENDIZAJES")
+  }
+  style={{
+    ...estiloMiniTarjetaMarketing,
+    cursor: "pointer",
+    border:
+      seccionGrowthActiva === "APRENDIZAJES"
+        ? "2px solid #9d245b"
+        : estiloMiniTarjetaMarketing.border,
+    backgroundColor:
+      seccionGrowthActiva === "APRENDIZAJES"
+        ? "#fff0f6"
+        : estiloMiniTarjetaMarketing.backgroundColor,
+  }}
+>
+  🧠 Aprendizajes
+</div>
+
+</div>
+    {seccionGrowthActiva === "HOY" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      🎯 Prioridad de hoy
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+    {estrategia?.siguienteAccionKary
+  ? estrategia.siguienteAccionKary
+  : "MONYS analizará qué producto, contenido o acción merece atención primero según impacto, inventario, margen, rotación y resultados."}
+    </div>
+  </div>
+)}
+
+    {seccionGrowthActiva === "OPORTUNIDADES" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      💡 Oportunidades detectadas
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+     {cargandoOportunidadesGrowth ? (
+  <div>
+    Analizando ventas, inventario, margen y cobertura...
+  </div>
+) : errorOportunidadesGrowth ? (
+  <div>
+    {errorOportunidadesGrowth}
+  </div>
+) : oportunidadesGrowth.length === 0 ? (
+  <div>
+    No se detectaron oportunidades con los datos disponibles.
+  </div>
+) : (
+  <div
+    style={{
+      display: "grid",
+      gap: "8px",
+    }}
+  >
+    {oportunidadesGrowth.map(
+      (oportunidad, index) => (
+        <div
+          key={
+            oportunidad.codigo ||
+            oportunidad.nombre ||
+            index
+          }
+          style={{
+            padding: "10px",
+            borderRadius: "10px",
+            border: "1px solid #eee0e7",
+            backgroundColor: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: "800",
+              color: "#642347",
+              marginBottom: "4px",
+            }}
+          >
+            {index + 1}.{" "}
+            {oportunidad.nombre ||
+              oportunidad.codigo ||
+              "Producto"}
+          </div>
+
+          <div>
+            Existencia:{" "}
+            {oportunidad.existencia || 0} pzas
+          </div>
+
+          <div>
+            Cobertura:{" "}
+            {Number(
+              oportunidad.diasCobertura || 0
+            ).toFixed(0)} días
+          </div>
+
+          <div>
+            Margen:{" "}
+            {oportunidad.margenReal !== null &&
+            oportunidad.margenReal !== undefined
+              ? `${Number(
+                  oportunidad.margenReal
+                ).toFixed(1)}%`
+              : "Sin dato"}
+          </div>
+
+          <div>
+            Valor inventario: $
+            {Number(
+              oportunidad.valorInventario || 0
+            ).toLocaleString("es-MX", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+
+            <div
+  style={{
+    marginTop: "4px",
+    fontWeight: "800",
+    color: "#9d245b",
+  }}
+>
+  Prioridad Growth:{" "}
+  {Number(
+    oportunidad.prioridad || 0
+  ).toFixed(1)}
+</div>
+
+          </div>
+
+          {Array.isArray(
+            oportunidad.razones
+          ) &&
+            oportunidad.razones.length > 0 && (
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "12px",
+                  color: "#7b6872",
+                }}
+              >
+                {oportunidad.razones.join(
+                  " · "
+                )}
+              </div>
+            )}
+            <button
+  type="button"
+  onClick={() => {
+    const nombreOportunidad =
+      oportunidad.nombre ||
+      oportunidad.codigo ||
+      "";
+
+     setEstrategia(null);
+
+    setProducto(
+      nombreOportunidad
+    );
+
+    setObjetivoUsuario(
+      `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
+    );
+
+    setSeccionGrowthActiva(
+      "HOY"
+    );
+  }}
+  style={{
+    width: "100%",
+    marginTop: "10px",
+    padding: "10px",
+    borderRadius: "9px",
+    border: "1px solid #9d245b",
+    backgroundColor: "#fff0f6",
+    color: "#9d245b",
+    fontWeight: "800",
+    cursor: "pointer",
+  }}
+>
+  🚀 Trabajar esta oportunidad
+</button>
+        </div>
+      )
+    )}
+  </div>
+)}
+    </div>
+  </div>
+)}
+
+     {seccionGrowthActiva === "CONTENIDO" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      🎬 Contenido para crear
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+      Aquí MONYS convertirá oportunidades y campañas en piezas concretas:
+      video, gancho, guion, CTA, canal, formato y objetivo de venta.
+    </div>
+  </div>
+)}
+
+   {seccionGrowthActiva === "CAMPANAS" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      📣 Campañas y experimentos
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+      Aquí MONYS concentrará las campañas activas, pruebas pequeñas,
+      presupuesto, decisión actual y siguiente acción antes de escalar.
+    </div>
+  </div>
+)}
+
+ {seccionGrowthActiva === "RESULTADOS" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      📈 Resultados reales
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+      Aquí MONYS comparará alcance, leads, pedidos, ventas, gasto y utilidad
+      para saber qué acciones realmente producen crecimiento.
+    </div>
+  </div>
+)}
+
+      {seccionGrowthActiva === "APRENDIZAJES" && (
+  <div
+    style={{
+      marginBottom: "12px",
+      padding: "12px",
+      borderRadius: "12px",
+      border: "1px solid #ead7e2",
+      backgroundColor: "#fffdfd",
+    }}
+  >
+    <strong
+      style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#7a234f",
+      }}
+    >
+      🧠 Aprendizajes de crecimiento
+    </strong>
+
+    <div
+      style={{
+        fontSize: "13px",
+        color: "#6f6470",
+        lineHeight: "1.5",
+      }}
+    >
+      Aquí MONYS guardará qué funcionó, qué no funcionó, cuánto costó,
+      qué produjo ventas y qué debe repetir, mejorar o detener la próxima vez.
+    </div>
+  </div>
+)}
 
       <textarea
         value={objetivoUsuario}
@@ -4694,25 +5374,246 @@ async function cerrarCampanaMarketing() {
       dónde publicarlo y cómo medirlo.
     </div>
 
-    <pre
+    <div
+  style={{
+    display: "grid",
+    gap: "10px",
+  }}
+>
+  <div
+  style={{
+    padding: "12px",
+    borderRadius: "10px",
+    background:
+      kitMarketing?.estado === "LISTO"
+        ? "#ecfdf5"
+        : kitMarketing?.estado === "REQUIERE_DATOS"
+        ? "#fff7ed"
+        : "#fef2f2",
+    border:
+      kitMarketing?.estado === "LISTO"
+        ? "1px solid #86efac"
+        : kitMarketing?.estado === "REQUIERE_DATOS"
+        ? "1px solid #fdba74"
+        : "1px solid #fca5a5",
+  }}
+>
+  <strong>
+    {kitMarketing?.estado === "LISTO"
+      ? "✅ Listo para publicar"
+      : kitMarketing?.estado === "REQUIERE_DATOS"
+      ? "⚠️ Listo con pendientes"
+      : "⛔ No publicar todavía"}
+  </strong>
+
+  {Array.isArray(kitMarketing?.datosFaltantes) &&
+    kitMarketing.datosFaltantes.length > 0 && (
+      <div
+        style={{
+          marginTop: "6px",
+          fontSize: "12px",
+          lineHeight: 1.5,
+        }}
+      >
+        MONYS todavía necesita confirmar algunos datos antes de usar todo el contenido sin restricciones.
+      </div>
+    )}
+</div>
+  {kitMarketing?.resumen && (
+      <div
       style={{
-        margin: 0,
-        padding: "10px",
-        borderRadius: "9px",
+        padding: "12px",
+        borderRadius: "10px",
         background: "#ffffff",
-        whiteSpace: "pre-wrap",
-        fontFamily: "inherit",
-        fontSize: "12px",
-        lineHeight: 1.45,
-        color: "#263746",
       }}
     >
-      {JSON.stringify(
-        kitMarketing,
-        null,
-        2
+      <strong>🎯 Qué vamos a hacer</strong>
+      <div
+        style={{
+          marginTop: "6px",
+          fontSize: "13px",
+          lineHeight: 1.5,
+        }}
+      >
+        {kitMarketing.resumen}
+      </div>
+    </div>
+  )}
+
+  {kitMarketing?.mensajeCentral && (
+    <div
+      style={{
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#ffffff",
+      }}
+    >
+      <strong>💬 Mensaje de venta</strong>
+
+      {kitMarketing.mensajeCentral.gancho && (
+        <p>
+          <b>Gancho:</b>{" "}
+          {kitMarketing.mensajeCentral.gancho}
+        </p>
       )}
-    </pre>
+
+      {kitMarketing.mensajeCentral.beneficio && (
+        <p>
+          <b>Beneficio:</b>{" "}
+          {kitMarketing.mensajeCentral.beneficio}
+        </p>
+      )}
+
+      {kitMarketing.mensajeCentral.oferta && (
+        <p>
+          <b>Oferta:</b>{" "}
+          {kitMarketing.mensajeCentral.oferta}
+        </p>
+      )}
+
+      {kitMarketing.mensajeCentral
+        .llamadoAComprar && (
+        <p>
+          <b>CTA:</b>{" "}
+          {
+            kitMarketing.mensajeCentral
+              .llamadoAComprar
+          }
+        </p>
+      )}
+    </div>
+  )}
+
+  {kitMarketing?.tiktok && (
+    <div
+      style={{
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#ffffff",
+      }}
+    >
+      <strong>🎬 Video para TikTok</strong>
+
+      {kitMarketing.tiktok.objetivo && (
+        <p>
+          <b>Objetivo:</b>{" "}
+          {kitMarketing.tiktok.objetivo}
+        </p>
+      )}
+
+      {Array.isArray(
+        kitMarketing.tiktok.guion
+      ) &&
+        kitMarketing.tiktok.guion.map(
+          (paso, indice) => (
+            <div
+              key={indice}
+              style={{
+                marginTop: "8px",
+                padding: "8px",
+                borderRadius: "8px",
+                background: "#f8fafc",
+              }}
+            >
+              <b>
+                {paso?.momento ||
+                  `Paso ${indice + 1}`}
+              </b>
+
+              {paso?.visual && (
+                <div>
+                  🎥 {paso.visual}
+                </div>
+              )}
+
+              {paso?.vozOAccion && (
+                <div>
+                  🗣️ {paso.vozOAccion}
+                </div>
+              )}
+
+              {paso?.textoEnPantalla && (
+                <div>
+                  📱 {paso.textoEnPantalla}
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+      {kitMarketing.tiktok
+        .textoPublicacion && (
+        <div style={{ marginTop: "10px" }}>
+          <b>📝 Texto para publicar:</b>
+          <div>
+            {
+              kitMarketing.tiktok
+                .textoPublicacion
+            }
+          </div>
+        </div>
+      )}
+
+      {Array.isArray(
+        kitMarketing.tiktok.hashtags
+      ) && (
+        <div style={{ marginTop: "8px" }}>
+          <b># Hashtags:</b>{" "}
+          {kitMarketing.tiktok.hashtags.join(
+            " "
+          )}
+        </div>
+      )}
+    </div>
+  )}
+
+  {kitMarketing?.whatsapp
+    ?.mensajeDirecto && (
+    <div
+      style={{
+        padding: "12px",
+        borderRadius: "10px",
+        background: "#ffffff",
+      }}
+    >
+      <strong>💬 Respuesta por WhatsApp</strong>
+      <div
+        style={{
+          marginTop: "6px",
+          lineHeight: 1.5,
+        }}
+      >
+        {kitMarketing.whatsapp.mensajeDirecto}
+      </div>
+    </div>
+  )}
+
+  {Array.isArray(
+    kitMarketing?.datosFaltantes
+  ) &&
+    kitMarketing.datosFaltantes.length >
+      0 && (
+      <div
+        style={{
+          padding: "12px",
+          borderRadius: "10px",
+          background: "#fff7ed",
+        }}
+      >
+        <strong>
+          ⚠️ Datos que todavía falta confirmar
+        </strong>
+
+        <ul>
+          {kitMarketing.datosFaltantes.map(
+            (dato, indice) => (
+              <li key={indice}>{dato}</li>
+            )
+          )}
+        </ul>
+      </div>
+    )}
+</div>
   </div>
 )}
  {campanaGuardada?.estado ===
@@ -4731,7 +5632,25 @@ async function cerrarCampanaMarketing() {
     🟢 Campaña activa y en seguimiento
   </div>
 ) : (
-  <button
+  <>
+  <div
+  style={{
+    marginTop: "10px",
+    marginBottom: "8px",
+    padding: "10px",
+    borderRadius: "10px",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    color: "#475569",
+    textAlign: "center",
+  }}
+>
+  ℹ️ Iniciar seguimiento solo empieza a medir resultados.
+  No publica anuncios, no activa pauta y no genera gasto automático.
+</div>
+     <button
     type="button"
     onClick={
       activarCampana
@@ -4760,8 +5679,9 @@ async function cerrarCampanaMarketing() {
   >
     {activandoCampana
       ? "Activando campaña..."
-      : "🚀 Activar campaña"}
+     : "▶️ Iniciar seguimiento de campaña"}
   </button>
+  </>
 )}
 
         </div>
@@ -4779,61 +5699,10 @@ async function cerrarCampanaMarketing() {
       background: "#f0fdf4",
     }}
   >
-            {kitMarketing && (
-          <div
-            style={{
-              marginTop: "12px",
-              padding: "14px",
-              borderRadius: "12px",
-              border: "1px solid #c7d9f5",
-              background: "#f5f9ff",
-            }}
-          >
-            <strong
-              style={{
-                display: "block",
-                color: "#24558c",
-                marginBottom: "8px",
-              }}
-            >
-              📣 Kit de publicación MONYS
-            </strong>
 
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#526579",
-                marginBottom: "10px",
-              }}
-            >
-              Aquí Kary puede consultar qué publicar,
-              dónde publicarlo y cómo medirlo.
-            </div>
-
-            <pre
-              style={{
-                margin: 0,
-                padding: "10px",
-                borderRadius: "9px",
-                background: "#ffffff",
-                whiteSpace: "pre-wrap",
-                fontFamily: "inherit",
-                fontSize: "12px",
-                lineHeight: 1.45,
-                color: "#263746",
-              }}
-            >
-              {JSON.stringify(
-                kitMarketing,
-                null,
-                2
-              )}
-            </pre>
-          </div>
-        )}
     <strong>
       📊 Seguimiento de campaña
-    </strong>
+   </strong>
 
     <p
       style={{
@@ -4999,7 +5868,37 @@ async function cerrarCampanaMarketing() {
         ).toFixed(2)}
 
         <br />
+         Utilidad estimada de campaña:{" "}
+{campanaGuardada
+  .resultado
+  .utilidadEstimadaCampana !== null &&
+Number.isFinite(
+  Number(
+    campanaGuardada
+      .resultado
+      .utilidadEstimadaCampana
+  )
+)
+  ? `$${Number(
+      campanaGuardada
+        .resultado
+        .utilidadEstimadaCampana
+    ).toFixed(2)}`
+    : Number(
+      campanaGuardada
+        ?.estrategia_ia
+        ?.datosRentabilidadBase
+        ?.margenReal ?? 0
+    ) > 0
+  ? `Lista para calcular · margen base ${Number(
+      campanaGuardada
+        ?.estrategia_ia
+        ?.datosRentabilidadBase
+        ?.margenReal ?? 0
+    ).toFixed(1)}%`
+  : "Pendiente de margen real"}
 
+<br />
         Costo por pedido:{" "}
 {Number.isFinite(
   Number(
@@ -5057,6 +5956,27 @@ campanaGuardada
         : "🏁 Finalizar campaña"}
     </button>
 
+     {campanaGuardada?.estado === "ACTIVA" && (
+  <button
+    type="button"
+    onClick={pausarCampanaActiva}
+    style={{
+      width: "100%",
+      marginTop: "10px",
+      padding: "12px",
+      borderRadius: "11px",
+      border: "1px solid #d59b00",
+      background: "#fff8df",
+      color: "#8a6300",
+      fontWeight: "900",
+      cursor: "pointer",
+    }}
+  >
+    ⏸ Pausar campaña
+  </button>
+)}
+
+
          {errorCampana && (
       <div
         style={{
@@ -5087,6 +6007,17 @@ const estiloInputMarketing = {
   border: "1px solid #cedbd5",
   fontFamily: "inherit",
   fontSize: "14px",
+};
+
+ const estiloMiniTarjetaMarketing = {
+  padding: "10px",
+  borderRadius: "10px",
+  border: "1px solid #e5d7ee",
+  backgroundColor: "#fff9fc",
+  fontSize: "13px",
+  fontWeight: "700",
+  color: "#6f2d5f",
+  textAlign: "center",
 };
 
 const estiloFoto = {

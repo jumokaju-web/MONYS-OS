@@ -529,6 +529,330 @@ const diasAnalizados =
 }
 
 // ======================================================
+// MONYS GROWTH OS
+// DETECTOR DE OPORTUNIDADES REALES
+// ======================================================
+
+export async function obtenerOportunidadesGrowthOS({
+  branchId = null,
+} = {}) {
+  if (!branchId) {
+    throw new Error(
+      "Falta identificar la sucursal para detectar oportunidades."
+    );
+  }
+
+  const [
+    resultadoVentas,
+    resultadoInventario,
+    resultadoUtilidadArticulos,
+  ] = await Promise.all([
+    obtenerUltimaImportacionVentas(branchId),
+    obtenerUltimaImportacionInventario(branchId),
+    obtenerUltimaImportacionUtilidadArticulos(
+      branchId
+    ),
+  ]);
+
+  const ventasReales =
+    resultadoVentas?.ventasReales || [];
+
+  const ventasOriginales =
+    resultadoVentas?.detalles || [];
+
+  const ventas =
+    ventasReales.length > 0
+      ? ventasReales
+      : ventasOriginales;
+
+  const inventario =
+    resultadoInventario?.detalles || [];
+
+  const utilidadArticulos =
+    resultadoUtilidadArticulos
+      ?.utilidadArticulos || [];
+
+  const metricas =
+    calcularMetricasDashboard(
+      ventas,
+      []
+    );
+
+  const diasAnalizados =
+    Number(
+      metricas?.diasAnalizados || 0
+    ) || 7;
+
+  const productosVentas =
+    agruparVentasPorProducto(
+      ventas
+    );
+
+  const productosRentables =
+    agruparVentasPorProducto(
+      utilidadArticulos
+    );
+
+  const analisisInventario =
+    analizarInventario(
+      inventario,
+      {
+        ventas,
+        diasAnalizados,
+        diasObjetivoInventario: 30,
+      }
+    );
+
+  const productosInventario =
+    analisisInventario?.productos || [];
+
+  const oportunidades =
+    productosInventario
+      .map((itemInventario) => {
+        const referenciaProducto =
+          String(
+            itemInventario?.codigo ||
+              itemInventario?.nombre ||
+              itemInventario?.descripcion ||
+              ""
+          ).trim();
+
+        if (!referenciaProducto) {
+          return null;
+        }
+
+        const coincidenciaRentabilidad =
+          localizarCoincidenciasProducto(
+            productosRentables,
+            referenciaProducto
+          )[0]?.producto || null;
+
+        const coincidenciaVentas =
+          localizarCoincidenciasProducto(
+            productosVentas,
+            referenciaProducto
+          )[0]?.producto || null;
+
+        const datosVenta =
+          coincidenciaRentabilidad ||
+          coincidenciaVentas ||
+          {};
+
+        const existencia =
+          Number(
+            itemInventario?.existencia || 0
+          );
+
+        const valorInventario =
+          Number(
+            itemInventario?.valorInventario || 0
+          );
+
+        const piezasVendidas =
+          Number(
+            datosVenta?.piezas || 0
+          );
+
+        const importe =
+          Number(
+            datosVenta?.importe || 0
+          );
+
+        const utilidad =
+          Number(
+            datosVenta?.utilidad || 0
+          );
+
+        const ventaDiaria =
+          diasAnalizados > 0
+            ? piezasVendidas /
+              diasAnalizados
+            : 0;
+
+        const diasCobertura =
+          ventaDiaria > 0
+            ? existencia /
+              ventaDiaria
+            : existencia > 0
+            ? 999
+            : 0;
+
+        const margenReal =
+          importe > 0
+            ? (
+                utilidad /
+                importe
+              ) * 100
+            : null;
+
+       let prioridad = 0;
+const razones = [];
+
+// COBERTURA: máximo 40 puntos.
+// Mientras más días de inventario haya,
+// mayor urgencia de revisar el producto.
+const puntosCobertura =
+  diasCobertura > 0
+    ? Math.min(
+        diasCobertura / 180,
+        1
+      ) * 40
+    : 0;
+
+prioridad += puntosCobertura;
+
+if (diasCobertura >= 90) {
+  razones.push(
+    "Inventario con cobertura muy alta"
+  );
+} else if (diasCobertura >= 60) {
+  razones.push(
+    "Inventario por encima del objetivo"
+  );
+} else if (diasCobertura >= 45) {
+  razones.push(
+    "Cobertura elevada"
+  );
+}
+
+// MARGEN: máximo 25 puntos.
+// Premia oportunidades que todavía
+// pueden dejar buena utilidad.
+if (
+  margenReal !== null &&
+  margenReal > 0
+) {
+  const puntosMargen =
+    Math.min(
+      margenReal / 40,
+      1
+    ) * 25;
+
+  prioridad += puntosMargen;
+
+  if (margenReal >= 30) {
+    razones.push(
+      "Buen margen real"
+    );
+  } else if (margenReal >= 20) {
+    razones.push(
+      "Margen aprovechable"
+    );
+  }
+}
+
+// CAPITAL INMOVILIZADO: máximo 20 puntos.
+// No vale igual tener $2,000 detenidos
+// que $20,000 o más.
+const puntosCapital =
+  Math.min(
+    valorInventario / 20000,
+    1
+  ) * 20;
+
+prioridad += puntosCapital;
+
+if (valorInventario >= 5000) {
+  razones.push(
+    "Capital importante inmovilizado"
+  );
+} else if (valorInventario >= 2000) {
+  razones.push(
+    "Inventario con valor relevante"
+  );
+}
+
+// EXISTENCIA SIN VENTAS: 15 puntos extra.
+if (
+  piezasVendidas === 0 &&
+  existencia > 0
+) {
+  prioridad += 15;
+
+  razones.push(
+    "Tiene existencia y no registra venta reciente"
+  );
+}
+
+// Guardamos el puntaje limpio.
+prioridad =
+  Math.round(
+    prioridad * 10
+  ) / 10;
+
+        return {
+          codigo:
+            itemInventario?.codigo ||
+            null,
+
+          nombre:
+            itemInventario?.nombre ||
+            itemInventario?.descripcion ||
+            referenciaProducto,
+
+          existencia,
+
+          valorInventario,
+
+          piezasVendidas,
+
+          importe,
+
+          utilidad,
+
+          margenReal,
+
+          ventaDiaria,
+
+          diasCobertura,
+
+          prioridad,
+
+          razones,
+
+          fuente: {
+            ventas:
+              Boolean(
+                coincidenciaVentas
+              ),
+
+            rentabilidad:
+              Boolean(
+                coincidenciaRentabilidad
+              ),
+
+            inventario: true,
+          },
+        };
+      })
+      .filter(
+        (item) =>
+          item &&
+          item.existencia > 0
+      )
+      .sort(
+        (a, b) =>
+          b.prioridad -
+          a.prioridad
+      );
+
+  return {
+    branchId,
+
+    diasAnalizados,
+
+    totalProductosAnalizados:
+      oportunidades.length,
+
+    oportunidades:
+      oportunidades.slice(
+        0,
+        10
+      ),
+  };
+}
+
+// ======================================================
 // MONYS OS
 // MOTOR DE CRECIMIENTO Y CAMPAÑAS IA
 // Servicio de campañas de marketing
