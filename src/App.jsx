@@ -4,7 +4,7 @@ import {
 } from "react";
 
 import "./App.css";
-
+import FlotillaChofer from "./features/flotilla/components/FlotillaChofer";
 import CentroUsuarios from "./features/usuarios/components/CentroUsuarios";
 import { systemConfig } from "./core/config/systemConfig";
 import { useUser } from "./context/UserContext";
@@ -773,6 +773,17 @@ const disponible =
         return;
       }
 
+      if (
+  nombre ===
+  "Flotilla"
+) {
+  setPantallaActual(
+    "flotilla"
+  );
+
+  return;
+}
+
       alert(
         `${nombre} estará disponible en el siguiente módulo.`
       );
@@ -970,6 +981,28 @@ if (
     )
   }
 />
+  );
+}
+
+    /*
+  FLOTILLA
+*/
+if (
+  pantallaActual ===
+  "flotilla"
+) {
+  if (
+    !puedeAbrirModulo(
+      "Flotilla"
+    )
+  ) {
+    return mostrarAccesoDenegado(
+      "Flotilla"
+    );
+  }
+
+  return (
+    <FlotillaChofer />
   );
 }
 
@@ -1185,6 +1218,12 @@ fechaFinal={
       abrirImportador={() =>
   setPantallaActual(
     "importador"
+  )
+}
+
+      abrirFlotilla={() =>
+  setPantallaActual(
+    "flotilla"
   )
 }
 
