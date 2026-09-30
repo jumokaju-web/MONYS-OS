@@ -125,6 +125,75 @@ export default function CentroTrabajoGrowth({
     }
   );
 
+  const campanaPrioritaria = campanas.find(
+    (campana) =>
+      ["ACTIVA", "PREPARANDO"].includes(
+        String(campana?.estado || "").toUpperCase()
+      )
+  );
+
+  const historialCampana = Array.isArray(
+    campanaPrioritaria?.resultado?.historial
+  )
+    ? campanaPrioritaria.resultado.historial
+    : [];
+
+  const accionSugerida = tareaPrioritaria
+    ? {
+        titulo: tareaPrioritaria.titulo,
+        descripcion:
+          tareaPrioritaria.descripcion ||
+          "Completa esta acción y registra evidencia para que MONYS mida el resultado.",
+        criterio: tareaPrioritaria.criterio_exito,
+        etiqueta: estado.etiqueta,
+        clase: estado.clase,
+        boton:
+          String(
+            tareaPrioritaria.estado || ""
+          ).toLowerCase() === "pendiente"
+            ? "Empezar tarea"
+            : "Continuar tarea",
+        ejecutar: onEmpezarPrioridad,
+      }
+    : campanaPrioritaria
+      ? {
+          titulo: historialCampana.length
+            ? `Actualizar resultados de ${
+                campanaPrioritaria.producto ||
+                campanaPrioritaria.nombre ||
+                "la campaña activa"
+              }`
+            : `Registrar el primer resultado de ${
+                campanaPrioritaria.producto ||
+                campanaPrioritaria.nombre ||
+                "la campaña activa"
+              }`,
+          descripcion:
+            "Captura gasto, pedidos y venta real. Con esos datos MONYS calculará costo por pedido, utilidad y decidirá si conviene continuar, mejorar, escalar o detener.",
+          criterio:
+            "Un avance real registrado para que la campaña deje de operar sin medición.",
+          etiqueta: "Acción recomendada",
+          clase: "growth-workspace__status--active",
+          boton: historialCampana.length
+            ? "Actualizar resultados"
+            : "Registrar primer resultado",
+          ejecutar: () =>
+            onAbrirModulo?.("RESULTADOS"),
+        }
+      : {
+          titulo:
+            "Detectar la mejor oportunidad con datos reales",
+          descripcion:
+            "MONYS revisará inventario, ventas, margen y cobertura para encontrar qué producto merece atención antes de crear contenido o gastar dinero.",
+          criterio:
+            "Elegir un producto con inventario, margen y potencial suficientes para una prueba pequeña.",
+          etiqueta: "Siguiente paso",
+          clase: "growth-workspace__status--ready",
+          boton: "Ver oportunidades reales",
+          ejecutar: () =>
+            onAbrirModulo?.("OPORTUNIDADES"),
+        };
+
   return (
     <section className="growth-workspace">
       <div className="growth-workspace__glow growth-workspace__glow--one" />
@@ -200,31 +269,27 @@ export default function CentroTrabajoGrowth({
         <div className="growth-workspace__focus-topline">
           <span>Prioridad inteligente</span>
 
-          {tareaPrioritaria && (
-            <span
-              className={`growth-workspace__status ${estado.clase}`}
-            >
-              {estado.etiqueta}
-            </span>
-          )}
+          <span
+            className={`growth-workspace__status ${accionSugerida.clase}`}
+          >
+            {accionSugerida.etiqueta}
+          </span>
         </div>
 
         <div className="growth-workspace__focus-grid">
           <div>
             <h2>
-              {tareaPrioritaria?.titulo ||
-                "MONYS está listo para priorizar tu siguiente acción"}
+              {accionSugerida.titulo}
             </h2>
 
             <p>
-              {tareaPrioritaria?.descripcion ||
-                "Cuando exista una tarea de Marketing asignada, aquí verás qué hacer primero y por qué importa."}
+              {accionSugerida.descripcion}
             </p>
 
-            {tareaPrioritaria?.criterio_exito && (
+            {accionSugerida.criterio && (
               <div className="growth-workspace__outcome">
                 <span>Resultado esperado</span>
-                {tareaPrioritaria.criterio_exito}
+                {accionSugerida.criterio}
               </div>
             )}
 
@@ -232,15 +297,9 @@ export default function CentroTrabajoGrowth({
               <button
                 type="button"
                 className="growth-workspace__primary"
-                onClick={onEmpezarPrioridad}
-                disabled={!tareaPrioritaria}
+                onClick={accionSugerida.ejecutar}
               >
-                {String(
-                  tareaPrioritaria?.estado || ""
-                ).toLowerCase() ===
-                "pendiente"
-                  ? "Empezar tarea"
-                  : "Continuar tarea"}
+                {accionSugerida.boton}
                 <span aria-hidden="true">→</span>
               </button>
 
