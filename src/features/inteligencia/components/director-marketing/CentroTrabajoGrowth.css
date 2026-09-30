@@ -616,3 +616,18 @@
     width: 100%;
   }
 }
+
+
+/* Integración limpia: evita duplicar el centro Growth y el resumen operativo. */
+.growth-workspace + #calendario-growth {
+  height: 0;
+  margin: 0 !important;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+body:has(.growth-workspace) #centro-growth-operativo > strong:first-of-type,
+body:has(.growth-workspace) #centro-growth-operativo > strong:first-of-type + div,
+body:has(.growth-workspace) #centro-growth-operativo > strong:first-of-type + div + div {
+  display: none !important;
+}
