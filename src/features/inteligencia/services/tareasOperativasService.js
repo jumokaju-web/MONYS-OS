@@ -217,8 +217,9 @@ export async function crearTareaOperativa({
       .toISOString()
       .slice(0, 10);
 
-  // Evita crear nuevamente una tarea igual
-  // mientras la anterior siga activa.
+  // Evita duplicar la misma tarea dentro del mismo día.
+  // Una tarea recurrente con el mismo título sí debe poder
+  // programarse nuevamente en otra fecha o semana.
   let consultaExistente =
     supabase
       .from("tareas_operativas")
@@ -230,6 +231,10 @@ export async function crearTareaOperativa({
       .eq(
         "area",
         area || "general"
+      )
+      .eq(
+        "fecha",
+        fechaTarea
       )
       .in("estado", [
         "pendiente",
