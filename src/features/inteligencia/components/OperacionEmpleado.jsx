@@ -3428,6 +3428,11 @@ const [
       ultimaCampana.estrategia_ia
     );
 
+    setKitMarketing(
+      ultimaCampana?.estrategia_ia
+        ?.kitPublicacion || null
+    );
+
     setProducto(
   ultimaCampana?.estrategia_ia
     ?.producto || ""
@@ -3631,6 +3636,39 @@ const ofertaFinal =
     });
 
     setKitMarketing(kit);
+
+    if (campanaGuardada?.id) {
+      const estrategiaActualizada = {
+        ...(
+          campanaGuardada
+            ?.estrategia_ia ||
+          estrategia ||
+          {}
+        ),
+
+        kitPublicacion: kit,
+
+        kitPublicacionGeneradoEn:
+          new Date().toISOString(),
+      };
+
+      const campanaActualizada =
+        await actualizarCampanaMarketing(
+          campanaGuardada.id,
+          {
+            estrategia_ia:
+              estrategiaActualizada,
+          }
+        );
+
+      setCampanaGuardada(
+        campanaActualizada
+      );
+
+      setEstrategia(
+        estrategiaActualizada
+      );
+    }
   } catch (error) {
     console.error(
       "Error generando kit de marketing:",
