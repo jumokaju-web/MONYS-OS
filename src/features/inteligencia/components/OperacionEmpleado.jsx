@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -30,9 +31,13 @@ import {
   obtenerOportunidadesGrowthOS,
 } from "../services/campanasMarketingService";
 
+import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
+import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
+
 import {
-  useUser,
-} from "../../../context/UserContext";
+  claveEspacioGrowth,
+  obtenerEspaciosGrowth,
+} from "../services/growthAgencyService";
 
 function obtenerFechaHoy() {
   const ahora = new Date();
@@ -280,7 +285,20 @@ export default function OperacionEmpleado({
   branchId = null,
   usuario = null,
 }) {
+  const [
+    espaciosGrowth,
+    setEspaciosGrowth,
+  ] = useState([]);
+
+  const [
+    claveEspacioGrowthActivo,
+    setClaveEspacioGrowthActivo,
+  ] = useState("");
+
   const [tareas, setTareas] =
+    useState([]);
+
+  const [campanasGrowth, setCampanasGrowth] =
     useState([]);
 
   const [
@@ -320,6 +338,85 @@ export default function OperacionEmpleado({
   const fechaHoy =
     obtenerFechaHoy();
 
+  useEffect(() => {
+    let activo = true;
+
+    async function cargarEspaciosGrowth() {
+      if (!usuario?.organization_id) {
+        return;
+      }
+
+      try {
+        const espacios =
+          await obtenerEspaciosGrowth({
+            organizationId:
+              usuario.organization_id,
+          });
+
+        if (!activo) {
+          return;
+        }
+
+        setEspaciosGrowth(espacios);
+
+        const espacioUsuario = espacios.find(
+          (espacio) =>
+            espacio.business_id ===
+              usuario.business_id &&
+            espacio.branch_id ===
+              (branchId || usuario.branch_id)
+        );
+
+        setClaveEspacioGrowthActivo(
+          claveEspacioGrowth(
+            espacioUsuario || espacios[0]
+          )
+        );
+      } catch (errorEspacios) {
+        console.error(
+          "Error cargando empresas de Growth OS:",
+          errorEspacios
+        );
+      }
+    }
+
+    cargarEspaciosGrowth();
+
+    return () => {
+      activo = false;
+    };
+  }, [
+    branchId,
+    usuario?.branch_id,
+    usuario?.business_id,
+    usuario?.organization_id,
+  ]);
+
+  const espacioGrowthActivo = useMemo(
+    () =>
+      espaciosGrowth.find(
+        (espacio) =>
+          claveEspacioGrowth(espacio) ===
+          claveEspacioGrowthActivo
+      ) || null,
+    [
+      claveEspacioGrowthActivo,
+      espaciosGrowth,
+    ]
+  );
+
+  const branchIdActivo =
+    espacioGrowthActivo?.branch_id ??
+    branchId;
+
+  const organizationIdActivo =
+    espacioGrowthActivo?.organization_id ??
+    usuario?.organization_id;
+
+  const businessIdActivo =
+    espacioGrowthActivo?.business_id ??
+    usuario?.business_id;
+
   const diasSemana =
     useMemo(
       () =>
@@ -347,19 +444,20 @@ export default function OperacionEmpleado({
         registros,
         correcciones,
         registrosCalendario,
+        campanas,
       ] = await Promise.all([
         obtenerTareasOperativas({
-          branchId,
+          branchId: branchIdActivo,
           fecha: fechaHoy,
         }),
 
         obtenerCorreccionesInventarioDisponibles({
-          branchId,
+          branchId: branchIdActivo,
           fecha: fechaHoy,
         }),
 
         obtenerCalendarioTareasOperativas({
-          branchId,
+          branchId: branchIdActivo,
           fechaInicio:
             diasSemana[0].fecha,
           fechaFin:
@@ -367,7 +465,27 @@ export default function OperacionEmpleado({
               diasSemana.length - 1
             ].fecha,
         }),
+
+        obtenerCampanasMarketing({
+          organizationId:
+            organizationIdActivo,
+          businessId: businessIdActivo,
+          branchId: branchIdActivo,
+        }).catch((errorCampanas) => {
+          console.error(
+            "Error cargando resumen Growth:",
+            errorCampanas
+          );
+
+          return [];
+        }),
       ]);
+
+      setCampanasGrowth(
+        Array.isArray(campanas)
+          ? campanas
+          : []
+      );
 
       setCorreccionesDisponibles(
         Array.isArray(correcciones)
@@ -509,7 +627,9 @@ export default function OperacionEmpleado({
   useEffect(() => {
     cargarTareas();
   }, [
-    branchId,
+    organizationIdActivo,
+    businessIdActivo,
+    branchIdActivo,
     fechaHoy,
     nombreEmpleado,
     diasSemana,
@@ -805,6 +925,57 @@ export default function OperacionEmpleado({
     )[0] || null;
   }, [activas]);
 
+  const esCentroGrowth = useMemo(
+    () =>
+      normalizarTexto(
+        usuario?.role
+      ) === "MARKETING" ||
+      [...activas, ...tareasCalendario].some(
+        (tarea) =>
+          normalizarTexto(
+            tarea.area
+          ) === "MARKETING"
+      ),
+    [
+      activas,
+      tareasCalendario,
+      usuario?.role,
+    ]
+  );
+
+  function abrirTareaPrioritaria() {
+    if (!tareaPrioritaria) {
+      return;
+    }
+
+    if (
+      normalizarTexto(
+        tareaPrioritaria.estado
+      ) === "PENDIENTE"
+    ) {
+      cambiarEstado(
+        tareaPrioritaria,
+        "en_proceso"
+      );
+
+      return;
+    }
+
+    const tarjeta =
+      document.getElementById(
+        `tarea-${tareaPrioritaria.id}`
+      );
+
+    tarjeta
+      ?.querySelector("details")
+      ?.setAttribute("open", "");
+
+    tarjeta?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
   if (cargando) {
     return (
       <div
@@ -825,7 +996,66 @@ export default function OperacionEmpleado({
         padding: "16px",
       }}
     >
-      {tareaPrioritaria && (
+      {esCentroGrowth && (
+        <CentroTrabajoGrowth
+          usuario={usuario}
+          porcentaje={porcentaje}
+          pendientes={pendientes}
+          enProceso={enProceso}
+          terminadas={
+            terminadas.length
+          }
+          tareasSemana={
+            tareasCalendario.length
+          }
+          tareaPrioritaria={
+            tareaPrioritaria
+          }
+          campanas={campanasGrowth}
+          onActualizar={cargarTareas}
+          onEmpezarPrioridad={
+            abrirTareaPrioritaria
+          }
+          onVerSemana={() =>
+            document
+              .getElementById(
+                "calendario-growth"
+              )
+              ?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+          }
+          onAbrirModulo={(seccion) => {
+            window.dispatchEvent(
+              new CustomEvent(
+                "monys-growth-navegar",
+                {
+                  detail: seccion,
+                }
+              )
+            );
+
+            document
+              .getElementById(
+                "centro-growth-operativo"
+              )
+              ?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+          }}
+          espaciosGrowth={espaciosGrowth}
+          espacioGrowthActivo={
+            espacioGrowthActivo
+          }
+          onCambiarEspacio={
+            setClaveEspacioGrowthActivo
+          }
+        />
+      )}
+
+      {!esCentroGrowth && tareaPrioritaria && (
         <article
           style={{
             marginBottom: "18px",
@@ -874,17 +1104,9 @@ export default function OperacionEmpleado({
 
           <button
             type="button"
-            onClick={() => {
-              if (normalizarTexto(tareaPrioritaria.estado) === "PENDIENTE") {
-                cambiarEstado(tareaPrioritaria, "en_proceso");
-              } else {
-                const tarjeta = document.getElementById(
-                  `tarea-${tareaPrioritaria.id}`
-                );
-                tarjeta?.querySelector("details")?.setAttribute("open", "");
-                tarjeta?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            }}
+            onClick={
+              abrirTareaPrioritaria
+            }
             style={{
               width: "100%",
               marginTop: "14px",
@@ -907,6 +1129,7 @@ export default function OperacionEmpleado({
       {/* RESUMEN */}
 
       <div
+        id="calendario-growth"
         style={{
           marginBottom: "18px",
         }}
@@ -1737,12 +1960,17 @@ export default function OperacionEmpleado({
           </div>
         )}
       </div>
-             <CrearCampanaMarketingTarea
+      <CrearCampanaMarketingTarea
         tarea={{
           titulo: "Crear campaña con MONYS",
           area: "MARKETING",
         }}
-        branchId={branchId}
+        usuario={usuario}
+        branchId={branchIdActivo}
+        organizationId={
+          organizationIdActivo
+        }
+        businessId={businessIdActivo}
       />
 
       {/* TAREAS */}
@@ -3252,13 +3480,11 @@ function ResultadoMarketingTarea({
 
 function CrearCampanaMarketingTarea({
   tarea,
+  usuario,
   branchId,
+  organizationId,
+  businessId,
 }) {
-
-    const {
-    usuario,
-  } = useUser();
-
   const [
     objetivoUsuario,
     setObjetivoUsuario,
@@ -3283,6 +3509,47 @@ const [
   errorOportunidadesGrowth,
   setErrorOportunidadesGrowth,
 ] = useState("");
+
+  const cargarOportunidadesGrowthRef =
+    useRef(null);
+
+  useEffect(() => {
+    function abrirModuloGrowth(event) {
+      const seccion = normalizarTexto(
+        event?.detail
+      );
+
+      const seccionesPermitidas = [
+        "HOY",
+        "OPORTUNIDADES",
+        "CONTENIDO",
+        "CAMPANAS",
+        "RESULTADOS",
+        "APRENDIZAJES",
+      ];
+
+      if (!seccionesPermitidas.includes(seccion)) {
+        return;
+      }
+
+      setSeccionGrowthActiva(seccion);
+
+      if (seccion === "OPORTUNIDADES") {
+        cargarOportunidadesGrowthRef.current?.();
+      }
+    }
+
+    window.addEventListener(
+      "monys-growth-navegar",
+      abrirModuloGrowth
+    );
+
+    return () =>
+      window.removeEventListener(
+        "monys-growth-navegar",
+        abrirModuloGrowth
+      );
+  }, []);
 
   const [
     producto,
@@ -3390,8 +3657,8 @@ const [
 
   async function cargarUltimaCampana() {
     if (
-      !usuario?.organization_id ||
-      !usuario?.business_id
+      !organizationId ||
+      !businessId
     ) {
       return;
     }
@@ -3399,11 +3666,9 @@ const [
     try {
       const campanas =
         await obtenerCampanasMarketing({
-          organizationId:
-            usuario.organization_id,
+          organizationId,
 
-          businessId:
-            usuario.business_id,
+          businessId,
 
           branchId:
             branchId || null,
@@ -3461,8 +3726,8 @@ setObjetivoUsuario(
       false;
   };
 }, [
-  usuario?.organization_id,
-  usuario?.business_id,
+  organizationId,
+  businessId,
   branchId,
 ]);
 
@@ -3495,6 +3760,9 @@ async function cargarOportunidadesGrowth() {
     setCargandoOportunidadesGrowth(false);
   }
 }
+
+cargarOportunidadesGrowthRef.current =
+  cargarOportunidadesGrowth;
 
 async function generarKit() {
   try {
@@ -3884,12 +4152,10 @@ datosInventario:
     const campanaCreada =
   await crearCampanaMarketing({
   organizationId:
-  usuario?.organization_id ||
-  null,
+    organizationId || null,
 
 businessId:
-  usuario?.business_id ||
-  null,
+  businessId || null,
 
   branchId:
     branchId || null,
@@ -4499,6 +4765,7 @@ async function cerrarCampanaMarketing() {
 
   return (
     <div
+      id="centro-growth-operativo"
       style={{
         marginBottom: "16px",
         padding: "14px",
@@ -5766,6 +6033,19 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
 </div>
   </div>
 )}
+
+{kitMarketing && campanaGuardada?.id && (
+  <CentroPublicacionesMarketing
+    usuario={usuario}
+    organizationId={organizationId}
+    businessId={businessId}
+    branchId={branchId}
+    campana={campanaGuardada}
+    kit={kitMarketing}
+    productoPrincipal={producto}
+  />
+)}
+
  {campanaGuardada?.estado ===
 "ACTIVA" ? (
   <div
