@@ -24,6 +24,14 @@ function estadoPrioridad(tarea) {
   };
 }
 
+function moneda(valor) {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  }).format(Number(valor || 0));
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -32,19 +40,90 @@ export default function CentroTrabajoGrowth({
   terminadas = 0,
   tareasSemana = 0,
   tareaPrioritaria = null,
+  campanas = [],
   onActualizar,
   onEmpezarPrioridad,
   onVerSemana,
   onAbrirModulo,
+  espaciosGrowth = [],
+  espacioGrowthActivo = null,
+  onCambiarEspacio,
 }) {
   const estado =
     estadoPrioridad(tareaPrioritaria);
 
   const negocio =
-    usuario?.negocio || "MONYS";
+    espacioGrowthActivo?.negocio ||
+    usuario?.negocio ||
+    "MONYS";
 
   const sucursal =
-    usuario?.sucursal || "Operación";
+    espacioGrowthActivo?.sucursal ||
+    usuario?.sucursal ||
+    "Operación";
+
+  const claveEspacioActivo = [
+    espacioGrowthActivo?.organization_id ||
+      usuario?.organization_id ||
+      "",
+    espacioGrowthActivo?.business_id ||
+      usuario?.business_id ||
+      "",
+    espacioGrowthActivo?.branch_id ||
+      usuario?.branch_id ||
+      "",
+  ].join(":");
+
+  const resumenCampanas = campanas.reduce(
+    (resumen, campana) => {
+      const resultado = campana?.resultado || {};
+      const estado = String(
+        campana?.estado || ""
+      ).toUpperCase();
+
+      if (["ACTIVA", "PREPARANDO"].includes(estado)) {
+        resumen.activas += 1;
+      }
+
+      resumen.ventas += Number(
+        resultado.ventaAcumulada || 0
+      );
+      resumen.inversion += Number(
+        resultado.gastoAcumulado || 0
+      );
+      resumen.utilidad += Number(
+        resultado.utilidadEstimadaCampana || 0
+      );
+
+      const decision = String(
+        resultado.decisionActual ||
+          campana?.decision_ia ||
+          ""
+      ).toUpperCase();
+
+      if (
+        ["PAUSAR", "ESCALAR"].includes(decision) &&
+        !resumen.decision
+      ) {
+        resumen.decision = {
+          accion: decision,
+          producto:
+            campana?.producto ||
+            campana?.nombre ||
+            "campaña activa",
+        };
+      }
+
+      return resumen;
+    },
+    {
+      activas: 0,
+      ventas: 0,
+      inversion: 0,
+      utilidad: 0,
+      decision: null,
+    }
+  );
 
   return (
     <section className="growth-workspace">
@@ -68,12 +147,13 @@ export default function CentroTrabajoGrowth({
           </p>
         </div>
 
-        <button
-          type="button"
-          className="growth-workspace__company"
-          onClick={onActualizar}
-          title="Actualizar información real"
-        >
+        <div className="growth-workspace__company-panel">
+          <button
+            type="button"
+            className="growth-workspace__company"
+            onClick={onActualizar}
+            title="Actualizar información real"
+          >
           <span className="growth-workspace__company-icon">
             M
           </span>
@@ -84,7 +164,36 @@ export default function CentroTrabajoGrowth({
           </span>
 
           <span aria-hidden="true">↻</span>
-        </button>
+          </button>
+
+          {espaciosGrowth.length > 1 && (
+            <label className="growth-workspace__workspace-selector">
+              <span>Empresa / sucursal</span>
+              <select
+                value={claveEspacioActivo}
+                onChange={(event) =>
+                  onCambiarEspacio?.(
+                    event.target.value
+                  )
+                }
+              >
+                {espaciosGrowth.map((espacio) => {
+                  const clave = [
+                    espacio.organization_id || "",
+                    espacio.business_id || "",
+                    espacio.branch_id || "",
+                  ].join(":");
+
+                  return (
+                    <option key={clave} value={clave}>
+                      {espacio.negocio} · {espacio.sucursal}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          )}
+        </div>
       </header>
 
       <div className="growth-workspace__focus">
@@ -194,25 +303,94 @@ export default function CentroTrabajoGrowth({
         </article>
       </div>
 
+      <div className="growth-workspace__impact">
+        <div className="growth-workspace__impact-heading">
+          <div>
+            <span>Impacto de Marketing</span>
+            <strong>Resultados acumulados reales</strong>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("RESULTADOS")}
+          >
+            Ver detalle →
+          </button>
+        </div>
+
+        <div className="growth-workspace__impact-grid">
+          <article>
+            <span>Campañas activas</span>
+            <strong>{resumenCampanas.activas}</strong>
+          </article>
+          <article>
+            <span>Ventas atribuidas</span>
+            <strong>{moneda(resumenCampanas.ventas)}</strong>
+          </article>
+          <article>
+            <span>Inversión</span>
+            <strong>{moneda(resumenCampanas.inversion)}</strong>
+          </article>
+          <article>
+            <span>Utilidad estimada</span>
+            <strong>{moneda(resumenCampanas.utilidad)}</strong>
+          </article>
+        </div>
+
+        {resumenCampanas.decision && (
+          <div className="growth-workspace__decision">
+            <span>Decisión pendiente</span>
+            MONYS recomienda {resumenCampanas.decision.accion.toLowerCase()} {resumenCampanas.decision.producto}.
+          </div>
+        )}
+      </div>
+
       <div className="growth-workspace__command-grid">
-        <button type="button" onClick={() => onAbrirModulo?.("OPORTUNIDADES")}>
+        <button
+          type="button"
+          onClick={() => onAbrirModulo?.("OPORTUNIDADES")}
+        >
           <span className="growth-workspace__command-icon">⌁</span>
-          <span><strong>Ver oportunidades</strong><small>Productos con potencial real</small></span>
+          <span>
+            <strong>Ver oportunidades</strong>
+            <small>Productos con potencial real</small>
+          </span>
           <b aria-hidden="true">→</b>
         </button>
-        <button type="button" onClick={() => onAbrirModulo?.("CONTENIDO")}>
+
+        <button
+          type="button"
+          onClick={() => onAbrirModulo?.("CONTENIDO")}
+        >
           <span className="growth-workspace__command-icon">▶</span>
-          <span><strong>Crear contenido</strong><small>Hook, guion, formato y CTA</small></span>
+          <span>
+            <strong>Crear contenido</strong>
+            <small>Hook, guion, formato y CTA</small>
+          </span>
           <b aria-hidden="true">→</b>
         </button>
-        <button type="button" onClick={() => onAbrirModulo?.("CAMPANAS")}>
+
+        <button
+          type="button"
+          onClick={() => onAbrirModulo?.("CAMPANAS")}
+        >
           <span className="growth-workspace__command-icon">◎</span>
-          <span><strong>Diseñar campaña</strong><small>Prueba, presupuesto y decisión</small></span>
+          <span>
+            <strong>Diseñar campaña</strong>
+            <small>Prueba, presupuesto y decisión</small>
+          </span>
           <b aria-hidden="true">→</b>
         </button>
-        <button type="button" onClick={() => onAbrirModulo?.("RESULTADOS")}>
+
+        <button
+          type="button"
+          onClick={() => onAbrirModulo?.("RESULTADOS")}
+        >
           <span className="growth-workspace__command-icon">↗</span>
-          <span><strong>Registrar resultados</strong><small>Ventas, gasto, utilidad y aprendizaje</small></span>
+          <span>
+            <strong>Registrar resultados</strong>
+            <small>Ventas, gasto, utilidad y aprendizaje</small>
+          </span>
           <b aria-hidden="true">→</b>
         </button>
       </div>
