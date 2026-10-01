@@ -206,6 +206,11 @@
   color: #11613a;
 }
 
+.growth-workspace__status--warning {
+  background: #fff0c7;
+  color: #7a4d00;
+}
+
 .growth-workspace__focus-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
