@@ -6,6 +6,15 @@ function nombreCorto(nombre) {
     .split(/\s+/)[0];
 }
 
+function fechaLocal() {
+  return new Intl.DateTimeFormat("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Mexico_City",
+  }).format(new Date());
+}
+
 function estadoPrioridad(tarea) {
   const estado = String(
     tarea?.estado || ""
@@ -315,9 +324,15 @@ export default function CentroTrabajoGrowth({
           <p>
             Directora de Crecimiento
           </p>
+          <span className="growth-workspace__tagline">
+            Ideas que venden, resultados que crecen
+          </span>
         </div>
 
         <div className="growth-workspace__company-panel">
+          <span className="growth-workspace__date">
+            {fechaLocal()}
+          </span>
           <button
             type="button"
             className="growth-workspace__company"
@@ -572,6 +587,18 @@ export default function CentroTrabajoGrowth({
 
         <button
           type="button"
+          onClick={() => onAbrirModulo?.("CAMPANAS")}
+        >
+          <span className="growth-workspace__command-icon">↗</span>
+          <span>
+            <strong>Preparar publicación</strong>
+            <small>Revisar el kit y agendar en MONYS</small>
+          </span>
+          <b aria-hidden="true">→</b>
+        </button>
+
+        <button
+          type="button"
           onClick={() => onAbrirModulo?.("RESULTADOS")}
         >
           <span className="growth-workspace__command-icon">↗</span>
@@ -582,6 +609,10 @@ export default function CentroTrabajoGrowth({
           <b aria-hidden="true">→</b>
         </button>
       </div>
+
+      <p className="growth-workspace__publishing-note">
+        Preparar o agendar contenido aquí no lo publica en redes. Para publicar anuncios hace falta conectar la cuenta y autorizarlo.
+      </p>
 
       <div className="growth-workspace__principle">
         <span>✦</span>
