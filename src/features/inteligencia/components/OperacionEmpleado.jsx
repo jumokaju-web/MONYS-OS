@@ -3325,6 +3325,11 @@ function ResultadoMarketingTarea({
   ] = useState("");
 
   const [
+    publicacion,
+    setPublicacion,
+  ] = useState("PUBLICADA");
+
+  const [
     leads,
     setLeads,
   ] = useState("");
@@ -3337,6 +3342,11 @@ function ResultadoMarketingTarea({
   const [
     monto,
     setMonto,
+  ] = useState("");
+
+  const [
+    gasto,
+    setGasto,
   ] = useState("");
 
   const [
@@ -3432,6 +3442,26 @@ function ResultadoMarketingTarea({
           </option>
         </select>
 
+        <select
+          value={publicacion}
+          onChange={(event) =>
+            setPublicacion(event.target.value)
+          }
+          style={{
+            padding: "10px",
+            borderRadius: "10px",
+            border: "1px solid #cedbd5",
+            fontFamily: "inherit",
+          }}
+        >
+          <option value="PUBLICADA">
+            Sí se publicó
+          </option>
+          <option value="NO_PUBLICADA">
+            No se publicó
+          </option>
+        </select>
+
         <input
           type="number"
           min="0"
@@ -3468,6 +3498,18 @@ function ResultadoMarketingTarea({
             )
           }
           placeholder="Ventas generadas"
+          style={estiloInputMarketing}
+        />
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={gasto}
+          onChange={(event) =>
+            setGasto(event.target.value)
+          }
+          placeholder="Gasto real $ (0 si fue orgánico)"
           style={estiloInputMarketing}
         />
 
@@ -3512,18 +3554,22 @@ function ResultadoMarketingTarea({
         return;
       }
 
-      await guardarResultadoMarketing({
+      const guardado = await guardarResultadoMarketing({
         tareaId: tarea.id,
         canal,
+        publicacion,
         alcance,
         leads,
         ventas,
         monto,
+        gasto,
         observacion,
       });
 
       alert(
-        "Resultado de marketing guardado."
+        guardado?.sincronizacionCampana?.sincronizada
+          ? "Resultado guardado y campaña actualizada. La Agencia IA ya puede avanzar a la siguiente etapa."
+          : "Resultado guardado en la tarea. MONYS no encontró una campaña activa única para sincronizarlo automáticamente."
       );
     } catch (error) {
       console.error(
