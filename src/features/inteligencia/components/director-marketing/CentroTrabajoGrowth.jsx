@@ -135,6 +135,43 @@ export default function CentroTrabajoGrowth({
       )
   );
 
+  const productosCampanaPrioritaria = Array.isArray(
+    campanaPrioritaria?.estrategia_ia?.productosSeleccionadosGrowth
+  )
+    ? campanaPrioritaria.estrategia_ia.productosSeleccionadosGrowth
+        .map((item) => item?.nombre || item?.producto || "")
+        .filter(Boolean)
+    : [];
+
+  const productoGrowthPrioritario =
+    oportunidadPrioritaria?.nombre ||
+    oportunidadPrioritaria?.producto ||
+    productosCampanaPrioritaria.join(", ") ||
+    campanaPrioritaria?.producto ||
+    "Por confirmar con oportunidades reales";
+
+  const canalGrowthPrioritario =
+    campanaPrioritaria?.canal_principal ||
+    campanaPrioritaria?.estrategia_ia?.canalPrincipal ||
+    (Array.isArray(campanaPrioritaria?.estrategia_ia?.canales)
+      ? campanaPrioritaria.estrategia_ia.canales.join(", ")
+      : "") ||
+    "Por definir antes de publicar";
+
+  const evidenciaGrowth = oportunidadPrioritaria
+    ? [
+        `${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia`,
+        `${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} vendidas en ${Number(oportunidadPrioritaria.diasAnalizados || 7)} días`,
+        oportunidadPrioritaria.margenReal == null
+          ? "margen sin confirmar"
+          : `margen ${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%`,
+        Number(oportunidadPrioritaria.diasCobertura || 0) >= 999
+          ? "sin rotación calculada"
+          : `${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días de cobertura`,
+      ].join(" · ")
+    : tareaPrioritaria?.descripcion ||
+      "Aún no hay evidencia suficiente para explicar una oportunidad de producto.";
+
   const historialCampana = Array.isArray(
     campanaPrioritaria?.resultado?.historial
   )
@@ -319,46 +356,6 @@ export default function CentroTrabajoGrowth({
               </div>
             )}
 
-            {oportunidadPrioritaria && !tareaPrioritaria && !campanaPrioritaria && (
-              <div className="growth-workspace__opportunity-signal">
-                <span className="growth-workspace__opportunity-label">
-                  Señal encontrada en datos internos
-                </span>
-                <div className="growth-workspace__opportunity-facts">
-                  <span>
-                    <strong>{Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")}</strong>
-                    piezas en inventario
-                  </span>
-                  <span>
-                    <strong>{Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")}</strong>
-                    vendidas en {Number(oportunidadPrioritaria.diasAnalizados || 7)} días
-                  </span>
-                  <span>
-                    <strong>
-                      {oportunidadPrioritaria.margenReal !== null && oportunidadPrioritaria.margenReal !== undefined
-                        ? `${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%`
-                        : "Sin dato"}
-                    </strong>
-                    margen
-                  </span>
-                  <span>
-                    <strong>
-                      {Number(oportunidadPrioritaria.diasCobertura || 0) >= 999
-                        ? "Sin rotación"
-                        : `${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días`}
-                    </strong>
-                    cobertura estimada
-                  </span>
-                </div>
-                {Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length > 0 && (
-                  <small>{oportunidadPrioritaria.razones.join(" · ")}</small>
-                )}
-                <small className="growth-workspace__opportunity-caveat">
-                  La venta potencial no se inventa: se valida con una prueba y resultados reales.
-                </small>
-              </div>
-            )}
-
             <div className="growth-workspace__actions">
               <button
                 type="button"
@@ -400,6 +397,25 @@ export default function CentroTrabajoGrowth({
             </small>
           </div>
         </div>
+
+        <div className="growth-workspace__daily-context">
+          <article>
+            <span>Producto prioritario</span>
+            <strong>{productoGrowthPrioritario}</strong>
+          </article>
+          <article>
+            <span>Canal</span>
+            <strong>{canalGrowthPrioritario}</strong>
+          </article>
+          <article>
+            <span>Por qué</span>
+            <strong>{evidenciaGrowth}</strong>
+          </article>
+          <article>
+            <span>Valor que se medirá</span>
+            <strong>Ventas confirmadas, pedidos y utilidad incremental. Sin proyección hasta registrar resultados.</strong>
+          </article>
+        </div>
       </div>
 
       <div className="growth-workspace__metrics">
@@ -424,7 +440,7 @@ export default function CentroTrabajoGrowth({
         <article>
           <span>Terminadas</span>
           <strong>{terminadas}</strong>
-          <small>valor entregado hoy</small>
+          <small>tareas cerradas hoy</small>
         </article>
       </div>
 

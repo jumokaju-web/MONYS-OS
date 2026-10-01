@@ -124,8 +124,13 @@
   line-height: 1.5;
 }
 
-.growth-paid-channel a {
+.growth-paid-channel__links {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+}
+
+.growth-paid-channel__links a {
   display: flex;
   align-items: center;
   justify-content: space-between;

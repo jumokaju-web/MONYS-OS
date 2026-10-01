@@ -6,22 +6,24 @@ const CANALES_PAGADOS = [
     marca: "Meta Ads",
     detalle: "Facebook e Instagram",
     icono: "M",
-    estado: "Falta conectar la cuenta comercial",
+    estado: "Acceso a MONYS Glam pendiente",
     siguientePaso:
-      "Entra con el perfil que administra MONYS Glam y confirma que aparezca su cuenta publicitaria de empresa. No conectes una cuenta personal.",
+      "Si solo aparece tu perfil personal, un administrador de MONYS Glam debe darte acceso a su cuenta publicitaria desde la configuración del negocio. Después confirma que ves la cuenta de empresa; no compartas contraseñas.",
     url: "https://business.facebook.com/adsmanager",
     enlace: "Abrir Meta Business",
   },
   {
     id: "openai",
-    marca: "OpenAI Ads",
-    detalle: "Anuncios dentro de ChatGPT",
+    marca: "ChatGPT Ads",
+    detalle: "Anuncios dentro de ChatGPT · OpenAI Ads API",
     icono: "✳",
-    estado: "Falta habilitar y conectar Ads",
+    estado: "Cuenta y acceso a API por confirmar",
     siguientePaso:
-      "Confirma acceso de anunciante en Ads Manager. La conexión técnica de MONYS requiere credencial segura del API de Ads; nunca se pega en esta pantalla.",
+      "Confirma que MONYS Glam tenga cuenta de anunciante y acceso a Ads API. La clave es específica de la cuenta y debe guardarse solo en el servidor; primero se verifica la cuenta y los anuncios se preparan pausados.",
     url: "https://ads.openai.com/",
-    enlace: "Abrir OpenAI Ads",
+    enlace: "Abrir Ads Manager",
+    documentacion: "https://developers.openai.com/ads/api-overview",
+    enlaceDocumentacion: "Ver guía oficial de la API",
   },
 ];
 
@@ -67,14 +69,26 @@ export default function CanalesPublicidadGrowth() {
               {canal.estado}
             </div>
             <p>{canal.siguientePaso}</p>
-            <a
-              href={canal.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {canal.enlace}
-              <span aria-hidden="true">↗</span>
-            </a>
+            <div className="growth-paid-channel__links">
+              <a
+                href={canal.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {canal.enlace}
+                <span aria-hidden="true">↗</span>
+              </a>
+              {canal.documentacion && (
+                <a
+                  href={canal.documentacion}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {canal.enlaceDocumentacion}
+                  <span aria-hidden="true">↗</span>
+                </a>
+              )}
+            </div>
           </article>
         ))}
       </div>
