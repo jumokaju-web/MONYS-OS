@@ -3890,6 +3890,32 @@ function prepararOportunidadGrowth(oportunidad) {
     return;
   }
 
+  if (oportunidad?.actualizacionDatos?.vigente !== true) {
+    const diasVentas =
+      oportunidad?.actualizacionDatos?.ventas?.antiguedadDias;
+    const diasInventario =
+      oportunidad?.actualizacionDatos?.inventario?.antiguedadDias;
+    const etiquetaEdad = (dias) =>
+      dias === null || dias === undefined
+        ? "fecha sin confirmar"
+        : dias === 0
+          ? "hoy"
+          : `hace ${dias} días`;
+
+    setErrorCampana(
+      `No prepararé una campaña recomendada con reportes antiguos. Ventas: ${etiquetaEdad(diasVentas)}; inventario: ${etiquetaEdad(diasInventario)}. Pide actualizar SICAR para esta sucursal y vuelve a cargar Oportunidades.`
+    );
+    setSeccionGrowthActiva("CAMPANAS");
+
+    window.setTimeout(() => {
+      document
+        .getElementById("growth-campana-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+
+    return;
+  }
+
   setEstrategia(null);
   setKitMarketing(null);
   setCampanaGuardada(null);
