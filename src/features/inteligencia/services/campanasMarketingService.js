@@ -202,6 +202,39 @@ export async function obtenerContextoRealProductoCampana({
       []
     );
 
+  const fechaCorteVentas =
+    metricas?.fechaFinal ||
+    resultadoVentas?.importacion?.created_at ||
+    null;
+  const fechaCargaInventario =
+    resultadoInventario?.importacion?.created_at ||
+    null;
+  const diasMaximosDatosActuales = 7;
+  const antiguedadVentasDias =
+    obtenerAntiguedadDias(fechaCorteVentas);
+  const antiguedadInventarioDias =
+    obtenerAntiguedadDias(fechaCargaInventario);
+  const actualizacionDatos = {
+    diasMaximos: diasMaximosDatosActuales,
+    ventas: {
+      fecha: fechaCorteVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente:
+        antiguedadVentasDias !== null &&
+        antiguedadVentasDias <= diasMaximosDatosActuales,
+    },
+    inventario: {
+      fecha: fechaCargaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente:
+        antiguedadInventarioDias !== null &&
+        antiguedadInventarioDias <= diasMaximosDatosActuales,
+    },
+  };
+  actualizacionDatos.vigente =
+    actualizacionDatos.ventas.vigente &&
+    actualizacionDatos.inventario.vigente;
+
   const nombreArchivoPeriodo =
   resultadoUtilidadArticulos
     ?.importacion
@@ -474,6 +507,8 @@ const diasAnalizados =
       mejorCoincidencia,
 
     confianzaDatos,
+
+    actualizacionDatos,
 
     fuentes: {
       ventas:
