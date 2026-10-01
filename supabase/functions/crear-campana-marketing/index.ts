@@ -194,6 +194,19 @@ PRINCIPIOS
    - presupuesto;
    - riesgo.
 
+7a. El campo PRODUCTO puede contener varios
+   artículos separados por coma. Si es así:
+   - evalúa cada artículo con sus propios datos;
+   - recomienda agruparlos solo si comparten
+     audiencia, objetivo y canal;
+   - no sumes márgenes ni inventarios como
+     si fueran un solo producto;
+   - si no comparten audiencia, propón
+     campañas o pruebas separadas;
+   - devuelve en "producto" los nombres
+     seleccionados, sin agregar artículos
+     nuevos.
+
 8. Una buena campaña debe tener:
 
    - objetivo;
@@ -272,6 +285,12 @@ ${contextoNegocio || "No disponible"}
 
 DATOS DE VENTAS:
 ${datosVentas || "No disponibles"}
+
+Si DATOS DE VENTAS contiene una lista de productos,
+interpreta sus métricas artículo por artículo.
+Los ceros globales de INVENTARIO DISPONIBLE o MARGEN
+ESTIMADO significan que no hay un agregado confiable.
+Usa los datos individuales y declara lo que falte.
 
 DATOS DE INVENTARIO:
 ${datosInventario || "No disponibles"}

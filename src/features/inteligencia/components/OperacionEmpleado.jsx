@@ -3637,6 +3637,11 @@ const [
   ] = useState("");
 
   const [
+    productosSeleccionadosGrowth,
+    setProductosSeleccionadosGrowth,
+  ] = useState([]);
+
+  const [
     canalPreferido,
     setCanalPreferido,
   ] = useState("");
@@ -3870,6 +3875,7 @@ function prepararOportunidadGrowth(oportunidad) {
   setKitMarketing(null);
   setCampanaGuardada(null);
   setErrorCampana("");
+  setProductosSeleccionadosGrowth([]);
   setProducto(nombreOportunidad);
   setObjetivoUsuario(
     `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
@@ -3883,10 +3889,84 @@ function prepararOportunidadGrowth(oportunidad) {
   }, 0);
 }
 
+function alternarProductoGrupoGrowth(oportunidad) {
+  const clave = String(
+    oportunidad?.codigo || oportunidad?.nombre || ""
+  ).trim();
+
+  if (!clave) return;
+
+  setProductosSeleccionadosGrowth((actuales) =>
+    actuales.some((item) => item.clave === clave)
+      ? actuales.filter((item) => item.clave !== clave)
+      : [
+          ...actuales,
+          {
+            clave,
+            nombre: oportunidad?.nombre || oportunidad?.codigo || clave,
+            codigo: oportunidad?.codigo || null,
+            existencia: Number(oportunidad?.existencia || 0),
+            piezasVendidas: Number(oportunidad?.piezasVendidas || 0),
+            diasCobertura: Number(oportunidad?.diasCobertura || 0),
+            margenReal:
+              oportunidad?.margenReal == null
+                ? null
+                : Number(oportunidad.margenReal),
+            prioridad: Number(oportunidad?.prioridad || 0),
+            razones: Array.isArray(oportunidad?.razones)
+              ? oportunidad.razones
+              : [],
+          },
+        ]
+  );
+}
+
+function prepararCampanaMultipleGrowth() {
+  if (productosSeleccionadosGrowth.length < 2) return;
+
+  const nombres = productosSeleccionadosGrowth.map((item) => item.nombre);
+  setEstrategia(null);
+  setKitMarketing(null);
+  setCampanaGuardada(null);
+  setErrorCampana("");
+  setProducto(nombres.join(", "));
+  setPrecioProducto("");
+  setExistenciaProducto("");
+  setObjetivoUsuario(
+    "Preparar una campaña conjunta para probar estos productos: " +
+      nombres.join(", ") +
+      ". Usa los datos reales de cada producto por separado, agrúpalos solo si comparten audiencia y objetivo, y cuida la utilidad."
+  );
+  setSeccionGrowthActiva("CAMPANAS");
+
+  window.setTimeout(() => {
+    document
+      .getElementById("growth-campana-form")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 0);
+}
+
+function esGrupoGrowthActual() {
+  return (
+    productosSeleccionadosGrowth.length > 1 &&
+    producto.trim() ===
+      productosSeleccionadosGrowth
+        .map((item) => item.nombre)
+        .join(", ")
+  );
+}
+
 async function generarKit() {
   try {
     setErrorCampana("");
     setKitMarketing(null);
+
+    if (esGrupoGrowthActual()) {
+      setErrorCampana(
+        "La campaña puede agrupar varios productos, pero prepara un kit creativo por producto para mantener correctos el precio, inventario y mensaje."
+      );
+      return;
+    }
 
     const audienciaFinal =
   String(
@@ -4089,11 +4169,18 @@ const ofertaFinal =
 
       setGenerando(true);
 
-       const contextoReal =
-  await obtenerContextoRealProductoCampana({
-    branchId,
-    producto,
-  });
+       const esCampanaMultiple = esGrupoGrowthActual();
+
+       const contextoReal = esCampanaMultiple
+         ? null
+         : await obtenerContextoRealProductoCampana({
+             branchId,
+             producto,
+           });
+
+       const datosGrupo = esCampanaMultiple
+         ? productosSeleccionadosGrowth
+         : [];
 
 
 const resultado =
@@ -4103,11 +4190,15 @@ const resultado =
     canalPreferido,
     presupuestoMaximo,
 
-    inventarioDisponible:
+    inventarioDisponible: esCampanaMultiple
+      ? 0
+      :
       contextoReal?.inventario
         ?.existencia ?? 0,
 
-    margenEstimado:
+    margenEstimado: esCampanaMultiple
+      ? 0
+      :
       contextoReal?.ventas
         ?.margenReal ?? 0,
 
@@ -4116,7 +4207,19 @@ const resultado =
 
 
      datosVentas:
-  JSON.stringify({
+  JSON.stringify(esCampanaMultiple ? {
+    fuente: "Oportunidades reales de Growth por producto",
+    instruccion: "Conservar los datos separados; no sumar ni atribuir métricas de un producto a otro.",
+    productos: datosGrupo.map((item) => ({
+      nombre: item.nombre,
+      codigo: item.codigo,
+      piezasVendidasPeriodo: item.piezasVendidas,
+      margenRealPorcentaje: item.margenReal,
+      diasCobertura: item.diasCobertura,
+      prioridadGrowth: item.prioridad,
+      razones: item.razones,
+    })),
+  } : {
     productoEncontrado:
       contextoReal?.encontrado ||
       false,
@@ -4165,7 +4268,16 @@ const resultado =
   }),
 
 datosInventario:
-  JSON.stringify({
+  JSON.stringify(esCampanaMultiple ? {
+    fuente: "Oportunidades reales de Growth por sucursal",
+    instruccion: "Existencia y cobertura corresponden a cada producto; no reportar un total como si aplicara a todos.",
+    productos: datosGrupo.map((item) => ({
+      nombre: item.nombre,
+      codigo: item.codigo,
+      existencia: item.existencia,
+      diasCobertura: item.diasCobertura,
+    })),
+  } : {
     existencia:
       contextoReal?.inventario
         ?.existencia ?? 0,
@@ -4333,7 +4445,23 @@ businessId:
    estrategiaIA: {
   ...resultado,
 
-  datosRentabilidadBase: {
+  productosSeleccionadosGrowth: esCampanaMultiple
+    ? datosGrupo
+    : [],
+
+  datosRentabilidadBase: esCampanaMultiple
+    ? {
+        tipo: "METRICAS_SEPARADAS_POR_PRODUCTO",
+        productos: datosGrupo.map((item) => ({
+          nombre: item.nombre,
+          codigo: item.codigo,
+          margenReal: item.margenReal,
+          piezasVendidasPeriodo: item.piezasVendidas,
+          existencia: item.existencia,
+          diasCobertura: item.diasCobertura,
+        })),
+      }
+    : {
     margenReal:
       contextoReal?.ventas
         ?.margenReal ?? null,
@@ -4349,7 +4477,7 @@ businessId:
     importeBase:
       contextoReal?.ventas
         ?.importe ?? 0,
-  },
+    },
 },
 
   confianzaIA:
@@ -5141,7 +5269,11 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           style={{
             padding: "10px",
             borderRadius: "10px",
-            border: "1px solid #eee0e7",
+            border: productosSeleccionadosGrowth.some(
+              (item) => item.clave === String(oportunidad.codigo || oportunidad.nombre || "")
+            )
+              ? "2px solid #9d245b"
+              : "1px solid #eee0e7",
             backgroundColor: "#ffffff",
           }}
         >
@@ -5237,9 +5369,85 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
 >
   🚀 Preparar prueba para este producto
 </button>
+            <button
+              type="button"
+              aria-pressed={productosSeleccionadosGrowth.some(
+                (item) => item.clave === String(oportunidad.codigo || oportunidad.nombre || "")
+              )}
+              onClick={() => alternarProductoGrupoGrowth(oportunidad)}
+              style={{
+                width: "100%",
+                marginTop: "7px",
+                padding: "9px",
+                borderRadius: "9px",
+                border: "1px solid #d9c0ce",
+                backgroundColor: productosSeleccionadosGrowth.some(
+                  (item) => item.clave === String(oportunidad.codigo || oportunidad.nombre || "")
+                )
+                  ? "#fce7f3"
+                  : "#fff",
+                color: "#7d3157",
+                fontWeight: "800",
+                cursor: "pointer",
+              }}
+            >
+              {productosSeleccionadosGrowth.some(
+                (item) => item.clave === String(oportunidad.codigo || oportunidad.nombre || "")
+              )
+                ? "✓ Incluido en campaña conjunta"
+                : "＋ Incluir en campaña conjunta"}
+            </button>
         </div>
       )
     )}
+  {productosSeleccionadosGrowth.length > 0 && (
+    <div
+      style={{
+        position: "sticky",
+        bottom: "8px",
+        zIndex: 1,
+        marginTop: "10px",
+        padding: "11px",
+        border: "1px solid #e6cada",
+        borderRadius: "12px",
+        background: "#fff7fb",
+        boxShadow: "0 8px 22px rgba(100, 35, 71, .12)",
+      }}
+    >
+      <strong>
+        {productosSeleccionadosGrowth.length} producto(s) seleccionados
+      </strong>
+      <div style={{ marginTop: "4px", fontSize: "12px", color: "#6f6470" }}>
+        MONYS conserva margen, ventas e inventario separados para cada artículo.
+      </div>
+      <button
+        type="button"
+        disabled={productosSeleccionadosGrowth.length < 2}
+        onClick={prepararCampanaMultipleGrowth}
+        style={{
+          width: "100%",
+          marginTop: "9px",
+          padding: "10px",
+          border: "none",
+          borderRadius: "9px",
+          background:
+            productosSeleccionadosGrowth.length >= 2
+              ? "#9d245b"
+              : "#d8c7cf",
+          color: "#fff",
+          fontWeight: "900",
+          cursor:
+            productosSeleccionadosGrowth.length >= 2
+              ? "pointer"
+              : "not-allowed",
+        }}
+      >
+        {productosSeleccionadosGrowth.length >= 2
+          ? "Preparar campaña conjunta"
+          : "Selecciona al menos 2 productos"}
+      </button>
+    </div>
+  )}
   </div>
 )}
     </div>
