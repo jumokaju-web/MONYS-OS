@@ -56,36 +56,34 @@ function formatearFechaISO(fecha) {
   return `${year}-${month}-${day}`;
 }
 
-function obtenerLunesDelPlan() {
-  const hoy = new Date();
+function obtenerProximasFechasHabilesPlan(cantidad = 5) {
+  const ahora = new Date();
+  const fecha = new Date(ahora);
 
-  hoy.setHours(0, 0, 0, 0);
+  fecha.setHours(0, 0, 0, 0);
 
-  const diaSemana = hoy.getDay();
+  const horaLimiteInicial = new Date(fecha);
+  horaLimiteInicial.setHours(10, 30, 0, 0);
 
-  const diasHastaLunes =
-    diaSemana === 1
-      ? 0
-      : (8 - diaSemana) % 7;
+  if (ahora >= horaLimiteInicial) {
+    fecha.setDate(fecha.getDate() + 1);
+  }
 
-  const lunes = new Date(hoy);
+  while ([0, 6].includes(fecha.getDay())) {
+    fecha.setDate(fecha.getDate() + 1);
+  }
 
-  lunes.setDate(
-    hoy.getDate() +
-      diasHastaLunes
-  );
+  const fechas = [];
 
-  return lunes;
-}
+  while (fechas.length < cantidad) {
+    if (![0, 6].includes(fecha.getDay())) {
+      fechas.push(formatearFechaISO(fecha));
+    }
 
-function sumarDias(fecha, dias) {
-  const resultado = new Date(fecha);
+    fecha.setDate(fecha.getDate() + 1);
+  }
 
-  resultado.setDate(
-    fecha.getDate() + dias
-  );
-
-  return resultado;
+  return fechas;
 }
 
 function etiquetaFechaPlan(fechaISO) {
@@ -778,8 +776,8 @@ for (
     setErrorPlan("");
     setMensajePlan("");
 
-    const lunes =
-      obtenerLunesDelPlan();
+    const fechasPlan =
+      obtenerProximasFechasHabilesPlan();
 
     const campanaSucursal =
       campanasActivas.find(
@@ -829,15 +827,12 @@ for (
     const plan = [
       {
         titulo:
-          "Marketing · Definir el enfoque de ventas de la semana",
-        fecha:
-          formatearFechaISO(
-            sumarDias(lunes, 0)
-          ),
+          "Marketing · Definir el enfoque de ventas del ciclo",
+        fecha: fechasPlan[0],
         horaLimite: "10:30",
         prioridad: "alta",
         descripcion:
-          `Revisar el enfoque con datos reales: ventas analizadas ${formatearDinero(
+          `Revisar el enfoque de crecimiento con datos reales: ventas analizadas ${formatearDinero(
             ventasTotales
           )}, margen ${convertirNumero(
             margenUtilidad
@@ -851,10 +846,7 @@ for (
       {
         titulo:
           `Marketing · Crear contenido que vende: ${nombreProducto}`,
-        fecha:
-          formatearFechaISO(
-            sumarDias(lunes, 1)
-          ),
+        fecha: fechasPlan[1],
         horaLimite: "12:00",
         prioridad: "alta",
         descripcion:
@@ -870,10 +862,7 @@ for (
       {
         titulo:
           `Marketing · Publicar y atender prospectos en ${canalCampana}`,
-        fecha:
-          formatearFechaISO(
-            sumarDias(lunes, 2)
-          ),
+        fecha: fechasPlan[2],
         horaLimite: "18:00",
         prioridad: "normal",
         descripcion:
@@ -887,10 +876,7 @@ for (
       {
         titulo:
           "Marketing · Revisar campaña y embudo de ventas",
-        fecha:
-          formatearFechaISO(
-            sumarDias(lunes, 3)
-          ),
+        fecha: fechasPlan[3],
         horaLimite: "17:00",
         prioridad: "alta",
         descripcion:
@@ -903,20 +889,17 @@ for (
       },
       {
         titulo:
-          "Marketing · Cerrar resultados y proponer la siguiente acción",
-        fecha:
-          formatearFechaISO(
-            sumarDias(lunes, 4)
-          ),
+          "Marketing · Cerrar resultados del ciclo y proponer la siguiente acción",
+        fecha: fechasPlan[4],
         horaLimite: "17:30",
         prioridad: "alta",
         descripcion:
-          "Cerrar la semana separando lo que produjo ventas de lo que solo produjo actividad, y preparar la siguiente decisión.",
+          "Cerrar el ciclo separando lo que produjo ventas de lo que solo produjo actividad, y preparar la siguiente decisión.",
         instrucciones:
           "1. Registrar resultados finales reales.\n2. Identificar el contenido con más respuesta.\n3. Anotar qué objeción frenó ventas.\n4. Recomendar mantener, mejorar, aumentar o detener.\n5. No aumentar presupuesto sin autorización del dueño.",
         requiereEvidencia: false,
         criterioExito:
-          "Resultado semanal registrado y siguiente acción recomendada con evidencia suficiente para decisión del dueño.",
+          "Resultado del ciclo registrado y siguiente acción recomendada con evidencia suficiente para decisión del dueño.",
       },
     ];
 
@@ -1095,6 +1078,7 @@ for (
             style={{
               margin: 0,
               fontSize: "28px",
+              color: "#34242c",
             }}
           >
             📢 Informe de Marketing IA
@@ -1153,7 +1137,7 @@ for (
                 color: "#7d3157",
               }}
             >
-              🗓️ Plan semanal de crecimiento
+              🗓️ Plan de crecimiento · próximos 5 días hábiles
             </h3>
 
             <p
@@ -1167,7 +1151,7 @@ for (
               MONYS convierte ventas,
               margen, inventario y campañas
               reales de la sucursal actual
-              en tareas para Marketing.
+              en tareas para Marketing durante los próximos cinco días hábiles.
               Primero revisas el plan y después
               decides si se envía.
             </p>
