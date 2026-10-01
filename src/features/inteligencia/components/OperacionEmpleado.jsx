@@ -3641,6 +3641,10 @@ const [
     setProductosSeleccionadosGrowth,
   ] = useState([]);
 
+  useEffect(() => {
+    setProductosSeleccionadosGrowth([]);
+  }, [branchId]);
+
   const [
     canalPreferido,
     setCanalPreferido,
@@ -3782,6 +3786,14 @@ const [
 ) {
   setCampanaGuardada(
     ultimaCampana
+  );
+
+  setProductosSeleccionadosGrowth(
+    Array.isArray(
+      ultimaCampana?.estrategia_ia?.productosSeleccionadosGrowth
+    )
+      ? ultimaCampana.estrategia_ia.productosSeleccionadosGrowth
+      : []
   );
 
   if (
