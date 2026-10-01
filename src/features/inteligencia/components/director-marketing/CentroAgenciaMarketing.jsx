@@ -29,6 +29,8 @@ function obtenerEstadoCampana(campanasActivas) {
 }
 
 export default function CentroAgenciaMarketing({
+  actualizacionDatos = null,
+  onActualizarDatos,
   productoLider,
   inventarioProductoLider,
   campanasActivas = [],
@@ -47,6 +49,17 @@ export default function CentroAgenciaMarketing({
   const cobertura = convertirNumero(
     inventarioProductoLider?.diasCobertura
   );
+
+  const datosActuales =
+    actualizacionDatos?.vigente === true;
+
+  const etiquetaAntiguedad = (dias) => {
+    if (dias === null || dias === undefined) {
+      return "fecha sin confirmar";
+    }
+
+    return dias === 0 ? "hoy" : `hace ${dias} días`;
+  };
 
   const campanaSinAvance =
   campanasActivas.find((campana) => {
@@ -95,7 +108,7 @@ const horasSinAvance =
       )
     : 0;
 
-const accionPrincipal =
+  const accionPrincipal =
   campanaSinAvance
     ? {
         titulo:
@@ -107,6 +120,12 @@ const accionPrincipal =
             "activa"
           } lleva ${horasSinAvance} horas sin resultados registrados. Kary debe confirmar publicación, gasto, mensajes, pedidos y ventas reales antes de invertir más.`,
       }
+    : !datosActuales
+      ? {
+          titulo: "Actualizar SICAR antes de recomendar la primera campaña",
+          descripcion:
+            `Los reportes disponibles muestran ventas ${etiquetaAntiguedad(actualizacionDatos?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionDatos?.inventario?.antiguedadDias)}. Actualízalos en la sucursal para volver a evaluar productos y canales con cifras recientes.`,
+        }
     : cobertura > 45
       ? {
           titulo:
@@ -324,10 +343,11 @@ const accionPrincipal =
               fontWeight: "800",
             }}
           >
-            Producto: {
-  campanaSinAvance?.producto ||
-  nombreProducto
-}
+            {campanaSinAvance
+              ? `Producto: ${campanaSinAvance.producto || nombreProducto}`
+              : datosActuales
+              ? `Producto: ${nombreProducto}`
+              : "Producto: pendiente de SICAR"}
           </span>
 
           <span
@@ -347,7 +367,9 @@ const accionPrincipal =
     )
       .split(",")[0]
       .trim()}`
-  : `Existencia: ${existencia}`}
+  : datosActuales
+    ? `Existencia: ${existencia}`
+    : `Ventas: ${etiquetaAntiguedad(actualizacionDatos?.ventas?.antiguedadDias)}`}
           </span>
 
           <span
@@ -362,9 +384,11 @@ const accionPrincipal =
           >
           {campanaSinAvance
   ? `Sin avance: ${horasSinAvance} h`
-  : `Cobertura: ${cobertura.toFixed(
+  : datosActuales
+  ? `Cobertura: ${cobertura.toFixed(
       1
-    )} días`}
+    )} días`
+  : `Inventario: ${etiquetaAntiguedad(actualizacionDatos?.inventario?.antiguedadDias)}`}
           </span>
         </div>
 
@@ -385,11 +409,16 @@ const accionPrincipal =
       return;
     }
 
+    if (!datosActuales) {
+      onActualizarDatos?.();
+      return;
+    }
+
     onPrepararPlan?.();
   }}
   disabled={
     !campanaSinAvance &&
-    !onPrepararPlan
+    (datosActuales ? !onPrepararPlan : !onActualizarDatos)
   }
   style={{
     width: "100%",
@@ -399,21 +428,23 @@ const accionPrincipal =
     borderRadius: "11px",
     background:
       campanaSinAvance ||
-      onPrepararPlan
+      (datosActuales ? onPrepararPlan : onActualizarDatos)
         ? "#b92769"
         : "#d8c7cf",
     color: "#ffffff",
     fontWeight: "900",
     cursor:
       campanaSinAvance ||
-      onPrepararPlan
+      (datosActuales ? onPrepararPlan : onActualizarDatos)
         ? "pointer"
         : "not-allowed",
   }}
 >
   {campanaSinAvance
     ? "📊 Ir a registrar avance real"
-    : "✨ Convertir estrategia en plan de trabajo"}
+    : datosActuales
+      ? "✨ Convertir estrategia en plan de trabajo"
+      : "↩️ Volver para actualizar SICAR"}
 </button>
       </div>
 
