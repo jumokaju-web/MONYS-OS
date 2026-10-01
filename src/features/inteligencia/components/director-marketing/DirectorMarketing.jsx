@@ -230,6 +230,11 @@ export default function DirectorMarketing({
   ] = useState(false);
 
   const [
+    recargaVistaKary,
+    setRecargaVistaKary,
+  ] = useState(0);
+
+  const [
     sucursalPlanId,
     setSucursalPlanId,
   ] = useState("");
@@ -1313,7 +1318,13 @@ for (
         });
 
       setMensajePlan(
-        `Plan autorizado: ${resultado?.tareas?.length || 0} tareas quedaron asignadas a ${resultado?.responsable || "Marketing"}.`
+        `Tarea autorizada y visible en el calendario de ${resultado?.responsable || "Marketing"}: ${resultado?.tareas?.length || 0} asignación preparada.`
+      );
+      setPlanSemanal([]);
+      setVistaKaryAbierta(true);
+      setRecargaVistaKary(
+        (valorActual) =>
+          valorActual + 1
       );
     } catch (error) {
       console.error(
@@ -1591,6 +1602,7 @@ for (
             </div>
 
             <OperacionEmpleado
+              key={recargaVistaKary}
               branchId={
                 usuarioMarketingPreview.branch_id
               }
