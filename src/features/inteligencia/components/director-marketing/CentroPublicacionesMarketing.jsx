@@ -29,7 +29,7 @@ function etiquetaEstado(estado) {
     .replace(/^./, (letra) => letra.toUpperCase());
 }
 
-function contenidosDesdeKit(kit, canales) {
+function contenidosDesdeKit(kit, canales, productos = []) {
   const mensaje = kit?.mensajeCentral || {};
 
   return Object.fromEntries(
@@ -40,6 +40,43 @@ function contenidosDesdeKit(kit, canales) {
 
       if (canal === "WHATSAPP") {
         return [canal, kit?.whatsapp || {}];
+      }
+
+      if (canal === "TIKTOK_SHOP") {
+        const contenidoShop =
+          kit?.tiktokShop || kit?.tiktok || {};
+
+        return [
+          canal,
+          {
+            ...contenidoShop,
+            textoPublicacion:
+              contenidoShop.textoPublicacion ||
+              kit?.tiktok?.textoPublicacion ||
+              [
+                mensaje.gancho,
+                mensaje.beneficio,
+                mensaje.oferta,
+                mensaje.llamadoAComprar,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            llamadoAComprar:
+              contenidoShop.llamadoAComprar ||
+              kit?.tiktok?.llamadoAComprar ||
+              mensaje.llamadoAComprar ||
+              "",
+            guion:
+              contenidoShop.guion ||
+              kit?.tiktok?.guion ||
+              [],
+            productosParaEtiquetar: productos,
+            instruccionesShop: [
+              "Antes de publicar, confirma que cada producto esté disponible y etiquétalo en TikTok Shop.",
+              "La cola de MONYS todavía no publica directamente en TikTok Shop.",
+            ],
+          },
+        ];
       }
 
       if (canal === "MERCADO_LIBRE") {
@@ -180,7 +217,7 @@ export default function CentroPublicacionesMarketing({
         productos,
         canales,
         contenidosPorCanal:
-          contenidosDesdeKit(kit, canales),
+          contenidosDesdeKit(kit, canales, productos),
       });
 
       setMensaje(
@@ -313,6 +350,26 @@ export default function CentroPublicacionesMarketing({
         >
           {publicaciones.length} en cola
         </span>
+      </div>
+
+      <div
+        role="status"
+        style={{
+          marginTop: "12px",
+          padding: "10px 12px",
+          border: "1px solid #ead8a8",
+          borderRadius: "12px",
+          background: "#fff9e9",
+          color: "#66521d",
+          fontSize: "11px",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Publicación directa: por conectar.</strong>{" "}
+        Esta cola guarda, autoriza y agenda dentro de MONYS; todavía no
+        envía contenido a Instagram, Facebook, TikTok, TikTok Shop ni
+        Mercado Libre. La fecha programada es interna y no significa que
+        ya se publicó.
       </div>
 
       <label
@@ -585,7 +642,7 @@ export default function CentroPublicacionesMarketing({
                           cursor: "pointer",
                         }}
                       >
-                        Programar
+                        Programar en MONYS
                       </button>
                     </div>
                   )}
