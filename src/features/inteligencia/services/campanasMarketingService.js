@@ -126,6 +126,20 @@ function localizarCoincidenciasProducto(
     );
 }
 
+function obtenerAntiguedadDias(fecha) {
+  if (!fecha) return null;
+
+  const fechaValida = new Date(fecha);
+  if (Number.isNaN(fechaValida.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - fechaValida.getTime()) / 86400000)
+  );
+}
+
 export async function obtenerContextoRealProductoCampana({
   branchId = null,
   producto = "",
@@ -583,6 +597,39 @@ export async function obtenerOportunidadesGrowthOS({
       metricas?.diasAnalizados || 0
     ) || 7;
 
+  const fechaCorteVentas =
+    metricas?.fechaFinal ||
+    resultadoVentas?.importacion?.created_at ||
+    null;
+  const fechaCargaInventario =
+    resultadoInventario?.importacion?.created_at ||
+    null;
+  const antiguedadVentasDias =
+    obtenerAntiguedadDias(fechaCorteVentas);
+  const antiguedadInventarioDias =
+    obtenerAntiguedadDias(fechaCargaInventario);
+  const diasMaximosDatosActuales = 7;
+  const actualizacionDatos = {
+    diasMaximos: diasMaximosDatosActuales,
+    ventas: {
+      fecha: fechaCorteVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente:
+        antiguedadVentasDias !== null &&
+        antiguedadVentasDias <= diasMaximosDatosActuales,
+    },
+    inventario: {
+      fecha: fechaCargaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente:
+        antiguedadInventarioDias !== null &&
+        antiguedadInventarioDias <= diasMaximosDatosActuales,
+    },
+  };
+  actualizacionDatos.vigente =
+    actualizacionDatos.ventas.vigente &&
+    actualizacionDatos.inventario.vigente;
+
   const productosVentas =
     agruparVentasPorProducto(
       ventas
@@ -807,6 +854,8 @@ prioridad =
           diasCobertura,
 
           diasAnalizados,
+
+          actualizacionDatos,
 
           prioridad,
 
