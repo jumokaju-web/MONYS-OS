@@ -58,6 +58,25 @@ function etiquetaAntiguedad(dias) {
   return dias === 0 ? "hoy" : `hace ${dias} días`;
 }
 
+function fechaDato(fecha) {
+  if (!fecha) {
+    return "Fecha sin confirmar";
+  }
+
+  const valor = new Date(fecha);
+
+  if (Number.isNaN(valor.getTime())) {
+    return "Fecha sin confirmar";
+  }
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  }).format(valor);
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -176,6 +195,29 @@ export default function CentroTrabajoGrowth({
     oportunidadPrioritaria?.actualizacionDatos || null;
   const oportunidadVigente =
     actualizacionOportunidad?.vigente === true;
+
+  const fuentesCampana = [
+    {
+      clave: "ventas",
+      titulo: "Ventas por artículo",
+      descripcion: "Demanda real y productos vendidos",
+      dato: actualizacionOportunidad?.ventas,
+    },
+    {
+      clave: "inventario",
+      titulo: "Inventario por sucursal",
+      descripcion: "Existencia y disponibilidad para vender",
+      dato: actualizacionOportunidad?.inventario,
+    },
+  ];
+
+  const datosFaltantes = fuentesCampana.filter(
+    (fuente) => fuente.dato?.vigente !== true
+  );
+
+  const limiteVigencia = Number(
+    actualizacionOportunidad?.diasMaximos || 7
+  );
 
   const valorAcumulado = (total, disponibles) => {
     if (disponibles === 0) {
@@ -571,6 +613,80 @@ export default function CentroTrabajoGrowth({
           </article>
         </div>
       </div>
+
+      <section
+        className={`growth-workspace__data-readiness ${
+          oportunidadVigente
+            ? "growth-workspace__data-readiness--ready"
+            : "growth-workspace__data-readiness--blocked"
+        }`}
+      >
+        <div className="growth-workspace__data-heading">
+          <div>
+            <span>Base para decidir</span>
+            <strong>
+              {oportunidadVigente
+                ? "Datos listos para recomendar campaña"
+                : "Primera campaña recomendada protegida"}
+            </strong>
+          </div>
+
+          <b>
+            {oportunidadVigente
+              ? "✓ Lista"
+              : `${datosFaltantes.length} actualización${
+                  datosFaltantes.length === 1 ? "" : "es"
+                } pendiente${datosFaltantes.length === 1 ? "" : "s"}`}
+          </b>
+        </div>
+
+        <p>
+          {oportunidadVigente
+            ? "MONYS ya puede cruzar demanda, existencia y margen para proponer producto, canal y prueba medible. La publicación y cualquier gasto siguen requiriendo autorización humana."
+            : `MONYS no sustituye datos antiguos con estimaciones. Actualiza las fuentes marcadas; al volver a cargar esta pantalla se recalcularán producto, canal y acción sugerida. Vigencia máxima: ${limiteVigencia} días.`}
+        </p>
+
+        <div className="growth-workspace__data-sources">
+          {fuentesCampana.map((fuente) => {
+            const vigente = fuente.dato?.vigente === true;
+
+            return (
+              <article key={fuente.clave}>
+                <span
+                  className={
+                    vigente
+                      ? "growth-workspace__data-icon growth-workspace__data-icon--ready"
+                      : "growth-workspace__data-icon growth-workspace__data-icon--blocked"
+                  }
+                  aria-hidden="true"
+                >
+                  {vigente ? "✓" : "!"}
+                </span>
+                <div>
+                  <strong>{fuente.titulo}</strong>
+                  <small>{fuente.descripcion}</small>
+                  <em>
+                    {fechaDato(fuente.dato?.fecha)} · {etiquetaAntiguedad(
+                      fuente.dato?.antiguedadDias
+                    )}
+                  </em>
+                </div>
+                <b>{vigente ? "Vigente" : "Actualizar"}</b>
+              </article>
+            );
+          })}
+        </div>
+
+        {!oportunidadVigente && (
+          <button
+            type="button"
+            className="growth-workspace__data-refresh"
+            onClick={onActualizar}
+          >
+            ↻ Comprobar nuevamente los datos
+          </button>
+        )}
+      </section>
 
       <section className="growth-workspace__campaign-route">
         <div className="growth-workspace__campaign-route-heading">
