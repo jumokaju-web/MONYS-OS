@@ -55,6 +55,18 @@ function obtenerFechaHoy() {
   return `${year}-${month}-${day}`;
 }
 
+function etiquetarAntiguedadSicar(dias) {
+  if (dias === null || dias === undefined) {
+    return "fecha sin confirmar";
+  }
+
+  return dias === 0 ? "hoy" : `hace ${dias} días`;
+}
+
+function mensajeDatosSicarDesactualizados(actualizacionDatos) {
+  return `No prepararé una campaña recomendada con reportes SICAR antiguos o sin fecha confirmada. Ventas: ${etiquetarAntiguedadSicar(actualizacionDatos?.ventas?.antiguedadDias)}; inventario: ${etiquetarAntiguedadSicar(actualizacionDatos?.inventario?.antiguedadDias)}. Actualiza ambos reportes de esta sucursal y vuelve a cargar Oportunidades.`;
+}
+
 function convertirFechaLocal(valor) {
   const [year, month, day] =
     String(valor || "")
@@ -3891,19 +3903,10 @@ function prepararOportunidadGrowth(oportunidad) {
   }
 
   if (oportunidad?.actualizacionDatos?.vigente !== true) {
-    const diasVentas =
-      oportunidad?.actualizacionDatos?.ventas?.antiguedadDias;
-    const diasInventario =
-      oportunidad?.actualizacionDatos?.inventario?.antiguedadDias;
-    const etiquetaEdad = (dias) =>
-      dias === null || dias === undefined
-        ? "fecha sin confirmar"
-        : dias === 0
-          ? "hoy"
-          : `hace ${dias} días`;
-
     setErrorCampana(
-      `No prepararé una campaña recomendada con reportes antiguos. Ventas: ${etiquetaEdad(diasVentas)}; inventario: ${etiquetaEdad(diasInventario)}. Pide actualizar SICAR para esta sucursal y vuelve a cargar Oportunidades.`
+      mensajeDatosSicarDesactualizados(
+        oportunidad?.actualizacionDatos
+      )
     );
     setSeccionGrowthActiva("CAMPANAS");
 
@@ -3957,6 +3960,8 @@ function alternarProductoGrupoGrowth(oportunidad) {
               oportunidad?.margenReal == null
                 ? null
                 : Number(oportunidad.margenReal),
+            actualizacionDatos:
+              oportunidad?.actualizacionDatos || null,
             prioridad: Number(oportunidad?.prioridad || 0),
             razones: Array.isArray(oportunidad?.razones)
               ? oportunidad.razones
@@ -3968,6 +3973,20 @@ function alternarProductoGrupoGrowth(oportunidad) {
 
 function prepararCampanaMultipleGrowth() {
   if (productosSeleccionadosGrowth.length < 2) return;
+
+  const oportunidadDesactualizada =
+    productosSeleccionadosGrowth.find(
+      (item) => item?.actualizacionDatos?.vigente !== true
+    );
+
+  if (oportunidadDesactualizada) {
+    setErrorCampana(
+      mensajeDatosSicarDesactualizados(
+        oportunidadDesactualizada.actualizacionDatos
+      )
+    );
+    return;
+  }
 
   const nombres = productosSeleccionadosGrowth.map((item) => item.nombre);
   setEstrategia(null);
@@ -4044,6 +4063,25 @@ const ofertaFinal =
         branchId,
         producto,
       });
+
+    if (contextoReal?.actualizacionDatos?.vigente !== true) {
+      setErrorCampana(
+        mensajeDatosSicarDesactualizados(
+          contextoReal?.actualizacionDatos
+        )
+      );
+      return;
+    }
+
+    if (
+      !contextoReal?.fuentes?.ventas ||
+      !contextoReal?.fuentes?.inventario
+    ) {
+      setErrorCampana(
+        "MONYS no encontró ventas e inventario coincidentes de este producto en la sucursal. Revisa el nombre o código SICAR antes de preparar el contenido."
+      );
+      return;
+    }
 
     console.log(
   "MONYS CONTEXTO REAL CAMPAÑA:",
@@ -4226,6 +4264,41 @@ const ofertaFinal =
        const datosGrupo = esCampanaMultiple
          ? productosSeleccionadosGrowth
          : [];
+
+       if (esCampanaMultiple) {
+         const oportunidadDesactualizada =
+           datosGrupo.find(
+             (item) => item?.actualizacionDatos?.vigente !== true
+           );
+
+         if (oportunidadDesactualizada) {
+           setErrorCampana(
+             mensajeDatosSicarDesactualizados(
+               oportunidadDesactualizada.actualizacionDatos
+             )
+           );
+           return;
+         }
+       } else {
+         if (contextoReal?.actualizacionDatos?.vigente !== true) {
+           setErrorCampana(
+             mensajeDatosSicarDesactualizados(
+               contextoReal?.actualizacionDatos
+             )
+           );
+           return;
+         }
+
+         if (
+           !contextoReal?.fuentes?.ventas ||
+           !contextoReal?.fuentes?.inventario
+         ) {
+           setErrorCampana(
+             "MONYS no encontró ventas e inventario coincidentes de este producto en la sucursal. Revisa el nombre o código SICAR antes de preparar una campaña."
+           );
+           return;
+         }
+       }
 
 
 const resultado =
