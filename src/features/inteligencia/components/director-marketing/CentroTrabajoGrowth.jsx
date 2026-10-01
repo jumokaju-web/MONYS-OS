@@ -619,12 +619,12 @@ export default function CentroTrabajoGrowth({
 
         <button
           type="button"
-          onClick={() => onAbrirModulo?.("CAMPANAS")}
+          onClick={() => onAbrirModulo?.("CONTENIDO")}
         >
           <span className="growth-workspace__command-icon">↗</span>
           <span>
             <strong>Preparar publicación</strong>
-            <small>Revisar el kit y agendar en MONYS</small>
+            <small>Revisar kit · no publica en redes</small>
           </span>
           <b aria-hidden="true">→</b>
         </button>
