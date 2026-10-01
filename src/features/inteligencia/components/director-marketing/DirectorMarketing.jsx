@@ -659,6 +659,15 @@ for (
       return;
     }
 
+    if (
+      convertirNumero(capacidadCompra) <= 0
+    ) {
+      setErrorCampanas(
+        "Finanzas reporta $0 disponibles. Actualiza la información financiera antes de autorizar presupuesto para campañas."
+      );
+      return;
+    }
+
     const presupuestoActual =
       convertirNumero(
         campana.presupuesto
@@ -967,7 +976,12 @@ for (
               mensajesAcumulados,
               costoPorPedido,
               decisionActual:
-                "CONTINUAR MIDIENDO",
+                borrador.publicacion ===
+                "NO_PUBLICADA"
+                  ? "REPROGRAMAR_PUBLICACION"
+                  : resultadoActual.decisionActual ||
+                    campana.decision_ia ||
+                    "CONTINUAR_MIDIENDO",
               historial: [
                 ...historialActual,
                 registroNuevo,
@@ -1848,6 +1862,52 @@ for (
                   horasSinAvance !== null &&
                   horasSinAvance >= 24;
 
+                const alcanceAcumulado =
+                  convertirNumero(
+                    resultado.alcanceAcumulado
+                  );
+                const mensajesAcumulados =
+                  convertirNumero(
+                    resultado.mensajesAcumulados
+                  );
+                const pedidosAcumulados =
+                  convertirNumero(
+                    resultado.pedidosAcumulados
+                  );
+                const ventaAcumulada =
+                  convertirNumero(
+                    resultado.ventaAcumulada
+                  );
+                const gastoAcumulado =
+                  convertirNumero(
+                    resultado.gastoAcumulado
+                  );
+                const conversionMensaje =
+                  alcanceAcumulado > 0
+                    ? (mensajesAcumulados /
+                        alcanceAcumulado) *
+                      100
+                    : null;
+                const conversionPedido =
+                  mensajesAcumulados > 0
+                    ? (pedidosAcumulados /
+                        mensajesAcumulados) *
+                      100
+                    : null;
+                const ticketPromedio =
+                  pedidosAcumulados > 0
+                    ? ventaAcumulada /
+                      pedidosAcumulados
+                    : null;
+                const retornoPorPeso =
+                  gastoAcumulado > 0
+                    ? ventaAcumulada /
+                      gastoAcumulado
+                    : null;
+                const ultimoRegistro =
+                  historialResultados.at(-1) ||
+                  null;
+
                 return (
                   <div
                     key={campana.id}
@@ -1940,6 +2000,26 @@ for (
 
                       <div>
                         <strong>
+                          Alcance acumulado
+                        </strong>
+                        <br />
+                        {alcanceAcumulado.toLocaleString(
+                          "es-MX"
+                        )}
+                      </div>
+
+                      <div>
+                        <strong>
+                          Mensajes
+                        </strong>
+                        <br />
+                        {mensajesAcumulados.toLocaleString(
+                          "es-MX"
+                        )}
+                      </div>
+
+                      <div>
+                        <strong>
                           Pedidos
                         </strong>
                         <br />
@@ -1982,6 +2062,20 @@ for (
                         <strong>Estado</strong>
                         <br />
                         {campana.estado}
+                      </div>
+
+                      <div>
+                        <strong>
+                          Publicación
+                        </strong>
+                        <br />
+                        {ultimoRegistro?.publicacion ===
+                        "PUBLICADA"
+                          ? "Comprobada"
+                          : ultimoRegistro?.publicacion ===
+                              "NO_PUBLICADA"
+                            ? "No publicada"
+                            : "Por confirmar"}
                       </div>
                                                <div>
                         <strong>
@@ -2264,6 +2358,84 @@ for (
                         "ESPERANDO_RESULTADOS"
                       ).replaceAll("_", " ")}
                     </div>
+
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        padding: "12px",
+                        borderRadius: "10px",
+                        backgroundColor: "#f8fbff",
+                        border: "1px solid #cdddf0",
+                      }}
+                    >
+                      <strong>
+                        📈 Embudo real de la campaña
+                      </strong>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(145px, 1fr))",
+                          gap: "9px",
+                          marginTop: "10px",
+                        }}
+                      >
+                        {[
+                          [
+                            "Conversión a mensaje",
+                            conversionMensaje === null
+                              ? "Sin alcance todavía"
+                              : `${conversionMensaje.toFixed(1)}%`,
+                          ],
+                          [
+                            "Conversión a pedido",
+                            conversionPedido === null
+                              ? "Sin mensajes todavía"
+                              : `${conversionPedido.toFixed(1)}%`,
+                          ],
+                          [
+                            "Ticket promedio",
+                            ticketPromedio === null
+                              ? "Sin pedidos todavía"
+                              : formatearDinero(
+                                  ticketPromedio
+                                ),
+                          ],
+                          [
+                            "Retorno por peso",
+                            retornoPorPeso === null
+                              ? "Sin gasto todavía"
+                              : `${retornoPorPeso.toFixed(2)}×`,
+                          ],
+                        ].map(
+                          ([etiqueta, valor]) => (
+                            <div
+                              key={etiqueta}
+                              style={{
+                                padding: "10px",
+                                borderRadius: "9px",
+                                backgroundColor: "#ffffff",
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "block",
+                                  color: "#64748b",
+                                  fontSize: "12px",
+                                  fontWeight: "750",
+                                }}
+                              >
+                                {etiqueta}
+                              </span>
+                              <strong>
+                                {valor}
+                              </strong>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
                  
                   {historialResultados.length ===
                     0 && (
@@ -2396,7 +2568,10 @@ for (
                     }
                     disabled={
                       campanaActualizandoId ===
-                      campana.id
+                        campana.id ||
+                      convertirNumero(
+                        capacidadCompra
+                      ) <= 0
                     }
                     style={{
                       width: "100%",
@@ -2444,12 +2619,19 @@ for (
                       fontWeight: "800",
                       cursor:
                         campanaActualizandoId ===
-                        campana.id
+                          campana.id ||
+                        convertirNumero(
+                          capacidadCompra
+                        ) <= 0
                           ? "wait"
                           : "pointer",
                     }}
                   >
-                    💰 Autorizar nuevo presupuesto
+                    {convertirNumero(
+                      capacidadCompra
+                    ) <= 0
+                      ? "🔒 Sin presupuesto disponible"
+                      : "💰 Autorizar nuevo presupuesto"}
                   </button>
                 </div>
               );
