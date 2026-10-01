@@ -329,16 +329,26 @@ for (
           sucursalesNegocio
         );
 
-        const usuarioMarketing =
-          usuariosActivos.find(
+        const usuariosMarketing =
+          usuariosActivos.filter(
             (usuarioSistema) =>
               usuarioSistema.active !== false &&
-              usuarioSistema.business_id ===
-                usuario.business_id &&
               String(
                 usuarioSistema.role || ""
-              ).toUpperCase() === "MARKETING"
-          ) || null;
+              ).toUpperCase() === "MARKETING" &&
+              (
+                !usuario.organization_id ||
+                usuarioSistema.organization_id ===
+                  usuario.organization_id
+              )
+          );
+
+        const usuarioMarketing =
+          usuariosMarketing.find(
+            (usuarioSistema) =>
+              usuarioSistema.business_id ===
+                usuario.business_id
+          ) || usuariosMarketing[0] || null;
 
         setUsuarioMarketingPreview(
           usuarioMarketing
@@ -1451,7 +1461,13 @@ for (
                 fontSize: "21px",
               }}
             >
-              Programa diario de {usuarioMarketingPreview?.nombre?.split(" ")?.[0] || "Marketing"}
+              Programa diario de {
+                /kari/i.test(
+                  usuarioMarketingPreview?.nombre || ""
+                )
+                  ? "Kary"
+                  : usuarioMarketingPreview?.nombre?.split(" ")?.[0] || "Marketing"
+              }
             </h3>
 
             <p
