@@ -335,12 +335,7 @@ for (
               usuarioSistema.active !== false &&
               String(
                 usuarioSistema.role || ""
-              ).toUpperCase() === "MARKETING" &&
-              (
-                !usuario.organization_id ||
-                usuarioSistema.organization_id ===
-                  usuario.organization_id
-              )
+              ).toUpperCase() === "MARKETING"
           );
 
         const usuarioMarketing =
