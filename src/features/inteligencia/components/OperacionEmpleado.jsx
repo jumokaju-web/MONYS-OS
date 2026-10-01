@@ -3704,6 +3704,13 @@ const resultadoGrowthActual =
   campanaGuardada?.resultado || {};
 const aprendizajeGrowthActual =
   campanaGuardada?.aprendizaje || {};
+const productosCampanaGuardada = Array.isArray(
+  campanaGuardada?.estrategia_ia?.productosSeleccionadosGrowth
+)
+  ? campanaGuardada.estrategia_ia.productosSeleccionadosGrowth
+      .map((item) => item?.nombre || item?.producto || "")
+      .filter(Boolean)
+  : [];
 const formatoMonedaGrowth = (valor) =>
   valor == null || !Number.isFinite(Number(valor))
     ? "Sin dato"
@@ -5429,8 +5436,32 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
       <strong>
         {productosSeleccionadosGrowth.length} producto(s) seleccionados
       </strong>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "5px",
+          marginTop: "7px",
+        }}
+      >
+        {productosSeleccionadosGrowth.map((item) => (
+          <span
+            key={item.clave}
+            style={{
+              padding: "4px 8px",
+              borderRadius: "999px",
+              background: "#f7e5ee",
+              color: "#74284e",
+              fontSize: "12px",
+              fontWeight: "700",
+            }}
+          >
+            {item.nombre}
+          </span>
+        ))}
+      </div>
       <div style={{ marginTop: "4px", fontSize: "12px", color: "#6f6470" }}>
-        MONYS conserva margen, ventas e inventario separados para cada artículo.
+        MONYS conserva margen, ventas e inventario separados para cada artículo. El presupuesto indicado será compartido por la campaña.
       </div>
       <button
         type="button"
@@ -5554,7 +5585,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
       {campanaGuardada?.id ? (
         <>
           <strong>{campanaGuardada.nombre || "Campaña en preparación"}</strong>
-          <br />Producto: {campanaGuardada.producto || producto || "Sin producto identificado"}
+          <br />{productosCampanaGuardada.length > 1 ? "Productos" : "Producto"}: {productosCampanaGuardada.length > 0 ? productosCampanaGuardada.join(", ") : campanaGuardada.producto || producto || "Sin producto identificado"}
           <br />Estado: {campanaGuardada.estado || "Sin estado"}
           <br />Decisión MONYS: {resultadoGrowthActual.decisionActual || campanaGuardada.decision_ia || "Pendiente de medición"}
           <br />Presupuesto registrado: {formatoMonedaGrowth(campanaGuardada.presupuesto)}
