@@ -47,6 +47,7 @@ export default function CentroTrabajoGrowth({
   onEmpezarPrioridad,
   onVerSemana,
   onAbrirModulo,
+  onTrabajarOportunidad,
   espaciosGrowth = [],
   espacioGrowthActivo = null,
   onCambiarEspacio,
@@ -190,14 +191,16 @@ export default function CentroTrabajoGrowth({
             "producto con potencial"
           }`,
           descripcion:
-            "MONYS detectó esta oportunidad con inventario y ventas recientes; muestra el margen cuando la importación lo contiene. Revisa la evidencia y prepara una prueba pequeña antes de invertir.",
+            `Datos de la sucursal: ${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia y ${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días de cobertura.${oportunidadPrioritaria.fuente?.ventas ? ` Ventas recientes: ${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} piezas.` : " No hay ventas recientes coincidentes para confirmar demanda."}${oportunidadPrioritaria.margenReal == null ? " Margen sin confirmar." : ` Margen importado: ${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%.`} ${Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length ? oportunidadPrioritaria.razones.join(" · ") + "." : "Revisa la evidencia disponible."}`,
           criterio:
             "Seleccionar la oportunidad y preparar una prueba medible; no se estima venta futura sin evidencia.",
           etiqueta: "Oportunidad con datos reales",
           clase: "growth-workspace__status--ready",
           boton: "Revisar y preparar prueba",
           ejecutar: () =>
-            onAbrirModulo?.("OPORTUNIDADES"),
+            onTrabajarOportunidad
+              ? onTrabajarOportunidad(oportunidadPrioritaria)
+              : onAbrirModulo?.("OPORTUNIDADES"),
         }
       : {
           titulo:

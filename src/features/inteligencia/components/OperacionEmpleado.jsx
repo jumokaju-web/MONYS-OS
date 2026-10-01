@@ -1104,6 +1104,14 @@ export default function OperacionEmpleado({
                 block: "start",
               });
           }}
+          onTrabajarOportunidad={(oportunidad) => {
+            window.dispatchEvent(
+              new CustomEvent(
+                "monys-growth-elegir-oportunidad",
+                { detail: oportunidad }
+              )
+            );
+          }}
           espaciosGrowth={espaciosGrowth}
           espacioGrowthActivo={
             espacioGrowthActivo
@@ -3598,16 +3606,29 @@ const [
       }
     }
 
+    function elegirOportunidadGrowth(event) {
+      prepararOportunidadGrowth(event?.detail);
+    }
+
     window.addEventListener(
       "monys-growth-navegar",
       abrirModuloGrowth
     );
+    window.addEventListener(
+      "monys-growth-elegir-oportunidad",
+      elegirOportunidadGrowth
+    );
 
-    return () =>
+    return () => {
       window.removeEventListener(
         "monys-growth-navegar",
         abrirModuloGrowth
       );
+      window.removeEventListener(
+        "monys-growth-elegir-oportunidad",
+        elegirOportunidadGrowth
+      );
+    };
   }, []);
 
   const [
@@ -3665,10 +3686,23 @@ const [
     setEstrategia,
   ] = useState(null);
 
-  const [
+const [
   campanaGuardada,
   setCampanaGuardada,
 ] = useState(null);
+
+const resultadoGrowthActual =
+  campanaGuardada?.resultado || {};
+const aprendizajeGrowthActual =
+  campanaGuardada?.aprendizaje || {};
+const formatoMonedaGrowth = (valor) =>
+  valor == null || !Number.isFinite(Number(valor))
+    ? "Sin dato"
+    : Number(valor).toLocaleString("es-MX", {
+        style: "currency",
+        currency: "MXN",
+        maximumFractionDigits: 0,
+      });
 
 const [
   activandoCampana,
@@ -3822,6 +3856,32 @@ async function cargarOportunidadesGrowth() {
 
 cargarOportunidadesGrowthRef.current =
   cargarOportunidadesGrowth;
+
+function prepararOportunidadGrowth(oportunidad) {
+  const nombreOportunidad =
+    oportunidad?.nombre || oportunidad?.codigo || "";
+
+  if (!nombreOportunidad) {
+    setErrorCampana("No pude identificar el producto de esta oportunidad.");
+    return;
+  }
+
+  setEstrategia(null);
+  setKitMarketing(null);
+  setCampanaGuardada(null);
+  setErrorCampana("");
+  setProducto(nombreOportunidad);
+  setObjetivoUsuario(
+    `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
+  );
+  setSeccionGrowthActiva("CAMPANAS");
+
+  window.setTimeout(() => {
+    document
+      .getElementById("growth-campana-form")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 0);
+}
 
 async function generarKit() {
   try {
@@ -5162,26 +5222,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
             )}
             <button
   type="button"
-  onClick={() => {
-    const nombreOportunidad =
-      oportunidad.nombre ||
-      oportunidad.codigo ||
-      "";
-
-     setEstrategia(null);
-
-    setProducto(
-      nombreOportunidad
-    );
-
-    setObjetivoUsuario(
-      `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
-    );
-
-    setSeccionGrowthActiva(
-      "HOY"
-    );
-  }}
+  onClick={() => prepararOportunidadGrowth(oportunidad)}
   style={{
     width: "100%",
     marginTop: "10px",
@@ -5194,7 +5235,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
     cursor: "pointer",
   }}
 >
-  🚀 Trabajar esta oportunidad
+  🚀 Preparar prueba para este producto
 </button>
         </div>
       )
@@ -5234,7 +5275,32 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
     >
       Aquí MONYS convertirá oportunidades y campañas en piezas concretas:
       video, gancho, guion, CTA, canal, formato y objetivo de venta.
+      {kitMarketing?.estado === "LISTO"
+        ? ` Ya hay un kit listo para ${producto || "el producto seleccionado"}; revisa el guion y la oferta antes de usarlo.`
+        : ` ${producto ? `Producto seleccionado: ${producto}.` : "Primero selecciona un producto u oportunidad."} Completa el objetivo y toca “Generar kit listo para publicar” para preparar los textos.`}
     </div>
+    <button
+      type="button"
+      onClick={() =>
+        document
+          .getElementById("growth-campana-form")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+      style={{
+        width: "100%",
+        marginTop: "10px",
+        padding: "10px",
+        border: "1px solid #9d245b",
+        borderRadius: "10px",
+        background: "#fff0f6",
+        color: "#8b1f51",
+        fontWeight: "800",
+      }}
+    >
+      {kitMarketing?.estado === "LISTO"
+        ? "Revisar o actualizar el contenido"
+        : "Completar objetivo y preparar contenido"}
+    </button>
   </div>
 )}
 
@@ -5265,8 +5331,17 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
         lineHeight: "1.5",
       }}
     >
-      Aquí MONYS concentrará las campañas activas, pruebas pequeñas,
-      presupuesto, decisión actual y siguiente acción antes de escalar.
+      {campanaGuardada?.id ? (
+        <>
+          <strong>{campanaGuardada.nombre || "Campaña en preparación"}</strong>
+          <br />Producto: {campanaGuardada.producto || producto || "Sin producto identificado"}
+          <br />Estado: {campanaGuardada.estado || "Sin estado"}
+          <br />Decisión MONYS: {resultadoGrowthActual.decisionActual || campanaGuardada.decision_ia || "Pendiente de medición"}
+          <br />Presupuesto registrado: {formatoMonedaGrowth(campanaGuardada.presupuesto)}
+        </>
+      ) : (
+        <>Selecciona una oportunidad o completa el producto y objetivo abajo. MONYS creará una prueba con el presupuesto y los criterios que indique la estrategia.</>
+      )}
     </div>
   </div>
 )}
@@ -5298,8 +5373,18 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
         lineHeight: "1.5",
       }}
     >
-      Aquí MONYS comparará alcance, leads, pedidos, ventas, gasto y utilidad
-      para saber qué acciones realmente producen crecimiento.
+      {campanaGuardada?.id ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(125px, 1fr))", gap: "8px", marginTop: "10px" }}>
+          <span>Venta acumulada<br /><strong>{formatoMonedaGrowth(resultadoGrowthActual.ventaAcumulada)}</strong></span>
+          <span>Inversión<br /><strong>{formatoMonedaGrowth(resultadoGrowthActual.gastoAcumulado)}</strong></span>
+          <span>Pedidos<br /><strong>{Number(resultadoGrowthActual.pedidosAcumulados || 0)}</strong></span>
+          <span>Costo por pedido<br /><strong>{resultadoGrowthActual.costoPorPedido == null ? "Sin pedidos" : formatoMonedaGrowth(resultadoGrowthActual.costoPorPedido)}</strong></span>
+          <span>Utilidad estimada<br /><strong>{resultadoGrowthActual.utilidadEstimadaCampana == null ? "Falta margen base" : formatoMonedaGrowth(resultadoGrowthActual.utilidadEstimadaCampana)}</strong></span>
+          <span>Decisión actual<br /><strong>{resultadoGrowthActual.decisionActual || "Pendiente de medición"}</strong></span>
+        </div>
+      ) : (
+        <>Todavía no hay una campaña cargada para mostrar resultados. Diseña o registra una campaña y captura sus avances reales; no se mostrarán cifras estimadas como ventas reales.</>
+      )}
     </div>
   </div>
 )}
@@ -5331,13 +5416,23 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
         lineHeight: "1.5",
       }}
     >
-      Aquí MONYS guardará qué funcionó, qué no funcionó, cuánto costó,
-      qué produjo ventas y qué debe repetir, mejorar o detener la próxima vez.
+      {aprendizajeGrowthActual.resumenIA || campanaGuardada?.analisis_ia?.resumen ? (
+        <>
+          <strong>{aprendizajeGrowthActual.resumenIA || campanaGuardada?.analisis_ia?.resumen}</strong>
+          <br />Decisión para una próxima prueba: {aprendizajeGrowthActual.decisionFutura || campanaGuardada?.analisis_ia?.decisionFutura || "Revisar"}
+          {aprendizajeGrowthActual.recomendacionFutura || campanaGuardada?.analisis_ia?.recomendacionFutura ? (
+            <><br />Siguiente acción: {aprendizajeGrowthActual.recomendacionFutura || campanaGuardada?.analisis_ia?.recomendacionFutura}</>
+          ) : null}
+        </>
+      ) : (
+        <>El aprendizaje se guarda al cerrar una campaña con avances reales. {campanaGuardada?.id ? `La campaña actual “${campanaGuardada.nombre || campanaGuardada.producto || "sin nombre"}” aún no tiene un aprendizaje final registrado.` : "Aún no hay una campaña seleccionada para consultar."}</>
+      )}
     </div>
   </div>
 )}
 
       <textarea
+        id="growth-campana-form"
         value={objetivoUsuario}
         onChange={(event) =>
           setObjetivoUsuario(

@@ -1,3 +1,5 @@
+import CanalesPublicidadGrowth from "./CanalesPublicidadGrowth.jsx";
+
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -388,6 +390,8 @@ const accionPrincipal =
     : "✨ Convertir estrategia en plan de trabajo"}
 </button>
       </div>
+
+      <CanalesPublicidadGrowth />
 
       <div
         style={{

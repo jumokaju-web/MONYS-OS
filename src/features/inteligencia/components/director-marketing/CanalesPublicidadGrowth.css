@@ -1,0 +1,167 @@
+.growth-paid-channels {
+  margin-top: 16px;
+  padding: clamp(16px, 3vw, 22px);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 18px;
+  background: rgba(69, 14, 48, 0.38);
+}
+
+.growth-paid-channels__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.growth-paid-channels__eyebrow {
+  color: #ffd6e8;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.growth-paid-channels__heading h3 {
+  margin: 5px 0;
+  color: #fff;
+  font-size: clamp(18px, 3vw, 22px);
+}
+
+.growth-paid-channels__heading p {
+  max-width: 620px;
+  margin: 0;
+  color: #f8dfea;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.growth-paid-channels__guard {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.growth-paid-channels__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.growth-paid-channel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 8px 10px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid #f0d8e4;
+  border-radius: 15px;
+  background: #fff;
+  color: #34212c;
+}
+
+.growth-paid-channel__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.growth-paid-channel__icon--meta {
+  background: #e8f1ff;
+  color: #1877f2;
+}
+
+.growth-paid-channel__icon--openai {
+  background: #e9f8f4;
+  color: #087f69;
+}
+
+.growth-paid-channel__brand h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.growth-paid-channel__brand span {
+  display: block;
+  margin-top: 2px;
+  color: #74616b;
+  font-size: 11px;
+}
+
+.growth-paid-channel__status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #835400;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.growth-paid-channel__status span {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #e6a329;
+}
+
+.growth-paid-channel p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #705d67;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.growth-paid-channel a {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #ead3df;
+  border-radius: 10px;
+  color: #922456;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.growth-paid-channel a:focus-visible {
+  outline: 3px solid #bd4280;
+  outline-offset: 2px;
+}
+
+.growth-paid-channels__note {
+  margin: 11px 0 0;
+  color: #f8dfea;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 620px) {
+  .growth-paid-channels__heading {
+    display: grid;
+  }
+
+  .growth-paid-channels__guard {
+    justify-self: start;
+  }
+
+  .growth-paid-channels__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

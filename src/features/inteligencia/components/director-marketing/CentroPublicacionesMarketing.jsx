@@ -23,6 +23,10 @@ const CANALES = [
 ];
 
 function etiquetaEstado(estado) {
+  if (String(estado || "").toUpperCase() === "PROGRAMADA") {
+    return "Agendada en MONYS · sin publicar";
+  }
+
   return String(estado || "BORRADOR")
     .replaceAll("_", " ")
     .toLowerCase()
@@ -289,7 +293,7 @@ export default function CentroPublicacionesMarketing({
       });
 
       setMensaje(
-        "Publicación autorizada y programada en MONYS."
+        "Quedó en la agenda interna de MONYS. Todavía no se publicó en redes: falta conectar el canal."
       );
 
       await cargarPublicaciones();
@@ -616,7 +620,7 @@ export default function CentroPublicacionesMarketing({
                             })
                           )
                         }
-                        aria-label="Fecha y hora de publicación"
+                        aria-label="Fecha y hora para la agenda de MONYS"
                         style={{
                           minWidth: 0,
                           padding: "8px",
