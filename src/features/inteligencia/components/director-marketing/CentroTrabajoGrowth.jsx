@@ -32,6 +32,15 @@ function moneda(valor) {
   }).format(Number(valor || 0));
 }
 
+function numeroRegistrado(valor) {
+  if (valor === null || valor === undefined || valor === "") {
+    return null;
+  }
+
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -88,15 +97,30 @@ export default function CentroTrabajoGrowth({
         resumen.activas += 1;
       }
 
-      resumen.ventas += Number(
-        resultado.ventaAcumulada || 0
+      const venta = numeroRegistrado(
+        resultado.ventaAcumulada
       );
-      resumen.inversion += Number(
-        resultado.gastoAcumulado || 0
+      const inversion = numeroRegistrado(
+        resultado.gastoAcumulado
       );
-      resumen.utilidad += Number(
-        resultado.utilidadEstimadaCampana || 0
+      const utilidad = numeroRegistrado(
+        resultado.utilidadEstimadaCampana
       );
+
+      if (venta !== null) {
+        resumen.ventas += venta;
+        resumen.campanasConVentas += 1;
+      }
+
+      if (inversion !== null) {
+        resumen.inversion += inversion;
+        resumen.campanasConInversion += 1;
+      }
+
+      if (utilidad !== null) {
+        resumen.utilidad += utilidad;
+        resumen.campanasConUtilidad += 1;
+      }
 
       const decision = String(
         resultado.decisionActual ||
@@ -122,11 +146,25 @@ export default function CentroTrabajoGrowth({
     {
       activas: 0,
       ventas: 0,
+      campanasConVentas: 0,
       inversion: 0,
+      campanasConInversion: 0,
       utilidad: 0,
+      campanasConUtilidad: 0,
       decision: null,
     }
   );
+
+  const valorAcumulado = (total, disponibles) => {
+    if (disponibles === 0) {
+      return "Sin datos";
+    }
+
+    const texto = moneda(total);
+    return disponibles < campanas.length
+      ? `${texto} · parcial`
+      : texto;
+  };
 
   const campanaPrioritaria = campanas.find(
     (campana) =>
@@ -461,20 +499,29 @@ export default function CentroTrabajoGrowth({
 
         <div className="growth-workspace__impact-grid">
           <article>
-            <span>Campañas activas</span>
+            <span>Campañas en curso</span>
             <strong>{resumenCampanas.activas}</strong>
           </article>
           <article>
             <span>Ventas atribuidas</span>
-            <strong>{moneda(resumenCampanas.ventas)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.ventas,
+              resumenCampanas.campanasConVentas
+            )}</strong>
           </article>
           <article>
             <span>Inversión</span>
-            <strong>{moneda(resumenCampanas.inversion)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.inversion,
+              resumenCampanas.campanasConInversion
+            )}</strong>
           </article>
           <article>
             <span>Utilidad estimada</span>
-            <strong>{moneda(resumenCampanas.utilidad)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.utilidad,
+              resumenCampanas.campanasConUtilidad
+            )}</strong>
           </article>
         </div>
 
