@@ -5075,7 +5075,10 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
     marginBottom: "12px",
   }}
 >
-   <div
+   <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "HOY"}
   onClick={() =>
     setSeccionGrowthActiva("HOY")
   }
@@ -5093,9 +5096,12 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   🎯 Qué hacer hoy
-</div>
+</button>
 
- <div
+ <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "OPORTUNIDADES"}
   onClick={() => {
   setSeccionGrowthActiva("OPORTUNIDADES");
   cargarOportunidadesGrowth();
@@ -5114,9 +5120,12 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   💡 Oportunidades
-</div>
+</button>
 
- <div
+ <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "CONTENIDO"}
   onClick={() =>
     setSeccionGrowthActiva("CONTENIDO")
   }
@@ -5134,9 +5143,12 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   🎬 Contenido
-</div>
+</button>
 
-   <div
+   <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "CAMPANAS"}
   onClick={() =>
     setSeccionGrowthActiva("CAMPANAS")
   }
@@ -5154,9 +5166,12 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   📣 Campañas
-</div>
+</button>
 
-  <div
+  <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "RESULTADOS"}
   onClick={() =>
     setSeccionGrowthActiva("RESULTADOS")
   }
@@ -5174,9 +5189,12 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   📈 Resultados
-</div>
+</button>
 
-   <div
+   <button
+  type="button"
+  className="growth-workspace__section-link"
+  aria-pressed={seccionGrowthActiva === "APRENDIZAJES"}
   onClick={() =>
     setSeccionGrowthActiva("APRENDIZAJES")
   }
@@ -5194,7 +5212,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   }}
 >
   🧠 Aprendizajes
-</div>
+</button>
 
 </div>
     {seccionGrowthActiva === "HOY" && (
@@ -5532,11 +5550,14 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
     </div>
     <button
       type="button"
-      onClick={() =>
-        document
-          .getElementById("growth-campana-form")
-          ?.scrollIntoView({ behavior: "smooth", block: "center" })
-      }
+      onClick={() => {
+        setSeccionGrowthActiva("CAMPANAS");
+        window.setTimeout(() => {
+          document
+            .getElementById("growth-campana-form")
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 0);
+      }}
       style={{
         width: "100%",
         marginTop: "10px",
