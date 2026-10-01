@@ -1,4 +1,5 @@
 import CanalesPublicidadGrowth from "./CanalesPublicidadGrowth.jsx";
+import OrquestadorAgenciaGrowth from "./OrquestadorAgenciaGrowth.jsx";
 
 function convertirNumero(valor) {
   const numero = Number(valor);
@@ -500,6 +501,14 @@ const horasSinAvance =
       : "↩️ Volver para actualizar SICAR"}
 </button>
       </div>
+
+      <OrquestadorAgenciaGrowth
+        actualizacionDatos={actualizacionDatos}
+        productoLider={productoLider}
+        inventarioProductoLider={inventarioProductoLider}
+        campanasActivas={campanasActivas}
+        campanasFinalizadas={campanasFinalizadas}
+      />
 
       <CanalesPublicidadGrowth />
 
