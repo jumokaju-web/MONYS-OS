@@ -41,6 +41,8 @@ export default function CentroTrabajoGrowth({
   tareasSemana = 0,
   tareaPrioritaria = null,
   campanas = [],
+  oportunidadPrioritaria = null,
+  cargandoOportunidades = false,
   onActualizar,
   onEmpezarPrioridad,
   onVerSemana,
@@ -180,11 +182,32 @@ export default function CentroTrabajoGrowth({
           ejecutar: () =>
             onAbrirModulo?.("RESULTADOS"),
         }
+      : oportunidadPrioritaria
+      ? {
+          titulo: `Validar oportunidad: ${
+            oportunidadPrioritaria.nombre ||
+            oportunidadPrioritaria.codigo ||
+            "producto con potencial"
+          }`,
+          descripcion:
+            "MONYS detectó esta oportunidad con inventario y ventas recientes; muestra el margen cuando la importación lo contiene. Revisa la evidencia y prepara una prueba pequeña antes de invertir.",
+          criterio:
+            "Seleccionar la oportunidad y preparar una prueba medible; no se estima venta futura sin evidencia.",
+          etiqueta: "Oportunidad con datos reales",
+          clase: "growth-workspace__status--ready",
+          boton: "Revisar y preparar prueba",
+          ejecutar: () =>
+            onAbrirModulo?.("OPORTUNIDADES"),
+        }
       : {
           titulo:
-            "Detectar la mejor oportunidad con datos reales",
+            cargandoOportunidades
+              ? "Analizando datos reales para priorizar"
+              : "Detectar la mejor oportunidad con datos reales",
           descripcion:
-            "MONYS revisará inventario, ventas, margen y cobertura para encontrar qué producto merece atención antes de crear contenido o gastar dinero.",
+            cargandoOportunidades
+              ? "MONYS está cruzando inventario, ventas recientes, utilidad y cobertura de la sucursal seleccionada."
+              : "Todavía no hay una oportunidad calculada para esta sucursal. Actualiza los datos de inventario y ventas o entra a Oportunidades para revisar el análisis.",
           criterio:
             "Elegir un producto con inventario, margen y potencial suficientes para una prueba pequeña.",
           etiqueta: "Siguiente paso",
@@ -290,6 +313,46 @@ export default function CentroTrabajoGrowth({
               <div className="growth-workspace__outcome">
                 <span>Resultado esperado</span>
                 {accionSugerida.criterio}
+              </div>
+            )}
+
+            {oportunidadPrioritaria && !tareaPrioritaria && !campanaPrioritaria && (
+              <div className="growth-workspace__opportunity-signal">
+                <span className="growth-workspace__opportunity-label">
+                  Señal encontrada en datos internos
+                </span>
+                <div className="growth-workspace__opportunity-facts">
+                  <span>
+                    <strong>{Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")}</strong>
+                    piezas en inventario
+                  </span>
+                  <span>
+                    <strong>{Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")}</strong>
+                    vendidas en {Number(oportunidadPrioritaria.diasAnalizados || 7)} días
+                  </span>
+                  <span>
+                    <strong>
+                      {oportunidadPrioritaria.margenReal !== null && oportunidadPrioritaria.margenReal !== undefined
+                        ? `${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%`
+                        : "Sin dato"}
+                    </strong>
+                    margen
+                  </span>
+                  <span>
+                    <strong>
+                      {Number(oportunidadPrioritaria.diasCobertura || 0) >= 999
+                        ? "Sin rotación"
+                        : `${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días`}
+                    </strong>
+                    cobertura estimada
+                  </span>
+                </div>
+                {Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length > 0 && (
+                  <small>{oportunidadPrioritaria.razones.join(" · ")}</small>
+                )}
+                <small className="growth-workspace__opportunity-caveat">
+                  La venta potencial no se inventa: se valida con una prueba y resultados reales.
+                </small>
               </div>
             )}
 

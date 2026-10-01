@@ -806,6 +806,8 @@ prioridad =
 
           diasCobertura,
 
+          diasAnalizados,
+
           prioridad,
 
           razones,
