@@ -14,6 +14,7 @@ import {
 
 import {
   obtenerSucursalesActivas,
+  obtenerUsuarios,
 } from "../../../usuarios/services/usuariosService";
 
 import {
@@ -23,6 +24,7 @@ import {
 } from "../../services/tareasOperativasService";
 
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import OperacionEmpleado from "../OperacionEmpleado";
 import CentroAgenciaMarketing from "./CentroAgenciaMarketing";
 
 function convertirNumero(valor) {
@@ -207,10 +209,20 @@ export default function DirectorMarketing({
     setGuardandoAvanceId,
   ] = useState(null);
 
-    const [
+  const [
     sucursales,
     setSucursales,
   ] = useState([]);
+
+  const [
+    usuarioMarketingPreview,
+    setUsuarioMarketingPreview,
+  ] = useState(null);
+
+  const [
+    vistaKaryAbierta,
+    setVistaKaryAbierta,
+  ] = useState(false);
 
   const [
     sucursalPlanId,
@@ -257,6 +269,7 @@ export default function DirectorMarketing({
         const [
           campanas,
           sucursalesActivas,
+          usuariosActivos,
         ] = await Promise.all([
           obtenerCampanasMarketing({
             organizationId:
@@ -266,6 +279,8 @@ export default function DirectorMarketing({
           }),
 
           obtenerSucursalesActivas(),
+
+          obtenerUsuarios(),
         ]);
 
         setCampanasMarketing(
@@ -314,6 +329,21 @@ for (
           sucursalesNegocio
         );
 
+        const usuarioMarketing =
+          usuariosActivos.find(
+            (usuarioSistema) =>
+              usuarioSistema.active !== false &&
+              usuarioSistema.business_id ===
+                usuario.business_id &&
+              String(
+                usuarioSistema.role || ""
+              ).toUpperCase() === "MARKETING"
+          ) || null;
+
+        setUsuarioMarketingPreview(
+          usuarioMarketing
+        );
+
         setSucursalPlanId(
           (actual) =>
             actual ||
@@ -334,6 +364,7 @@ for (
 
         setCampanasMarketing([]);
         setSucursales([]);
+        setUsuarioMarketingPreview(null);
 
         setErrorCampanas(
           error.message ||
@@ -1378,6 +1409,132 @@ for (
           {sinPresupuesto ? "🔴 " : "🟢 "}
           {estadoGeneral || "Analizando"}
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: "22px",
+          padding: "18px",
+          borderRadius: "18px",
+          background:
+            "linear-gradient(135deg, #64183f 0%, #a62f67 100%)",
+          color: "#ffffff",
+          boxShadow:
+            "0 16px 34px rgba(107, 28, 67, 0.2)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: "#ffd2e5",
+                fontSize: "11px",
+                fontWeight: "900",
+                letterSpacing: "1px",
+              }}
+            >
+              VISTA OPERATIVA REAL
+            </div>
+
+            <h3
+              style={{
+                margin: "5px 0 4px",
+                color: "#ffffff",
+                fontSize: "21px",
+              }}
+            >
+              Programa diario de {usuarioMarketingPreview?.nombre?.split(" ")?.[0] || "Marketing"}
+            </h3>
+
+            <p
+              style={{
+                margin: 0,
+                maxWidth: "680px",
+                color: "#f8dce8",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              Revisa desde tu cuenta exactamente lo que verá Marketing: prioridad, campaña, progreso, tareas y resultados reales.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={!usuarioMarketingPreview}
+            onClick={() =>
+              setVistaKaryAbierta(
+                (abierta) => !abierta
+              )
+            }
+            style={{
+              minHeight: "44px",
+              padding: "0 17px",
+              border: "1px solid rgba(255,255,255,.7)",
+              borderRadius: "12px",
+              background: usuarioMarketingPreview
+                ? "#ffffff"
+                : "rgba(255,255,255,.22)",
+              color: usuarioMarketingPreview
+                ? "#7b204f"
+                : "#f4d8e5",
+              fontWeight: "900",
+              cursor: usuarioMarketingPreview
+                ? "pointer"
+                : "not-allowed",
+            }}
+          >
+            {usuarioMarketingPreview
+              ? vistaKaryAbierta
+                ? "Cerrar programa de Kary"
+                : "Ver programa de Kary →"
+              : "Falta usuario Marketing"}
+          </button>
+        </div>
+
+        {vistaKaryAbierta && usuarioMarketingPreview && (
+          <div
+            style={{
+              marginTop: "18px",
+              overflow: "hidden",
+              border: "5px solid rgba(255,255,255,.24)",
+              borderRadius: "24px",
+              background: "#fff7fb",
+              color: "#2d1924",
+              boxShadow:
+                "0 18px 48px rgba(35, 8, 24, .28)",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px 16px",
+                background: "#ffffff",
+                borderBottom: "1px solid #efdce6",
+                color: "#7d3157",
+                fontSize: "12px",
+                fontWeight: "900",
+                textAlign: "center",
+              }}
+            >
+              Vista de dueña · los botones trabajan sobre las tareas reales de Marketing
+            </div>
+
+            <OperacionEmpleado
+              branchId={
+                usuarioMarketingPreview.branch_id
+              }
+              usuario={usuarioMarketingPreview}
+            />
+          </div>
+        )}
       </div>
 
       {/* PLAN SEMANAL AUTORIZADO POR EL DUEÑO */}
