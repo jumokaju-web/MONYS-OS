@@ -2568,10 +2568,7 @@ for (
                     }
                     disabled={
                       campanaActualizandoId ===
-                        campana.id ||
-                      convertirNumero(
-                        capacidadCompra
-                      ) <= 0
+                      campana.id
                     }
                     style={{
                       width: "100%",
@@ -2605,7 +2602,10 @@ for (
                     }
                     disabled={
                       campanaActualizandoId ===
-                      campana.id
+                        campana.id ||
+                      convertirNumero(
+                        capacidadCompra
+                      ) <= 0
                     }
                     style={{
                       width: "100%",
@@ -2623,7 +2623,7 @@ for (
                         convertirNumero(
                           capacidadCompra
                         ) <= 0
-                          ? "wait"
+                          ? "not-allowed"
                           : "pointer",
                     }}
                   >
