@@ -112,6 +112,90 @@ function numeroRegistrado(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+export function evaluarResultadoCampanaGrowth({
+  gastoAcumulado = 0,
+  pedidosAcumulados = 0,
+  ventaAcumulada = 0,
+  margenRealBase = null,
+  publicacion = "",
+} = {}) {
+  const gasto = Math.max(0, Number(gastoAcumulado) || 0);
+  const pedidos = Math.max(0, Number(pedidosAcumulados) || 0);
+  const venta = Math.max(0, Number(ventaAcumulada) || 0);
+  const margenCandidato = Number(margenRealBase);
+  const margen =
+    Number.isFinite(margenCandidato) && margenCandidato > 0
+      ? margenCandidato
+      : null;
+  const costoPorPedido = pedidos > 0 ? gasto / pedidos : null;
+  const utilidadEstimadaCampana =
+    margen === null
+      ? null
+      : venta * (margen / 100) - gasto;
+  let decisionActual = "CONTINUAR_MIDIENDO";
+
+  if (publicacion === "NO_PUBLICADA") {
+    decisionActual = "REPROGRAMAR_PUBLICACION";
+  } else if (pedidos === 0 && gasto >= 90) {
+    decisionActual = "PAUSAR";
+  } else if (
+    utilidadEstimadaCampana !== null &&
+    utilidadEstimadaCampana <= 0 &&
+    gasto >= 90
+  ) {
+    decisionActual = "PAUSAR";
+  } else if (
+    pedidos >= 3 &&
+    costoPorPedido !== null &&
+    costoPorPedido <= 30 &&
+    utilidadEstimadaCampana !== null &&
+    utilidadEstimadaCampana > 0
+  ) {
+    decisionActual = "SOLICITAR_AUTORIZACION_PARA_ESCALAR";
+  }
+
+  const faltaMargen = margen === null;
+  const requiereAutorizacion =
+    decisionActual === "SOLICITAR_AUTORIZACION_PARA_ESCALAR";
+  const resumen =
+    publicacion === "NO_PUBLICADA"
+      ? "El contenido no se publicó; todavía no existe evidencia suficiente para evaluar su respuesta comercial."
+      : faltaMargen
+        ? `Hay ${pedidos} pedido${pedidos === 1 ? "" : "s"} y venta atribuida registrada, pero falta el margen real para saber si la campaña dejó utilidad.`
+        : utilidadEstimadaCampana > 0
+          ? "La campaña registra utilidad positiva con el margen real disponible; conviene conservar la evidencia y seguir midiendo antes de aumentar inversión."
+          : "La campaña todavía no demuestra utilidad positiva con los datos reales registrados."
+  const siguienteAccion =
+    decisionActual === "PAUSAR"
+      ? "Pausar nueva inversión y revisar contenido, oferta y atribución."
+      : decisionActual === "REPROGRAMAR_PUBLICACION"
+        ? "Reprogramar la publicación y registrar el resultado real cuando salga."
+        : requiereAutorizacion
+          ? "Presentar los resultados a Mónica y esperar su autorización antes de escalar o gastar más."
+          : faltaMargen
+            ? "Confirmar el margen real del producto para completar la rentabilidad."
+            : "Continuar midiendo sin modificar el presupuesto autorizado."
+
+  return {
+    costoPorPedido,
+    margenRealBase: margen,
+    utilidadEstimadaCampana,
+    rentabilidadEstado: faltaMargen
+      ? "PENDIENTE_MARGEN_REAL"
+      : "CALCULADA_CON_MARGEN_REAL",
+    decisionActual,
+    aprendizajeProvisional: {
+      estado: "PROVISIONAL",
+      tipoFuente: "DATO_REAL",
+      resumen,
+      siguienteAccion,
+      requiereAutorizacion,
+      faltantes: faltaMargen ? ["MARGEN_REAL"] : [],
+      actualizadoEn: new Date().toISOString(),
+    },
+  };
+}
+
 export function orquestarAgenciaGrowth({
   actualizacionDatos = null,
   productoLider = null,

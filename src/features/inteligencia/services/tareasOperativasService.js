@@ -5,6 +5,10 @@ import {
   obtenerEmpleadosActivosParaAsignacion,
 } from "./empleadosRHService";
 
+import {
+  evaluarResultadoCampanaGrowth,
+} from "./growthAgencyService";
+
 
 // ======================================================
 // OBTENER TAREAS
@@ -1267,51 +1271,16 @@ async function sincronizarResultadoTareaConCampana({
     numero(resultadoActual.gastoAcumulado) -
     numero(registroAnterior?.gasto) +
     gastoNuevo;
-  const margenCandidato = Number(
-    campana?.estrategia_ia
-      ?.datosRentabilidadBase
-      ?.margenReal
-  );
-  const margenRealBase =
-    Number.isFinite(margenCandidato) &&
-    margenCandidato > 0
-      ? margenCandidato
-      : null;
-  const utilidadEstimadaCampana =
-    margenRealBase !== null
-      ? ventaAcumulada *
-          (margenRealBase / 100) -
-        gastoAcumulado
-      : null;
-  const costoPorPedido =
-    pedidosAcumulados > 0
-      ? gastoAcumulado / pedidosAcumulados
-      : null;
-  let decisionActual = "CONTINUAR_MIDIENDO";
-
-  if (resultadoMarketing.publicacion === "NO_PUBLICADA") {
-    decisionActual = "REPROGRAMAR_PUBLICACION";
-  } else if (
-    pedidosAcumulados === 0 &&
-    gastoAcumulado >= 90
-  ) {
-    decisionActual = "PAUSAR";
-  } else if (
-    utilidadEstimadaCampana !== null &&
-    utilidadEstimadaCampana <= 0 &&
-    gastoAcumulado >= 90
-  ) {
-    decisionActual = "PAUSAR";
-  } else if (
-    pedidosAcumulados >= 3 &&
-    costoPorPedido !== null &&
-    costoPorPedido <= 30 &&
-    utilidadEstimadaCampana !== null &&
-    utilidadEstimadaCampana > 0
-  ) {
-    decisionActual =
-      "SOLICITAR_AUTORIZACION_PARA_ESCALAR";
-  }
+  const evaluacionGrowth = evaluarResultadoCampanaGrowth({
+    gastoAcumulado,
+    pedidosAcumulados,
+    ventaAcumulada,
+    margenRealBase:
+      campana?.estrategia_ia
+        ?.datosRentabilidadBase
+        ?.margenReal,
+    publicacion: resultadoMarketing.publicacion,
+  });
   const registroNuevo = {
     tareaId: tarea.id,
     fuente: "TAREA_MARKETING",
@@ -1339,14 +1308,7 @@ async function sincronizarResultadoTareaConCampana({
           pedidosAcumulados,
           ventaAcumulada,
           gastoAcumulado,
-          costoPorPedido,
-          margenRealBase,
-          utilidadEstimadaCampana,
-          rentabilidadEstado:
-            margenRealBase === null
-              ? "PENDIENTE_MARGEN_REAL"
-              : "CALCULADA_CON_MARGEN_REAL",
-          decisionActual,
+          ...evaluacionGrowth,
           historial: [
             ...historialSinDuplicado,
             registroNuevo,
