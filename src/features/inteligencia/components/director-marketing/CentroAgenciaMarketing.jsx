@@ -52,6 +52,10 @@ export default function CentroAgenciaMarketing({
 
   const datosActuales =
     actualizacionDatos?.vigente === true;
+  const ventasActuales =
+    actualizacionDatos?.ventas?.vigente === true;
+  const inventarioActual =
+    actualizacionDatos?.inventario?.vigente === true;
 
   const etiquetaAntiguedad = (dias) => {
     if (dias === null || dias === undefined) {
@@ -356,8 +360,14 @@ const horasSinAvance =
             style={{
               padding: "7px 10px",
               borderRadius: "999px",
-              background: "#eef2ff",
-              color: "#3730a3",
+              background:
+                campanaSinAvance || datosActuales || ventasActuales
+                  ? "#eef2ff"
+                  : "#fff1d6",
+              color:
+                campanaSinAvance || datosActuales || ventasActuales
+                  ? "#3730a3"
+                  : "#875700",
               fontSize: "12px",
               fontWeight: "800",
             }}
@@ -378,8 +388,14 @@ const horasSinAvance =
             style={{
               padding: "7px 10px",
               borderRadius: "999px",
-              background: "#ecfdf5",
-              color: "#047857",
+              background:
+                !campanaSinAvance && inventarioActual
+                  ? "#ecfdf5"
+                  : "#fff1d6",
+              color:
+                !campanaSinAvance && inventarioActual
+                  ? "#047857"
+                  : "#875700",
               fontSize: "12px",
               fontWeight: "800",
             }}
