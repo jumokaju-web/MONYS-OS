@@ -133,6 +133,53 @@ const directores = [
   },
 ];
 
+function obtenerAntiguedadDatos(fecha) {
+  if (!fecha) return null;
+
+  const fechaValida = new Date(fecha);
+  if (Number.isNaN(fechaValida.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - fechaValida.getTime()) / 86400000)
+  );
+}
+
+function construirActualizacionDatosMarketing(datosDashboard, metricas) {
+  const fechaVentas =
+    metricas?.fechaFinal ||
+    datosDashboard?.importacion?.created_at ||
+    null;
+  const fechaInventario =
+    datosDashboard?.inventario?.importacion?.created_at ||
+    null;
+  const diasMaximos = 7;
+  const antiguedadVentasDias = obtenerAntiguedadDatos(fechaVentas);
+  const antiguedadInventarioDias = obtenerAntiguedadDatos(fechaInventario);
+  const ventasVigentes =
+    antiguedadVentasDias !== null && antiguedadVentasDias <= diasMaximos;
+  const inventarioVigente =
+    antiguedadInventarioDias !== null &&
+    antiguedadInventarioDias <= diasMaximos;
+
+  return {
+    diasMaximos,
+    ventas: {
+      fecha: fechaVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente: ventasVigentes,
+    },
+    inventario: {
+      fecha: fechaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente: inventarioVigente,
+    },
+    vigente: ventasVigentes && inventarioVigente,
+  };
+}
+
 function CentroInteligencia({
   datosDashboard,
   sucursalesDashboard = [],
@@ -392,6 +439,12 @@ useEffect(() => {
 
       analisisFinanciero:
         analisisFinancieroCEO,
+
+      actualizacionDatos:
+        construirActualizacionDatosMarketing(
+          datosDashboard,
+          metricas
+        ),
     });
 
   /*
@@ -817,6 +870,9 @@ const analisisRH =
         <DirectorMarketing
           analisisMarketing={
             analisisMarketing
+          }
+          onVolverAlDashboard={
+            volverAlDashboard
           }
         />
       )}
