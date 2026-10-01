@@ -17,6 +17,29 @@ import {
   obtenerHistorialDecisiones,
 } from "../../services/decisionesService";
 
+function obtenerAntiguedadDias(fecha) {
+  if (!fecha) {
+    return null;
+  }
+
+  const fechaValida = new Date(
+    `${String(fecha).slice(0, 10)}T12:00:00`
+  );
+
+  if (Number.isNaN(fechaValida.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      (Date.now() -
+        fechaValida.getTime()) /
+        86400000
+    )
+  );
+}
+
    function DirectorFinanciero({
   datosDashboard,
   sucursalesDashboard = [],
@@ -108,6 +131,25 @@ const margenConsolidado =
 
 const branchId =
   datosDashboard?.branch_id || null;
+
+const antiguedadVentasDias =
+  obtenerAntiguedadDias(
+    metricas.fechaFinal
+  );
+
+const ventasVigentes =
+  antiguedadVentasDias !== null &&
+  antiguedadVentasDias <= 7;
+
+const diasBaseProyeccion =
+  Number(metricas.diasAnalizados) || 0;
+
+const baseProyeccionSuficiente =
+  diasBaseProyeccion >= 14;
+
+const proyeccionListaParaDecision =
+  ventasVigentes &&
+  baseProyeccionSuficiente;
 
 
   const analisisFinanciero =
@@ -675,6 +717,24 @@ const historial =
         </strong>
       </p>
 
+      {!ventasVigentes && (
+        <div
+          role="alert"
+          style={{
+            marginTop: "14px",
+            padding: "13px 15px",
+            borderRadius: "12px",
+            backgroundColor: "#fff4dc",
+            border: "1px solid #e8bd69",
+            color: "#704d0c",
+            lineHeight: 1.55,
+            fontWeight: "750",
+          }}
+        >
+          ⚠️ Información financiera desactualizada: el último día de ventas fue hace {antiguedadVentasDias ?? "varios"} días. Los resultados históricos permanecen visibles, pero MONYS no debe usar esta base para autorizar compras, gasto o proyecciones nuevas.
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -837,6 +897,41 @@ const historial =
 
       <div
         style={{
+          marginTop: "12px",
+          padding: "13px 15px",
+          borderRadius: "12px",
+          backgroundColor:
+            proyeccionListaParaDecision
+              ? "#eefaf2"
+              : "#fff4dc",
+          border:
+            proyeccionListaParaDecision
+              ? "1px solid #a6d7b4"
+              : "1px solid #e8bd69",
+          color:
+            proyeccionListaParaDecision
+              ? "#28613b"
+              : "#704d0c",
+          lineHeight: 1.55,
+        }}
+      >
+        <strong>
+          {proyeccionListaParaDecision
+            ? "✅ Base suficiente para revisar el escenario"
+            : "🔒 Proyección bloqueada para decisiones"}
+        </strong>
+        <br />
+        {proyeccionListaParaDecision
+          ? "La proyección usa información reciente y por lo menos 14 días reales. Sigue siendo un escenario, no dinero disponible."
+          : `Se requieren ventas con antigüedad máxima de 7 días y al menos 14 días analizados. Base actual: ${
+              antiguedadVentasDias === null
+                ? "fecha sin confirmar"
+                : `${antiguedadVentasDias} días de antigüedad`
+            } y ${diasBaseProyeccion} días analizados.`}
+      </div>
+
+      <div
+        style={{
           display: "grid",
           gridTemplateColumns:
             "repeat(auto-fit, minmax(210px, 1fr))",
@@ -846,30 +941,48 @@ const historial =
       >
         <TarjetaIndicador
           titulo="Proyección ventas del mes"
-          valor={formatoDinero(
-            proyeccionVentasMes
-          )}
+          valor={
+            proyeccionListaParaDecision
+              ? formatoDinero(
+                  proyeccionVentasMes
+                )
+              : "No usar para decidir"
+          }
           icono="📅"
         />
 
         <TarjetaIndicador
           titulo="Proyección utilidad del mes"
-          valor={formatoDinero(
-            proyeccionUtilidadMes
-          )}
+          valor={
+            proyeccionListaParaDecision
+              ? formatoDinero(
+                  proyeccionUtilidadMes
+                )
+              : "No usar para decidir"
+          }
           icono="📈"
         />
 
         <TarjetaIndicador
-          titulo="Capacidad de compra sugerida"
+          titulo={
+            ventasVigentes
+              ? "Capacidad de compra sugerida"
+              : "Capacidad de compra bloqueada"
+          }
           valor={formatoDinero(
-            capacidadCompra
+            ventasVigentes
+              ? capacidadCompra
+              : 0
           )}
           icono="🛒"
         />
 
         <TarjetaIndicador
-          titulo="Reserva recomendada"
+          titulo={
+            ventasVigentes
+              ? "Reserva recomendada"
+              : "Reserva de referencia anterior"
+          }
           valor={formatoDinero(
             reservaRecomendada
           )}
