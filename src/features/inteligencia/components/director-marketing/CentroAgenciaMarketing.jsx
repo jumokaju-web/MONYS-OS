@@ -155,64 +155,104 @@ const horasSinAvance =
     0
   );
 
-  const herramientas = [
+  const kitDisponible = campanasActivas.some(
+    (campana) =>
+      Boolean(
+        campana?.estrategia_ia?.kitPublicacion
+      )
+  );
+
+  const agentesAgencia = [
     {
-      icono: "🎬",
-      titulo: "Estudio de contenido",
+      icono: "🧭",
+      titulo: "Director de Estrategia Growth IA",
       descripcion:
-        "El plan semanal incluye una tarea para preparar y revisar contenido antes de publicar.",
-      estado: "Preparación en el plan semanal",
+        "Coordina a los demás agentes, elige la prioridad comercial y convierte la meta en un plan ejecutable.",
+      entrega: "Prioridad diaria y plan de cinco días",
+      estado: datosActuales
+        ? "Analizando datos reales"
+        : "Esperando actualización SICAR",
       destino: "plan-crecimiento-marketing",
-      accion: "Abrir plan semanal",
+      accion: "Ver plan de Growth",
     },
     {
-      icono: "📅",
-      titulo: "Calendario inteligente",
+      icono: "🔎",
+      titulo: "Analista de Oportunidades IA",
       descripcion:
-        "Qué publicar, en qué canal, a qué hora y con qué objetivo.",
-      estado: "Generador de plan disponible",
+        "Cruza ventas, existencias, cobertura y margen para decidir qué producto merece una prueba.",
+      entrega: "Producto, evidencia y riesgo",
+      estado: datosActuales
+        ? `Vigilando ${nombreProducto}`
+        : "Protegido por datos antiguos",
       destino: "plan-crecimiento-marketing",
-      accion: "Preparar plan",
+      accion: "Revisar recomendación",
+    },
+    {
+      icono: "🎬",
+      titulo: "Director Creativo IA",
+      descripcion:
+        "Crea concepto, gancho, guion, formato, texto, CTA y adaptación para cada canal sin inventar beneficios.",
+      entrega: "Kit listo para revisión humana",
+      estado: kitDisponible
+        ? "Kit disponible"
+        : "Listo para crear contenido",
+      destino: "campanas-marketing-activas",
+      accion: "Abrir campaña y contenido",
     },
     {
       icono: "📣",
-      titulo: "Campañas y anuncios",
+      titulo: "Especialista de Campañas IA",
       descripcion:
-        "Orgánico, Meta, TikTok, Marketplace, Mercado Libre y ChatGPT Ads.",
+        "Diseña la prueba, selecciona canal, define criterios para escalar o detener y mantiene todo pausado hasta autorización.",
+      entrega: "Campaña medible y controlada",
       estado: estadoCampana.texto,
       destino: "campanas-marketing-activas",
       accion: "Abrir campañas",
     },
     {
-      icono: "📈",
-      titulo: "Resultados y embudo",
+      icono: "💬",
+      titulo: "Conversión y Comunidad IA",
       descripcion:
-        "Alcance, mensajes, pedidos, ventas, gasto, costo por pedido y utilidad.",
-      estado:
-        registrosDeCampana > 0
-          ? `${registrosDeCampana} avance${registrosDeCampana === 1 ? "" : "s"} registrado${registrosDeCampana === 1 ? "" : "s"}`
-          : "Sin avances registrados",
-      destino: "campanas-marketing-activas",
-      accion: "Revisar resultados",
+        "Prepara respuestas, seguimiento y llamados a compra; después ayudará a convertir mensajes en pedidos comprobados.",
+      entrega: "Guiones de respuesta y seguimiento",
+      estado: "Preparación activa · conexión pendiente",
+      destino: "growth-paid-channels-title",
+      accion: "Ver conexiones",
     },
     {
-      icono: "🔥",
-      titulo: "Tendencias y competencia",
+      icono: "📈",
+      titulo: "Analista de Embudo y Utilidad IA",
       descripcion:
-        "Detectar contenido, productos y formatos que están ganando atención.",
-      estado: "Conexión pendiente",
+        "Mide alcance, mensajes, pedidos, ventas, gasto, costo por pedido y utilidad para recomendar la siguiente decisión.",
+      entrega: "Embudo, rentabilidad y decisión",
+      estado:
+        registrosDeCampana > 0
+          ? `${registrosDeCampana} avance${registrosDeCampana === 1 ? "" : "s"} real${registrosDeCampana === 1 ? "" : "es"}`
+          : "Esperando primer resultado real",
+      destino: "campanas-marketing-activas",
+      accion: "Revisar embudo",
+    },
+    {
+      icono: "🛡️",
+      titulo: "Auditor de Marca y Riesgo IA",
+      descripcion:
+        "Revisa afirmaciones, precio, inventario, presupuesto y permisos antes de permitir publicación o gasto.",
+      entrega: "Semáforo de autorización",
+      estado: "Guardas de seguridad activas",
+      destino: "growth-paid-channels-title",
+      accion: "Revisar controles",
     },
     {
       icono: "🧠",
-      titulo: "Aprendizaje MONYS",
+      titulo: "Memoria de Aprendizaje IA",
       descripcion:
-        "Recordar qué funcionó, qué falló y decidir si mantener, mejorar o detener.",
-      estado:
-        campanasFinalizadas.length > 0
-          ? `${campanasFinalizadas.length} campaña${campanasFinalizadas.length === 1 ? "" : "s"} finalizada${campanasFinalizadas.length === 1 ? "" : "s"}`
-          : "Sin campañas finalizadas",
+        "Conserva resultados y aprendizajes para repetir lo rentable, mejorar lo dudoso y detener lo que pierde dinero.",
+      entrega: "Aprendizaje y siguiente acción",
+      estado: campanasFinalizadas.length > 0
+        ? `${campanasFinalizadas.length} aprendizaje${campanasFinalizadas.length === 1 ? "" : "s"} disponible${campanasFinalizadas.length === 1 ? "" : "s"}`
+        : "Esperando campaña finalizada",
       destino: "historial-aprendizaje-campanas",
-      accion: "Abrir historial",
+      accion: "Abrir memoria",
     },
   ];
 
@@ -465,6 +505,63 @@ const horasSinAvance =
 
       <div
         style={{
+          marginTop: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#ffd6e9",
+              fontSize: "11px",
+              fontWeight: "900",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            Agencia coordinada por MONYS
+          </div>
+          <h3
+            style={{
+              margin: "5px 0 0",
+              color: "#ffffff",
+              fontSize: "21px",
+            }}
+          >
+            Equipo IA de Crecimiento
+          </h3>
+          <p
+            style={{
+              margin: "6px 0 0",
+              maxWidth: "720px",
+              color: "#f8dfea",
+              fontSize: "12px",
+              lineHeight: 1.5,
+            }}
+          >
+            No son más empleados: son especialistas IA que analizan, preparan y verifican. Kary ejecuta el trabajo físico y Mónica conserva la autorización sobre publicación, presupuesto y gasto.
+          </p>
+        </div>
+        <span
+          style={{
+            padding: "7px 10px",
+            borderRadius: "999px",
+            background: "#dcfce7",
+            color: "#166534",
+            fontSize: "11px",
+            fontWeight: "900",
+          }}
+        >
+          {agentesAgencia.length} agentes especializados
+        </span>
+      </div>
+
+      <div
+        style={{
           display: "grid",
           gridTemplateColumns:
             "repeat(auto-fit, minmax(220px, 1fr))",
@@ -472,7 +569,7 @@ const horasSinAvance =
           marginTop: "16px",
         }}
       >
-        {herramientas.map((herramienta) => (
+        {agentesAgencia.map((herramienta) => (
           <article
             key={herramienta.titulo}
             style={{
@@ -513,6 +610,21 @@ const horasSinAvance =
             >
               {herramienta.descripcion}
             </p>
+
+            <div
+              style={{
+                marginBottom: "10px",
+                padding: "8px 9px",
+                borderRadius: "10px",
+                background: "#fff4f8",
+                color: "#7d3157",
+                fontSize: "10px",
+                fontWeight: "800",
+                lineHeight: 1.4,
+              }}
+            >
+              Entrega: {herramienta.entrega}
+            </div>
 
             <span
               style={{

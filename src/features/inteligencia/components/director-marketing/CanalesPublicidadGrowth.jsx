@@ -1,6 +1,6 @@
 import "./CanalesPublicidadGrowth.css";
 
-const CANALES_PAGADOS = [
+const CANALES_CRECIMIENTO = [
   {
     id: "meta",
     marca: "Meta Ads",
@@ -11,6 +11,48 @@ const CANALES_PAGADOS = [
       "Si solo aparece tu perfil personal, un administrador de MONYS Glam debe darte acceso a su cuenta publicitaria desde la configuración del negocio. Después confirma que ves la cuenta de empresa; no compartas contraseñas.",
     url: "https://business.facebook.com/adsmanager",
     enlace: "Abrir Meta Business",
+    capacidad: "Anuncios, medición y audiencias",
+  },
+  {
+    id: "tiktok",
+    marca: "TikTok y TikTok Shop",
+    detalle: "Contenido orgánico, tienda y anuncios",
+    icono: "♪",
+    estado: "Aplicación y autorización pendientes",
+    siguientePaso:
+      "Conectar la cuenta oficial de MONYS Glam mediante OAuth. La publicación directa necesita una aplicación aprobada; mientras tanto MONYS prepara el video y lo conserva como borrador.",
+    url: "https://developers.tiktok.com/products/content-posting-api",
+    enlace: "Revisar publicación oficial",
+    documentacion: "https://business-api.tiktok.com/portal",
+    enlaceDocumentacion: "Abrir TikTok Business API",
+    capacidad: "Videos, borradores, tienda y campañas",
+  },
+  {
+    id: "mercadolibre",
+    marca: "Mercado Libre",
+    detalle: "Publicaciones, precios, inventario y pedidos",
+    icono: "ML",
+    estado: "Aplicación de vendedor pendiente",
+    siguientePaso:
+      "Crear la aplicación de MONYS Glam con la cuenta propietaria y autorizar lectura/escritura. Primero se probarán publicaciones controladas; MONYS no cambiará precio ni stock sin revisión.",
+    url: "https://developers.mercadolibre.com.mx/devcenter/home",
+    enlace: "Abrir DevCenter",
+    documentacion:
+      "https://developers.mercadolibre.com.mx/es_mx/crea-una-aplicacion-en-mercado-libre-es",
+    enlaceDocumentacion: "Ver requisitos de conexión",
+    capacidad: "Catálogo, ventas, pedidos y rentabilidad",
+  },
+  {
+    id: "whatsapp",
+    marca: "WhatsApp Business",
+    detalle: "Mensajes, seguimiento y conversión",
+    icono: "W",
+    estado: "Número empresarial por vincular",
+    siguientePaso:
+      "Vincular el número empresarial mediante WhatsApp Cloud API y aprobar plantillas cuando correspondan. Los mensajes automáticos deberán respetar consentimiento y baja del cliente.",
+    url: "https://developers.facebook.com/docs/whatsapp/cloud-api/",
+    enlace: "Abrir documentación oficial",
+    capacidad: "Prospectos, respuestas y cierre de venta",
   },
   {
     id: "openai",
@@ -24,6 +66,7 @@ const CANALES_PAGADOS = [
     enlace: "Abrir Ads Manager",
     documentacion: "https://developers.openai.com/ads/api-overview",
     enlaceDocumentacion: "Ver guía oficial de la API",
+    capacidad: "Anuncios, medición y optimización",
   },
 ];
 
@@ -36,14 +79,14 @@ export default function CanalesPublicidadGrowth() {
       <div className="growth-paid-channels__heading">
         <div>
           <span className="growth-paid-channels__eyebrow">
-            Publicidad pagada
+            Capa de ejecución externa
           </span>
           <h3 id="growth-paid-channels-title">
-            Conexiones de anuncios
+            Conexiones de crecimiento
           </h3>
           <p>
-            MONYS puede preparar la estrategia. Para ejecutar o medir anuncios desde aquí,
-            primero debe tener acceso autorizado a la cuenta correcta.
+            La Agencia IA ya puede preparar estrategia, contenido y medición. Para publicar,
+            sincronizar pedidos o ejecutar anuncios necesita autorización oficial de cada cuenta.
           </p>
         </div>
         <span className="growth-paid-channels__guard">
@@ -52,7 +95,7 @@ export default function CanalesPublicidadGrowth() {
       </div>
 
       <div className="growth-paid-channels__grid">
-        {CANALES_PAGADOS.map((canal) => (
+        {CANALES_CRECIMIENTO.map((canal) => (
           <article
             className="growth-paid-channel"
             key={canal.id}
@@ -67,6 +110,9 @@ export default function CanalesPublicidadGrowth() {
             <div className="growth-paid-channel__status">
               <span aria-hidden="true" />
               {canal.estado}
+            </div>
+            <div className="growth-paid-channel__capability">
+              Entregará: {canal.capacidad}
             </div>
             <p>{canal.siguientePaso}</p>
             <div className="growth-paid-channel__links">
