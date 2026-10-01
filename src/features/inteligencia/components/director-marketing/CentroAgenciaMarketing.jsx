@@ -250,6 +250,8 @@ const horasSinAvance =
             style={{
               margin: "7px 0 5px",
               fontSize: "26px",
+              color: "#ffffff",
+              fontWeight: "900",
             }}
           >
             Centro de crecimiento
