@@ -32,6 +32,7 @@ export default function CentroAgenciaMarketing({
   productoLider,
   inventarioProductoLider,
   campanasActivas = [],
+  campanasFinalizadas = [],
   accionesPrioritarias = [],
   onPrepararPlan,
 }) {
@@ -121,20 +122,33 @@ const accionPrincipal =
   const estadoCampana =
     obtenerEstadoCampana(campanasActivas);
 
+  const registrosDeCampana = campanasActivas.reduce(
+    (total, campana) =>
+      total +
+      (Array.isArray(campana?.resultado?.historial)
+        ? campana.resultado.historial.length
+        : 0),
+    0
+  );
+
   const herramientas = [
     {
       icono: "🎬",
       titulo: "Estudio de contenido",
       descripcion:
-        "Guiones, ganchos, CTA, formatos y revisión con IA antes de publicar.",
-      estado: "Siguiente etapa",
+        "El plan semanal incluye una tarea para preparar y revisar contenido antes de publicar.",
+      estado: "Preparación en el plan semanal",
+      destino: "plan-crecimiento-marketing",
+      accion: "Abrir plan semanal",
     },
     {
       icono: "📅",
       titulo: "Calendario inteligente",
       descripcion:
         "Qué publicar, en qué canal, a qué hora y con qué objetivo.",
-      estado: "Plan semanal disponible",
+      estado: "Generador de plan disponible",
+      destino: "plan-crecimiento-marketing",
+      accion: "Preparar plan",
     },
     {
       icono: "📣",
@@ -142,27 +156,39 @@ const accionPrincipal =
       descripcion:
         "Orgánico, Meta, TikTok, Marketplace, Mercado Libre y ChatGPT Ads.",
       estado: estadoCampana.texto,
+      destino: "campanas-marketing-activas",
+      accion: "Abrir campañas",
     },
     {
       icono: "📈",
       titulo: "Resultados y embudo",
       descripcion:
         "Alcance, mensajes, pedidos, ventas, gasto, costo por pedido y utilidad.",
-      estado: "Con datos reales",
+      estado:
+        registrosDeCampana > 0
+          ? `${registrosDeCampana} avance${registrosDeCampana === 1 ? "" : "s"} registrado${registrosDeCampana === 1 ? "" : "s"}`
+          : "Sin avances registrados",
+      destino: "campanas-marketing-activas",
+      accion: "Revisar resultados",
     },
     {
       icono: "🔥",
       titulo: "Tendencias y competencia",
       descripcion:
         "Detectar contenido, productos y formatos que están ganando atención.",
-      estado: "Por conectar",
+      estado: "Conexión pendiente",
     },
     {
       icono: "🧠",
       titulo: "Aprendizaje MONYS",
       descripcion:
         "Recordar qué funcionó, qué falló y decidir si mantener, mejorar o detener.",
-      estado: "Memoria activa",
+      estado:
+        campanasFinalizadas.length > 0
+          ? `${campanasFinalizadas.length} campaña${campanasFinalizadas.length === 1 ? "" : "s"} finalizada${campanasFinalizadas.length === 1 ? "" : "s"}`
+          : "Sin campañas finalizadas",
+      destino: "historial-aprendizaje-campanas",
+      accion: "Abrir historial",
     },
   ];
 
@@ -457,6 +483,34 @@ const accionPrincipal =
             >
               {herramienta.estado}
             </span>
+            {herramienta.destino && (
+              <button
+                type="button"
+                onClick={() => {
+                  document
+                    .getElementById(herramienta.destino)
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                }}
+                style={{
+                  display: "block",
+                  marginTop: "12px",
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  color: "#9d174d",
+                  font: "inherit",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {herramienta.accion} →
+              </button>
+            )}
           </article>
         ))}
       </div>
