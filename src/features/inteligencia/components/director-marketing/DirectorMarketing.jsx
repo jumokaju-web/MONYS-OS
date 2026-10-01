@@ -192,6 +192,21 @@ export default function DirectorMarketing({
     setErrorCampanas,
   ] = useState("");
 
+  const [
+    campanaRegistroId,
+    setCampanaRegistroId,
+  ] = useState(null);
+
+  const [
+    borradoresAvance,
+    setBorradoresAvance,
+  ] = useState({});
+
+  const [
+    guardandoAvanceId,
+    setGuardandoAvanceId,
+  ] = useState(null);
+
     const [
     sucursales,
     setSucursales,
@@ -763,6 +778,235 @@ for (
       );
     } finally {
       setCampanaActualizandoId(null);
+    }
+  }
+
+  function abrirRegistroCampana(campanaId) {
+    setCampanaRegistroId(campanaId);
+
+    window.setTimeout(() => {
+      document
+        .getElementById(
+          `registro-avance-${campanaId}`
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+    }, 0);
+  }
+
+  function actualizarBorradorAvance(
+    campanaId,
+    campo,
+    valor
+  ) {
+    setBorradoresAvance(
+      (borradoresActuales) => ({
+        ...borradoresActuales,
+        [campanaId]: {
+          ...(borradoresActuales[
+            campanaId
+          ] || {}),
+          [campo]: valor,
+        },
+      })
+    );
+  }
+
+  async function guardarAvanceCampana(
+    campana
+  ) {
+    const borrador =
+      borradoresAvance[campana.id] || {};
+
+    if (!borrador.publicacion) {
+      setErrorCampanas(
+        "Confirma primero si el contenido ya fue publicado."
+      );
+      return;
+    }
+
+    const alcanceNuevo = convertirNumero(
+      borrador.alcance
+    );
+    const mensajesNuevos = convertirNumero(
+      borrador.mensajes
+    );
+    const pedidosNuevos = convertirNumero(
+      borrador.pedidos
+    );
+    const ventaNueva = convertirNumero(
+      borrador.venta
+    );
+    const gastoNuevo = convertirNumero(
+      borrador.gasto
+    );
+
+    if (
+      [
+        alcanceNuevo,
+        mensajesNuevos,
+        pedidosNuevos,
+        ventaNueva,
+        gastoNuevo,
+      ].some((valor) => valor < 0)
+    ) {
+      setErrorCampanas(
+        "Los resultados reales no pueden ser negativos."
+      );
+      return;
+    }
+
+    const resultadoActual =
+      campana.resultado || {};
+    const gastoAcumulado =
+      convertirNumero(
+        resultadoActual.gastoAcumulado
+      ) + gastoNuevo;
+    const presupuestoAutorizado =
+      convertirNumero(
+        campana.presupuesto
+      );
+
+    if (
+      gastoNuevo > 0 &&
+      presupuestoAutorizado <= 0
+    ) {
+      setErrorCampanas(
+        "Esta campaña no tiene presupuesto autorizado. No se puede registrar gasto sin autorización de Mónica."
+      );
+      return;
+    }
+
+    if (
+      presupuestoAutorizado > 0 &&
+      gastoAcumulado >
+        presupuestoAutorizado
+    ) {
+      setErrorCampanas(
+        `El gasto acumulado superaría el presupuesto autorizado de ${formatearDinero(
+          presupuestoAutorizado
+        )}.`
+      );
+      return;
+    }
+
+    const confirmarRegistro =
+      window.confirm(
+        "¿Confirmas que estos son resultados reales de la campaña? Guardarlos no publica contenido ni autoriza gasto nuevo."
+      );
+
+    if (!confirmarRegistro) {
+      return;
+    }
+
+    try {
+      setGuardandoAvanceId(campana.id);
+      setErrorCampanas("");
+      setMensajeAccionCampana("");
+
+      const historialActual =
+        Array.isArray(
+          resultadoActual.historial
+        )
+          ? resultadoActual.historial
+          : [];
+      const pedidosAcumulados =
+        convertirNumero(
+          resultadoActual.pedidosAcumulados
+        ) + pedidosNuevos;
+      const ventaAcumulada =
+        convertirNumero(
+          resultadoActual.ventaAcumulada
+        ) + ventaNueva;
+      const alcanceAcumulado =
+        convertirNumero(
+          resultadoActual.alcanceAcumulado
+        ) + alcanceNuevo;
+      const mensajesAcumulados =
+        convertirNumero(
+          resultadoActual.mensajesAcumulados
+        ) + mensajesNuevos;
+      const costoPorPedido =
+        pedidosAcumulados > 0
+          ? gastoAcumulado /
+            pedidosAcumulados
+          : null;
+      const registroNuevo = {
+        fecha: formatearFechaISO(
+          new Date()
+        ),
+        registradoEn:
+          new Date().toISOString(),
+        registradoPor:
+          usuario?.nombre || "Dueño",
+        publicacion:
+          borrador.publicacion,
+        alcance: alcanceNuevo,
+        mensajes: mensajesNuevos,
+        pedidos: pedidosNuevos,
+        venta: ventaNueva,
+        gasto: gastoNuevo,
+        nota:
+          String(
+            borrador.nota || ""
+          ).trim(),
+      };
+
+      const campanaActualizada =
+        await actualizarCampanaMarketing(
+          campana.id,
+          {
+            resultado: {
+              ...resultadoActual,
+              gastoAcumulado,
+              pedidosAcumulados,
+              ventaAcumulada,
+              alcanceAcumulado,
+              mensajesAcumulados,
+              costoPorPedido,
+              decisionActual:
+                "CONTINUAR MIDIENDO",
+              historial: [
+                ...historialActual,
+                registroNuevo,
+              ],
+            },
+          }
+        );
+
+      setCampanasMarketing(
+        (campanasActuales) =>
+          campanasActuales.map(
+            (campanaActual) =>
+              campanaActual.id ===
+              campanaActualizada.id
+                ? campanaActualizada
+                : campanaActual
+          )
+      );
+      setBorradoresAvance(
+        (borradoresActuales) => ({
+          ...borradoresActuales,
+          [campana.id]: {},
+        })
+      );
+      setCampanaRegistroId(null);
+      setMensajeAccionCampana(
+        "Avance real guardado. MONYS actualizó los acumulados sin publicar ni autorizar gasto."
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando avance de campaña:",
+        error
+      );
+      setErrorCampanas(
+        error?.message ||
+          "MONYS no pudo guardar el avance real."
+      );
+    } finally {
+      setGuardandoAvanceId(null);
     }
   }
 
@@ -1486,6 +1730,9 @@ for (
   onPrepararPlan={
     prepararPlanSemanal
   }
+  onRegistrarAvance={
+    abrirRegistroCampana
+  }
 />
 
              {/* CAMPAÑAS ACTIVAS */}
@@ -1604,6 +1851,7 @@ for (
                 return (
                   <div
                     key={campana.id}
+                    id={`campana-marketing-${campana.id}`}
                     style={{
                       padding: "18px",
                       borderRadius: "14px",
@@ -1771,6 +2019,229 @@ for (
                       </div>
                            
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        campanaRegistroId ===
+                        campana.id
+                          ? setCampanaRegistroId(null)
+                          : abrirRegistroCampana(
+                              campana.id
+                            )
+                      }
+                      style={{
+                        width: "100%",
+                        marginTop: "12px",
+                        padding: "12px",
+                        border: "none",
+                        borderRadius: "9px",
+                        backgroundColor: "#166534",
+                        color: "#ffffff",
+                        fontWeight: "850",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {campanaRegistroId ===
+                      campana.id
+                        ? "Cerrar registro"
+                        : "📊 Registrar avance real"}
+                    </button>
+
+                    {campanaRegistroId ===
+                      campana.id && (
+                      <div
+                        id={`registro-avance-${campana.id}`}
+                        style={{
+                          marginTop: "10px",
+                          padding: "14px",
+                          borderRadius: "12px",
+                          backgroundColor: "#f0fdf4",
+                          border: "1px solid #9bd6ac",
+                        }}
+                      >
+                        <strong>
+                          Resultados nuevos desde el último avance
+                        </strong>
+                        <p
+                          style={{
+                            margin: "6px 0 12px",
+                            fontSize: "13px",
+                            color: "#3f5f49",
+                          }}
+                        >
+                          Captura únicamente datos comprobados. Este registro no publica contenido ni autoriza presupuesto.
+                        </p>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(145px, 1fr))",
+                            gap: "9px",
+                          }}
+                        >
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: "5px",
+                              fontSize: "12px",
+                              fontWeight: "800",
+                            }}
+                          >
+                            Publicación comprobada
+                            <select
+                              value={
+                                borradoresAvance[
+                                  campana.id
+                                ]?.publicacion ||
+                                ""
+                              }
+                              onChange={(evento) =>
+                                actualizarBorradorAvance(
+                                  campana.id,
+                                  "publicacion",
+                                  evento.target.value
+                                )
+                              }
+                              style={{
+                                padding: "10px",
+                                borderRadius: "8px",
+                                border: "1px solid #9ebcac",
+                                backgroundColor: "#ffffff",
+                              }}
+                            >
+                              <option value="">
+                                Selecciona
+                              </option>
+                              <option value="PUBLICADA">
+                                Sí, ya se publicó
+                              </option>
+                              <option value="NO_PUBLICADA">
+                                No se publicó
+                              </option>
+                            </select>
+                          </label>
+
+                          {[
+                            ["alcance", "Alcance nuevo"],
+                            ["mensajes", "Mensajes nuevos"],
+                            ["pedidos", "Pedidos nuevos"],
+                            ["venta", "Venta nueva $"],
+                            ["gasto", "Gasto real nuevo $"],
+                          ].map(
+                            ([campo, etiqueta]) => (
+                              <label
+                                key={campo}
+                                style={{
+                                  display: "grid",
+                                  gap: "5px",
+                                  fontSize: "12px",
+                                  fontWeight: "800",
+                                }}
+                              >
+                                {etiqueta}
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step={
+                                    ["venta", "gasto"].includes(
+                                      campo
+                                    )
+                                      ? "0.01"
+                                      : "1"
+                                  }
+                                  value={
+                                    borradoresAvance[
+                                      campana.id
+                                    ]?.[campo] || ""
+                                  }
+                                  onChange={(evento) =>
+                                    actualizarBorradorAvance(
+                                      campana.id,
+                                      campo,
+                                      evento.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    padding: "10px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #9ebcac",
+                                  }}
+                                />
+                              </label>
+                            )
+                          )}
+                        </div>
+
+                        <label
+                          style={{
+                            display: "grid",
+                            gap: "5px",
+                            marginTop: "10px",
+                            fontSize: "12px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          Aprendizaje u observación
+                          <textarea
+                            rows="3"
+                            value={
+                              borradoresAvance[
+                                campana.id
+                              ]?.nota || ""
+                            }
+                            onChange={(evento) =>
+                              actualizarBorradorAvance(
+                                campana.id,
+                                "nota",
+                                evento.target.value
+                              )
+                            }
+                            placeholder="Ejemplo: preguntaron por tonos disponibles."
+                            style={{
+                              padding: "10px",
+                              borderRadius: "8px",
+                              border: "1px solid #9ebcac",
+                              resize: "vertical",
+                            }}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            guardarAvanceCampana(
+                              campana
+                            )
+                          }
+                          disabled={
+                            guardandoAvanceId ===
+                            campana.id
+                          }
+                          style={{
+                            width: "100%",
+                            marginTop: "10px",
+                            padding: "12px",
+                            border: "none",
+                            borderRadius: "9px",
+                            backgroundColor:
+                              guardandoAvanceId ===
+                              campana.id
+                                ? "#86a891"
+                                : "#166534",
+                            color: "#ffffff",
+                            fontWeight: "850",
+                          }}
+                        >
+                          {guardandoAvanceId ===
+                          campana.id
+                            ? "Guardando..."
+                            : "💾 Guardar avance comprobado"}
+                        </button>
+                      </div>
+                    )}
 
                     <div
                       style={{

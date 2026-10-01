@@ -37,6 +37,7 @@ export default function CentroAgenciaMarketing({
   campanasFinalizadas = [],
   accionesPrioritarias = [],
   onPrepararPlan,
+  onRegistrarAvance,
 }) {
   const nombreProducto =
     productoLider?.nombre ||
@@ -414,15 +415,9 @@ const horasSinAvance =
   type="button"
   onClick={() => {
     if (campanaSinAvance) {
-      const seccionCampanas =
-        document.getElementById(
-          "campanas-marketing-activas"
-        );
-
-      seccionCampanas?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      onRegistrarAvance?.(
+        campanaSinAvance.id
+      );
 
       return;
     }
