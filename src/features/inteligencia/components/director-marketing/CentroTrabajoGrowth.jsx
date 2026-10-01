@@ -245,6 +245,75 @@ export default function CentroTrabajoGrowth({
     ? campanaPrioritaria.resultado.historial
     : [];
 
+  const rutaCampana = [
+    {
+      etiqueta: "Datos SICAR vigentes",
+      detalle: oportunidadVigente
+        ? "Ventas e inventario recientes"
+        : "Actualizar ventas e inventario",
+      completado: oportunidadVigente,
+    },
+    {
+      etiqueta: "Campaña preparada",
+      detalle: campanaPrioritaria
+        ? "Producto, objetivo y canal definidos"
+        : "Falta elegir una oportunidad real",
+      completado: Boolean(campanaPrioritaria),
+    },
+    {
+      etiqueta: "Contenido preparado",
+      detalle: campanaPrioritaria?.estrategia_ia
+        ?.kitPublicacion
+        ? "Kit disponible para revisión"
+        : "Falta generar y revisar el kit",
+      completado: Boolean(
+        campanaPrioritaria?.estrategia_ia
+          ?.kitPublicacion
+      ),
+    },
+    {
+      etiqueta: "Seguimiento iniciado",
+      detalle:
+        String(
+          campanaPrioritaria?.estado || ""
+        ).toUpperCase() === "ACTIVA"
+          ? "Campaña activa dentro de MONYS"
+          : "Falta iniciar la medición",
+      completado:
+        String(
+          campanaPrioritaria?.estado || ""
+        ).toUpperCase() === "ACTIVA",
+    },
+    {
+      etiqueta: "Resultado comprobado",
+      detalle: historialCampana.length
+        ? `${historialCampana.length} avance${
+            historialCampana.length === 1
+              ? ""
+              : "s"
+          } registrado${
+            historialCampana.length === 1
+              ? ""
+              : "s"
+          }`
+        : "Falta registrar publicación y resultados",
+      completado:
+        historialCampana.length > 0,
+    },
+  ];
+
+  const pasosRutaCompletados =
+    rutaCampana.filter(
+      (paso) => paso.completado
+    ).length;
+
+  const porcentajeRutaCampana =
+    Math.round(
+      (pasosRutaCompletados /
+        rutaCampana.length) *
+        100
+    );
+
   const accionSugerida = tareaPrioritaria
     ? {
         titulo: tareaPrioritaria.titulo,
@@ -502,6 +571,58 @@ export default function CentroTrabajoGrowth({
           </article>
         </div>
       </div>
+
+      <section className="growth-workspace__campaign-route">
+        <div className="growth-workspace__campaign-route-heading">
+          <div>
+            <span>Ruta de la campaña</span>
+            <strong>
+              {pasosRutaCompletados} de {rutaCampana.length} pasos comprobados
+            </strong>
+          </div>
+          <b>{porcentajeRutaCampana}%</b>
+        </div>
+
+        <div
+          className="growth-workspace__campaign-progress"
+          role="progressbar"
+          aria-label="Preparación comprobada de la campaña"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={porcentajeRutaCampana}
+        >
+          <span
+            style={{
+              width: `${porcentajeRutaCampana}%`,
+            }}
+          />
+        </div>
+
+        <div className="growth-workspace__campaign-steps">
+          {rutaCampana.map((paso) => (
+            <article
+              key={paso.etiqueta}
+              className={
+                paso.completado
+                  ? "growth-workspace__campaign-step growth-workspace__campaign-step--done"
+                  : "growth-workspace__campaign-step"
+              }
+            >
+              <span aria-hidden="true">
+                {paso.completado ? "✓" : "○"}
+              </span>
+              <div>
+                <strong>{paso.etiqueta}</strong>
+                <small>{paso.detalle}</small>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <p>
+          Este porcentaje mide pasos operativos confirmados; no estima ventas ni resultados futuros.
+        </p>
+      </section>
 
       <div className="growth-workspace__metrics">
         <article>
