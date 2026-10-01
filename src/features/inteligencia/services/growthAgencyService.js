@@ -141,8 +141,10 @@ export function orquestarAgenciaGrowth({
   const utilidad = numeroRegistrado(
     resultado?.utilidadEstimadaCampana
   );
+  const decisionResultado =
+    resultado?.decisionActual || null;
   const decision =
-    resultado?.decisionActual ||
+    decisionResultado ||
     campanaReferencia?.decision_ia ||
     null;
 
@@ -255,7 +257,10 @@ export function orquestarAgenciaGrowth({
       agente: "Dirección Growth",
       etiqueta: "Siguiente acción",
       detalle: "Mantener, mejorar, escalar o detener",
-      completado: tieneResultados && tieneContenido(decision),
+      completado:
+        tieneResultados &&
+        utilidad !== null &&
+        tieneContenido(decisionResultado),
       destino: "campanas-marketing-activas",
       accion: "Pedir decisión a MONYS",
     },
@@ -264,12 +269,24 @@ export function orquestarAgenciaGrowth({
   const completadas = etapas.filter(
     (etapa) => etapa.completado
   ).length;
-  const resultadoPendiente =
-    campanaActiva &&
-    !etapas.find((etapa) => etapa.id === "RESULTADO")?.completado;
-  const siguiente = resultadoPendiente
-    ? etapas.find((etapa) => etapa.id === "RESULTADO")
-    : etapas.find((etapa) => !etapa.completado) || null;
+  const etapasSeguimiento = [
+    "RESULTADO",
+    "VENTAS",
+    "UTILIDAD",
+    "APRENDIZAJE",
+    "SIGUIENTE_ACCION",
+  ];
+  const siguienteSeguimiento = campanaActiva
+    ? etapas.find(
+        (etapa) =>
+          etapasSeguimiento.includes(etapa.id) &&
+          !etapa.completado
+      )
+    : null;
+  const siguiente =
+    siguienteSeguimiento ||
+    etapas.find((etapa) => !etapa.completado) ||
+    null;
 
   return {
     etapas,
