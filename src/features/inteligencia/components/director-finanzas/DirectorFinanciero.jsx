@@ -151,6 +151,37 @@ const proyeccionListaParaDecision =
   ventasVigentes &&
   baseProyeccionSuficiente;
 
+const accionesActualizacionFinanciera = [
+  {
+    titulo: "Actualizar ventas SICAR",
+    descripcion:
+      `Carga los reportes recientes de Centro y General Anaya. La base actual tiene ${
+        antiguedadVentasDias === null
+          ? "una fecha sin confirmar"
+          : `${antiguedadVentasDias} días de antigüedad`
+      } y no debe usarse para decisiones nuevas.`,
+    prioridad: "CRITICA",
+    impacto: "ALTO",
+    responsable: "Administración",
+  },
+  {
+    titulo: "Confirmar movimientos bancarios",
+    descripcion:
+      "Actualiza y clasifica los movimientos de Tesorería antes de calcular dinero disponible, reserva o capacidad de compra.",
+    prioridad: "ALTA",
+    impacto: "ALTO",
+    responsable: "Administración",
+  },
+  {
+    titulo: "Completar la base financiera",
+    descripcion:
+      `MONYS necesita al menos 14 días reales para habilitar proyecciones. La base actual contiene ${diasBaseProyeccion} días analizados.`,
+    prioridad: "MEDIA",
+    impacto: "MEDIO",
+    responsable: "Director Financiero",
+  },
+];
+
 
   const analisisFinanciero =
     generarAnalisisFinanciero({
@@ -259,6 +290,11 @@ ventasSobrePuntoEquilibrio,
     recomendacion,
   } = analisisFinanciero;
 
+  const accionesFinancierasVisibles =
+    proyeccionListaParaDecision
+      ? accionesPrioritarias
+      : accionesActualizacionFinanciera;
+
     useEffect(() => {
   setCreditosProveedores({
     importacion: null,
@@ -267,6 +303,9 @@ ventasSobrePuntoEquilibrio,
   });
 }, [branchId]);
 
+     // Las acciones se recalculan con la importación actual;
+     // no se recarga el historial por cambios visuales del análisis.
+     /* eslint-disable react-hooks/exhaustive-deps */
      useEffect(() => {
       let activo = true;
 
@@ -291,7 +330,7 @@ const historial =
 
         const decisionesRecuperadas = {};
 
-        accionesPrioritarias.forEach(
+        accionesFinancierasVisibles.forEach(
           (accion, indice) => {
             const claveAccion =
               `${accion.titulo}-${indice}`;
@@ -348,6 +387,7 @@ const historial =
   }, [
     datosDashboard?.importacion?.id,
   ]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const formatoDinero = (cantidad) =>
     new Intl.NumberFormat("es-MX", {
@@ -641,7 +681,9 @@ const historial =
             fontWeight: "700",
           }}
         >
-          {nivel} {estado}
+          {proyeccionListaParaDecision
+            ? `${nivel} ${estado}`
+            : "🔴 Información pendiente de actualizar"}
         </span>
       </div>
 
@@ -965,12 +1007,12 @@ const historial =
 
         <TarjetaIndicador
           titulo={
-            ventasVigentes
+            proyeccionListaParaDecision
               ? "Capacidad de compra sugerida"
               : "Capacidad de compra bloqueada"
           }
           valor={formatoDinero(
-            ventasVigentes
+            proyeccionListaParaDecision
               ? capacidadCompra
               : 0
           )}
@@ -1289,7 +1331,7 @@ const historial =
             marginTop: "20px",
           }}
         >
-          {accionesPrioritarias.map(
+          {accionesFinancierasVisibles.map(
             (accion, indice) => {
               const estilo =
                 colorPrioridad(
@@ -1780,7 +1822,9 @@ const historial =
             lineHeight: "1.7",
           }}
         >
-          {decisionPrioritaria}
+          {proyeccionListaParaDecision
+            ? decisionPrioritaria
+            : "Actualizar primero ventas SICAR y movimientos bancarios. Hasta entonces, no autorizar compras, gasto ni compromisos usando esta fotografía financiera."}
         </p>
       </div>
 
@@ -1790,10 +1834,12 @@ const historial =
           padding: "22px",
           borderRadius: "16px",
           backgroundColor:
+            !proyeccionListaParaDecision ||
             alertasFinancieras.length > 0
               ? "#fff4f4"
               : "#f3fff7",
           border:
+            !proyeccionListaParaDecision ||
             alertasFinancieras.length > 0
               ? "1px solid #efc2c2"
               : "1px solid #bfe2ca",
@@ -1807,7 +1853,14 @@ const historial =
           🚨 Alertas financieras
         </strong>
 
-        {alertasFinancieras.length === 0 ? (
+        {!proyeccionListaParaDecision ? (
+          <p>
+            La información financiera está vencida o
+            todavía no reúne 14 días reales. Las
+            decisiones de compra, gasto y proyección
+            permanecen bloqueadas.
+          </p>
+        ) : alertasFinancieras.length === 0 ? (
           <p>
             No se detectaron alertas financieras
             críticas.
@@ -1839,7 +1892,9 @@ const historial =
             fontSize: "18px",
           }}
         >
-          {nivel} Diagnóstico financiero
+          {proyeccionListaParaDecision
+            ? nivel
+            : "🔴"} Diagnóstico financiero
         </strong>
 
         <p
@@ -1848,7 +1903,9 @@ const historial =
             lineHeight: "1.7",
           }}
         >
-          {mensaje}
+          {proyeccionListaParaDecision
+            ? mensaje
+            : "La última información sirve como referencia histórica, no como fotografía actual del negocio. MONYS espera nuevos reportes antes de emitir un diagnóstico financiero accionable."}
         </p>
       </div>
 
@@ -1875,7 +1932,9 @@ const historial =
             lineHeight: "1.7",
           }}
         >
-          {recomendacion}
+          {proyeccionListaParaDecision
+            ? recomendacion
+            : "Sube ventas SICAR recientes de ambas sucursales y actualiza Tesorería. MONYS recalculará automáticamente margen, flujo, reserva y capacidad de compra con una base suficiente."}
         </p>
       </div>
     </section>
