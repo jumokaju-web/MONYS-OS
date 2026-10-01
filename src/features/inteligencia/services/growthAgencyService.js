@@ -285,3 +285,85 @@ export function orquestarAgenciaGrowth({
     decision: decision || "ESPERANDO DATOS",
   };
 }
+
+const HORARIO_POR_ETAPA = {
+  CONTEXTO: "10:30",
+  OPORTUNIDAD: "11:00",
+  HIPOTESIS: "11:30",
+  CONTENIDO: "13:00",
+  CANAL: "14:00",
+  INVERSION: "15:00",
+  RESULTADO: "17:00",
+  VENTAS: "17:15",
+  UTILIDAD: "17:30",
+  APRENDIZAJE: "18:00",
+  SIGUIENTE_ACCION: "18:15",
+};
+
+const INSTRUCCIONES_POR_ETAPA = {
+  CONTEXTO:
+    "1. Importar ventas por artículo de la sucursal.\n2. Importar inventario actual.\n3. Confirmar que ambos reportes correspondan a la misma sucursal.\n4. Volver a cargar Growth OS.",
+  OPORTUNIDAD:
+    "1. Revisar producto sugerido.\n2. Confirmar existencia física.\n3. Confirmar precio y margen.\n4. Guardar cualquier diferencia encontrada.",
+  HIPOTESIS:
+    "1. Definir qué se quiere comprobar.\n2. Elegir una métrica real.\n3. Establecer cuándo continuar y cuándo detener.\n4. No prometer ventas futuras.",
+  CONTENIDO:
+    "1. Preparar gancho, guion, texto y CTA.\n2. Usar únicamente beneficios confirmados.\n3. Verificar precio e inventario.\n4. Guardar evidencia del contenido final.",
+  CANAL:
+    "1. Confirmar dónde está la audiencia.\n2. Adaptar formato y CTA.\n3. Validar que la cuenta correcta esté disponible.\n4. No publicar todavía.",
+  INVERSION:
+    "1. Registrar presupuesto propuesto.\n2. Confirmar disponibilidad financiera.\n3. Dejar la campaña pausada.\n4. Solicitar autorización de Mónica antes de gastar.",
+  RESULTADO:
+    "1. Confirmar si se publicó.\n2. Registrar alcance o vistas reales.\n3. Registrar mensajes y pedidos nuevos.\n4. Registrar venta y gasto reales.\n5. Adjuntar evidencia si está disponible.",
+  VENTAS:
+    "1. Confirmar pedidos pagados.\n2. Separar preguntas de ventas reales.\n3. Registrar venta atribuida.\n4. No contar apartados o intenciones sin pago confirmado.",
+  UTILIDAD:
+    "1. Confirmar ingreso real.\n2. Registrar costo, comisión, empaque, envío y gasto publicitario.\n3. Calcular utilidad incremental.\n4. Señalar cualquier dato faltante.",
+  APRENDIZAJE:
+    "1. Identificar qué generó respuesta.\n2. Anotar objeciones.\n3. Documentar qué no funcionó.\n4. Guardar una regla útil para la siguiente campaña.",
+  SIGUIENTE_ACCION:
+    "1. Revisar resultados y utilidad.\n2. Elegir mantener, mejorar, escalar o detener.\n3. Explicar la evidencia.\n4. No aumentar presupuesto sin autorización.",
+};
+
+export function construirTareaSiguienteAgenciaGrowth({
+  flujo,
+  fecha,
+} = {}) {
+  const siguiente = flujo?.siguiente;
+
+  if (!siguiente || !fecha) {
+    return null;
+  }
+
+  const permiteDatosDesactualizados = [
+    "CONTEXTO",
+    "RESULTADO",
+    "VENTAS",
+    "UTILIDAD",
+    "APRENDIZAJE",
+    "SIGUIENTE_ACCION",
+  ].includes(siguiente.id);
+
+  return {
+    titulo: `Agencia IA · ${siguiente.accion}: ${flujo.producto}`,
+    fecha,
+    horaLimite:
+      HORARIO_POR_ETAPA[siguiente.id] || "17:00",
+    prioridad: "alta",
+    descripcion:
+      `${siguiente.agente} recibe la siguiente entrega del orquestador. Etapa: ${siguiente.etiqueta}. ${siguiente.detalle}.`,
+    instrucciones:
+      INSTRUCCIONES_POR_ETAPA[siguiente.id] ||
+      "Completar la siguiente etapa y guardar evidencia real.",
+    requiereEvidencia: [
+      "CONTENIDO",
+      "RESULTADO",
+      "VENTAS",
+    ].includes(siguiente.id),
+    criterioExito:
+      `La etapa ${siguiente.etiqueta} queda comprobada con datos reales y permite continuar al siguiente agente sin inventar información.`,
+    origen: "orquestador_growth",
+    etapaAgencia: siguiente.id,
+    permiteDatosDesactualizados,
+  };
+}

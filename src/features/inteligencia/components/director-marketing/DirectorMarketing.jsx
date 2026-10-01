@@ -23,6 +23,11 @@ import {
   crearTareaAutomaticaDesdePrioridad,
 } from "../../services/tareasOperativasService";
 
+import {
+  construirTareaSiguienteAgenciaGrowth,
+  orquestarAgenciaGrowth,
+} from "../../services/growthAgencyService";
+
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import OperacionEmpleado from "../OperacionEmpleado";
 import CentroAgenciaMarketing from "./CentroAgenciaMarketing";
@@ -1208,14 +1213,61 @@ for (
     setPlanSemanal(plan);
   }
 
+  function prepararTareaOrquestador() {
+    if (!sucursalPlanId) {
+      setErrorPlan(
+        "Selecciona la sucursal para preparar la siguiente tarea de la Agencia IA."
+      );
+      return;
+    }
+
+    const flujo = orquestarAgenciaGrowth({
+      actualizacionDatos,
+      productoLider,
+      inventarioProductoLider,
+      campanasActivas,
+      campanasFinalizadas,
+    });
+    const [fecha] =
+      obtenerProximasFechasHabilesPlan(1);
+    const tarea =
+      construirTareaSiguienteAgenciaGrowth({
+        flujo,
+        fecha,
+      });
+
+    if (!tarea) {
+      setErrorPlan(
+        "El flujo de la Agencia IA ya está completo o todavía no puede determinar la siguiente entrega."
+      );
+      return;
+    }
+
+    setErrorPlan("");
+    setMensajePlan("");
+    setPlanSemanal([tarea]);
+  }
+
   async function autorizarPlanSemanal() {
+    const permiteDatosDesactualizados =
+      planSemanal.length > 0 &&
+      planSemanal.every(
+        (tarea) =>
+          tarea?.origen ===
+            "orquestador_growth" &&
+          tarea?.permiteDatosDesactualizados ===
+            true
+      );
+
     if (
-      !datosMarketingVigentes ||
+      (!datosMarketingVigentes &&
+        !permiteDatosDesactualizados) ||
       !sucursalPlanId ||
       planSemanal.length === 0
     ) {
       setErrorPlan(
-        datosMarketingVigentes
+        datosMarketingVigentes ||
+          permiteDatosDesactualizados
           ? "Primero prepara el plan semanal."
           : "Actualiza primero SICAR. El plan requiere ventas e inventario recientes."
       );
@@ -1699,6 +1751,32 @@ for (
               ? "✨ Preparar plan con datos reales"
               : "⏸️ Actualiza SICAR para activar el plan"}
           </button>
+
+          <button
+            type="button"
+            onClick={
+              prepararTareaOrquestador
+            }
+            disabled={!sucursalPlanId}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid #8f2858",
+              borderRadius: "10px",
+              background: sucursalPlanId
+                ? "#fff0f6"
+                : "#f2eaee",
+              color: sucursalPlanId
+                ? "#8f2858"
+                : "#8b7882",
+              fontWeight: "900",
+              cursor: sucursalPlanId
+                ? "pointer"
+                : "not-allowed",
+            }}
+          >
+            🧠 Preparar siguiente tarea de la Agencia IA
+          </button>
         </div>
 
         {!datosMarketingVigentes && (
@@ -1713,7 +1791,7 @@ for (
               fontWeight: "700",
             }}
           >
-            Actualiza las ventas y el inventario SICAR de esta sucursal antes de preparar o autorizar tareas de campaña.
+            Actualiza las ventas y el inventario SICAR de esta sucursal antes de preparar un plan nuevo. El orquestador sí puede proponer una tarea de actualización o de seguimiento de una campaña que ya está activa.
           </div>
         )}
 
@@ -1769,8 +1847,13 @@ for (
                 textAlign: "center",
               }}
             >
-              Vista previa: todavía no se ha
-              enviado ninguna tarea.
+              {planSemanal.every(
+                (tarea) =>
+                  tarea?.origen ===
+                  "orquestador_growth"
+              )
+                ? "Propuesta del orquestador: revisa la siguiente entrega antes de asignarla."
+                : "Vista previa: todavía no se ha enviado ninguna tarea."}
             </div>
 
             <div
@@ -1855,6 +1938,84 @@ for (
                       >
                         {tarea.descripcion}
                       </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                          marginTop: "8px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding: "5px 7px",
+                            borderRadius: "999px",
+                            background: "#f5e4ec",
+                            color: "#8f2858",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          Prioridad {tarea.prioridad || "normal"}
+                        </span>
+                        <span
+                          style={{
+                            padding: "5px 7px",
+                            borderRadius: "999px",
+                            background: tarea.requiereEvidencia
+                              ? "#fff2cc"
+                              : "#eaf8f0",
+                            color: tarea.requiereEvidencia
+                              ? "#7a4d00"
+                              : "#207a4a",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          {tarea.requiereEvidencia
+                            ? "Evidencia requerida"
+                            : "Registro en MONYS"}
+                        </span>
+                      </div>
+
+                      {tarea.instrucciones && (
+                        <details
+                          style={{
+                            marginTop: "9px",
+                            color: "#5f4b55",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <summary
+                            style={{
+                              color: "#8f2858",
+                              fontWeight: "900",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Ver instrucciones y criterio de éxito
+                          </summary>
+                          <div
+                            style={{
+                              marginTop: "7px",
+                              whiteSpace: "pre-line",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {tarea.instrucciones}
+                          </div>
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "7px",
+                              color: "#34242c",
+                            }}
+                          >
+                            Éxito: {tarea.criterioExito}
+                          </strong>
+                        </details>
+                      )}
                     </div>
                   </div>
                 )
