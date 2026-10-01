@@ -155,6 +155,7 @@ function obtenerEstiloPrioridad(prioridad) {
 
 export default function DirectorMarketing({
   analisisMarketing,
+  onVolverAlDashboard,
 }) {
 
     const {
@@ -1432,6 +1433,12 @@ for (
       </div>
 
             <CentroAgenciaMarketing
+  actualizacionDatos={
+    analisisMarketing.actualizacionDatos
+  }
+  onActualizarDatos={
+    onVolverAlDashboard
+  }
   productoLider={productoLider}
   inventarioProductoLider={
     inventarioProductoLider
