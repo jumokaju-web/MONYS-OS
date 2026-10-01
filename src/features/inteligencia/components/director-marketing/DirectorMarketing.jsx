@@ -25,6 +25,7 @@ import {
 
 import {
   construirTareaSiguienteAgenciaGrowth,
+  evaluarResultadoCampanaGrowth,
   orquestarAgenciaGrowth,
 } from "../../services/growthAgencyService";
 
@@ -983,11 +984,16 @@ for (
         convertirNumero(
           resultadoActual.mensajesAcumulados
         ) + mensajesNuevos;
-      const costoPorPedido =
-        pedidosAcumulados > 0
-          ? gastoAcumulado /
-            pedidosAcumulados
-          : null;
+      const evaluacionGrowth = evaluarResultadoCampanaGrowth({
+        gastoAcumulado,
+        pedidosAcumulados,
+        ventaAcumulada,
+        margenRealBase:
+          campana?.estrategia_ia
+            ?.datosRentabilidadBase
+            ?.margenReal,
+        publicacion: borrador.publicacion,
+      });
       const registroNuevo = {
         fecha: formatearFechaISO(
           new Date()
@@ -1020,14 +1026,7 @@ for (
               ventaAcumulada,
               alcanceAcumulado,
               mensajesAcumulados,
-              costoPorPedido,
-              decisionActual:
-                borrador.publicacion ===
-                "NO_PUBLICADA"
-                  ? "REPROGRAMAR_PUBLICACION"
-                  : resultadoActual.decisionActual ||
-                    campana.decision_ia ||
-                    "CONTINUAR_MIDIENDO",
+              ...evaluacionGrowth,
               historial: [
                 ...historialActual,
                 registroNuevo,

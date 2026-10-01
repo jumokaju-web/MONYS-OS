@@ -165,7 +165,11 @@ export default function CentroTrabajoGrowth({
       ).toUpperCase();
 
       if (
-        ["PAUSAR", "ESCALAR"].includes(decision) &&
+        [
+          "PAUSAR",
+          "REPROGRAMAR_PUBLICACION",
+          "SOLICITAR_AUTORIZACION_PARA_ESCALAR",
+        ].includes(decision) &&
         !resumen.decision
       ) {
         resumen.decision = {
@@ -193,6 +197,12 @@ export default function CentroTrabajoGrowth({
 
   const actualizacionOportunidad =
     oportunidadPrioritaria?.actualizacionDatos || null;
+  const textoDecision = {
+    PAUSAR: "pausar nueva inversión en",
+    REPROGRAMAR_PUBLICACION: "reprogramar la publicación de",
+    SOLICITAR_AUTORIZACION_PARA_ESCALAR:
+      "solicitar autorización de Mónica antes de escalar",
+  }[resumenCampanas.decision?.accion];
   const oportunidadVigente =
     actualizacionOportunidad?.vigente === true;
 
@@ -812,7 +822,7 @@ export default function CentroTrabajoGrowth({
         {resumenCampanas.decision && (
           <div className="growth-workspace__decision">
             <span>Decisión pendiente</span>
-            MONYS recomienda {resumenCampanas.decision.accion.toLowerCase()} {resumenCampanas.decision.producto}.
+            MONYS recomienda {textoDecision} {resumenCampanas.decision.producto}.
           </div>
         )}
       </div>
