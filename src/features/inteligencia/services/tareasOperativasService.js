@@ -418,6 +418,11 @@ async function resolverResponsableMarketing({
       "branch_id",
       branchId
     )
+    .in("estado", [
+      "pendiente",
+      "en_proceso",
+      "analizando",
+    ])
     .not(
       "responsable",
       "is",
@@ -450,16 +455,29 @@ async function resolverResponsableMarketing({
         )
     );
 
-  if (
+  const responsableAnterior =
     String(
-      tareaMarketingAnterior
-        ?.responsable || ""
-    ).trim()
-  ) {
-    return String(
-      tareaMarketingAnterior
-        .responsable
+      tareaMarketingAnterior?.responsable || ""
     ).trim();
+
+  if (responsableAnterior) {
+    const empleadosActivos =
+      await obtenerEmpleadosActivosParaAsignacion(
+        branchId
+      );
+
+    const empleadoActivoAnterior =
+      empleadosActivos.find(
+        (empleado) =>
+          normalizar(empleado.nombre) ===
+          normalizar(responsableAnterior)
+      );
+
+    if (empleadoActivoAnterior) {
+      return String(
+        empleadoActivoAnterior.nombre
+      ).trim();
+    }
   }
 
   try {
