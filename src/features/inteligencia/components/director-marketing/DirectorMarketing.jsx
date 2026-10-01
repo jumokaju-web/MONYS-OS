@@ -1110,6 +1110,7 @@ for (
       {/* PLAN SEMANAL AUTORIZADO POR EL DUEÑO */}
 
       <div
+        id="plan-crecimiento-marketing"
         style={{
           marginTop: "24px",
           padding: "20px",
@@ -1436,6 +1437,7 @@ for (
     inventarioProductoLider
   }
   campanasActivas={campanasActivas}
+  campanasFinalizadas={campanasFinalizadas}
   accionesPrioritarias={
     listaAcciones
   }
@@ -2132,6 +2134,7 @@ for (
             {/* HISTORIAL Y APRENDIZAJE */}
 
       <div
+        id="historial-aprendizaje-campanas"
         style={{
           marginTop: "18px",
           padding: "20px",
