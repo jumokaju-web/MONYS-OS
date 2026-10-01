@@ -1038,10 +1038,12 @@ export async function revisarContenidoMarketing({
 export async function guardarResultadoMarketing({
   tareaId,
   canal = "",
+  publicacion = "PUBLICADA",
   alcance = 0,
   leads = 0,
   ventas = 0,
   monto = 0,
+  gasto = 0,
   observacion = "",
 } = {}) {
   if (!tareaId) {
@@ -1059,6 +1061,9 @@ export async function guardarResultadoMarketing({
   const resultadoMarketing = {
     tipo: "marketing",
 
+    publicacion:
+      String(publicacion || "PUBLICADA").trim(),
+
     canal:
       String(canal || "").trim(),
 
@@ -1073,6 +1078,9 @@ export async function guardarResultadoMarketing({
 
     monto:
       Number(monto || 0),
+
+    gasto:
+      Number(gasto || 0),
 
     observacion:
       String(
@@ -1117,10 +1125,212 @@ export async function guardarResultadoMarketing({
     );
   }
 
+  const sincronizacionCampana =
+    await sincronizarResultadoTareaConCampana({
+      tarea: data,
+      resultadoMarketing,
+    });
+
   return {
     tarea: data,
     resultado:
       resultadoMarketing,
+    sincronizacionCampana,
+  };
+}
+
+function normalizarReferenciaMarketing(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function leerObjetoResultado(valor) {
+  if (valor && typeof valor === "object") {
+    return valor;
+  }
+
+  try {
+    const convertido = JSON.parse(valor || "{}");
+    return convertido && typeof convertido === "object"
+      ? convertido
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+async function sincronizarResultadoTareaConCampana({
+  tarea,
+  resultadoMarketing,
+}) {
+  if (!tarea?.branch_id) {
+    return {
+      sincronizada: false,
+      motivo: "SIN_SUCURSAL",
+    };
+  }
+
+  const referenciaTarea = normalizarReferenciaMarketing(
+    `${tarea.titulo || ""} ${tarea.descripcion || ""}`
+  );
+
+  const { data: campanasActivas, error } = await supabase
+    .from("campanas_marketing")
+    .select("*")
+    .eq("branch_id", tarea.branch_id)
+    .eq("estado", "ACTIVA")
+    .order("updated_at", {
+      ascending: false,
+    })
+    .limit(20);
+
+  if (error) {
+    console.error(
+      "Error buscando campaña para resultado de tarea:",
+      error
+    );
+
+    return {
+      sincronizada: false,
+      motivo: "ERROR_CONSULTA",
+    };
+  }
+
+  const coincidencias = (campanasActivas || []).filter(
+    (campana) => {
+      const producto = normalizarReferenciaMarketing(
+        campana.producto
+      );
+
+      return producto && referenciaTarea.includes(producto);
+    }
+  );
+
+  const campana =
+    coincidencias.length === 1
+      ? coincidencias[0]
+      : (campanasActivas || []).length === 1 &&
+          referenciaTarea.includes("AGENCIA IA")
+        ? campanasActivas[0]
+        : null;
+
+  if (!campana) {
+    return {
+      sincronizada: false,
+      motivo: "SIN_COINCIDENCIA_UNICA",
+    };
+  }
+
+  const resultadoActual = leerObjetoResultado(
+    campana.resultado
+  );
+  const historialActual = Array.isArray(
+    resultadoActual.historial
+  )
+    ? resultadoActual.historial
+    : [];
+  const registroAnterior = historialActual.find(
+    (registro) => registro?.tareaId === tarea.id
+  );
+  const historialSinDuplicado = historialActual.filter(
+    (registro) => registro?.tareaId !== tarea.id
+  );
+  const numero = (valor) => {
+    const convertido = Number(valor || 0);
+    return Number.isFinite(convertido) ? convertido : 0;
+  };
+  const alcanceNuevo = numero(resultadoMarketing.alcance);
+  const mensajesNuevos = numero(resultadoMarketing.leads);
+  const pedidosNuevos = numero(resultadoMarketing.ventas);
+  const ventaNueva = numero(resultadoMarketing.monto);
+  const gastoNuevo = numero(resultadoMarketing.gasto);
+  const alcanceAcumulado =
+    numero(resultadoActual.alcanceAcumulado) -
+    numero(registroAnterior?.alcance) +
+    alcanceNuevo;
+  const mensajesAcumulados =
+    numero(resultadoActual.mensajesAcumulados) -
+    numero(registroAnterior?.mensajes) +
+    mensajesNuevos;
+  const pedidosAcumulados =
+    numero(resultadoActual.pedidosAcumulados) -
+    numero(registroAnterior?.pedidos) +
+    pedidosNuevos;
+  const ventaAcumulada =
+    numero(resultadoActual.ventaAcumulada) -
+    numero(registroAnterior?.venta) +
+    ventaNueva;
+  const gastoAcumulado =
+    numero(resultadoActual.gastoAcumulado) -
+    numero(registroAnterior?.gasto) +
+    gastoNuevo;
+  const registroNuevo = {
+    tareaId: tarea.id,
+    fuente: "TAREA_MARKETING",
+    fecha: new Date().toISOString().slice(0, 10),
+    registradoEn: new Date().toISOString(),
+    registradoPor: tarea.responsable || "Marketing",
+    canal: resultadoMarketing.canal,
+    publicacion: resultadoMarketing.publicacion,
+    alcance: alcanceNuevo,
+    mensajes: mensajesNuevos,
+    pedidos: pedidosNuevos,
+    venta: ventaNueva,
+    gasto: gastoNuevo,
+    nota: resultadoMarketing.observacion,
+  };
+
+  const { data: campanaActualizada, error: errorActualizacion } =
+    await supabase
+      .from("campanas_marketing")
+      .update({
+        resultado: {
+          ...resultadoActual,
+          alcanceAcumulado,
+          mensajesAcumulados,
+          pedidosAcumulados,
+          ventaAcumulada,
+          gastoAcumulado,
+          costoPorPedido:
+            pedidosAcumulados > 0
+              ? gastoAcumulado / pedidosAcumulados
+              : null,
+          decisionActual:
+            resultadoMarketing.publicacion === "NO_PUBLICADA"
+              ? "REPROGRAMAR_PUBLICACION"
+              : resultadoActual.decisionActual ||
+                campana.decision_ia ||
+                "CONTINUAR_MIDIENDO",
+          historial: [
+            ...historialSinDuplicado,
+            registroNuevo,
+          ],
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", campana.id)
+      .select()
+      .single();
+
+  if (errorActualizacion) {
+    console.error(
+      "Error sincronizando resultado de tarea con campaña:",
+      errorActualizacion
+    );
+
+    return {
+      sincronizada: false,
+      motivo: "ERROR_ACTUALIZACION",
+    };
+  }
+
+  return {
+    sincronizada: true,
+    motivo: "RESULTADO_SINCRONIZADO",
+    campana: campanaActualizada,
   };
 }
 
@@ -1156,12 +1366,13 @@ export async function cambiarEstadoTareaOperativa({
   const cambios = {
     estado,
 
-    resultado:
-      resultado || null,
-
     updated_at:
       new Date().toISOString(),
   };
+
+  if (resultado !== null && resultado !== undefined) {
+    cambios.resultado = resultado;
+  }
 
   if (
     estado === "terminada"
