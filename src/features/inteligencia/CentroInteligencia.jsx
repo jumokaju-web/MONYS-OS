@@ -24,6 +24,8 @@ import DirectorRH from "./components/director-rh/DirectorRH";
 
 import OperacionHoy from "./components/OperacionHoy";
 
+import PanelDecisionesPrioritarias from "./components/PanelDecisionesPrioritarias";
+
 import DirectorInventarioPanel from "./components/DirectorInventarioPanel";
 
 import {
@@ -612,53 +614,10 @@ const analisisRH =
         }
       />
 
-      <section
-        style={{
-          marginTop: "30px",
-          marginBottom: "35px",
-          padding: "24px",
-          borderRadius: "20px",
-          backgroundColor:
-            "#fffdf7",
-          border:
-            "1px solid #f2d98a",
-        }}
-      >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "18px",
-            fontSize: "28px",
-          }}
-        >
-          📋 Decisiones Prioritarias de
-          Hoy
-        </h2>
-
-        <ul
-          style={{
-            margin: 0,
-            paddingLeft: "22px",
-            lineHeight: "2",
-            fontSize: "17px",
-          }}
-        >
-          <li>
-            🔴 No hay decisiones críticas
-            pendientes.
-          </li>
-
-          <li>
-            🟡 La IA irá colocando aquí
-            las recomendaciones del día.
-          </li>
-
-          <li>
-            🟢 Esta sección será
-            completamente automática.
-          </li>
-        </ul>
-      </section>
+      <PanelDecisionesPrioritarias
+        datosDashboard={datosDashboard}
+        movimientos={movimientos}
+      />
 
       <section
         style={{

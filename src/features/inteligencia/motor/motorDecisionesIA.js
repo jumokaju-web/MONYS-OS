@@ -71,6 +71,7 @@ function generarDecisionesIA({
 
   const decisionesFinancieras =
     generarReglasFinancieras({
+      metricas,
       movimientos,
       crearDecision,
     });
