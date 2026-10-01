@@ -50,6 +50,14 @@ function numeroRegistrado(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+function etiquetaAntiguedad(dias) {
+  if (dias === null || dias === undefined) {
+    return "fecha sin confirmar";
+  }
+
+  return dias === 0 ? "hoy" : `hace ${dias} días`;
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -164,6 +172,11 @@ export default function CentroTrabajoGrowth({
     }
   );
 
+  const actualizacionOportunidad =
+    oportunidadPrioritaria?.actualizacionDatos || null;
+  const oportunidadVigente =
+    actualizacionOportunidad?.vigente === true;
+
   const valorAcumulado = (total, disponibles) => {
     if (disponibles === 0) {
       return "Sin datos";
@@ -191,21 +204,28 @@ export default function CentroTrabajoGrowth({
     : [];
 
   const productoGrowthPrioritario =
-    oportunidadPrioritaria?.nombre ||
+    oportunidadPrioritaria && !oportunidadVigente
+      ? "Pendiente de reportes actuales"
+      : oportunidadPrioritaria?.nombre ||
     oportunidadPrioritaria?.producto ||
     productosCampanaPrioritaria.join(", ") ||
     campanaPrioritaria?.producto ||
     "Por confirmar con oportunidades reales";
 
   const canalGrowthPrioritario =
-    campanaPrioritaria?.canal_principal ||
+    oportunidadPrioritaria && !oportunidadVigente
+      ? "Se define después de validar datos"
+      : campanaPrioritaria?.canal_principal ||
     campanaPrioritaria?.estrategia_ia?.canalPrincipal ||
     (Array.isArray(campanaPrioritaria?.estrategia_ia?.canales)
       ? campanaPrioritaria.estrategia_ia.canales.join(", ")
       : "") ||
     "Por definir antes de publicar";
 
-  const evidenciaGrowth = oportunidadPrioritaria
+  const evidenciaGrowth =
+    oportunidadPrioritaria && !oportunidadVigente
+      ? `Ventas: ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} · inventario: ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Actualiza los reportes antes de decidir.`
+      : oportunidadPrioritaria
     ? [
         `${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia`,
         `${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} vendidas en ${Number(oportunidadPrioritaria.diasAnalizados || 7)} días`,
@@ -266,6 +286,18 @@ export default function CentroTrabajoGrowth({
             : "Registrar primer resultado",
           ejecutar: () =>
             onAbrirModulo?.("RESULTADOS"),
+        }
+      : oportunidadPrioritaria && !oportunidadVigente
+      ? {
+          titulo: "Actualizar SICAR antes de recomendar la primera campaña",
+          descripcion:
+            `La sugerencia disponible usa ventas ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Primero actualiza los reportes de la sucursal; después MONYS volverá a priorizar el producto y el canal.`,
+          criterio:
+            "No preparar una campaña usando ventas o existencias desactualizadas.",
+          etiqueta: "Datos desactualizados",
+          clase: "growth-workspace__status--warning",
+          boton: "Revisar oportunidades",
+          ejecutar: () => onAbrirModulo?.("OPORTUNIDADES"),
         }
       : oportunidadPrioritaria
       ? {
