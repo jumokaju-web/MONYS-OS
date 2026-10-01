@@ -36,6 +36,7 @@ import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacion
 
 import {
   claveEspacioGrowth,
+  evaluarResultadoCampanaGrowth,
   obtenerEspaciosGrowth,
 } from "../services/growthAgencyService";
 
@@ -3762,6 +3763,8 @@ const resultadoGrowthActual =
   campanaGuardada?.resultado || {};
 const aprendizajeGrowthActual =
   campanaGuardada?.aprendizaje || {};
+const aprendizajeProvisionalGrowth =
+  campanaGuardada?.resultado?.aprendizajeProvisional || {};
 const productosCampanaGuardada = Array.isArray(
   campanaGuardada?.estrategia_ia?.productosSeleccionadosGrowth
 )
@@ -4871,54 +4874,18 @@ async function guardarSeguimientoCampana() {
           ?.ventaAcumulada || 0
       ) + ventaNueva;
 
-    const costoPorPedido =
-      pedidosAcumulados > 0
-        ? gastoAcumulado /
-          pedidosAcumulados
-        : null;
-    const margenRealBase =
-  Number(
-    campanaGuardada
-      ?.estrategia_ia
-      ?.datosRentabilidadBase
-      ?.margenReal ?? 0
-  );
-
-const utilidadEstimadaCampana =
-  margenRealBase > 0
-    ? ventaAcumulada *
-      (margenRealBase / 100) -
-      gastoAcumulado
-    : null;
-
-    let decisionActual =
-  "CONTINUAR MIDIENDO";
-
-if (
-  pedidosAcumulados === 0 &&
-  gastoAcumulado >= 90
-) {
-  decisionActual =
-    "PAUSAR";
-} else if (
-  margenRealBase > 0 &&
-  utilidadEstimadaCampana !== null &&
-  utilidadEstimadaCampana <= 0 &&
-  gastoAcumulado >= 90
-) {
-  decisionActual =
-    "PAUSAR";
-} else if (
-  pedidosAcumulados >= 3 &&
-  costoPorPedido !== null &&
-  costoPorPedido <= 30 &&
-  margenRealBase > 0 &&
-  utilidadEstimadaCampana !== null &&
-  utilidadEstimadaCampana > 0
-) {
-  decisionActual =
-    "ESCALAR";
-}
+    const evaluacionGrowth = evaluarResultadoCampanaGrowth({
+      gastoAcumulado,
+      pedidosAcumulados,
+      ventaAcumulada,
+      margenRealBase:
+        campanaGuardada
+          ?.estrategia_ia
+          ?.datosRentabilidadBase
+          ?.margenReal,
+      publicacion:
+        resultadoAnterior?.historial?.at(-1)?.publicacion || "",
+    });
 
     const registroNuevo = {
       fecha:
@@ -4940,13 +4907,10 @@ if (
      const resultadoActualizado = {
   ...resultadoAnterior,
 
-  gastoAcumulado,
-  pedidosAcumulados,
-  ventaAcumulada,
-  costoPorPedido,
-  margenRealBase,
-utilidadEstimadaCampana,
-  decisionActual,
+      gastoAcumulado,
+      pedidosAcumulados,
+      ventaAcumulada,
+      ...evaluacionGrowth,
 
       historial: [
         ...(
@@ -5840,6 +5804,16 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           {aprendizajeGrowthActual.recomendacionFutura || campanaGuardada?.analisis_ia?.recomendacionFutura ? (
             <><br />Siguiente acción: {aprendizajeGrowthActual.recomendacionFutura || campanaGuardada?.analisis_ia?.recomendacionFutura}</>
           ) : null}
+        </>
+      ) : aprendizajeProvisionalGrowth.resumen ? (
+        <>
+          <strong>Aprendizaje provisional con datos reales</strong>
+          <br />{aprendizajeProvisionalGrowth.resumen}
+          <br />Siguiente acción: {aprendizajeProvisionalGrowth.siguienteAccion}
+          {aprendizajeProvisionalGrowth.requiereAutorizacion ? (
+            <><br /><strong>🔒 Pendiente de autorización de Mónica.</strong></>
+          ) : null}
+          <br /><small>Se convertirá en aprendizaje final cuando termine la campaña.</small>
         </>
       ) : (
         <>El aprendizaje se guarda al cerrar una campaña con avances reales. {campanaGuardada?.id ? `La campaña actual “${campanaGuardada.nombre || campanaGuardada.producto || "sin nombre"}” aún no tiene un aprendizaje final registrado.` : "Aún no hay una campaña seleccionada para consultar."}</>
