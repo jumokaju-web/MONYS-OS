@@ -1258,7 +1258,10 @@ for (
                 sucursalPlanId && datosMarketingVigentes
                   ? "#8f2858"
                   : "#d8c7cf",
-              color: "#ffffff",
+              color:
+                sucursalPlanId && datosMarketingVigentes
+                  ? "#ffffff"
+                  : "#6b4b5c",
               fontWeight: "900",
               cursor:
                 sucursalPlanId && datosMarketingVigentes
