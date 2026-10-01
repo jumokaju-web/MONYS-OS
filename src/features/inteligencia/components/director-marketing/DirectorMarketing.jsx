@@ -767,6 +767,13 @@ for (
   }
 
   function prepararPlanSemanal() {
+    if (!datosMarketingVigentes) {
+      setErrorPlan(
+        "Actualiza primero los reportes SICAR de ventas e inventario. No prepararé el plan con información desactualizada."
+      );
+      return;
+    }
+
     if (!sucursalPlanId) {
       setErrorPlan(
         "Selecciona la sucursal del plan."
@@ -909,11 +916,14 @@ for (
 
   async function autorizarPlanSemanal() {
     if (
+      !datosMarketingVigentes ||
       !sucursalPlanId ||
       planSemanal.length === 0
     ) {
       setErrorPlan(
-        "Primero prepara el plan semanal."
+        datosMarketingVigentes
+          ? "Primero prepara el plan semanal."
+          : "Actualiza primero SICAR. El plan requiere ventas e inventario recientes."
       );
       return;
     }
@@ -1007,7 +1017,11 @@ for (
     oportunidades = [],
     recomendaciones = [],
     accionesPrioritarias = [],
+    actualizacionDatos = null,
   } = analisisMarketing;
+
+  const datosMarketingVigentes =
+    actualizacionDatos?.vigente === true;
 
   const capacidadCompraNumero =
     convertirNumero(capacidadCompra);
@@ -1233,7 +1247,7 @@ for (
               prepararPlanSemanal
             }
             disabled={
-              !sucursalPlanId
+              !sucursalPlanId || !datosMarketingVigentes
             }
             style={{
               width: "100%",
@@ -1241,20 +1255,38 @@ for (
               border: "none",
               borderRadius: "10px",
               background:
-                sucursalPlanId
+                sucursalPlanId && datosMarketingVigentes
                   ? "#8f2858"
                   : "#d8c7cf",
               color: "#ffffff",
               fontWeight: "900",
               cursor:
-                sucursalPlanId
+                sucursalPlanId && datosMarketingVigentes
                   ? "pointer"
                   : "not-allowed",
             }}
           >
-            ✨ Preparar plan con datos reales
+            {datosMarketingVigentes
+              ? "✨ Preparar plan con datos reales"
+              : "⏸️ Actualiza SICAR para activar el plan"}
           </button>
         </div>
+
+        {!datosMarketingVigentes && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "11px",
+              borderRadius: "10px",
+              background: "#fff8e8",
+              border: "1px solid #eed18b",
+              color: "#7a4d00",
+              fontWeight: "700",
+            }}
+          >
+            Actualiza las ventas y el inventario SICAR de esta sucursal antes de preparar o autorizar tareas de campaña.
+          </div>
+        )}
 
         {errorPlan && (
           <div
@@ -1434,7 +1466,7 @@ for (
 
             <CentroAgenciaMarketing
   actualizacionDatos={
-    analisisMarketing.actualizacionDatos
+            actualizacionDatos
   }
   onActualizarDatos={
     onVolverAlDashboard
@@ -2435,8 +2467,9 @@ for (
           icono="⭐"
           titulo="Producto líder"
           valor={
-            productoLider?.nombre ||
-            "Sin datos"
+            datosMarketingVigentes
+              ? productoLider?.nombre || "Sin datos"
+              : "Pendiente de SICAR"
           }
         />
 
@@ -2444,15 +2477,20 @@ for (
           icono="🏷️"
           titulo="Categoría líder"
           valor={
-            categoriaLider?.categoria ||
-            "Sin datos"
+            datosMarketingVigentes
+              ? categoriaLider?.categoria || "Sin datos"
+              : "Pendiente de SICAR"
           }
         />
 
         <TarjetaIndicador
           icono="📚"
           titulo="Productos para rotar"
-          valor={productosParaRotar.length}
+          valor={
+            datosMarketingVigentes
+              ? productosParaRotar.length
+              : "Pendiente de SICAR"
+          }
         />
       </div>
 
@@ -2516,7 +2554,25 @@ for (
 
       {/* PRODUCTO LÍDER */}
 
-      {productoLider &&
+      {!datosMarketingVigentes ? (
+        <div
+          style={{
+            marginTop: "24px",
+            padding: "20px",
+            borderRadius: "16px",
+            backgroundColor: "#fff8e8",
+            border: "1px solid #eed18b",
+            textAlign: "center",
+          }}
+        >
+          <h3 style={{ margin: "0 0 8px" }}>
+            📥 Reportes SICAR pendientes de actualización
+          </h3>
+          <p style={{ margin: 0, lineHeight: "1.6" }}>
+            MONYS oculta el producto líder y su cobertura anterior hasta recibir ventas e inventario recientes de esta sucursal.
+          </p>
+        </div>
+      ) : productoLider &&
         inventarioProductoLider && (
           <div
             style={{
@@ -2617,7 +2673,11 @@ for (
             marginTop: "16px",
           }}
         >
-          {listaAcciones.length > 0 ? (
+          {!datosMarketingVigentes ? (
+            <p style={{ margin: 0, textAlign: "center" }}>
+              Acciones pausadas hasta actualizar ventas e inventario SICAR.
+            </p>
+          ) : listaAcciones.length > 0 ? (
             listaAcciones.map(
               (accion, index) => {
                 const estilo =
@@ -2695,7 +2755,11 @@ for (
           🚀 Oportunidades de Marketing
         </h3>
 
-        {listaOportunidades.length > 0 ? (
+        {!datosMarketingVigentes ? (
+          <p style={{ margin: 0, textAlign: "center" }}>
+            Oportunidades pausadas hasta confirmar los datos de la sucursal.
+          </p>
+        ) : listaOportunidades.length > 0 ? (
           listaOportunidades
             .slice(0, 8)
             .map(
@@ -2759,7 +2823,11 @@ for (
           🧠 Recomendaciones de Marketing
         </h3>
 
-        {listaRecomendaciones.length > 0 ? (
+        {!datosMarketingVigentes ? (
+          <p style={{ margin: 0, textAlign: "center" }}>
+            Actualiza SICAR para que MONYS genere recomendaciones de producto y canal con cifras recientes.
+          </p>
+        ) : listaRecomendaciones.length > 0 ? (
           listaRecomendaciones.map(
             (recomendacion, index) => (
               <div
