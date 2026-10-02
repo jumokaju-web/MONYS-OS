@@ -151,6 +151,52 @@ function obtenerDiasSemana(
   );
 }
 
+function obtenerSiguienteDiaHabil(fechaBase) {
+  const fecha = new Date(fechaBase);
+
+  do {
+    fecha.setDate(fecha.getDate() + 1);
+  } while ([0, 6].includes(fecha.getDay()));
+
+  return fecha;
+}
+
+function construirBorradorAgendaGrowth(fechaBase) {
+  const hoy = convertirFechaLocal(fechaBase);
+  const primeraFecha = obtenerSiguienteDiaHabil(hoy);
+  const segundaFecha = new Date(primeraFecha);
+  const terceraFecha = obtenerSiguienteDiaHabil(primeraFecha);
+
+  return [
+    {
+      id: "borrador-growth-publicacion",
+      fecha: formatearFechaLocal(primeraFecha),
+      hora_limite: "10:00",
+      titulo: "Confirmar si la campaña preparada ya fue publicada",
+    },
+    {
+      id: "borrador-growth-resultados",
+      fecha: formatearFechaLocal(segundaFecha),
+      hora_limite: "17:00",
+      titulo: "Registrar alcance, mensajes, pedidos, venta y gasto real",
+    },
+    {
+      id: "borrador-growth-decision",
+      fecha: formatearFechaLocal(terceraFecha),
+      hora_limite: "11:00",
+      titulo: "Revisar utilidad y decidir: continuar, mejorar o detener",
+    },
+  ];
+}
+
+function etiquetaFechaBorradorGrowth(fechaISO) {
+  return new Intl.DateTimeFormat("es-MX", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(convertirFechaLocal(fechaISO));
+}
+
 function etiquetaRangoSemana(
   diasSemana
 ) {
@@ -952,6 +998,14 @@ export default function OperacionEmpleado({
     ]
   );
 
+  const borradorAgendaGrowth = useMemo(
+    () =>
+      esCentroGrowth && tareasCalendario.length === 0
+        ? construirBorradorAgendaGrowth(fechaHoy)
+        : [],
+    [esCentroGrowth, fechaHoy, tareasCalendario.length]
+  );
+
   useEffect(() => {
     let vigente = true;
 
@@ -1380,8 +1434,9 @@ export default function OperacionEmpleado({
                 fontSize: "12px",
               }}
             >
-              Tareas reales programadas
-              para esta semana
+              {borradorAgendaGrowth.length > 0
+                ? "Agenda propuesta por la Agencia IA"
+                : "Tareas reales programadas para esta semana"}
             </div>
           </div>
 
@@ -1401,9 +1456,59 @@ export default function OperacionEmpleado({
               fontSize: "13px",
             }}
           >
-            {tareasCalendario.length}
+            {borradorAgendaGrowth.length > 0
+              ? `${borradorAgendaGrowth.length} borradores`
+              : tareasCalendario.length}
           </span>
         </div>
+
+        {borradorAgendaGrowth.length > 0 && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "11px 12px",
+              borderRadius: "12px",
+              border: "1px dashed #dca9c1",
+              background: "#fff7fb",
+              color: "#6f3651",
+              fontSize: "12px",
+              lineHeight: 1.45,
+            }}
+          >
+            <strong style={{ display: "block", color: "#9b235b" }}>
+              🛡️ 3 horarios listos · 0 tareas autorizadas
+            </strong>
+            Se muestran dentro del calendario para que puedas ver el plan. No
+            publican, no gastan y todavía no cuentan como trabajo asignado.
+            <div
+              style={{
+                display: "grid",
+                gap: "6px",
+                marginTop: "9px",
+              }}
+            >
+              {borradorAgendaGrowth.map((tarea) => (
+                <div
+                  key={`resumen-${tarea.id}`}
+                  style={{
+                    padding: "7px 8px",
+                    borderRadius: "9px",
+                    background: "#ffffff",
+                    border: "1px solid #f0dce6",
+                  }}
+                >
+                  <strong style={{ color: "#8f2858" }}>
+                    {etiquetaFechaBorradorGrowth(tarea.fecha)} ·{" "}
+                    {tarea.hora_limite}
+                  </strong>
+                  <span style={{ display: "block", marginTop: "2px" }}>
+                    {tarea.titulo}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div
           style={{
@@ -1542,6 +1647,11 @@ export default function OperacionEmpleado({
                 }
               );
 
+            const borradoresDia =
+              borradorAgendaGrowth.filter(
+                (tarea) => tarea.fecha === dia.fecha
+              );
+
             return (
               <div
                 key={dia.fecha}
@@ -1599,8 +1709,7 @@ export default function OperacionEmpleado({
                     minWidth: 0,
                   }}
                 >
-                  {tareasDia.length ===
-                  0 ? (
+                  {tareasDia.length === 0 && borradoresDia.length === 0 ? (
                     <div
                       style={{
                         alignSelf:
@@ -1612,8 +1721,9 @@ export default function OperacionEmpleado({
                       Sin tareas programadas
                     </div>
                   ) : (
-                    tareasDia.map(
-                      (tarea) => (
+                    <>
+                      {tareasDia.map(
+                        (tarea) => (
                         <button
                           type="button"
                           key={tarea.id}
@@ -1775,8 +1885,45 @@ export default function OperacionEmpleado({
                             </div>
                           )}
                         </button>
-                      )
-                    )
+                        )
+                      )}
+
+                      {borradoresDia.map((tarea) => (
+                        <div
+                          key={tarea.id}
+                          style={{
+                            width: "100%",
+                            padding: "9px",
+                            border: "1px dashed #dca9c1",
+                            borderRadius: "10px",
+                            textAlign: "left",
+                            background: "#fff8dc",
+                          }}
+                        >
+                          <strong
+                            style={{
+                              display: "block",
+                              color: "#5b3547",
+                              fontSize: "13px",
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            {tarea.titulo}
+                          </strong>
+                          <div
+                            style={{
+                              marginTop: "4px",
+                              color: "#8a5a00",
+                              fontSize: "11px",
+                              fontWeight: "800",
+                            }}
+                          >
+                            ⏰ {tarea.hora_limite} · Borrador IA · requiere
+                            autorización
+                          </div>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               </div>
