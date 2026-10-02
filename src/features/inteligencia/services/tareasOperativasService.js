@@ -1043,11 +1043,11 @@ export async function guardarResultadoMarketing({
   tareaId,
   canal = "",
   publicacion = "",
-  alcance = 0,
-  leads = 0,
-  ventas = 0,
-  monto = 0,
-  gasto = 0,
+  alcance = "",
+  leads = "",
+  ventas = "",
+  monto = "",
+  gasto = "",
   observacion = "",
 } = {}) {
   if (!tareaId) {
@@ -1084,6 +1084,13 @@ export async function guardarResultadoMarketing({
     ventas: Number(ventas || 0),
     monto: Number(monto || 0),
     gasto: Number(gasto || 0),
+  };
+  const camposConfirmados = {
+    alcance: String(alcance).trim() !== "",
+    mensajes: String(leads).trim() !== "",
+    pedidos: String(ventas).trim() !== "",
+    venta: String(monto).trim() !== "",
+    gasto: String(gasto).trim() !== "",
   };
 
   if (
@@ -1150,6 +1157,8 @@ export async function guardarResultadoMarketing({
 
     gasto:
       valoresNumericos.gasto,
+
+    camposConfirmados,
 
     observacion:
       String(
@@ -1336,6 +1345,28 @@ async function sincronizarResultadoTareaConCampana({
     numero(resultadoActual.gastoAcumulado) -
     numero(registroAnterior?.gasto) +
     gastoNuevo;
+  const camposConfirmados = {
+    alcance:
+      resultadoActual?.camposConfirmados?.alcance === true ||
+      resultadoMarketing?.camposConfirmados?.alcance === true ||
+      alcanceAcumulado > 0,
+    mensajes:
+      resultadoActual?.camposConfirmados?.mensajes === true ||
+      resultadoMarketing?.camposConfirmados?.mensajes === true ||
+      mensajesAcumulados > 0,
+    pedidos:
+      resultadoActual?.camposConfirmados?.pedidos === true ||
+      resultadoMarketing?.camposConfirmados?.pedidos === true ||
+      pedidosAcumulados > 0,
+    venta:
+      resultadoActual?.camposConfirmados?.venta === true ||
+      resultadoMarketing?.camposConfirmados?.venta === true ||
+      ventaAcumulada > 0,
+    gasto:
+      resultadoActual?.camposConfirmados?.gasto === true ||
+      resultadoMarketing?.camposConfirmados?.gasto === true ||
+      gastoAcumulado > 0,
+  };
   const evaluacionGrowth = evaluarResultadoCampanaGrowth({
     gastoAcumulado,
     pedidosAcumulados,
@@ -1345,6 +1376,9 @@ async function sincronizarResultadoTareaConCampana({
         ?.datosRentabilidadBase
         ?.margenReal,
     publicacion: resultadoMarketing.publicacion,
+    gastoConfirmado: camposConfirmados.gasto,
+    pedidosConfirmados: camposConfirmados.pedidos,
+    ventaConfirmada: camposConfirmados.venta,
   });
   const registroNuevo = {
     tareaId: tarea.id,
@@ -1359,6 +1393,8 @@ async function sincronizarResultadoTareaConCampana({
     pedidos: pedidosNuevos,
     venta: ventaNueva,
     gasto: gastoNuevo,
+    camposConfirmados:
+      resultadoMarketing.camposConfirmados,
     nota: resultadoMarketing.observacion,
   };
 
@@ -1373,6 +1409,7 @@ async function sincronizarResultadoTareaConCampana({
           pedidosAcumulados,
           ventaAcumulada,
           gastoAcumulado,
+          camposConfirmados,
           ...evaluacionGrowth,
           historial: [
             ...historialSinDuplicado,

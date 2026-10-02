@@ -118,6 +118,9 @@ export function evaluarResultadoCampanaGrowth({
   ventaAcumulada = 0,
   margenRealBase = null,
   publicacion = "",
+  gastoConfirmado = false,
+  pedidosConfirmados = false,
+  ventaConfirmada = false,
 } = {}) {
   const gasto = Math.max(0, Number(gastoAcumulado) || 0);
   const pedidos = Math.max(0, Number(pedidosAcumulados) || 0);
@@ -127,16 +130,24 @@ export function evaluarResultadoCampanaGrowth({
     Number.isFinite(margenCandidato) && margenCandidato > 0
       ? margenCandidato
       : null;
-  const costoPorPedido = pedidos > 0 ? gasto / pedidos : null;
+  const costoPorPedido =
+    gastoConfirmado && pedidosConfirmados && pedidos > 0
+      ? gasto / pedidos
+      : null;
   const utilidadEstimadaCampana =
-    margen === null
+    margen === null || !gastoConfirmado || !ventaConfirmada
       ? null
       : venta * (margen / 100) - gasto;
   let decisionActual = "CONTINUAR_MIDIENDO";
 
   if (publicacion === "NO_PUBLICADA") {
     decisionActual = "REPROGRAMAR_PUBLICACION";
-  } else if (pedidos === 0 && gasto >= 90) {
+  } else if (
+    gastoConfirmado &&
+    pedidosConfirmados &&
+    pedidos === 0 &&
+    gasto >= 90
+  ) {
     decisionActual = "PAUSAR";
   } else if (
     utilidadEstimadaCampana !== null &&
@@ -155,11 +166,15 @@ export function evaluarResultadoCampanaGrowth({
   }
 
   const faltaMargen = margen === null;
+  const faltanResultadosFinancieros =
+    !gastoConfirmado || !ventaConfirmada;
   const requiereAutorizacion =
     decisionActual === "SOLICITAR_AUTORIZACION_PARA_ESCALAR";
   const resumen =
     publicacion === "NO_PUBLICADA"
       ? "El contenido no se publicó; todavía no existe evidencia suficiente para evaluar su respuesta comercial."
+      : faltanResultadosFinancieros
+        ? "La campaña tiene un avance, pero faltan confirmar la venta atribuida o el gasto real para calcular rentabilidad."
       : faltaMargen
         ? `Hay ${pedidos} pedido${pedidos === 1 ? "" : "s"} y venta atribuida registrada, pero falta el margen real para saber si la campaña dejó utilidad.`
         : utilidadEstimadaCampana > 0
@@ -172,6 +187,8 @@ export function evaluarResultadoCampanaGrowth({
         ? "Reprogramar la publicación y registrar el resultado real cuando salga."
         : requiereAutorizacion
           ? "Presentar los resultados a Mónica y esperar su autorización antes de escalar o gastar más."
+          : faltanResultadosFinancieros
+            ? "Confirmar venta atribuida y gasto real; escribe 0 cuando el resultado comprobado haya sido cero."
           : faltaMargen
             ? "Confirmar el margen real del producto para completar la rentabilidad."
             : "Continuar midiendo sin modificar el presupuesto autorizado."
@@ -180,9 +197,11 @@ export function evaluarResultadoCampanaGrowth({
     costoPorPedido,
     margenRealBase: margen,
     utilidadEstimadaCampana,
-    rentabilidadEstado: faltaMargen
-      ? "PENDIENTE_MARGEN_REAL"
-      : "CALCULADA_CON_MARGEN_REAL",
+    rentabilidadEstado: faltanResultadosFinancieros
+      ? "PENDIENTE_RESULTADOS_CONFIRMADOS"
+      : faltaMargen
+        ? "PENDIENTE_MARGEN_REAL"
+        : "CALCULADA_CON_MARGEN_REAL",
     decisionActual,
     aprendizajeProvisional: {
       estado: "PROVISIONAL",
@@ -190,7 +209,11 @@ export function evaluarResultadoCampanaGrowth({
       resumen,
       siguienteAccion,
       requiereAutorizacion,
-      faltantes: faltaMargen ? ["MARGEN_REAL"] : [],
+      faltantes: [
+        ...(ventaConfirmada ? [] : ["VENTA_ATRIBUIDA"]),
+        ...(gastoConfirmado ? [] : ["GASTO_REAL"]),
+        ...(faltaMargen ? ["MARGEN_REAL"] : []),
+      ],
       actualizadoEn: new Date().toISOString(),
     },
   };
@@ -213,6 +236,15 @@ export function orquestarAgenciaGrowth({
     ? resultado.historial
     : [];
   const tieneResultados = historial.length > 0;
+  const campoConfirmado = (campo) =>
+    resultado?.camposConfirmados?.[campo] === true ||
+    historial.some(
+      (registro) =>
+        registro?.camposConfirmados?.[campo] === true ||
+        Number(registro?.[campo]) > 0
+    );
+  const ventaConfirmada = campoConfirmado("venta");
+  const gastoConfirmado = campoConfirmado("gasto");
   const productoConfirmado =
     tieneContenido(productoLider?.nombre) ||
     tieneContenido(campanaReferencia?.producto);
@@ -312,7 +344,10 @@ export function orquestarAgenciaGrowth({
       agente: "Embudo",
       etiqueta: "Ventas",
       detalle: "Venta atribuida registrada, incluso si fue cero",
-      completado: tieneResultados && venta !== null,
+      completado:
+        tieneResultados &&
+        ventaConfirmada &&
+        venta !== null,
       destino: "campanas-marketing-activas",
       accion: "Confirmar ventas atribuidas",
     },
@@ -321,7 +356,11 @@ export function orquestarAgenciaGrowth({
       agente: "Rentabilidad",
       etiqueta: "Utilidad",
       detalle: "Margen, gasto y utilidad incremental calculados",
-      completado: tieneResultados && utilidad !== null,
+      completado:
+        tieneResultados &&
+        ventaConfirmada &&
+        gastoConfirmado &&
+        utilidad !== null,
       destino: "campanas-marketing-activas",
       accion: "Calcular utilidad de la campaña",
     },
