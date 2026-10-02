@@ -3328,7 +3328,7 @@ function ResultadoMarketingTarea({
   const [
     publicacion,
     setPublicacion,
-  ] = useState("PUBLICADA");
+  ] = useState("");
 
   const [
     leads,
@@ -3455,6 +3455,9 @@ function ResultadoMarketingTarea({
             fontFamily: "inherit",
           }}
         >
+          <option value="">
+            ¿Se publicó?
+          </option>
           <option value="PUBLICADA">
             Sí se publicó
           </option>
