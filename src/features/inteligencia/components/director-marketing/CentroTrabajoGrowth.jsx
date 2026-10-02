@@ -84,6 +84,7 @@ export default function CentroTrabajoGrowth({
   enProceso = 0,
   terminadas = 0,
   tareasSemana = 0,
+  agendaSemana = [],
   tareaPrioritaria = null,
   campanas = [],
   oportunidadPrioritaria = null,
@@ -437,6 +438,36 @@ export default function CentroTrabajoGrowth({
         100
     );
 
+  const agendaVisible = (Array.isArray(agendaSemana)
+    ? [...agendaSemana]
+    : []
+  )
+    .sort((tareaA, tareaB) =>
+      `${tareaA?.fecha || ""} ${tareaA?.hora_limite || "99:99"}`.localeCompare(
+        `${tareaB?.fecha || ""} ${tareaB?.hora_limite || "99:99"}`
+      )
+    )
+    .slice(0, 4);
+
+  const etiquetaFechaAgenda = (fecha) => {
+    if (!fecha) {
+      return "Fecha pendiente";
+    }
+
+    const valor = new Date(`${fecha}T12:00:00`);
+
+    if (Number.isNaN(valor.getTime())) {
+      return fecha;
+    }
+
+    return new Intl.DateTimeFormat("es-MX", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "America/Mexico_City",
+    }).format(valor);
+  };
+
   const accionSugerida = tareaPrioritaria
     ? {
         titulo: tareaPrioritaria.titulo,
@@ -694,6 +725,56 @@ export default function CentroTrabajoGrowth({
           </article>
         </div>
       </div>
+
+      <section className="growth-workspace__agenda-preview">
+        <div className="growth-workspace__agenda-heading">
+          <div>
+            <span>Calendario de trabajo</span>
+            <strong>Tu semana con tareas y horarios</strong>
+          </div>
+
+          <b>{tareasSemana} programadas</b>
+        </div>
+
+        {agendaVisible.length > 0 ? (
+          <div className="growth-workspace__agenda-list">
+            {agendaVisible.map((tarea) => (
+              <article key={tarea.id}>
+                <div>
+                  <span>{etiquetaFechaAgenda(tarea.fecha)}</span>
+                  <strong>{tarea.hora_limite || "Sin hora"}</strong>
+                </div>
+
+                <p>{tarea.titulo}</p>
+
+                <em>
+                  {String(tarea.estado || "pendiente").replaceAll("_", " ")}
+                </em>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="growth-workspace__agenda-empty">
+            <span aria-hidden="true">📅</span>
+            <div>
+              <strong>Aún no hay tareas autorizadas para Kary</strong>
+              <p>
+                El calendario está listo. Cuando Mónica autorice el plan semanal,
+                aquí aparecerán cada actividad y su hora.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="growth-workspace__agenda-button"
+          onClick={onVerSemana}
+        >
+          Ver calendario completo
+          <span aria-hidden="true">→</span>
+        </button>
+      </section>
 
       <section className="growth-workspace__agency-live">
         <div className="growth-workspace__agency-heading">
