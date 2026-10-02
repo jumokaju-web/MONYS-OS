@@ -125,6 +125,16 @@ export default function CentroTrabajoGrowth({
   const resumenCampanas = campanas.reduce(
     (resumen, campana) => {
       const resultado = campana?.resultado || {};
+      const historial = Array.isArray(resultado.historial)
+        ? resultado.historial
+        : [];
+      const campoConfirmado = (campo) =>
+        resultado?.camposConfirmados?.[campo] === true ||
+        historial.some(
+          (registro) =>
+            registro?.camposConfirmados?.[campo] === true ||
+            Number(registro?.[campo]) > 0
+        );
       const estado = String(
         campana?.estado || ""
       ).toUpperCase();
@@ -143,12 +153,12 @@ export default function CentroTrabajoGrowth({
         resultado.utilidadEstimadaCampana
       );
 
-      if (venta !== null) {
+      if (venta !== null && campoConfirmado("venta")) {
         resumen.ventas += venta;
         resumen.campanasConVentas += 1;
       }
 
-      if (inversion !== null) {
+      if (inversion !== null && campoConfirmado("gasto")) {
         resumen.inversion += inversion;
         resumen.campanasConInversion += 1;
       }
@@ -358,6 +368,45 @@ export default function CentroTrabajoGrowth({
     rutaCampana.filter(
       (paso) => paso.completado
     ).length;
+
+  const turnosAgencia = [
+    {
+      icono: "🔎",
+      agente: "Analista IA",
+      entrega: "Datos y oportunidad",
+      paso: rutaCampana[0],
+    },
+    {
+      icono: "🧭",
+      agente: "Estratega IA",
+      entrega: "Campaña y prueba",
+      paso: rutaCampana[1],
+    },
+    {
+      icono: "🎬",
+      agente: "Creativo IA",
+      entrega: "Contenido y CTA",
+      paso: rutaCampana[2],
+    },
+    {
+      icono: "📣",
+      agente: "Campañas IA",
+      entrega: "Publicación y medición",
+      paso: rutaCampana[3],
+    },
+    {
+      icono: "📈",
+      agente: "Rentabilidad IA",
+      entrega: "Venta, utilidad y decisión",
+      paso: rutaCampana[4],
+    },
+  ];
+  const turnoAgenciaActivo = Math.max(
+    0,
+    turnosAgencia.findIndex(
+      (turno) => !turno.paso.completado
+    )
+  );
 
   const porcentajeRutaCampana =
     Math.round(
@@ -623,6 +672,73 @@ export default function CentroTrabajoGrowth({
           </article>
         </div>
       </div>
+
+      <section className="growth-workspace__agency-live">
+        <div className="growth-workspace__agency-heading">
+          <div>
+            <span>Agencia IA trabajando</span>
+            <strong>
+              {turnosAgencia.every((turno) => turno.paso.completado)
+                ? "Ciclo completo · lista para decidir qué repetir"
+                : `${turnosAgencia[turnoAgenciaActivo].agente} tiene el siguiente turno`}
+            </strong>
+          </div>
+          <b>
+            {turnosAgencia.every((turno) => turno.paso.completado)
+              ? "Completado"
+              : "En preparación"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__agency-agents">
+          {turnosAgencia.map((turno, indice) => {
+            const activo =
+              !turno.paso.completado &&
+              indice === turnoAgenciaActivo;
+
+            return (
+              <article
+                key={turno.agente}
+                className={
+                  turno.paso.completado
+                    ? "growth-workspace__agency-agent growth-workspace__agency-agent--done"
+                    : activo
+                      ? "growth-workspace__agency-agent growth-workspace__agency-agent--active"
+                      : "growth-workspace__agency-agent"
+                }
+              >
+                <span aria-hidden="true">{turno.icono}</span>
+                <div>
+                  <strong>{turno.agente}</strong>
+                  <small>{turno.entrega}</small>
+                  <em>
+                    {turno.paso.completado
+                      ? "✓ Entrega comprobada"
+                      : activo
+                        ? `Ahora: ${turno.paso.detalle}`
+                        : "Espera la entrega anterior"}
+                  </em>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="growth-workspace__agency-next">
+          <span>Lo siguiente</span>
+          <strong>
+            {turnosAgencia.every((turno) => turno.paso.completado)
+              ? "Revisar utilidad y conservar el aprendizaje"
+              : turnosAgencia[turnoAgenciaActivo].paso.detalle}
+          </strong>
+          <button
+            type="button"
+            onClick={accionSugerida.ejecutar}
+          >
+            {accionSugerida.boton} →
+          </button>
+        </div>
+      </section>
 
       <section
         className={`growth-workspace__data-readiness ${
