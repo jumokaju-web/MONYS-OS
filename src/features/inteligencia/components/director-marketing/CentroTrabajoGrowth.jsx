@@ -455,8 +455,8 @@ export default function CentroTrabajoGrowth({
   const agendaPropuesta = [
     {
       id: "propuesta-confirmar-publicacion",
-      momento: "Hoy",
-      hora: "17:00",
+      momento: "Próximo día hábil",
+      hora: "10:00",
       titulo: publicacionCampanaConfirmada
         ? "Revisar el primer corte de resultados reales"
         : `Confirmar publicación de ${
@@ -467,14 +467,14 @@ export default function CentroTrabajoGrowth({
     },
     {
       id: "propuesta-primer-corte",
-      momento: "Siguiente día hábil",
-      hora: "11:00",
+      momento: "Mismo día",
+      hora: "17:00",
       titulo: "Registrar alcance, mensajes, pedidos, venta y gasto real",
     },
     {
       id: "propuesta-decision",
-      momento: "Después del corte",
-      hora: "17:30",
+      momento: "24 h después",
+      hora: "11:00",
       titulo: "Revisar utilidad y decidir: continuar, mejorar o detener",
     },
   ];
