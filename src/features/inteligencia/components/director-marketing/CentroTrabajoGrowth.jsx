@@ -452,6 +452,33 @@ export default function CentroTrabajoGrowth({
     )
     .slice(0, 4);
 
+  const agendaPropuesta = [
+    {
+      id: "propuesta-confirmar-publicacion",
+      momento: "Hoy",
+      hora: "17:00",
+      titulo: publicacionCampanaConfirmada
+        ? "Revisar el primer corte de resultados reales"
+        : `Confirmar publicación de ${
+            campanaPrioritaria?.producto ||
+            campanaPrioritaria?.nombre ||
+            "la campaña preparada"
+          }`,
+    },
+    {
+      id: "propuesta-primer-corte",
+      momento: "Siguiente día hábil",
+      hora: "11:00",
+      titulo: "Registrar alcance, mensajes, pedidos, venta y gasto real",
+    },
+    {
+      id: "propuesta-decision",
+      momento: "Después del corte",
+      hora: "17:30",
+      titulo: "Revisar utilidad y decidir: continuar, mejorar o detener",
+    },
+  ];
+
   const etiquetaFechaAgenda = (fecha) => {
     if (!fecha) {
       return "Fecha pendiente";
@@ -751,7 +778,11 @@ export default function CentroTrabajoGrowth({
             <strong>Tu semana con tareas y horarios</strong>
           </div>
 
-          <b>{tareasSemana} programadas</b>
+          <b>
+            {tareasSemana > 0
+              ? `${tareasSemana} programadas`
+              : "Borrador IA listo"}
+          </b>
         </div>
 
         {agendaVisible.length > 0 ? (
@@ -772,14 +803,30 @@ export default function CentroTrabajoGrowth({
             ))}
           </div>
         ) : (
-          <div className="growth-workspace__agenda-empty">
-            <span aria-hidden="true">📅</span>
-            <div>
-              <strong>Aún no hay tareas autorizadas para Kary</strong>
-              <p>
-                El calendario está listo. Cuando Mónica autorice el plan semanal,
-                aquí aparecerán cada actividad y su hora.
-              </p>
+          <div className="growth-workspace__agenda-draft">
+            <div className="growth-workspace__agenda-draft-note">
+              <span aria-hidden="true">🛡️</span>
+              <div>
+                <strong>Plan preparado · pendiente de autorización</strong>
+                <p>
+                  Estas son propuestas de la Agencia IA; todavía no cuentan como
+                  tareas asignadas ni autorizan publicación o gasto.
+                </p>
+              </div>
+            </div>
+
+            <div className="growth-workspace__agenda-list growth-workspace__agenda-list--draft">
+              {agendaPropuesta.map((tarea) => (
+                <article key={tarea.id}>
+                  <div>
+                    <span>{tarea.momento}</span>
+                    <strong>{tarea.hora}</strong>
+                  </div>
+
+                  <p>{tarea.titulo}</p>
+                  <em>Borrador IA</em>
+                </article>
+              ))}
             </div>
           </div>
         )}

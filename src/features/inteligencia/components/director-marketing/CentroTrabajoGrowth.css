@@ -352,6 +352,47 @@
   line-height: 1.45;
 }
 
+.growth-workspace__agenda-draft {
+  display: grid;
+  gap: 10px;
+}
+
+.growth-workspace__agenda-draft-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px;
+  border: 1px dashed #deb5c9;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #fff7fb, #ffffff);
+}
+
+.growth-workspace__agenda-draft-note > span {
+  font-size: 22px;
+}
+
+.growth-workspace__agenda-draft-note strong {
+  color: #633047;
+  font-size: 14px;
+}
+
+.growth-workspace__agenda-draft-note p {
+  margin: 4px 0 0;
+  color: #806472;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.growth-workspace__agenda-list--draft article {
+  border-style: dashed;
+  background: #fff;
+}
+
+.growth-workspace__agenda-list--draft article em {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+
 .growth-workspace__agenda-button {
   display: flex;
   align-items: center;
