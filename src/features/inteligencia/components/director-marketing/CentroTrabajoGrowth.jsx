@@ -208,6 +208,101 @@ export default function CentroTrabajoGrowth({
 
   const actualizacionOportunidad =
     oportunidadPrioritaria?.actualizacionDatos || null;
+
+  const resumenEmbudo = campanas.reduce(
+    (resumen, campana) => {
+      const resultado = campana?.resultado || {};
+      const historial = Array.isArray(resultado.historial)
+        ? resultado.historial
+        : [];
+      const confirmado = (campo) =>
+        resultado?.camposConfirmados?.[campo] === true ||
+        historial.some(
+          (registro) =>
+            registro?.camposConfirmados?.[campo] === true ||
+            Number(registro?.[campo]) > 0
+        );
+      const campos = [
+        ["alcance", "alcanceAcumulado"],
+        ["mensajes", "mensajesAcumulados"],
+        ["pedidos", "pedidosAcumulados"],
+        ["venta", "ventaAcumulada"],
+      ];
+
+      campos.forEach(([campo, acumulado]) => {
+        if (!confirmado(campo)) {
+          return;
+        }
+
+        resumen[campo] += Math.max(
+          0,
+          Number(resultado?.[acumulado]) || 0
+        );
+        resumen.confirmados[campo] += 1;
+      });
+
+      return resumen;
+    },
+    {
+      alcance: 0,
+      mensajes: 0,
+      pedidos: 0,
+      venta: 0,
+      confirmados: {
+        alcance: 0,
+        mensajes: 0,
+        pedidos: 0,
+        venta: 0,
+      },
+    }
+  );
+
+  const etapasEmbudo = [
+    {
+      clave: "alcance",
+      etiqueta: "Alcance",
+      icono: "👀",
+      valor: resumenEmbudo.alcance.toLocaleString("es-MX"),
+      conversion: null,
+    },
+    {
+      clave: "mensajes",
+      etiqueta: "Mensajes",
+      icono: "💬",
+      valor: resumenEmbudo.mensajes.toLocaleString("es-MX"),
+      conversion:
+        resumenEmbudo.confirmados.alcance > 0 &&
+        resumenEmbudo.alcance > 0
+          ? `${((resumenEmbudo.mensajes / resumenEmbudo.alcance) * 100).toFixed(1)}% del alcance`
+          : null,
+    },
+    {
+      clave: "pedidos",
+      etiqueta: "Pedidos",
+      icono: "🛍️",
+      valor: resumenEmbudo.pedidos.toLocaleString("es-MX"),
+      conversion:
+        resumenEmbudo.confirmados.mensajes > 0 &&
+        resumenEmbudo.mensajes > 0
+          ? `${((resumenEmbudo.pedidos / resumenEmbudo.mensajes) * 100).toFixed(1)}% de mensajes`
+          : null,
+    },
+    {
+      clave: "venta",
+      etiqueta: "Venta confirmada",
+      icono: "💵",
+      valor: moneda(resumenEmbudo.venta),
+      conversion:
+        resumenEmbudo.confirmados.pedidos > 0 &&
+        resumenEmbudo.pedidos > 0
+          ? `${moneda(resumenEmbudo.venta / resumenEmbudo.pedidos)} por pedido`
+          : null,
+    },
+  ];
+
+  const etapasEmbudoConfirmadas = Object.values(
+    resumenEmbudo.confirmados
+  ).filter((cantidad) => cantidad > 0).length;
   const textoDecision = {
     PAUSAR: "pausar nueva inversión en",
     REPROGRAMAR_PUBLICACION: "reprogramar la publicación de",
@@ -906,6 +1001,132 @@ export default function CentroTrabajoGrowth({
             {accionSugerida.boton} →
           </button>
         </div>
+      </section>
+
+      <section className="growth-workspace__funnel">
+        <div className="growth-workspace__funnel-heading">
+          <div>
+            <span>Embudo de ventas real</span>
+            <strong>De contenido visto a dinero comprobado</strong>
+          </div>
+          <b>
+            {etapasEmbudoConfirmadas > 0
+              ? `${etapasEmbudoConfirmadas}/4 etapas con datos`
+              : "Esperando primer registro"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__funnel-grid">
+          {etapasEmbudo.map((etapa, indice) => {
+            const disponible =
+              resumenEmbudo.confirmados[etapa.clave] > 0;
+
+            return (
+              <article
+                key={etapa.clave}
+                className={disponible ? "is-confirmed" : "is-empty"}
+              >
+                <div className="growth-workspace__funnel-stage">
+                  <span aria-hidden="true">{etapa.icono}</span>
+                  <small>Etapa {indice + 1}</small>
+                </div>
+                <strong>{etapa.etiqueta}</strong>
+                <b>{disponible ? etapa.valor : "Sin dato"}</b>
+                <em>
+                  {disponible
+                    ? etapa.conversion || "Dato real registrado"
+                    : "Pendiente de registrar"}
+                </em>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="growth-workspace__funnel-action">
+          <p>
+            MONYS no rellena huecos con estimaciones. Cada etapa aparece solo
+            cuando Kary registra un resultado observado.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("RESULTADOS")}
+          >
+            Registrar resultados →
+          </button>
+        </div>
+      </section>
+
+      <section className="growth-workspace__publishing-center">
+        <div className="growth-workspace__publishing-heading">
+          <div>
+            <span>Centro de publicación</span>
+            <strong>
+              {contenidoCampanaListo
+                ? "Contenido listo para revisión humana"
+                : "Preparar primero el kit de publicación"}
+            </strong>
+          </div>
+          <b
+            className={
+              publicacionCampanaConfirmada ? "is-published" : "is-locked"
+            }
+          >
+            {publicacionCampanaConfirmada
+              ? "✓ Publicación confirmada"
+              : "🔒 Publicación directa bloqueada"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__publishing-flow">
+          <article className={contenidoCampanaListo ? "is-ready" : ""}>
+            <span>1</span>
+            <div>
+              <strong>Preparar</strong>
+              <small>Guion, formato, texto y CTA</small>
+            </div>
+          </article>
+          <article>
+            <span>2</span>
+            <div>
+              <strong>Revisar y autorizar</strong>
+              <small>Mónica confirma producto, precio y presupuesto</small>
+            </div>
+          </article>
+          <article
+            className={publicacionCampanaConfirmada ? "is-ready" : ""}
+          >
+            <span>3</span>
+            <div>
+              <strong>Publicar y comprobar</strong>
+              <small>
+                Conexiones externas pendientes; Kary confirma el resultado real
+              </small>
+            </div>
+          </article>
+        </div>
+
+        <div className="growth-workspace__publishing-actions">
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("CONTENIDO")}
+          >
+            {contenidoCampanaListo
+              ? "Revisar kit listo"
+              : "Preparar publicación"}
+          </button>
+          <button
+            type="button"
+            className="is-secondary"
+            onClick={() => onAbrirModulo?.("RESULTADOS")}
+          >
+            Confirmar publicación o resultado
+          </button>
+        </div>
+
+        <p>
+          Meta, TikTok, Mercado Libre, WhatsApp y ChatGPT Ads permanecen sin
+          ejecución automática hasta completar sus accesos oficiales.
+        </p>
       </section>
 
       <section className="growth-workspace__approval-light">
