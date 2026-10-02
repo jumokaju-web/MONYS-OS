@@ -1317,6 +1317,11 @@ for (
   }
 
   async function autorizarPlanSemanal() {
+    const esTareaAgenciaIA =
+      planSemanal.length === 1 &&
+      planSemanal[0]?.origen ===
+        "orquestador_growth";
+
     const permiteDatosDesactualizados =
       planSemanal.length > 0 &&
       planSemanal.every(
@@ -1351,7 +1356,9 @@ for (
 
     const confirmar =
       window.confirm(
-        `¿Autorizas enviar ${planSemanal.length} tareas del plan de marketing a ${sucursal?.name || "la sucursal seleccionada"}? MONYS buscará automáticamente a la responsable de Marketing y evitará tareas duplicadas.`
+        esTareaAgenciaIA
+          ? `¿Autorizas crear esta tarea interna para Kary en ${sucursal?.name || "la sucursal seleccionada"}? Aparecerá en su calendario, pero no publicará contenido, no activará anuncios y no generará gasto automático.`
+          : `¿Autorizas enviar ${planSemanal.length} tareas del plan de marketing a ${sucursal?.name || "la sucursal seleccionada"}? MONYS buscará automáticamente a la responsable de Marketing y evitará tareas duplicadas.`
       );
 
     if (!confirmar) {
@@ -1381,7 +1388,9 @@ for (
         });
 
       setMensajePlan(
-        `Tarea autorizada y visible en el calendario de ${resultado?.responsable || "Marketing"}: ${resultado?.tareas?.length || 0} asignación preparada.`
+        esTareaAgenciaIA
+          ? `Tarea interna autorizada y visible en el calendario de ${resultado?.responsable || "Kary"}. Publicación y gasto continúan bloqueados.`
+          : `Plan autorizado y visible en el calendario de ${resultado?.responsable || "Marketing"}: ${resultado?.tareas?.length || 0} asignaciones preparadas.`
       );
       setPlanSemanal([]);
       setVistaKaryAbierta(true);
@@ -1472,6 +1481,11 @@ for (
     Array.isArray(accionesPrioritarias)
       ? accionesPrioritarias
       : [];
+
+  const planEsAgenciaIA =
+    planSemanal.length === 1 &&
+    planSemanal[0]?.origen ===
+      "orquestador_growth";
 
   return (
     <section
@@ -1927,7 +1941,7 @@ for (
                   tarea?.origen ===
                   "orquestador_growth"
               )
-                ? "Propuesta del orquestador: revisa la siguiente entrega antes de asignarla."
+                ? "Revisión de Mónica · 1 tarea interna · $0 automático. Al autorizarla aparecerá en el calendario de Kary; no publicará ni activará anuncios."
                 : "Vista previa: todavía no se ha enviado ninguna tarea."}
             </div>
 
@@ -2123,7 +2137,9 @@ for (
             >
               {guardandoPlan
                 ? "Enviando plan..."
-                : "🛡️ Autorizar y enviar a Marketing"}
+                : planEsAgenciaIA
+                  ? "🛡️ Autorizar tarea interna para Kary"
+                  : "🛡️ Autorizar y enviar a Marketing"}
             </button>
           </div>
         )}
