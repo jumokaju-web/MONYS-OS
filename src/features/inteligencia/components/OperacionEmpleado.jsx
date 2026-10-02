@@ -3784,6 +3784,11 @@ const historialGrowth = Array.isArray(
 )
   ? campanaGuardada.resultado.historial
   : [];
+const publicacionGrowthConfirmada = historialGrowth.some(
+  (registro) => registro?.publicacion === "PUBLICADA"
+);
+const publicacionGrowthNoRealizada =
+  ultimoResultadoGrowth?.publicacion === "NO_PUBLICADA";
 const campoGrowthConfirmado = (campo) =>
   resultadoGrowthActual?.camposConfirmados?.[campo] === true ||
   historialGrowth.some(
@@ -5894,7 +5899,8 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
         <>
           <strong>{campanaGuardada.nombre || "Campaña en preparación"}</strong>
           <br />{productosCampanaGuardada.length > 1 ? "Productos" : "Producto"}: {productosCampanaGuardada.length > 0 ? productosCampanaGuardada.join(", ") : campanaGuardada.producto || producto || "Sin producto identificado"}
-          <br />Estado: {campanaGuardada.estado || "Sin estado"}
+          <br />Estado en MONYS: {campanaGuardada.estado || "Sin estado"}
+          <br />Publicación externa: <strong>{publicacionGrowthConfirmada ? "🟢 Confirmada" : publicacionGrowthNoRealizada ? "⚪ No publicada" : "🟠 Por confirmar"}</strong>
           <br />Decisión MONYS: {resultadoGrowthActual.decisionActual || campanaGuardada.decision_ia || "Pendiente de medición"}
           <br />Presupuesto propuesto: {formatoMonedaGrowth(presupuestoPropuestoGrowth)}
           <br />Presupuesto autorizado: <strong>{formatoMonedaGrowth(presupuestoAutorizadoGrowth)}</strong>
@@ -6801,13 +6807,17 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
       marginTop: "12px",
       padding: "12px",
       borderRadius: "10px",
-      background: "#dcfce7",
-      color: "#166534",
+      background: publicacionGrowthConfirmada ? "#dcfce7" : "#fff7ed",
+      color: publicacionGrowthConfirmada ? "#166534" : "#9a3412",
       fontWeight: "800",
       textAlign: "center",
     }}
   >
-    🟢 Campaña activa y en seguimiento
+    {publicacionGrowthConfirmada
+      ? "🟢 Publicación confirmada · seguimiento activo"
+      : publicacionGrowthNoRealizada
+        ? "⚪ Seguimiento listo · contenido aún no publicado"
+        : "🟠 Seguimiento listo · publicación por confirmar"}
   </div>
 ) : (
   <>
@@ -6889,9 +6899,9 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           "6px 0 12px",
       }}
     >
-      Registra solamente los
-      resultados nuevos desde la
-      última captura.
+      {publicacionGrowthConfirmada
+        ? "Registra solamente los resultados nuevos desde la última captura."
+        : "Primero confirma si el contenido se publicó. MONYS no contará la campaña como publicada hasta que Kary lo registre aquí."}
     </p>
 
     <div
