@@ -996,6 +996,22 @@ export async function crearCampanaMarketing({
     );
   }
 
+  const presupuestoPropuesto = Number(presupuesto || 0);
+
+  if (
+    !Number.isFinite(presupuestoPropuesto) ||
+    presupuestoPropuesto < 0
+  ) {
+    throw new Error(
+      "El presupuesto propuesto debe ser un número válido y no puede ser negativo."
+    );
+  }
+
+  const estrategiaNormalizada =
+    estrategiaIA && typeof estrategiaIA === "object"
+      ? estrategiaIA
+      : {};
+
   const nuevaCampana = {
     organization_id:
       organizationId || null,
@@ -1061,10 +1077,7 @@ export async function crearCampanaMarketing({
         cta || ""
       ).trim() || null,
 
-    presupuesto:
-      Number(
-        presupuesto || 0
-      ),
+    presupuesto: 0,
 
     ventas_objetivo:
       Number(
@@ -1076,8 +1089,20 @@ export async function crearCampanaMarketing({
         utilidadObjetivo || 0
       ),
 
-    estrategia_ia:
-      estrategiaIA || {},
+    estrategia_ia: {
+      ...estrategiaNormalizada,
+      controlFinanciero: {
+        ...(estrategiaNormalizada.controlFinanciero || {}),
+        presupuestoPropuesto,
+        presupuestoAutorizado: 0,
+        estadoAutorizacion:
+          presupuestoPropuesto > 0
+            ? "PENDIENTE_MONICA"
+            : "SIN_GASTO_PROPUESTO",
+        requiereAutorizacion:
+          presupuestoPropuesto > 0,
+      },
+    },
 
     simulacion_ia:
       simulacionIA || {},
