@@ -329,6 +329,12 @@ export default function CentroTrabajoGrowth({
   )
     ? campanaPrioritaria.resultado.historial
     : [];
+  const publicacionCampanaConfirmada =
+    historialCampana.some(
+      (registro) => registro?.publicacion === "PUBLICADA"
+    );
+  const ultimaPublicacionCampana =
+    historialCampana.at(-1)?.publicacion || "";
 
   const rutaCampana = [
     {
@@ -357,17 +363,14 @@ export default function CentroTrabajoGrowth({
       ),
     },
     {
-      etiqueta: "Seguimiento iniciado",
+      etiqueta: "Publicación confirmada",
       detalle:
-        String(
-          campanaPrioritaria?.estado || ""
-        ).toUpperCase() === "ACTIVA"
-          ? "Campaña activa dentro de MONYS"
-          : "Falta iniciar la medición",
-      completado:
-        String(
-          campanaPrioritaria?.estado || ""
-        ).toUpperCase() === "ACTIVA",
+        publicacionCampanaConfirmada
+          ? "Kary confirmó que el contenido salió"
+          : ultimaPublicacionCampana === "NO_PUBLICADA"
+            ? "Kary confirmó que aún no se publicó"
+            : "Seguimiento listo; falta confirmar publicación",
+      completado: publicacionCampanaConfirmada,
     },
     {
       etiqueta: "Resultado comprobado",
@@ -487,7 +490,13 @@ export default function CentroTrabajoGrowth({
       }
     : campanaPrioritaria
       ? {
-          titulo: historialCampana.length
+          titulo: !publicacionCampanaConfirmada
+            ? `Confirmar publicación de ${
+                campanaPrioritaria.producto ||
+                campanaPrioritaria.nombre ||
+                "la campaña preparada"
+              }`
+            : historialCampana.length
             ? `Actualizar resultados de ${
                 campanaPrioritaria.producto ||
                 campanaPrioritaria.nombre ||
@@ -498,13 +507,22 @@ export default function CentroTrabajoGrowth({
                 campanaPrioritaria.nombre ||
                 "la campaña activa"
               }`,
-          descripcion:
-            "Captura gasto, pedidos y venta real. Con esos datos MONYS calculará costo por pedido, utilidad y decidirá si conviene continuar, mejorar, escalar o detener.",
+          descripcion: !publicacionCampanaConfirmada
+            ? "Indica si el contenido realmente se publicó. Después registra únicamente alcance, mensajes, pedidos, venta y gasto observados; MONYS no inventará resultados."
+            : "Captura gasto, pedidos y venta real. Con esos datos MONYS calculará costo por pedido, utilidad y decidirá si conviene continuar, mejorar, escalar o detener.",
           criterio:
-            "Un avance real registrado para que la campaña deje de operar sin medición.",
-          etiqueta: "Acción recomendada",
-          clase: "growth-workspace__status--active",
-          boton: historialCampana.length
+            !publicacionCampanaConfirmada
+              ? "Separar claramente una campaña preparada dentro de MONYS de una publicación realmente confirmada por Kary."
+              : "Un avance real registrado para que la campaña deje de operar sin medición.",
+          etiqueta: !publicacionCampanaConfirmada
+            ? "Confirmación necesaria"
+            : "Acción recomendada",
+          clase: !publicacionCampanaConfirmada
+            ? "growth-workspace__status--warning"
+            : "growth-workspace__status--active",
+          boton: !publicacionCampanaConfirmada
+            ? "Confirmar publicación"
+            : historialCampana.length
             ? "Actualizar resultados"
             : "Registrar primer resultado",
           ejecutar: () =>
@@ -1074,7 +1092,7 @@ export default function CentroTrabajoGrowth({
 
         <div className="growth-workspace__impact-grid">
           <article>
-            <span>Campañas en curso</span>
+            <span>Seguimientos internos</span>
             <strong>{resumenCampanas.activas}</strong>
           </article>
           <article>

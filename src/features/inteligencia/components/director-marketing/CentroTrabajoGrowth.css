@@ -1478,6 +1478,40 @@
 }
 
 @media (max-width: 420px) {
+  .growth-workspace {
+    margin-inline: -7px;
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .growth-workspace__header {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .growth-workspace__header h1 {
+    font-size: 27px;
+  }
+
+  .growth-workspace__tagline {
+    margin-top: 6px;
+  }
+
+  .growth-workspace__company-panel {
+    gap: 6px;
+  }
+
+  .growth-workspace__focus {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .growth-workspace__focus-topline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
   .growth-workspace__daily-context {
     grid-template-columns: 1fr;
   }
