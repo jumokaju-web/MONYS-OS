@@ -984,6 +984,28 @@ for (
         convertirNumero(
           resultadoActual.mensajesAcumulados
         ) + mensajesNuevos;
+      const camposConfirmados = {
+        alcance:
+          resultadoActual?.camposConfirmados?.alcance === true ||
+          String(borrador.alcance ?? "").trim() !== "" ||
+          alcanceAcumulado > 0,
+        mensajes:
+          resultadoActual?.camposConfirmados?.mensajes === true ||
+          String(borrador.mensajes ?? "").trim() !== "" ||
+          mensajesAcumulados > 0,
+        pedidos:
+          resultadoActual?.camposConfirmados?.pedidos === true ||
+          String(borrador.pedidos ?? "").trim() !== "" ||
+          pedidosAcumulados > 0,
+        venta:
+          resultadoActual?.camposConfirmados?.venta === true ||
+          String(borrador.venta ?? "").trim() !== "" ||
+          ventaAcumulada > 0,
+        gasto:
+          resultadoActual?.camposConfirmados?.gasto === true ||
+          String(borrador.gasto ?? "").trim() !== "" ||
+          gastoAcumulado > 0,
+      };
       const evaluacionGrowth = evaluarResultadoCampanaGrowth({
         gastoAcumulado,
         pedidosAcumulados,
@@ -993,6 +1015,9 @@ for (
             ?.datosRentabilidadBase
             ?.margenReal,
         publicacion: borrador.publicacion,
+        gastoConfirmado: camposConfirmados.gasto,
+        pedidosConfirmados: camposConfirmados.pedidos,
+        ventaConfirmada: camposConfirmados.venta,
       });
       const registroNuevo = {
         fecha: formatearFechaISO(
@@ -1013,6 +1038,13 @@ for (
           String(
             borrador.nota || ""
           ).trim(),
+        camposConfirmados: {
+          alcance: String(borrador.alcance ?? "").trim() !== "",
+          mensajes: String(borrador.mensajes ?? "").trim() !== "",
+          pedidos: String(borrador.pedidos ?? "").trim() !== "",
+          venta: String(borrador.venta ?? "").trim() !== "",
+          gasto: String(borrador.gasto ?? "").trim() !== "",
+        },
       };
 
       const campanaActualizada =
@@ -1026,6 +1058,7 @@ for (
               ventaAcumulada,
               alcanceAcumulado,
               mensajesAcumulados,
+              camposConfirmados,
               ...evaluacionGrowth,
               historial: [
                 ...historialActual,
