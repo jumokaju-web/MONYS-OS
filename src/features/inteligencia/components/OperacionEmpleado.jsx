@@ -3770,6 +3770,22 @@ const aprendizajeProvisionalGrowth =
   campanaGuardada?.resultado?.aprendizajeProvisional || {};
 const ultimoResultadoGrowth =
   campanaGuardada?.resultado?.historial?.at?.(-1) || {};
+const controlFinancieroGrowth =
+  campanaGuardada?.estrategia_ia?.controlFinanciero || {};
+const presupuestoPropuestoGrowth = Number(
+  controlFinancieroGrowth.presupuestoPropuesto || 0
+);
+const presupuestoAutorizadoGrowth = Number(
+  campanaGuardada?.presupuesto || 0
+);
+const presupuestoGrowthAutorizado =
+  presupuestoAutorizadoGrowth <= 0 ||
+  controlFinancieroGrowth.estadoAutorizacion ===
+    "AUTORIZADO_POR_MONICA" ||
+  Number(
+    campanaGuardada?.resultado?.autorizacionDueno
+      ?.presupuestoNuevo || 0
+  ) >= presupuestoAutorizadoGrowth;
 const historialGrowth = Array.isArray(
   campanaGuardada?.resultado?.historial
 )
@@ -4914,9 +4930,9 @@ async function guardarSeguimientoCampana() {
     );
 
   const presupuestoAutorizado =
-    Number(
-      campanaGuardada?.presupuesto || 0
-    );
+    presupuestoGrowthAutorizado
+      ? presupuestoAutorizadoGrowth
+      : 0;
 
   const gastoProyectado =
     gastoAcumuladoActual +
@@ -4927,7 +4943,7 @@ async function guardarSeguimientoCampana() {
     presupuestoAutorizado <= 0
   ) {
     setErrorCampana(
-      "Esta campaña no tiene presupuesto autorizado. Registra gasto $0 o solicita autorización de Mónica antes de gastar."
+      `Esta campaña no tiene presupuesto autorizado. ${presupuestoPropuestoGrowth > 0 ? `La propuesta es de $${presupuestoPropuestoGrowth.toFixed(2)}, pero Mónica todavía debe aprobarla. ` : ""}Registra gasto $0 o solicita autorización antes de gastar.`
     );
     return;
   }
@@ -5887,7 +5903,9 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           <br />{productosCampanaGuardada.length > 1 ? "Productos" : "Producto"}: {productosCampanaGuardada.length > 0 ? productosCampanaGuardada.join(", ") : campanaGuardada.producto || producto || "Sin producto identificado"}
           <br />Estado: {campanaGuardada.estado || "Sin estado"}
           <br />Decisión MONYS: {resultadoGrowthActual.decisionActual || campanaGuardada.decision_ia || "Pendiente de medición"}
-          <br />Presupuesto registrado: {formatoMonedaGrowth(campanaGuardada.presupuesto)}
+          <br />Presupuesto propuesto: {formatoMonedaGrowth(presupuestoPropuestoGrowth)}
+          <br />Presupuesto autorizado: <strong>{formatoMonedaGrowth(presupuestoAutorizadoGrowth)}</strong>
+          <br />Semáforo de gasto: {presupuestoAutorizadoGrowth > 0 && presupuestoGrowthAutorizado ? "🟢 Autorizado por Mónica" : presupuestoPropuestoGrowth > 0 ? "🔴 Pendiente de autorización" : "🟢 Campaña orgánica · gasto $0"}
         </>
       ) : (
         <>Selecciona una oportunidad o completa el producto y objetivo abajo. MONYS creará una prueba con el presupuesto y los criterios que indique la estrategia.</>
