@@ -224,46 +224,36 @@ function coincideResponsableUsuario(
   const partesUsuario =
     usuarioNormalizado.split(" ");
 
-  const apellidoResponsable =
-    partesResponsable[
-      partesResponsable.length - 1
-    ];
-
-  const apellidoUsuario =
-    partesUsuario[
-      partesUsuario.length - 1
-    ];
-
-  if (
-    apellidoResponsable !==
-    apellidoUsuario
-  ) {
-    return false;
-  }
-
-  const nombresResponsable =
-    partesResponsable.slice(0, -1);
-
-  const nombresUsuario =
-    partesUsuario.slice(0, -1);
-
-  return nombresResponsable.some(
-    (nombreResponsable) =>
-      nombresUsuario.some(
-        (nombreCorto) =>
-          nombreResponsable.length >=
-            4 &&
-          nombreCorto.length >= 4 &&
-          (
-            nombreResponsable.startsWith(
-              nombreCorto
-            ) ||
-            nombreCorto.startsWith(
-              nombreResponsable
+  const coincidencias =
+    partesUsuario.filter(
+      (parteUsuario) =>
+        parteUsuario.length >= 4 &&
+        partesResponsable.some(
+          (parteResponsable) =>
+            parteResponsable.length >= 4 &&
+            (
+              parteResponsable ===
+                parteUsuario ||
+              parteResponsable.startsWith(
+                parteUsuario
+              ) ||
+              parteUsuario.startsWith(
+                parteResponsable
+              )
             )
-          )
-      )
-  );
+        )
+    );
+
+  /*
+   * La sesión puede usar un nombre corto
+   * ("Kari Jiménez") mientras RH conserva
+   * el nombre completo
+   * ("Ana Karina Jiménez Meza").
+   * Dos partes compatibles evitan ocultar
+   * tareas reales sin confundir personas
+   * que solo comparten un nombre.
+   */
+  return coincidencias.length >= 2;
 }
 
 function etiquetaEstado(estado) {
@@ -1073,6 +1063,9 @@ export default function OperacionEmpleado({
           }
           tareasSemana={
             tareasCalendario.length
+          }
+          agendaSemana={
+            tareasCalendario
           }
           tareaPrioritaria={
             tareaPrioritaria
