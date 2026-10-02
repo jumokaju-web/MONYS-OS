@@ -126,6 +126,20 @@ function localizarCoincidenciasProducto(
     );
 }
 
+function obtenerAntiguedadDias(fecha) {
+  if (!fecha) return null;
+
+  const fechaValida = new Date(fecha);
+  if (Number.isNaN(fechaValida.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - fechaValida.getTime()) / 86400000)
+  );
+}
+
 export async function obtenerContextoRealProductoCampana({
   branchId = null,
   producto = "",
@@ -187,6 +201,39 @@ export async function obtenerContextoRealProductoCampana({
       ventas,
       []
     );
+
+  const fechaCorteVentas =
+    metricas?.fechaFinal ||
+    resultadoVentas?.importacion?.created_at ||
+    null;
+  const fechaCargaInventario =
+    resultadoInventario?.importacion?.created_at ||
+    null;
+  const diasMaximosDatosActuales = 7;
+  const antiguedadVentasDias =
+    obtenerAntiguedadDias(fechaCorteVentas);
+  const antiguedadInventarioDias =
+    obtenerAntiguedadDias(fechaCargaInventario);
+  const actualizacionDatos = {
+    diasMaximos: diasMaximosDatosActuales,
+    ventas: {
+      fecha: fechaCorteVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente:
+        antiguedadVentasDias !== null &&
+        antiguedadVentasDias <= diasMaximosDatosActuales,
+    },
+    inventario: {
+      fecha: fechaCargaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente:
+        antiguedadInventarioDias !== null &&
+        antiguedadInventarioDias <= diasMaximosDatosActuales,
+    },
+  };
+  actualizacionDatos.vigente =
+    actualizacionDatos.ventas.vigente &&
+    actualizacionDatos.inventario.vigente;
 
   const nombreArchivoPeriodo =
   resultadoUtilidadArticulos
@@ -461,6 +508,8 @@ const diasAnalizados =
 
     confianzaDatos,
 
+    actualizacionDatos,
+
     fuentes: {
       ventas:
         tieneVentas,
@@ -582,6 +631,39 @@ export async function obtenerOportunidadesGrowthOS({
     Number(
       metricas?.diasAnalizados || 0
     ) || 7;
+
+  const fechaCorteVentas =
+    metricas?.fechaFinal ||
+    resultadoVentas?.importacion?.created_at ||
+    null;
+  const fechaCargaInventario =
+    resultadoInventario?.importacion?.created_at ||
+    null;
+  const antiguedadVentasDias =
+    obtenerAntiguedadDias(fechaCorteVentas);
+  const antiguedadInventarioDias =
+    obtenerAntiguedadDias(fechaCargaInventario);
+  const diasMaximosDatosActuales = 7;
+  const actualizacionDatos = {
+    diasMaximos: diasMaximosDatosActuales,
+    ventas: {
+      fecha: fechaCorteVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente:
+        antiguedadVentasDias !== null &&
+        antiguedadVentasDias <= diasMaximosDatosActuales,
+    },
+    inventario: {
+      fecha: fechaCargaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente:
+        antiguedadInventarioDias !== null &&
+        antiguedadInventarioDias <= diasMaximosDatosActuales,
+    },
+  };
+  actualizacionDatos.vigente =
+    actualizacionDatos.ventas.vigente &&
+    actualizacionDatos.inventario.vigente;
 
   const productosVentas =
     agruparVentasPorProducto(
@@ -808,6 +890,8 @@ prioridad =
 
           diasAnalizados,
 
+          actualizacionDatos,
+
           prioridad,
 
           razones,
@@ -912,6 +996,22 @@ export async function crearCampanaMarketing({
     );
   }
 
+  const presupuestoPropuesto = Number(presupuesto || 0);
+
+  if (
+    !Number.isFinite(presupuestoPropuesto) ||
+    presupuestoPropuesto < 0
+  ) {
+    throw new Error(
+      "El presupuesto propuesto debe ser un número válido y no puede ser negativo."
+    );
+  }
+
+  const estrategiaNormalizada =
+    estrategiaIA && typeof estrategiaIA === "object"
+      ? estrategiaIA
+      : {};
+
   const nuevaCampana = {
     organization_id:
       organizationId || null,
@@ -977,10 +1077,7 @@ export async function crearCampanaMarketing({
         cta || ""
       ).trim() || null,
 
-    presupuesto:
-      Number(
-        presupuesto || 0
-      ),
+    presupuesto: 0,
 
     ventas_objetivo:
       Number(
@@ -992,8 +1089,20 @@ export async function crearCampanaMarketing({
         utilidadObjetivo || 0
       ),
 
-    estrategia_ia:
-      estrategiaIA || {},
+    estrategia_ia: {
+      ...estrategiaNormalizada,
+      controlFinanciero: {
+        ...(estrategiaNormalizada.controlFinanciero || {}),
+        presupuestoPropuesto,
+        presupuestoAutorizado: 0,
+        estadoAutorizacion:
+          presupuestoPropuesto > 0
+            ? "PENDIENTE_MONICA"
+            : "SIN_GASTO_PROPUESTO",
+        requiereAutorizacion:
+          presupuestoPropuesto > 0,
+      },
+    },
 
     simulacion_ia:
       simulacionIA || {},

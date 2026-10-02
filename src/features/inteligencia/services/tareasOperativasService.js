@@ -5,6 +5,10 @@ import {
   obtenerEmpleadosActivosParaAsignacion,
 } from "./empleadosRHService";
 
+import {
+  evaluarResultadoCampanaGrowth,
+} from "./growthAgencyService";
+
 
 // ======================================================
 // OBTENER TAREAS
@@ -1038,10 +1042,12 @@ export async function revisarContenidoMarketing({
 export async function guardarResultadoMarketing({
   tareaId,
   canal = "",
-  alcance = 0,
-  leads = 0,
-  ventas = 0,
-  monto = 0,
+  publicacion = "",
+  alcance = "",
+  leads = "",
+  ventas = "",
+  monto = "",
+  gasto = "",
   observacion = "",
 } = {}) {
   if (!tareaId) {
@@ -1056,23 +1062,103 @@ export async function guardarResultadoMarketing({
     );
   }
 
+  const publicacionNormalizada =
+    String(publicacion || "")
+      .trim()
+      .toUpperCase();
+
+  if (
+    ![
+      "PUBLICADA",
+      "NO_PUBLICADA",
+    ].includes(publicacionNormalizada)
+  ) {
+    throw new Error(
+      "Confirma si el contenido sí se publicó."
+    );
+  }
+
+  const valoresNumericos = {
+    alcance: Number(alcance || 0),
+    leads: Number(leads || 0),
+    ventas: Number(ventas || 0),
+    monto: Number(monto || 0),
+    gasto: Number(gasto || 0),
+  };
+  const camposConfirmados = {
+    alcance: String(alcance).trim() !== "",
+    mensajes: String(leads).trim() !== "",
+    pedidos: String(ventas).trim() !== "",
+    venta: String(monto).trim() !== "",
+    gasto: String(gasto).trim() !== "",
+  };
+
+  if (
+    !Object.values(
+      valoresNumericos
+    ).every(Number.isFinite)
+  ) {
+    throw new Error(
+      "Revisa las cifras capturadas; todas deben ser números válidos."
+    );
+  }
+
+  if (
+    Object.values(
+      valoresNumericos
+    ).some((valor) => valor < 0)
+  ) {
+    throw new Error(
+      "Las métricas reales no pueden ser negativas."
+    );
+  }
+
+  const hayResultadoExplicito = [
+    alcance,
+    leads,
+    ventas,
+    monto,
+    gasto,
+  ].some(
+    (valor) =>
+      String(valor).trim() !== ""
+  ) || String(observacion || "").trim() !== "";
+
+  if (
+    publicacionNormalizada ===
+      "PUBLICADA" &&
+    !hayResultadoExplicito
+  ) {
+    throw new Error(
+      "Registra el resultado observado. Puedes escribir 0 cuando la métrica real fue cero."
+    );
+  }
+
   const resultadoMarketing = {
     tipo: "marketing",
+
+    publicacion:
+      publicacionNormalizada,
 
     canal:
       String(canal || "").trim(),
 
     alcance:
-      Number(alcance || 0),
+      valoresNumericos.alcance,
 
     leads:
-      Number(leads || 0),
+      valoresNumericos.leads,
 
     ventas:
-      Number(ventas || 0),
+      valoresNumericos.ventas,
 
     monto:
-      Number(monto || 0),
+      valoresNumericos.monto,
+
+    gasto:
+      valoresNumericos.gasto,
+
+    camposConfirmados,
 
     observacion:
       String(
@@ -1117,10 +1203,241 @@ export async function guardarResultadoMarketing({
     );
   }
 
+  const sincronizacionCampana =
+    await sincronizarResultadoTareaConCampana({
+      tarea: data,
+      resultadoMarketing,
+    });
+
   return {
     tarea: data,
     resultado:
       resultadoMarketing,
+    sincronizacionCampana,
+  };
+}
+
+function normalizarReferenciaMarketing(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function leerObjetoResultado(valor) {
+  if (valor && typeof valor === "object") {
+    return valor;
+  }
+
+  try {
+    const convertido = JSON.parse(valor || "{}");
+    return convertido && typeof convertido === "object"
+      ? convertido
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+async function sincronizarResultadoTareaConCampana({
+  tarea,
+  resultadoMarketing,
+}) {
+  if (!tarea?.branch_id) {
+    return {
+      sincronizada: false,
+      motivo: "SIN_SUCURSAL",
+    };
+  }
+
+  const referenciaTarea = normalizarReferenciaMarketing(
+    `${tarea.titulo || ""} ${tarea.descripcion || ""}`
+  );
+
+  const { data: campanasActivas, error } = await supabase
+    .from("campanas_marketing")
+    .select("*")
+    .eq("branch_id", tarea.branch_id)
+    .eq("estado", "ACTIVA")
+    .order("updated_at", {
+      ascending: false,
+    })
+    .limit(20);
+
+  if (error) {
+    console.error(
+      "Error buscando campaña para resultado de tarea:",
+      error
+    );
+
+    return {
+      sincronizada: false,
+      motivo: "ERROR_CONSULTA",
+    };
+  }
+
+  const coincidencias = (campanasActivas || []).filter(
+    (campana) => {
+      const producto = normalizarReferenciaMarketing(
+        campana.producto
+      );
+
+      return producto && referenciaTarea.includes(producto);
+    }
+  );
+
+  const campana =
+    coincidencias.length === 1
+      ? coincidencias[0]
+      : (campanasActivas || []).length === 1 &&
+          referenciaTarea.includes("AGENCIA IA")
+        ? campanasActivas[0]
+        : null;
+
+  if (!campana) {
+    return {
+      sincronizada: false,
+      motivo: "SIN_COINCIDENCIA_UNICA",
+    };
+  }
+
+  const resultadoActual = leerObjetoResultado(
+    campana.resultado
+  );
+  const historialActual = Array.isArray(
+    resultadoActual.historial
+  )
+    ? resultadoActual.historial
+    : [];
+  const registroAnterior = historialActual.find(
+    (registro) => registro?.tareaId === tarea.id
+  );
+  const historialSinDuplicado = historialActual.filter(
+    (registro) => registro?.tareaId !== tarea.id
+  );
+  const numero = (valor) => {
+    const convertido = Number(valor || 0);
+    return Number.isFinite(convertido) ? convertido : 0;
+  };
+  const alcanceNuevo = numero(resultadoMarketing.alcance);
+  const mensajesNuevos = numero(resultadoMarketing.leads);
+  const pedidosNuevos = numero(resultadoMarketing.ventas);
+  const ventaNueva = numero(resultadoMarketing.monto);
+  const gastoNuevo = numero(resultadoMarketing.gasto);
+  const alcanceAcumulado =
+    numero(resultadoActual.alcanceAcumulado) -
+    numero(registroAnterior?.alcance) +
+    alcanceNuevo;
+  const mensajesAcumulados =
+    numero(resultadoActual.mensajesAcumulados) -
+    numero(registroAnterior?.mensajes) +
+    mensajesNuevos;
+  const pedidosAcumulados =
+    numero(resultadoActual.pedidosAcumulados) -
+    numero(registroAnterior?.pedidos) +
+    pedidosNuevos;
+  const ventaAcumulada =
+    numero(resultadoActual.ventaAcumulada) -
+    numero(registroAnterior?.venta) +
+    ventaNueva;
+  const gastoAcumulado =
+    numero(resultadoActual.gastoAcumulado) -
+    numero(registroAnterior?.gasto) +
+    gastoNuevo;
+  const camposConfirmados = {
+    alcance:
+      resultadoActual?.camposConfirmados?.alcance === true ||
+      resultadoMarketing?.camposConfirmados?.alcance === true ||
+      alcanceAcumulado > 0,
+    mensajes:
+      resultadoActual?.camposConfirmados?.mensajes === true ||
+      resultadoMarketing?.camposConfirmados?.mensajes === true ||
+      mensajesAcumulados > 0,
+    pedidos:
+      resultadoActual?.camposConfirmados?.pedidos === true ||
+      resultadoMarketing?.camposConfirmados?.pedidos === true ||
+      pedidosAcumulados > 0,
+    venta:
+      resultadoActual?.camposConfirmados?.venta === true ||
+      resultadoMarketing?.camposConfirmados?.venta === true ||
+      ventaAcumulada > 0,
+    gasto:
+      resultadoActual?.camposConfirmados?.gasto === true ||
+      resultadoMarketing?.camposConfirmados?.gasto === true ||
+      gastoAcumulado > 0,
+  };
+  const evaluacionGrowth = evaluarResultadoCampanaGrowth({
+    gastoAcumulado,
+    pedidosAcumulados,
+    ventaAcumulada,
+    margenRealBase:
+      campana?.estrategia_ia
+        ?.datosRentabilidadBase
+        ?.margenReal,
+    publicacion: resultadoMarketing.publicacion,
+    gastoConfirmado: camposConfirmados.gasto,
+    pedidosConfirmados: camposConfirmados.pedidos,
+    ventaConfirmada: camposConfirmados.venta,
+  });
+  const registroNuevo = {
+    tareaId: tarea.id,
+    fuente: "TAREA_MARKETING",
+    fecha: new Date().toISOString().slice(0, 10),
+    registradoEn: new Date().toISOString(),
+    registradoPor: tarea.responsable || "Marketing",
+    canal: resultadoMarketing.canal,
+    publicacion: resultadoMarketing.publicacion,
+    alcance: alcanceNuevo,
+    mensajes: mensajesNuevos,
+    pedidos: pedidosNuevos,
+    venta: ventaNueva,
+    gasto: gastoNuevo,
+    camposConfirmados:
+      resultadoMarketing.camposConfirmados,
+    nota: resultadoMarketing.observacion,
+  };
+
+  const { data: campanaActualizada, error: errorActualizacion } =
+    await supabase
+      .from("campanas_marketing")
+      .update({
+        resultado: {
+          ...resultadoActual,
+          alcanceAcumulado,
+          mensajesAcumulados,
+          pedidosAcumulados,
+          ventaAcumulada,
+          gastoAcumulado,
+          camposConfirmados,
+          ...evaluacionGrowth,
+          historial: [
+            ...historialSinDuplicado,
+            registroNuevo,
+          ],
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", campana.id)
+      .select()
+      .single();
+
+  if (errorActualizacion) {
+    console.error(
+      "Error sincronizando resultado de tarea con campaña:",
+      errorActualizacion
+    );
+
+    return {
+      sincronizada: false,
+      motivo: "ERROR_ACTUALIZACION",
+    };
+  }
+
+  return {
+    sincronizada: true,
+    motivo: "RESULTADO_SINCRONIZADO",
+    campana: campanaActualizada,
   };
 }
 
@@ -1156,12 +1473,13 @@ export async function cambiarEstadoTareaOperativa({
   const cambios = {
     estado,
 
-    resultado:
-      resultado || null,
-
     updated_at:
       new Date().toISOString(),
   };
+
+  if (resultado !== null && resultado !== undefined) {
+    cambios.resultado = resultado;
+  }
 
   if (
     estado === "terminada"

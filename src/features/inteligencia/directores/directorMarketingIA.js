@@ -28,6 +28,7 @@ export function directorMarketingIA({
   analisisComercial = null,
   analisisInventario = null,
   analisisFinanciero = null,
+  actualizacionDatos = null,
 } = {}) {
   const indicadoresComerciales =
     analisisComercial?.indicadores || {};
@@ -393,6 +394,8 @@ export function directorMarketingIA({
     recomendaciones,
 
     accionesPrioritarias,
+
+    actualizacionDatos,
 
     generadoEn:
       new Date().toISOString(),

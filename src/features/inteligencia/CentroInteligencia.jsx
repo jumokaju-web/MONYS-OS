@@ -24,6 +24,8 @@ import DirectorRH from "./components/director-rh/DirectorRH";
 
 import OperacionHoy from "./components/OperacionHoy";
 
+import PanelDecisionesPrioritarias from "./components/PanelDecisionesPrioritarias";
+
 import DirectorInventarioPanel from "./components/DirectorInventarioPanel";
 
 import {
@@ -132,6 +134,53 @@ const directores = [
     disponible: true,
   },
 ];
+
+function obtenerAntiguedadDatos(fecha) {
+  if (!fecha) return null;
+
+  const fechaValida = new Date(fecha);
+  if (Number.isNaN(fechaValida.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - fechaValida.getTime()) / 86400000)
+  );
+}
+
+function construirActualizacionDatosMarketing(datosDashboard, metricas) {
+  const fechaVentas =
+    metricas?.fechaFinal ||
+    datosDashboard?.importacion?.created_at ||
+    null;
+  const fechaInventario =
+    datosDashboard?.inventario?.importacion?.created_at ||
+    null;
+  const diasMaximos = 7;
+  const antiguedadVentasDias = obtenerAntiguedadDatos(fechaVentas);
+  const antiguedadInventarioDias = obtenerAntiguedadDatos(fechaInventario);
+  const ventasVigentes =
+    antiguedadVentasDias !== null && antiguedadVentasDias <= diasMaximos;
+  const inventarioVigente =
+    antiguedadInventarioDias !== null &&
+    antiguedadInventarioDias <= diasMaximos;
+
+  return {
+    diasMaximos,
+    ventas: {
+      fecha: fechaVentas,
+      antiguedadDias: antiguedadVentasDias,
+      vigente: ventasVigentes,
+    },
+    inventario: {
+      fecha: fechaInventario,
+      antiguedadDias: antiguedadInventarioDias,
+      vigente: inventarioVigente,
+    },
+    vigente: ventasVigentes && inventarioVigente,
+  };
+}
 
 function CentroInteligencia({
   datosDashboard,
@@ -392,6 +441,12 @@ useEffect(() => {
 
       analisisFinanciero:
         analisisFinancieroCEO,
+
+      actualizacionDatos:
+        construirActualizacionDatosMarketing(
+          datosDashboard,
+          metricas
+        ),
     });
 
   /*
@@ -559,53 +614,10 @@ const analisisRH =
         }
       />
 
-      <section
-        style={{
-          marginTop: "30px",
-          marginBottom: "35px",
-          padding: "24px",
-          borderRadius: "20px",
-          backgroundColor:
-            "#fffdf7",
-          border:
-            "1px solid #f2d98a",
-        }}
-      >
-        <h2
-          style={{
-            marginTop: 0,
-            marginBottom: "18px",
-            fontSize: "28px",
-          }}
-        >
-          📋 Decisiones Prioritarias de
-          Hoy
-        </h2>
-
-        <ul
-          style={{
-            margin: 0,
-            paddingLeft: "22px",
-            lineHeight: "2",
-            fontSize: "17px",
-          }}
-        >
-          <li>
-            🔴 No hay decisiones críticas
-            pendientes.
-          </li>
-
-          <li>
-            🟡 La IA irá colocando aquí
-            las recomendaciones del día.
-          </li>
-
-          <li>
-            🟢 Esta sección será
-            completamente automática.
-          </li>
-        </ul>
-      </section>
+      <PanelDecisionesPrioritarias
+        datosDashboard={datosDashboard}
+        movimientos={movimientos}
+      />
 
       <section
         style={{
@@ -817,6 +829,9 @@ const analisisRH =
         <DirectorMarketing
           analisisMarketing={
             analisisMarketing
+          }
+          onVolverAlDashboard={
+            volverAlDashboard
           }
         />
       )}

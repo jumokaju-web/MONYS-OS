@@ -1,3 +1,6 @@
+import CanalesPublicidadGrowth from "./CanalesPublicidadGrowth.jsx";
+import OrquestadorAgenciaGrowth from "./OrquestadorAgenciaGrowth.jsx";
+
 function convertirNumero(valor) {
   const numero = Number(valor);
 
@@ -27,11 +30,15 @@ function obtenerEstadoCampana(campanasActivas) {
 }
 
 export default function CentroAgenciaMarketing({
+  actualizacionDatos = null,
+  onActualizarDatos,
   productoLider,
   inventarioProductoLider,
   campanasActivas = [],
+  campanasFinalizadas = [],
   accionesPrioritarias = [],
   onPrepararPlan,
+  onRegistrarAvance,
 }) {
   const nombreProducto =
     productoLider?.nombre ||
@@ -44,6 +51,21 @@ export default function CentroAgenciaMarketing({
   const cobertura = convertirNumero(
     inventarioProductoLider?.diasCobertura
   );
+
+  const datosActuales =
+    actualizacionDatos?.vigente === true;
+  const ventasActuales =
+    actualizacionDatos?.ventas?.vigente === true;
+  const inventarioActual =
+    actualizacionDatos?.inventario?.vigente === true;
+
+  const etiquetaAntiguedad = (dias) => {
+    if (dias === null || dias === undefined) {
+      return "fecha sin confirmar";
+    }
+
+    return dias === 0 ? "hoy" : `hace ${dias} días`;
+  };
 
   const campanaSinAvance =
   campanasActivas.find((campana) => {
@@ -92,7 +114,7 @@ const horasSinAvance =
       )
     : 0;
 
-const accionPrincipal =
+  const accionPrincipal =
   campanaSinAvance
     ? {
         titulo:
@@ -104,6 +126,12 @@ const accionPrincipal =
             "activa"
           } lleva ${horasSinAvance} horas sin resultados registrados. Kary debe confirmar publicación, gasto, mensajes, pedidos y ventas reales antes de invertir más.`,
       }
+    : !datosActuales
+      ? {
+          titulo: "Actualizar SICAR antes de recomendar la primera campaña",
+          descripcion:
+            `Los reportes disponibles muestran ventas ${etiquetaAntiguedad(actualizacionDatos?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionDatos?.inventario?.antiguedadDias)}. Actualízalos en la sucursal para volver a evaluar productos y canales con cifras recientes.`,
+        }
     : cobertura > 45
       ? {
           titulo:
@@ -119,48 +147,113 @@ const accionPrincipal =
   const estadoCampana =
     obtenerEstadoCampana(campanasActivas);
 
-  const herramientas = [
+  const registrosDeCampana = campanasActivas.reduce(
+    (total, campana) =>
+      total +
+      (Array.isArray(campana?.resultado?.historial)
+        ? campana.resultado.historial.length
+        : 0),
+    0
+  );
+
+  const kitDisponible = campanasActivas.some(
+    (campana) =>
+      Boolean(
+        campana?.estrategia_ia?.kitPublicacion
+      )
+  );
+
+  const agentesAgencia = [
     {
-      icono: "🎬",
-      titulo: "Estudio de contenido",
+      icono: "🧭",
+      titulo: "Director de Estrategia Growth IA",
       descripcion:
-        "Guiones, ganchos, CTA, formatos y revisión con IA antes de publicar.",
-      estado: "Siguiente etapa",
+        "Coordina a los demás agentes, elige la prioridad comercial y convierte la meta en un plan ejecutable.",
+      entrega: "Prioridad diaria y plan de cinco días",
+      estado: datosActuales
+        ? "Analizando datos reales"
+        : "Esperando actualización SICAR",
+      destino: "plan-crecimiento-marketing",
+      accion: "Ver plan de Growth",
     },
     {
-      icono: "📅",
-      titulo: "Calendario inteligente",
+      icono: "🔎",
+      titulo: "Analista de Oportunidades IA",
       descripcion:
-        "Qué publicar, en qué canal, a qué hora y con qué objetivo.",
-      estado: "Plan semanal disponible",
+        "Cruza ventas, existencias, cobertura y margen para decidir qué producto merece una prueba.",
+      entrega: "Producto, evidencia y riesgo",
+      estado: datosActuales
+        ? `Vigilando ${nombreProducto}`
+        : "Protegido por datos antiguos",
+      destino: "plan-crecimiento-marketing",
+      accion: "Revisar recomendación",
+    },
+    {
+      icono: "🎬",
+      titulo: "Director Creativo IA",
+      descripcion:
+        "Crea concepto, gancho, guion, formato, texto, CTA y adaptación para cada canal sin inventar beneficios.",
+      entrega: "Kit listo para revisión humana",
+      estado: kitDisponible
+        ? "Kit disponible"
+        : "Listo para crear contenido",
+      destino: "campanas-marketing-activas",
+      accion: "Abrir campaña y contenido",
     },
     {
       icono: "📣",
-      titulo: "Campañas y anuncios",
+      titulo: "Especialista de Campañas IA",
       descripcion:
-        "Orgánico, Meta, TikTok, Marketplace, Mercado Libre y ChatGPT Ads.",
+        "Diseña la prueba, selecciona canal, define criterios para escalar o detener y mantiene todo pausado hasta autorización.",
+      entrega: "Campaña medible y controlada",
       estado: estadoCampana.texto,
+      destino: "campanas-marketing-activas",
+      accion: "Abrir campañas",
+    },
+    {
+      icono: "💬",
+      titulo: "Conversión y Comunidad IA",
+      descripcion:
+        "Prepara respuestas, seguimiento y llamados a compra; después ayudará a convertir mensajes en pedidos comprobados.",
+      entrega: "Guiones de respuesta y seguimiento",
+      estado: "Preparación activa · conexión pendiente",
+      destino: "growth-paid-channels-title",
+      accion: "Ver conexiones",
     },
     {
       icono: "📈",
-      titulo: "Resultados y embudo",
+      titulo: "Analista de Embudo y Utilidad IA",
       descripcion:
-        "Alcance, mensajes, pedidos, ventas, gasto, costo por pedido y utilidad.",
-      estado: "Con datos reales",
+        "Mide alcance, mensajes, pedidos, ventas, gasto, costo por pedido y utilidad para recomendar la siguiente decisión.",
+      entrega: "Embudo, rentabilidad y decisión",
+      estado:
+        registrosDeCampana > 0
+          ? `${registrosDeCampana} avance${registrosDeCampana === 1 ? "" : "s"} real${registrosDeCampana === 1 ? "" : "es"}`
+          : "Esperando primer resultado real",
+      destino: "campanas-marketing-activas",
+      accion: "Revisar embudo",
     },
     {
-      icono: "🔥",
-      titulo: "Tendencias y competencia",
+      icono: "🛡️",
+      titulo: "Auditor de Marca y Riesgo IA",
       descripcion:
-        "Detectar contenido, productos y formatos que están ganando atención.",
-      estado: "Por conectar",
+        "Revisa afirmaciones, precio, inventario, presupuesto y permisos antes de permitir publicación o gasto.",
+      entrega: "Semáforo de autorización",
+      estado: "Guardas de seguridad activas",
+      destino: "growth-paid-channels-title",
+      accion: "Revisar controles",
     },
     {
       icono: "🧠",
-      titulo: "Aprendizaje MONYS",
+      titulo: "Memoria de Aprendizaje IA",
       descripcion:
-        "Recordar qué funcionó, qué falló y decidir si mantener, mejorar o detener.",
-      estado: "Memoria activa",
+        "Conserva resultados y aprendizajes para repetir lo rentable, mejorar lo dudoso y detener lo que pierde dinero.",
+      entrega: "Aprendizaje y siguiente acción",
+      estado: campanasFinalizadas.length > 0
+        ? `${campanasFinalizadas.length} aprendizaje${campanasFinalizadas.length === 1 ? "" : "s"} disponible${campanasFinalizadas.length === 1 ? "" : "s"}`
+        : "Esperando campaña finalizada",
+      destino: "historial-aprendizaje-campanas",
+      accion: "Abrir memoria",
     },
   ];
 
@@ -203,6 +296,8 @@ const accionPrincipal =
             style={{
               margin: "7px 0 5px",
               fontSize: "26px",
+              color: "#ffffff",
+              fontWeight: "900",
             }}
           >
             Centro de crecimiento
@@ -296,18 +391,25 @@ const accionPrincipal =
               fontWeight: "800",
             }}
           >
-            Producto: {
-  campanaSinAvance?.producto ||
-  nombreProducto
-}
+            {campanaSinAvance
+              ? `Producto: ${campanaSinAvance.producto || nombreProducto}`
+              : datosActuales
+              ? `Producto: ${nombreProducto}`
+              : "Producto: pendiente de SICAR"}
           </span>
 
           <span
             style={{
               padding: "7px 10px",
               borderRadius: "999px",
-              background: "#eef2ff",
-              color: "#3730a3",
+              background:
+                campanaSinAvance || datosActuales || ventasActuales
+                  ? "#eef2ff"
+                  : "#fff1d6",
+              color:
+                campanaSinAvance || datosActuales || ventasActuales
+                  ? "#3730a3"
+                  : "#875700",
               fontSize: "12px",
               fontWeight: "800",
             }}
@@ -319,24 +421,34 @@ const accionPrincipal =
     )
       .split(",")[0]
       .trim()}`
-  : `Existencia: ${existencia}`}
+  : datosActuales
+    ? `Existencia: ${existencia}`
+    : `Ventas: ${etiquetaAntiguedad(actualizacionDatos?.ventas?.antiguedadDias)}`}
           </span>
 
           <span
             style={{
               padding: "7px 10px",
               borderRadius: "999px",
-              background: "#ecfdf5",
-              color: "#047857",
+              background:
+                !campanaSinAvance && inventarioActual
+                  ? "#ecfdf5"
+                  : "#fff1d6",
+              color:
+                !campanaSinAvance && inventarioActual
+                  ? "#047857"
+                  : "#875700",
               fontSize: "12px",
               fontWeight: "800",
             }}
           >
           {campanaSinAvance
   ? `Sin avance: ${horasSinAvance} h`
-  : `Cobertura: ${cobertura.toFixed(
+  : datosActuales
+  ? `Cobertura: ${cobertura.toFixed(
       1
-    )} días`}
+    )} días`
+  : `Inventario: ${etiquetaAntiguedad(actualizacionDatos?.inventario?.antiguedadDias)}`}
           </span>
         </div>
 
@@ -344,16 +456,15 @@ const accionPrincipal =
   type="button"
   onClick={() => {
     if (campanaSinAvance) {
-      const seccionCampanas =
-        document.getElementById(
-          "campanas-marketing-activas"
-        );
+      onRegistrarAvance?.(
+        campanaSinAvance.id
+      );
 
-      seccionCampanas?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      return;
+    }
 
+    if (!datosActuales) {
+      onActualizarDatos?.();
       return;
     }
 
@@ -361,7 +472,7 @@ const accionPrincipal =
   }}
   disabled={
     !campanaSinAvance &&
-    !onPrepararPlan
+    (datosActuales ? !onPrepararPlan : !onActualizarDatos)
   }
   style={{
     width: "100%",
@@ -371,22 +482,91 @@ const accionPrincipal =
     borderRadius: "11px",
     background:
       campanaSinAvance ||
-      onPrepararPlan
+      (datosActuales ? onPrepararPlan : onActualizarDatos)
         ? "#b92769"
         : "#d8c7cf",
     color: "#ffffff",
     fontWeight: "900",
     cursor:
       campanaSinAvance ||
-      onPrepararPlan
+      (datosActuales ? onPrepararPlan : onActualizarDatos)
         ? "pointer"
         : "not-allowed",
   }}
 >
   {campanaSinAvance
     ? "📊 Ir a registrar avance real"
-    : "✨ Convertir estrategia en plan de trabajo"}
+    : datosActuales
+      ? "✨ Convertir estrategia en plan de trabajo"
+      : "↩️ Volver para actualizar SICAR"}
 </button>
+      </div>
+
+      <OrquestadorAgenciaGrowth
+        actualizacionDatos={actualizacionDatos}
+        productoLider={productoLider}
+        inventarioProductoLider={inventarioProductoLider}
+        campanasActivas={campanasActivas}
+        campanasFinalizadas={campanasFinalizadas}
+      />
+
+      <CanalesPublicidadGrowth />
+
+      <div
+        style={{
+          marginTop: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#ffd6e9",
+              fontSize: "11px",
+              fontWeight: "900",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            Agencia coordinada por MONYS
+          </div>
+          <h3
+            style={{
+              margin: "5px 0 0",
+              color: "#ffffff",
+              fontSize: "21px",
+            }}
+          >
+            Equipo IA de Crecimiento
+          </h3>
+          <p
+            style={{
+              margin: "6px 0 0",
+              maxWidth: "720px",
+              color: "#f8dfea",
+              fontSize: "12px",
+              lineHeight: 1.5,
+            }}
+          >
+            No son más empleados: son especialistas IA que analizan, preparan y verifican. Kary ejecuta el trabajo físico y Mónica conserva la autorización sobre publicación, presupuesto y gasto.
+          </p>
+        </div>
+        <span
+          style={{
+            padding: "7px 10px",
+            borderRadius: "999px",
+            background: "#dcfce7",
+            color: "#166534",
+            fontSize: "11px",
+            fontWeight: "900",
+          }}
+        >
+          {agentesAgencia.length} agentes especializados
+        </span>
       </div>
 
       <div
@@ -398,7 +578,7 @@ const accionPrincipal =
           marginTop: "16px",
         }}
       >
-        {herramientas.map((herramienta) => (
+        {agentesAgencia.map((herramienta) => (
           <article
             key={herramienta.titulo}
             style={{
@@ -440,6 +620,21 @@ const accionPrincipal =
               {herramienta.descripcion}
             </p>
 
+            <div
+              style={{
+                marginBottom: "10px",
+                padding: "8px 9px",
+                borderRadius: "10px",
+                background: "#fff4f8",
+                color: "#7d3157",
+                fontSize: "10px",
+                fontWeight: "800",
+                lineHeight: 1.4,
+              }}
+            >
+              Entrega: {herramienta.entrega}
+            </div>
+
             <span
               style={{
                 display: "inline-block",
@@ -453,6 +648,34 @@ const accionPrincipal =
             >
               {herramienta.estado}
             </span>
+            {herramienta.destino && (
+              <button
+                type="button"
+                onClick={() => {
+                  document
+                    .getElementById(herramienta.destino)
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                }}
+                style={{
+                  display: "block",
+                  marginTop: "12px",
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  color: "#9d174d",
+                  font: "inherit",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {herramienta.accion} →
+              </button>
+            )}
           </article>
         ))}
       </div>

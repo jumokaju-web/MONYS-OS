@@ -14,6 +14,7 @@ import {
 
 import {
   obtenerSucursalesActivas,
+  obtenerUsuarios,
 } from "../../../usuarios/services/usuariosService";
 
 import {
@@ -22,7 +23,14 @@ import {
   crearTareaAutomaticaDesdePrioridad,
 } from "../../services/tareasOperativasService";
 
+import {
+  construirTareaSiguienteAgenciaGrowth,
+  evaluarResultadoCampanaGrowth,
+  orquestarAgenciaGrowth,
+} from "../../services/growthAgencyService";
+
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import OperacionEmpleado from "../OperacionEmpleado";
 import CentroAgenciaMarketing from "./CentroAgenciaMarketing";
 
 function convertirNumero(valor) {
@@ -155,6 +163,7 @@ function obtenerEstiloPrioridad(prioridad) {
 
 export default function DirectorMarketing({
   analisisMarketing,
+  onVolverAlDashboard,
 }) {
 
     const {
@@ -191,10 +200,40 @@ export default function DirectorMarketing({
     setErrorCampanas,
   ] = useState("");
 
-    const [
+  const [
+    campanaRegistroId,
+    setCampanaRegistroId,
+  ] = useState(null);
+
+  const [
+    borradoresAvance,
+    setBorradoresAvance,
+  ] = useState({});
+
+  const [
+    guardandoAvanceId,
+    setGuardandoAvanceId,
+  ] = useState(null);
+
+  const [
     sucursales,
     setSucursales,
   ] = useState([]);
+
+  const [
+    usuarioMarketingPreview,
+    setUsuarioMarketingPreview,
+  ] = useState(null);
+
+  const [
+    vistaKaryAbierta,
+    setVistaKaryAbierta,
+  ] = useState(false);
+
+  const [
+    recargaVistaKary,
+    setRecargaVistaKary,
+  ] = useState(0);
 
   const [
     sucursalPlanId,
@@ -241,6 +280,7 @@ export default function DirectorMarketing({
         const [
           campanas,
           sucursalesActivas,
+          usuariosActivos,
         ] = await Promise.all([
           obtenerCampanasMarketing({
             organizationId:
@@ -250,6 +290,8 @@ export default function DirectorMarketing({
           }),
 
           obtenerSucursalesActivas(),
+
+          obtenerUsuarios(),
         ]);
 
         setCampanasMarketing(
@@ -298,6 +340,26 @@ for (
           sucursalesNegocio
         );
 
+        const usuariosMarketing =
+          usuariosActivos.filter(
+            (usuarioSistema) =>
+              usuarioSistema.active !== false &&
+              String(
+                usuarioSistema.role || ""
+              ).toUpperCase() === "MARKETING"
+          );
+
+        const usuarioMarketing =
+          usuariosMarketing.find(
+            (usuarioSistema) =>
+              usuarioSistema.business_id ===
+                usuario.business_id
+          ) || usuariosMarketing[0] || null;
+
+        setUsuarioMarketingPreview(
+          usuarioMarketing
+        );
+
         setSucursalPlanId(
           (actual) =>
             actual ||
@@ -318,6 +380,7 @@ for (
 
         setCampanasMarketing([]);
         setSucursales([]);
+        setUsuarioMarketingPreview(null);
 
         setErrorCampanas(
           error.message ||
@@ -643,16 +706,35 @@ for (
       return;
     }
 
+    if (
+      convertirNumero(capacidadCompra) <= 0
+    ) {
+      setErrorCampanas(
+        "Finanzas reporta $0 disponibles. Actualiza la información financiera antes de autorizar presupuesto para campañas."
+      );
+      return;
+    }
+
     const presupuestoActual =
       convertirNumero(
         campana.presupuesto
       );
+    const presupuestoPropuesto =
+      convertirNumero(
+        campana?.estrategia_ia
+          ?.controlFinanciero
+          ?.presupuestoPropuesto
+      );
+    const presupuestoSugerido =
+      presupuestoPropuesto > presupuestoActual
+        ? presupuestoPropuesto
+        : presupuestoActual;
 
     const respuesta = window.prompt(
       `Presupuesto autorizado actual: ${formatearDinero(
         presupuestoActual
       )}. Escribe el nuevo presupuesto total autorizado:`,
-      String(presupuestoActual)
+      String(presupuestoSugerido)
     );
 
     if (respuesta === null) {
@@ -704,7 +786,10 @@ for (
           : [];
 
       const autorizacionPresupuesto = {
-        accion: "AUMENTAR_PRESUPUESTO",
+        accion:
+          presupuestoActual > 0
+            ? "AUMENTAR_PRESUPUESTO"
+            : "AUTORIZAR_PRESUPUESTO_INICIAL",
         fecha: new Date().toISOString(),
         usuarioId:
           usuario?.id || null,
@@ -722,6 +807,24 @@ for (
           {
             presupuesto:
               nuevoPresupuesto,
+            estrategia_ia: {
+              ...(campana.estrategia_ia || {}),
+              controlFinanciero: {
+                ...(campana?.estrategia_ia
+                  ?.controlFinanciero || {}),
+                presupuestoPropuesto:
+                  presupuestoPropuesto || nuevoPresupuesto,
+                presupuestoAutorizado:
+                  nuevoPresupuesto,
+                estadoAutorizacion:
+                  "AUTORIZADO_POR_MONICA",
+                requiereAutorizacion: false,
+                autorizadoEn:
+                  autorizacionPresupuesto.fecha,
+                autorizadoPor:
+                  autorizacionPresupuesto.usuarioNombre,
+              },
+            },
             resultado: {
               ...resultadoActual,
               autorizacionDueno:
@@ -765,7 +868,279 @@ for (
     }
   }
 
+  function abrirRegistroCampana(campanaId) {
+    setCampanaRegistroId(campanaId);
+
+    window.setTimeout(() => {
+      document
+        .getElementById(
+          `registro-avance-${campanaId}`
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+    }, 0);
+  }
+
+  function actualizarBorradorAvance(
+    campanaId,
+    campo,
+    valor
+  ) {
+    setBorradoresAvance(
+      (borradoresActuales) => ({
+        ...borradoresActuales,
+        [campanaId]: {
+          ...(borradoresActuales[
+            campanaId
+          ] || {}),
+          [campo]: valor,
+        },
+      })
+    );
+  }
+
+  async function guardarAvanceCampana(
+    campana
+  ) {
+    const borrador =
+      borradoresAvance[campana.id] || {};
+
+    if (!borrador.publicacion) {
+      setErrorCampanas(
+        "Confirma primero si el contenido ya fue publicado."
+      );
+      return;
+    }
+
+    const alcanceNuevo = convertirNumero(
+      borrador.alcance
+    );
+    const mensajesNuevos = convertirNumero(
+      borrador.mensajes
+    );
+    const pedidosNuevos = convertirNumero(
+      borrador.pedidos
+    );
+    const ventaNueva = convertirNumero(
+      borrador.venta
+    );
+    const gastoNuevo = convertirNumero(
+      borrador.gasto
+    );
+
+    if (
+      [
+        alcanceNuevo,
+        mensajesNuevos,
+        pedidosNuevos,
+        ventaNueva,
+        gastoNuevo,
+      ].some((valor) => valor < 0)
+    ) {
+      setErrorCampanas(
+        "Los resultados reales no pueden ser negativos."
+      );
+      return;
+    }
+
+    const resultadoActual =
+      campana.resultado || {};
+    const gastoAcumulado =
+      convertirNumero(
+        resultadoActual.gastoAcumulado
+      ) + gastoNuevo;
+    const presupuestoAutorizado =
+      convertirNumero(
+        campana.presupuesto
+      );
+
+    if (
+      gastoNuevo > 0 &&
+      presupuestoAutorizado <= 0
+    ) {
+      setErrorCampanas(
+        "Esta campaña no tiene presupuesto autorizado. No se puede registrar gasto sin autorización de Mónica."
+      );
+      return;
+    }
+
+    if (
+      presupuestoAutorizado > 0 &&
+      gastoAcumulado >
+        presupuestoAutorizado
+    ) {
+      setErrorCampanas(
+        `El gasto acumulado superaría el presupuesto autorizado de ${formatearDinero(
+          presupuestoAutorizado
+        )}.`
+      );
+      return;
+    }
+
+    const confirmarRegistro =
+      window.confirm(
+        "¿Confirmas que estos son resultados reales de la campaña? Guardarlos no publica contenido ni autoriza gasto nuevo."
+      );
+
+    if (!confirmarRegistro) {
+      return;
+    }
+
+    try {
+      setGuardandoAvanceId(campana.id);
+      setErrorCampanas("");
+      setMensajeAccionCampana("");
+
+      const historialActual =
+        Array.isArray(
+          resultadoActual.historial
+        )
+          ? resultadoActual.historial
+          : [];
+      const pedidosAcumulados =
+        convertirNumero(
+          resultadoActual.pedidosAcumulados
+        ) + pedidosNuevos;
+      const ventaAcumulada =
+        convertirNumero(
+          resultadoActual.ventaAcumulada
+        ) + ventaNueva;
+      const alcanceAcumulado =
+        convertirNumero(
+          resultadoActual.alcanceAcumulado
+        ) + alcanceNuevo;
+      const mensajesAcumulados =
+        convertirNumero(
+          resultadoActual.mensajesAcumulados
+        ) + mensajesNuevos;
+      const camposConfirmados = {
+        alcance:
+          resultadoActual?.camposConfirmados?.alcance === true ||
+          String(borrador.alcance ?? "").trim() !== "" ||
+          alcanceAcumulado > 0,
+        mensajes:
+          resultadoActual?.camposConfirmados?.mensajes === true ||
+          String(borrador.mensajes ?? "").trim() !== "" ||
+          mensajesAcumulados > 0,
+        pedidos:
+          resultadoActual?.camposConfirmados?.pedidos === true ||
+          String(borrador.pedidos ?? "").trim() !== "" ||
+          pedidosAcumulados > 0,
+        venta:
+          resultadoActual?.camposConfirmados?.venta === true ||
+          String(borrador.venta ?? "").trim() !== "" ||
+          ventaAcumulada > 0,
+        gasto:
+          resultadoActual?.camposConfirmados?.gasto === true ||
+          String(borrador.gasto ?? "").trim() !== "" ||
+          gastoAcumulado > 0,
+      };
+      const evaluacionGrowth = evaluarResultadoCampanaGrowth({
+        gastoAcumulado,
+        pedidosAcumulados,
+        ventaAcumulada,
+        margenRealBase:
+          campana?.estrategia_ia
+            ?.datosRentabilidadBase
+            ?.margenReal,
+        publicacion: borrador.publicacion,
+        gastoConfirmado: camposConfirmados.gasto,
+        pedidosConfirmados: camposConfirmados.pedidos,
+        ventaConfirmada: camposConfirmados.venta,
+      });
+      const registroNuevo = {
+        fecha: formatearFechaISO(
+          new Date()
+        ),
+        registradoEn:
+          new Date().toISOString(),
+        registradoPor:
+          usuario?.nombre || "Dueño",
+        publicacion:
+          borrador.publicacion,
+        alcance: alcanceNuevo,
+        mensajes: mensajesNuevos,
+        pedidos: pedidosNuevos,
+        venta: ventaNueva,
+        gasto: gastoNuevo,
+        nota:
+          String(
+            borrador.nota || ""
+          ).trim(),
+        camposConfirmados: {
+          alcance: String(borrador.alcance ?? "").trim() !== "",
+          mensajes: String(borrador.mensajes ?? "").trim() !== "",
+          pedidos: String(borrador.pedidos ?? "").trim() !== "",
+          venta: String(borrador.venta ?? "").trim() !== "",
+          gasto: String(borrador.gasto ?? "").trim() !== "",
+        },
+      };
+
+      const campanaActualizada =
+        await actualizarCampanaMarketing(
+          campana.id,
+          {
+            resultado: {
+              ...resultadoActual,
+              gastoAcumulado,
+              pedidosAcumulados,
+              ventaAcumulada,
+              alcanceAcumulado,
+              mensajesAcumulados,
+              camposConfirmados,
+              ...evaluacionGrowth,
+              historial: [
+                ...historialActual,
+                registroNuevo,
+              ],
+            },
+          }
+        );
+
+      setCampanasMarketing(
+        (campanasActuales) =>
+          campanasActuales.map(
+            (campanaActual) =>
+              campanaActual.id ===
+              campanaActualizada.id
+                ? campanaActualizada
+                : campanaActual
+          )
+      );
+      setBorradoresAvance(
+        (borradoresActuales) => ({
+          ...borradoresActuales,
+          [campana.id]: {},
+        })
+      );
+      setCampanaRegistroId(null);
+      setMensajeAccionCampana(
+        "Avance real guardado. MONYS actualizó los acumulados sin publicar ni autorizar gasto."
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando avance de campaña:",
+        error
+      );
+      setErrorCampanas(
+        error?.message ||
+          "MONYS no pudo guardar el avance real."
+      );
+    } finally {
+      setGuardandoAvanceId(null);
+    }
+  }
+
   function prepararPlanSemanal() {
+    if (!datosMarketingVigentes) {
+      setErrorPlan(
+        "Actualiza primero los reportes SICAR de ventas e inventario. No prepararé el plan con información desactualizada."
+      );
+      return;
+    }
+
     if (!sucursalPlanId) {
       setErrorPlan(
         "Selecciona la sucursal del plan."
@@ -906,13 +1281,63 @@ for (
     setPlanSemanal(plan);
   }
 
+  function prepararTareaOrquestador() {
+    if (!sucursalPlanId) {
+      setErrorPlan(
+        "Selecciona la sucursal para preparar la siguiente tarea de la Agencia IA."
+      );
+      return;
+    }
+
+    const flujo = orquestarAgenciaGrowth({
+      actualizacionDatos,
+      productoLider,
+      inventarioProductoLider,
+      campanasActivas,
+      campanasFinalizadas,
+    });
+    const [fecha] =
+      obtenerProximasFechasHabilesPlan(1);
+    const tarea =
+      construirTareaSiguienteAgenciaGrowth({
+        flujo,
+        fecha,
+      });
+
+    if (!tarea) {
+      setErrorPlan(
+        "El flujo de la Agencia IA ya está completo o todavía no puede determinar la siguiente entrega."
+      );
+      return;
+    }
+
+    setErrorPlan("");
+    setMensajePlan("");
+    setPlanSemanal([tarea]);
+  }
+
   async function autorizarPlanSemanal() {
+    const permiteDatosDesactualizados =
+      planSemanal.length > 0 &&
+      planSemanal.every(
+        (tarea) =>
+          tarea?.origen ===
+            "orquestador_growth" &&
+          tarea?.permiteDatosDesactualizados ===
+            true
+      );
+
     if (
+      (!datosMarketingVigentes &&
+        !permiteDatosDesactualizados) ||
       !sucursalPlanId ||
       planSemanal.length === 0
     ) {
       setErrorPlan(
-        "Primero prepara el plan semanal."
+        datosMarketingVigentes ||
+          permiteDatosDesactualizados
+          ? "Primero prepara el plan semanal."
+          : "Actualiza primero SICAR. El plan requiere ventas e inventario recientes."
       );
       return;
     }
@@ -956,7 +1381,13 @@ for (
         });
 
       setMensajePlan(
-        `Plan autorizado: ${resultado?.tareas?.length || 0} tareas quedaron asignadas a ${resultado?.responsable || "Marketing"}.`
+        `Tarea autorizada y visible en el calendario de ${resultado?.responsable || "Marketing"}: ${resultado?.tareas?.length || 0} asignación preparada.`
+      );
+      setPlanSemanal([]);
+      setVistaKaryAbierta(true);
+      setRecargaVistaKary(
+        (valorActual) =>
+          valorActual + 1
       );
     } catch (error) {
       console.error(
@@ -1006,7 +1437,11 @@ for (
     oportunidades = [],
     recomendaciones = [],
     accionesPrioritarias = [],
+    actualizacionDatos = null,
   } = analisisMarketing;
+
+  const datosMarketingVigentes =
+    actualizacionDatos?.vigente === true;
 
   const capacidadCompraNumero =
     convertirNumero(capacidadCompra);
@@ -1107,9 +1542,143 @@ for (
         </div>
       </div>
 
+      <div
+        style={{
+          marginTop: "22px",
+          padding: "18px",
+          borderRadius: "18px",
+          background:
+            "linear-gradient(135deg, #64183f 0%, #a62f67 100%)",
+          color: "#ffffff",
+          boxShadow:
+            "0 16px 34px rgba(107, 28, 67, 0.2)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: "#ffd2e5",
+                fontSize: "11px",
+                fontWeight: "900",
+                letterSpacing: "1px",
+              }}
+            >
+              VISTA OPERATIVA REAL
+            </div>
+
+            <h3
+              style={{
+                margin: "5px 0 4px",
+                color: "#ffffff",
+                fontSize: "21px",
+              }}
+            >
+              Programa diario de {
+                /kari/i.test(
+                  usuarioMarketingPreview?.nombre || ""
+                )
+                  ? "Kary"
+                  : usuarioMarketingPreview?.nombre?.split(" ")?.[0] || "Marketing"
+              }
+            </h3>
+
+            <p
+              style={{
+                margin: 0,
+                maxWidth: "680px",
+                color: "#f8dce8",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              Revisa desde tu cuenta exactamente lo que verá Marketing: prioridad, campaña, progreso, tareas y resultados reales.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={!usuarioMarketingPreview}
+            onClick={() =>
+              setVistaKaryAbierta(
+                (abierta) => !abierta
+              )
+            }
+            style={{
+              minHeight: "44px",
+              padding: "0 17px",
+              border: "1px solid rgba(255,255,255,.7)",
+              borderRadius: "12px",
+              background: usuarioMarketingPreview
+                ? "#ffffff"
+                : "rgba(255,255,255,.22)",
+              color: usuarioMarketingPreview
+                ? "#7b204f"
+                : "#f4d8e5",
+              fontWeight: "900",
+              cursor: usuarioMarketingPreview
+                ? "pointer"
+                : "not-allowed",
+            }}
+          >
+            {usuarioMarketingPreview
+              ? vistaKaryAbierta
+                ? "Cerrar programa de Kary"
+                : "Ver programa de Kary →"
+              : "Falta usuario Marketing"}
+          </button>
+        </div>
+
+        {vistaKaryAbierta && usuarioMarketingPreview && (
+          <div
+            style={{
+              marginTop: "18px",
+              overflow: "hidden",
+              border: "5px solid rgba(255,255,255,.24)",
+              borderRadius: "24px",
+              background: "#fff7fb",
+              color: "#2d1924",
+              boxShadow:
+                "0 18px 48px rgba(35, 8, 24, .28)",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px 16px",
+                background: "#ffffff",
+                borderBottom: "1px solid #efdce6",
+                color: "#7d3157",
+                fontSize: "12px",
+                fontWeight: "900",
+                textAlign: "center",
+              }}
+            >
+              Vista de dueña · los botones trabajan sobre las tareas reales de Marketing
+            </div>
+
+            <OperacionEmpleado
+              key={recargaVistaKary}
+              branchId={
+                usuarioMarketingPreview.branch_id
+              }
+              usuario={usuarioMarketingPreview}
+            />
+          </div>
+        )}
+      </div>
+
       {/* PLAN SEMANAL AUTORIZADO POR EL DUEÑO */}
 
       <div
+        id="plan-crecimiento-marketing"
         style={{
           marginTop: "24px",
           padding: "20px",
@@ -1231,7 +1800,7 @@ for (
               prepararPlanSemanal
             }
             disabled={
-              !sucursalPlanId
+              !sucursalPlanId || !datosMarketingVigentes
             }
             style={{
               width: "100%",
@@ -1239,20 +1808,67 @@ for (
               border: "none",
               borderRadius: "10px",
               background:
-                sucursalPlanId
+                sucursalPlanId && datosMarketingVigentes
                   ? "#8f2858"
                   : "#d8c7cf",
-              color: "#ffffff",
+              color:
+                sucursalPlanId && datosMarketingVigentes
+                  ? "#ffffff"
+                  : "#6b4b5c",
               fontWeight: "900",
               cursor:
-                sucursalPlanId
+                sucursalPlanId && datosMarketingVigentes
                   ? "pointer"
                   : "not-allowed",
             }}
           >
-            ✨ Preparar plan con datos reales
+            {datosMarketingVigentes
+              ? "✨ Preparar plan con datos reales"
+              : "⏸️ Actualiza SICAR para activar el plan"}
+          </button>
+
+          <button
+            type="button"
+            onClick={
+              prepararTareaOrquestador
+            }
+            disabled={!sucursalPlanId}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid #8f2858",
+              borderRadius: "10px",
+              background: sucursalPlanId
+                ? "#fff0f6"
+                : "#f2eaee",
+              color: sucursalPlanId
+                ? "#8f2858"
+                : "#8b7882",
+              fontWeight: "900",
+              cursor: sucursalPlanId
+                ? "pointer"
+                : "not-allowed",
+            }}
+          >
+            🧠 Preparar siguiente tarea de la Agencia IA
           </button>
         </div>
+
+        {!datosMarketingVigentes && (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "11px",
+              borderRadius: "10px",
+              background: "#fff8e8",
+              border: "1px solid #eed18b",
+              color: "#7a4d00",
+              fontWeight: "700",
+            }}
+          >
+            Actualiza las ventas y el inventario SICAR de esta sucursal antes de preparar un plan nuevo. El orquestador sí puede proponer una tarea de actualización o de seguimiento de una campaña que ya está activa.
+          </div>
+        )}
 
         {errorPlan && (
           <div
@@ -1306,8 +1922,13 @@ for (
                 textAlign: "center",
               }}
             >
-              Vista previa: todavía no se ha
-              enviado ninguna tarea.
+              {planSemanal.every(
+                (tarea) =>
+                  tarea?.origen ===
+                  "orquestador_growth"
+              )
+                ? "Propuesta del orquestador: revisa la siguiente entrega antes de asignarla."
+                : "Vista previa: todavía no se ha enviado ninguna tarea."}
             </div>
 
             <div
@@ -1392,6 +2013,84 @@ for (
                       >
                         {tarea.descripcion}
                       </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                          marginTop: "8px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding: "5px 7px",
+                            borderRadius: "999px",
+                            background: "#f5e4ec",
+                            color: "#8f2858",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          Prioridad {tarea.prioridad || "normal"}
+                        </span>
+                        <span
+                          style={{
+                            padding: "5px 7px",
+                            borderRadius: "999px",
+                            background: tarea.requiereEvidencia
+                              ? "#fff2cc"
+                              : "#eaf8f0",
+                            color: tarea.requiereEvidencia
+                              ? "#7a4d00"
+                              : "#207a4a",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          {tarea.requiereEvidencia
+                            ? "Evidencia requerida"
+                            : "Registro en MONYS"}
+                        </span>
+                      </div>
+
+                      {tarea.instrucciones && (
+                        <details
+                          style={{
+                            marginTop: "9px",
+                            color: "#5f4b55",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <summary
+                            style={{
+                              color: "#8f2858",
+                              fontWeight: "900",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Ver instrucciones y criterio de éxito
+                          </summary>
+                          <div
+                            style={{
+                              marginTop: "7px",
+                              whiteSpace: "pre-line",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {tarea.instrucciones}
+                          </div>
+                          <strong
+                            style={{
+                              display: "block",
+                              marginTop: "7px",
+                              color: "#34242c",
+                            }}
+                          >
+                            Éxito: {tarea.criterioExito}
+                          </strong>
+                        </details>
+                      )}
                     </div>
                   </div>
                 )
@@ -1431,16 +2130,26 @@ for (
       </div>
 
             <CentroAgenciaMarketing
+  actualizacionDatos={
+            actualizacionDatos
+  }
+  onActualizarDatos={
+    onVolverAlDashboard
+  }
   productoLider={productoLider}
   inventarioProductoLider={
     inventarioProductoLider
   }
   campanasActivas={campanasActivas}
+  campanasFinalizadas={campanasFinalizadas}
   accionesPrioritarias={
     listaAcciones
   }
   onPrepararPlan={
     prepararPlanSemanal
+  }
+  onRegistrarAvance={
+    abrirRegistroCampana
   }
 />
 
@@ -1557,9 +2266,66 @@ for (
                   horasSinAvance !== null &&
                   horasSinAvance >= 24;
 
+                const alcanceAcumulado =
+                  convertirNumero(
+                    resultado.alcanceAcumulado
+                  );
+                const mensajesAcumulados =
+                  convertirNumero(
+                    resultado.mensajesAcumulados
+                  );
+                const pedidosAcumulados =
+                  convertirNumero(
+                    resultado.pedidosAcumulados
+                  );
+                const ventaAcumulada =
+                  convertirNumero(
+                    resultado.ventaAcumulada
+                  );
+                const gastoAcumulado =
+                  convertirNumero(
+                    resultado.gastoAcumulado
+                  );
+                const conversionMensaje =
+                  alcanceAcumulado > 0
+                    ? (mensajesAcumulados /
+                        alcanceAcumulado) *
+                      100
+                    : null;
+                const conversionPedido =
+                  mensajesAcumulados > 0
+                    ? (pedidosAcumulados /
+                        mensajesAcumulados) *
+                      100
+                    : null;
+                const ticketPromedio =
+                  pedidosAcumulados > 0
+                    ? ventaAcumulada /
+                      pedidosAcumulados
+                    : null;
+                const retornoPorPeso =
+                  gastoAcumulado > 0
+                    ? ventaAcumulada /
+                      gastoAcumulado
+                    : null;
+                const ultimoRegistro =
+                  historialResultados.at(-1) ||
+                  null;
+                const presupuestoPropuesto =
+                  convertirNumero(
+                    campana?.estrategia_ia
+                      ?.controlFinanciero
+                      ?.presupuestoPropuesto
+                  );
+                const presupuestoAutorizado =
+                  convertirNumero(
+                    campana.presupuesto
+                  );
+
                 return (
                   <div
                     key={campana.id}
+                    id={`campana-marketing-${campana.id}`}
                     style={{
                       padding: "18px",
                       borderRadius: "14px",
@@ -1623,15 +2389,21 @@ for (
                       </div>    
 
                       <div>
-                        <strong>
-                          Presupuesto
-                        </strong>
-                        <br />
-                        {formatearDinero(
-                          convertirNumero(
-                            campana.presupuesto
-                          )
+                        <strong>Presupuesto</strong>
+                        <br />Propuesto: {formatearDinero(
+                          presupuestoPropuesto
                         )}
+                        <br />Autorizado: {formatearDinero(
+                          presupuestoAutorizado
+                        )}
+                        <br />
+                        <small style={{ color: presupuestoAutorizado > 0 ? "#166534" : "#991b1b", fontWeight: "800" }}>
+                          {presupuestoAutorizado > 0
+                            ? "Autorización registrada"
+                            : presupuestoPropuesto > 0
+                              ? "Pendiente de Mónica · gasto permitido $0"
+                              : "Campaña orgánica · gasto $0"}
+                        </small>
                       </div>
 
                       <div>
@@ -1643,6 +2415,26 @@ for (
                           convertirNumero(
                             resultado.gastoAcumulado
                           )
+                        )}
+                      </div>
+
+                      <div>
+                        <strong>
+                          Alcance acumulado
+                        </strong>
+                        <br />
+                        {alcanceAcumulado.toLocaleString(
+                          "es-MX"
+                        )}
+                      </div>
+
+                      <div>
+                        <strong>
+                          Mensajes
+                        </strong>
+                        <br />
+                        {mensajesAcumulados.toLocaleString(
+                          "es-MX"
                         )}
                       </div>
 
@@ -1691,6 +2483,20 @@ for (
                         <br />
                         {campana.estado}
                       </div>
+
+                      <div>
+                        <strong>
+                          Publicación
+                        </strong>
+                        <br />
+                        {ultimoRegistro?.publicacion ===
+                        "PUBLICADA"
+                          ? "Comprobada"
+                          : ultimoRegistro?.publicacion ===
+                              "NO_PUBLICADA"
+                            ? "No publicada"
+                            : "Por confirmar"}
+                      </div>
                                                <div>
                         <strong>
                           Última actualización
@@ -1728,6 +2534,229 @@ for (
                            
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={() =>
+                        campanaRegistroId ===
+                        campana.id
+                          ? setCampanaRegistroId(null)
+                          : abrirRegistroCampana(
+                              campana.id
+                            )
+                      }
+                      style={{
+                        width: "100%",
+                        marginTop: "12px",
+                        padding: "12px",
+                        border: "none",
+                        borderRadius: "9px",
+                        backgroundColor: "#166534",
+                        color: "#ffffff",
+                        fontWeight: "850",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {campanaRegistroId ===
+                      campana.id
+                        ? "Cerrar registro"
+                        : "📊 Registrar avance real"}
+                    </button>
+
+                    {campanaRegistroId ===
+                      campana.id && (
+                      <div
+                        id={`registro-avance-${campana.id}`}
+                        style={{
+                          marginTop: "10px",
+                          padding: "14px",
+                          borderRadius: "12px",
+                          backgroundColor: "#f0fdf4",
+                          border: "1px solid #9bd6ac",
+                        }}
+                      >
+                        <strong>
+                          Resultados nuevos desde el último avance
+                        </strong>
+                        <p
+                          style={{
+                            margin: "6px 0 12px",
+                            fontSize: "13px",
+                            color: "#3f5f49",
+                          }}
+                        >
+                          Captura únicamente datos comprobados. Este registro no publica contenido ni autoriza presupuesto.
+                        </p>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(145px, 1fr))",
+                            gap: "9px",
+                          }}
+                        >
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: "5px",
+                              fontSize: "12px",
+                              fontWeight: "800",
+                            }}
+                          >
+                            Publicación comprobada
+                            <select
+                              value={
+                                borradoresAvance[
+                                  campana.id
+                                ]?.publicacion ||
+                                ""
+                              }
+                              onChange={(evento) =>
+                                actualizarBorradorAvance(
+                                  campana.id,
+                                  "publicacion",
+                                  evento.target.value
+                                )
+                              }
+                              style={{
+                                padding: "10px",
+                                borderRadius: "8px",
+                                border: "1px solid #9ebcac",
+                                backgroundColor: "#ffffff",
+                              }}
+                            >
+                              <option value="">
+                                Selecciona
+                              </option>
+                              <option value="PUBLICADA">
+                                Sí, ya se publicó
+                              </option>
+                              <option value="NO_PUBLICADA">
+                                No se publicó
+                              </option>
+                            </select>
+                          </label>
+
+                          {[
+                            ["alcance", "Alcance nuevo"],
+                            ["mensajes", "Mensajes nuevos"],
+                            ["pedidos", "Pedidos nuevos"],
+                            ["venta", "Venta nueva $"],
+                            ["gasto", "Gasto real nuevo $"],
+                          ].map(
+                            ([campo, etiqueta]) => (
+                              <label
+                                key={campo}
+                                style={{
+                                  display: "grid",
+                                  gap: "5px",
+                                  fontSize: "12px",
+                                  fontWeight: "800",
+                                }}
+                              >
+                                {etiqueta}
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step={
+                                    ["venta", "gasto"].includes(
+                                      campo
+                                    )
+                                      ? "0.01"
+                                      : "1"
+                                  }
+                                  value={
+                                    borradoresAvance[
+                                      campana.id
+                                    ]?.[campo] || ""
+                                  }
+                                  onChange={(evento) =>
+                                    actualizarBorradorAvance(
+                                      campana.id,
+                                      campo,
+                                      evento.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    padding: "10px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #9ebcac",
+                                  }}
+                                />
+                              </label>
+                            )
+                          )}
+                        </div>
+
+                        <label
+                          style={{
+                            display: "grid",
+                            gap: "5px",
+                            marginTop: "10px",
+                            fontSize: "12px",
+                            fontWeight: "800",
+                          }}
+                        >
+                          Aprendizaje u observación
+                          <textarea
+                            rows="3"
+                            value={
+                              borradoresAvance[
+                                campana.id
+                              ]?.nota || ""
+                            }
+                            onChange={(evento) =>
+                              actualizarBorradorAvance(
+                                campana.id,
+                                "nota",
+                                evento.target.value
+                              )
+                            }
+                            placeholder="Ejemplo: preguntaron por tonos disponibles."
+                            style={{
+                              padding: "10px",
+                              borderRadius: "8px",
+                              border: "1px solid #9ebcac",
+                              resize: "vertical",
+                            }}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            guardarAvanceCampana(
+                              campana
+                            )
+                          }
+                          disabled={
+                            guardandoAvanceId ===
+                            campana.id
+                          }
+                          style={{
+                            width: "100%",
+                            marginTop: "10px",
+                            padding: "12px",
+                            border: "none",
+                            borderRadius: "9px",
+                            backgroundColor:
+                              guardandoAvanceId ===
+                              campana.id
+                                ? "#86a891"
+                                : "#166534",
+                            color: "#ffffff",
+                            fontWeight: "850",
+                          }}
+                        >
+                          {guardandoAvanceId ===
+                          campana.id
+                            ? "Guardando..."
+                            : "💾 Guardar avance comprobado"}
+                        </button>
+                      </div>
+                    )}
+
                     <div
                       style={{
                         marginTop: "14px",
@@ -1748,6 +2777,84 @@ for (
                         campana.decision_ia ||
                         "ESPERANDO_RESULTADOS"
                       ).replaceAll("_", " ")}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        padding: "12px",
+                        borderRadius: "10px",
+                        backgroundColor: "#f8fbff",
+                        border: "1px solid #cdddf0",
+                      }}
+                    >
+                      <strong>
+                        📈 Embudo real de la campaña
+                      </strong>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(145px, 1fr))",
+                          gap: "9px",
+                          marginTop: "10px",
+                        }}
+                      >
+                        {[
+                          [
+                            "Conversión a mensaje",
+                            conversionMensaje === null
+                              ? "Sin alcance todavía"
+                              : `${conversionMensaje.toFixed(1)}%`,
+                          ],
+                          [
+                            "Conversión a pedido",
+                            conversionPedido === null
+                              ? "Sin mensajes todavía"
+                              : `${conversionPedido.toFixed(1)}%`,
+                          ],
+                          [
+                            "Ticket promedio",
+                            ticketPromedio === null
+                              ? "Sin pedidos todavía"
+                              : formatearDinero(
+                                  ticketPromedio
+                                ),
+                          ],
+                          [
+                            "Retorno por peso",
+                            retornoPorPeso === null
+                              ? "Sin gasto todavía"
+                              : `${retornoPorPeso.toFixed(2)}×`,
+                          ],
+                        ].map(
+                          ([etiqueta, valor]) => (
+                            <div
+                              key={etiqueta}
+                              style={{
+                                padding: "10px",
+                                borderRadius: "9px",
+                                backgroundColor: "#ffffff",
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "block",
+                                  color: "#64748b",
+                                  fontSize: "12px",
+                                  fontWeight: "750",
+                                }}
+                              >
+                                {etiqueta}
+                              </span>
+                              <strong>
+                                {valor}
+                              </strong>
+                            </div>
+                          )
+                        )}
+                      </div>
                     </div>
                  
                   {historialResultados.length ===
@@ -1915,7 +3022,10 @@ for (
                     }
                     disabled={
                       campanaActualizandoId ===
-                      campana.id
+                        campana.id ||
+                      convertirNumero(
+                        capacidadCompra
+                      ) <= 0
                     }
                     style={{
                       width: "100%",
@@ -1929,12 +3039,21 @@ for (
                       fontWeight: "800",
                       cursor:
                         campanaActualizandoId ===
-                        campana.id
-                          ? "wait"
+                          campana.id ||
+                        convertirNumero(
+                          capacidadCompra
+                        ) <= 0
+                          ? "not-allowed"
                           : "pointer",
                     }}
                   >
-                    💰 Autorizar nuevo presupuesto
+                    {convertirNumero(
+                      capacidadCompra
+                    ) <= 0
+                      ? "🔒 Sin presupuesto disponible"
+                      : presupuestoAutorizado > 0
+                        ? "💰 Autorizar aumento de presupuesto"
+                        : "🛡️ Autorizar presupuesto inicial"}
                   </button>
                 </div>
               );
@@ -2132,6 +3251,7 @@ for (
             {/* HISTORIAL Y APRENDIZAJE */}
 
       <div
+        id="historial-aprendizaje-campanas"
         style={{
           marginTop: "18px",
           padding: "20px",
@@ -2425,8 +3545,9 @@ for (
           icono="⭐"
           titulo="Producto líder"
           valor={
-            productoLider?.nombre ||
-            "Sin datos"
+            datosMarketingVigentes
+              ? productoLider?.nombre || "Sin datos"
+              : "Pendiente de SICAR"
           }
         />
 
@@ -2434,15 +3555,20 @@ for (
           icono="🏷️"
           titulo="Categoría líder"
           valor={
-            categoriaLider?.categoria ||
-            "Sin datos"
+            datosMarketingVigentes
+              ? categoriaLider?.categoria || "Sin datos"
+              : "Pendiente de SICAR"
           }
         />
 
         <TarjetaIndicador
           icono="📚"
           titulo="Productos para rotar"
-          valor={productosParaRotar.length}
+          valor={
+            datosMarketingVigentes
+              ? productosParaRotar.length
+              : "Pendiente de SICAR"
+          }
         />
       </div>
 
@@ -2506,7 +3632,25 @@ for (
 
       {/* PRODUCTO LÍDER */}
 
-      {productoLider &&
+      {!datosMarketingVigentes ? (
+        <div
+          style={{
+            marginTop: "24px",
+            padding: "20px",
+            borderRadius: "16px",
+            backgroundColor: "#fff8e8",
+            border: "1px solid #eed18b",
+            textAlign: "center",
+          }}
+        >
+          <h3 style={{ margin: "0 0 8px" }}>
+            📥 Reportes SICAR pendientes de actualización
+          </h3>
+          <p style={{ margin: 0, lineHeight: "1.6" }}>
+            MONYS oculta el producto líder y su cobertura anterior hasta recibir ventas e inventario recientes de esta sucursal.
+          </p>
+        </div>
+      ) : productoLider &&
         inventarioProductoLider && (
           <div
             style={{
@@ -2607,7 +3751,11 @@ for (
             marginTop: "16px",
           }}
         >
-          {listaAcciones.length > 0 ? (
+          {!datosMarketingVigentes ? (
+            <p style={{ margin: 0, textAlign: "center" }}>
+              Acciones pausadas hasta actualizar ventas e inventario SICAR.
+            </p>
+          ) : listaAcciones.length > 0 ? (
             listaAcciones.map(
               (accion, index) => {
                 const estilo =
@@ -2685,7 +3833,11 @@ for (
           🚀 Oportunidades de Marketing
         </h3>
 
-        {listaOportunidades.length > 0 ? (
+        {!datosMarketingVigentes ? (
+          <p style={{ margin: 0, textAlign: "center" }}>
+            Oportunidades pausadas hasta confirmar los datos de la sucursal.
+          </p>
+        ) : listaOportunidades.length > 0 ? (
           listaOportunidades
             .slice(0, 8)
             .map(
@@ -2749,7 +3901,11 @@ for (
           🧠 Recomendaciones de Marketing
         </h3>
 
-        {listaRecomendaciones.length > 0 ? (
+        {!datosMarketingVigentes ? (
+          <p style={{ margin: 0, textAlign: "center" }}>
+            Actualiza SICAR para que MONYS genere recomendaciones de producto y canal con cifras recientes.
+          </p>
+        ) : listaRecomendaciones.length > 0 ? (
           listaRecomendaciones.map(
             (recomendacion, index) => (
               <div

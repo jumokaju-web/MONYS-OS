@@ -6,6 +6,15 @@ function nombreCorto(nombre) {
     .split(/\s+/)[0];
 }
 
+function fechaLocal() {
+  return new Intl.DateTimeFormat("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Mexico_City",
+  }).format(new Date());
+}
+
 function estadoPrioridad(tarea) {
   const estado = String(
     tarea?.estado || ""
@@ -32,6 +41,42 @@ function moneda(valor) {
   }).format(Number(valor || 0));
 }
 
+function numeroRegistrado(valor) {
+  if (valor === null || valor === undefined || valor === "") {
+    return null;
+  }
+
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function etiquetaAntiguedad(dias) {
+  if (dias === null || dias === undefined) {
+    return "fecha sin confirmar";
+  }
+
+  return dias === 0 ? "hoy" : `hace ${dias} días`;
+}
+
+function fechaDato(fecha) {
+  if (!fecha) {
+    return "Fecha sin confirmar";
+  }
+
+  const valor = new Date(fecha);
+
+  if (Number.isNaN(valor.getTime())) {
+    return "Fecha sin confirmar";
+  }
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  }).format(valor);
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -39,6 +84,7 @@ export default function CentroTrabajoGrowth({
   enProceso = 0,
   terminadas = 0,
   tareasSemana = 0,
+  agendaSemana = [],
   tareaPrioritaria = null,
   campanas = [],
   oportunidadPrioritaria = null,
@@ -47,6 +93,7 @@ export default function CentroTrabajoGrowth({
   onEmpezarPrioridad,
   onVerSemana,
   onAbrirModulo,
+  onTrabajarOportunidad,
   espaciosGrowth = [],
   espacioGrowthActivo = null,
   onCambiarEspacio,
@@ -79,6 +126,16 @@ export default function CentroTrabajoGrowth({
   const resumenCampanas = campanas.reduce(
     (resumen, campana) => {
       const resultado = campana?.resultado || {};
+      const historial = Array.isArray(resultado.historial)
+        ? resultado.historial
+        : [];
+      const campoConfirmado = (campo) =>
+        resultado?.camposConfirmados?.[campo] === true ||
+        historial.some(
+          (registro) =>
+            registro?.camposConfirmados?.[campo] === true ||
+            Number(registro?.[campo]) > 0
+        );
       const estado = String(
         campana?.estado || ""
       ).toUpperCase();
@@ -87,15 +144,30 @@ export default function CentroTrabajoGrowth({
         resumen.activas += 1;
       }
 
-      resumen.ventas += Number(
-        resultado.ventaAcumulada || 0
+      const venta = numeroRegistrado(
+        resultado.ventaAcumulada
       );
-      resumen.inversion += Number(
-        resultado.gastoAcumulado || 0
+      const inversion = numeroRegistrado(
+        resultado.gastoAcumulado
       );
-      resumen.utilidad += Number(
-        resultado.utilidadEstimadaCampana || 0
+      const utilidad = numeroRegistrado(
+        resultado.utilidadEstimadaCampana
       );
+
+      if (venta !== null && campoConfirmado("venta")) {
+        resumen.ventas += venta;
+        resumen.campanasConVentas += 1;
+      }
+
+      if (inversion !== null && campoConfirmado("gasto")) {
+        resumen.inversion += inversion;
+        resumen.campanasConInversion += 1;
+      }
+
+      if (utilidad !== null) {
+        resumen.utilidad += utilidad;
+        resumen.campanasConUtilidad += 1;
+      }
 
       const decision = String(
         resultado.decisionActual ||
@@ -104,7 +176,11 @@ export default function CentroTrabajoGrowth({
       ).toUpperCase();
 
       if (
-        ["PAUSAR", "ESCALAR"].includes(decision) &&
+        [
+          "PAUSAR",
+          "REPROGRAMAR_PUBLICACION",
+          "SOLICITAR_AUTORIZACION_PARA_ESCALAR",
+        ].includes(decision) &&
         !resumen.decision
       ) {
         resumen.decision = {
@@ -121,11 +197,59 @@ export default function CentroTrabajoGrowth({
     {
       activas: 0,
       ventas: 0,
+      campanasConVentas: 0,
       inversion: 0,
+      campanasConInversion: 0,
       utilidad: 0,
+      campanasConUtilidad: 0,
       decision: null,
     }
   );
+
+  const actualizacionOportunidad =
+    oportunidadPrioritaria?.actualizacionDatos || null;
+  const textoDecision = {
+    PAUSAR: "pausar nueva inversión en",
+    REPROGRAMAR_PUBLICACION: "reprogramar la publicación de",
+    SOLICITAR_AUTORIZACION_PARA_ESCALAR:
+      "solicitar autorización de Mónica antes de escalar",
+  }[resumenCampanas.decision?.accion];
+  const oportunidadVigente =
+    actualizacionOportunidad?.vigente === true;
+
+  const fuentesCampana = [
+    {
+      clave: "ventas",
+      titulo: "Ventas por artículo",
+      descripcion: "Demanda real y productos vendidos",
+      dato: actualizacionOportunidad?.ventas,
+    },
+    {
+      clave: "inventario",
+      titulo: "Inventario por sucursal",
+      descripcion: "Existencia y disponibilidad para vender",
+      dato: actualizacionOportunidad?.inventario,
+    },
+  ];
+
+  const datosFaltantes = fuentesCampana.filter(
+    (fuente) => fuente.dato?.vigente !== true
+  );
+
+  const limiteVigencia = Number(
+    actualizacionOportunidad?.diasMaximos || 7
+  );
+
+  const valorAcumulado = (total, disponibles) => {
+    if (disponibles === 0) {
+      return "Sin datos";
+    }
+
+    const texto = moneda(total);
+    return disponibles < campanas.length
+      ? `${texto} · parcial`
+      : texto;
+  };
 
   const campanaPrioritaria = campanas.find(
     (campana) =>
@@ -134,11 +258,215 @@ export default function CentroTrabajoGrowth({
       )
   );
 
+  const productosCampanaPrioritaria = Array.isArray(
+    campanaPrioritaria?.estrategia_ia?.productosSeleccionadosGrowth
+  )
+    ? campanaPrioritaria.estrategia_ia.productosSeleccionadosGrowth
+        .map((item) => item?.nombre || item?.producto || "")
+        .filter(Boolean)
+    : [];
+
+  const productoGrowthPrioritario =
+    oportunidadPrioritaria && !oportunidadVigente
+      ? "Pendiente de reportes actuales"
+      : oportunidadPrioritaria?.nombre ||
+    oportunidadPrioritaria?.producto ||
+    productosCampanaPrioritaria.join(", ") ||
+    campanaPrioritaria?.producto ||
+    "Por confirmar con oportunidades reales";
+
+  const canalGrowthPrioritario =
+    oportunidadPrioritaria && !oportunidadVigente
+      ? "Se define después de validar datos"
+      : campanaPrioritaria?.canal_principal ||
+    campanaPrioritaria?.estrategia_ia?.canalPrincipal ||
+    (Array.isArray(campanaPrioritaria?.estrategia_ia?.canales)
+      ? campanaPrioritaria.estrategia_ia.canales.join(", ")
+      : "") ||
+    "Por definir antes de publicar";
+
+  const controlFinancieroCampana =
+    campanaPrioritaria?.estrategia_ia?.controlFinanciero || {};
+  const presupuestoPropuestoCampana = Number(
+    controlFinancieroCampana.presupuestoPropuesto || 0
+  );
+  const presupuestoAutorizadoCampana = Number(
+    campanaPrioritaria?.presupuesto || 0
+  );
+  const presupuestoConAutorizacion =
+    presupuestoAutorizadoCampana > 0 &&
+    (
+      controlFinancieroCampana.estadoAutorizacion ===
+        "AUTORIZADO_POR_MONICA" ||
+      Number(
+        campanaPrioritaria?.resultado?.autorizacionDueno
+          ?.presupuestoNuevo || 0
+      ) >= presupuestoAutorizadoCampana
+    );
+  const contenidoCampanaListo = Boolean(
+    campanaPrioritaria?.estrategia_ia?.kitPublicacion
+  );
+
+  const evidenciaGrowth =
+    oportunidadPrioritaria && !oportunidadVigente
+      ? `Ventas: ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} · inventario: ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Actualiza los reportes antes de decidir.`
+      : oportunidadPrioritaria
+    ? [
+        `${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia`,
+        `${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} vendidas en ${Number(oportunidadPrioritaria.diasAnalizados || 7)} días`,
+        oportunidadPrioritaria.margenReal == null
+          ? "margen sin confirmar"
+          : `margen ${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%`,
+        Number(oportunidadPrioritaria.diasCobertura || 0) >= 999
+          ? "sin rotación calculada"
+          : `${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días de cobertura`,
+      ].join(" · ")
+    : tareaPrioritaria?.descripcion ||
+      "Aún no hay evidencia suficiente para explicar una oportunidad de producto.";
+
   const historialCampana = Array.isArray(
     campanaPrioritaria?.resultado?.historial
   )
     ? campanaPrioritaria.resultado.historial
     : [];
+
+  const rutaCampana = [
+    {
+      etiqueta: "Datos SICAR vigentes",
+      detalle: oportunidadVigente
+        ? "Ventas e inventario recientes"
+        : "Actualizar ventas e inventario",
+      completado: oportunidadVigente,
+    },
+    {
+      etiqueta: "Campaña preparada",
+      detalle: campanaPrioritaria
+        ? "Producto, objetivo y canal definidos"
+        : "Falta elegir una oportunidad real",
+      completado: Boolean(campanaPrioritaria),
+    },
+    {
+      etiqueta: "Contenido preparado",
+      detalle: campanaPrioritaria?.estrategia_ia
+        ?.kitPublicacion
+        ? "Kit disponible para revisión"
+        : "Falta generar y revisar el kit",
+      completado: Boolean(
+        campanaPrioritaria?.estrategia_ia
+          ?.kitPublicacion
+      ),
+    },
+    {
+      etiqueta: "Seguimiento iniciado",
+      detalle:
+        String(
+          campanaPrioritaria?.estado || ""
+        ).toUpperCase() === "ACTIVA"
+          ? "Campaña activa dentro de MONYS"
+          : "Falta iniciar la medición",
+      completado:
+        String(
+          campanaPrioritaria?.estado || ""
+        ).toUpperCase() === "ACTIVA",
+    },
+    {
+      etiqueta: "Resultado comprobado",
+      detalle: historialCampana.length
+        ? `${historialCampana.length} avance${
+            historialCampana.length === 1
+              ? ""
+              : "s"
+          } registrado${
+            historialCampana.length === 1
+              ? ""
+              : "s"
+          }`
+        : "Falta registrar publicación y resultados",
+      completado:
+        historialCampana.length > 0,
+    },
+  ];
+
+  const pasosRutaCompletados =
+    rutaCampana.filter(
+      (paso) => paso.completado
+    ).length;
+
+  const turnosAgencia = [
+    {
+      icono: "🔎",
+      agente: "Analista IA",
+      entrega: "Datos y oportunidad",
+      paso: rutaCampana[0],
+    },
+    {
+      icono: "🧭",
+      agente: "Estratega IA",
+      entrega: "Campaña y prueba",
+      paso: rutaCampana[1],
+    },
+    {
+      icono: "🎬",
+      agente: "Creativo IA",
+      entrega: "Contenido y CTA",
+      paso: rutaCampana[2],
+    },
+    {
+      icono: "📣",
+      agente: "Campañas IA",
+      entrega: "Publicación y medición",
+      paso: rutaCampana[3],
+    },
+    {
+      icono: "📈",
+      agente: "Rentabilidad IA",
+      entrega: "Venta, utilidad y decisión",
+      paso: rutaCampana[4],
+    },
+  ];
+  const turnoAgenciaActivo = Math.max(
+    0,
+    turnosAgencia.findIndex(
+      (turno) => !turno.paso.completado
+    )
+  );
+
+  const porcentajeRutaCampana =
+    Math.round(
+      (pasosRutaCompletados /
+        rutaCampana.length) *
+        100
+    );
+
+  const agendaVisible = (Array.isArray(agendaSemana)
+    ? [...agendaSemana]
+    : []
+  )
+    .sort((tareaA, tareaB) =>
+      `${tareaA?.fecha || ""} ${tareaA?.hora_limite || "99:99"}`.localeCompare(
+        `${tareaB?.fecha || ""} ${tareaB?.hora_limite || "99:99"}`
+      )
+    )
+    .slice(0, 4);
+
+  const etiquetaFechaAgenda = (fecha) => {
+    if (!fecha) {
+      return "Fecha pendiente";
+    }
+
+    const valor = new Date(`${fecha}T12:00:00`);
+
+    if (Number.isNaN(valor.getTime())) {
+      return fecha;
+    }
+
+    return new Intl.DateTimeFormat("es-MX", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "America/Mexico_City",
+    }).format(valor);
+  };
 
   const accionSugerida = tareaPrioritaria
     ? {
@@ -182,6 +510,18 @@ export default function CentroTrabajoGrowth({
           ejecutar: () =>
             onAbrirModulo?.("RESULTADOS"),
         }
+      : oportunidadPrioritaria && !oportunidadVigente
+      ? {
+          titulo: "Actualizar SICAR antes de recomendar la primera campaña",
+          descripcion:
+            `La sugerencia disponible usa ventas ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Primero actualiza los reportes de la sucursal; después MONYS volverá a priorizar el producto y el canal.`,
+          criterio:
+            "No preparar una campaña usando ventas o existencias desactualizadas.",
+          etiqueta: "Datos desactualizados",
+          clase: "growth-workspace__status--warning",
+          boton: "Revisar oportunidades",
+          ejecutar: () => onAbrirModulo?.("OPORTUNIDADES"),
+        }
       : oportunidadPrioritaria
       ? {
           titulo: `Validar oportunidad: ${
@@ -190,14 +530,16 @@ export default function CentroTrabajoGrowth({
             "producto con potencial"
           }`,
           descripcion:
-            "MONYS detectó esta oportunidad con inventario y ventas recientes; muestra el margen cuando la importación lo contiene. Revisa la evidencia y prepara una prueba pequeña antes de invertir.",
+            `Datos de la sucursal: ${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia y ${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días de cobertura.${oportunidadPrioritaria.fuente?.ventas ? ` Ventas recientes: ${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} piezas.` : " No hay ventas recientes coincidentes para confirmar demanda."}${oportunidadPrioritaria.margenReal == null ? " Margen sin confirmar." : ` Margen importado: ${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%.`} ${Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length ? oportunidadPrioritaria.razones.join(" · ") + "." : "Revisa la evidencia disponible."}`,
           criterio:
             "Seleccionar la oportunidad y preparar una prueba medible; no se estima venta futura sin evidencia.",
           etiqueta: "Oportunidad con datos reales",
           clase: "growth-workspace__status--ready",
           boton: "Revisar y preparar prueba",
           ejecutar: () =>
-            onAbrirModulo?.("OPORTUNIDADES"),
+            onTrabajarOportunidad
+              ? onTrabajarOportunidad(oportunidadPrioritaria)
+              : onAbrirModulo?.("OPORTUNIDADES"),
         }
       : {
           titulo:
@@ -237,9 +579,15 @@ export default function CentroTrabajoGrowth({
           <p>
             Directora de Crecimiento
           </p>
+          <span className="growth-workspace__tagline">
+            Ideas que venden, resultados que crecen
+          </span>
         </div>
 
         <div className="growth-workspace__company-panel">
+          <span className="growth-workspace__date">
+            {fechaLocal()}
+          </span>
           <button
             type="button"
             className="growth-workspace__company"
@@ -316,46 +664,6 @@ export default function CentroTrabajoGrowth({
               </div>
             )}
 
-            {oportunidadPrioritaria && !tareaPrioritaria && !campanaPrioritaria && (
-              <div className="growth-workspace__opportunity-signal">
-                <span className="growth-workspace__opportunity-label">
-                  Señal encontrada en datos internos
-                </span>
-                <div className="growth-workspace__opportunity-facts">
-                  <span>
-                    <strong>{Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")}</strong>
-                    piezas en inventario
-                  </span>
-                  <span>
-                    <strong>{Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")}</strong>
-                    vendidas en {Number(oportunidadPrioritaria.diasAnalizados || 7)} días
-                  </span>
-                  <span>
-                    <strong>
-                      {oportunidadPrioritaria.margenReal !== null && oportunidadPrioritaria.margenReal !== undefined
-                        ? `${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%`
-                        : "Sin dato"}
-                    </strong>
-                    margen
-                  </span>
-                  <span>
-                    <strong>
-                      {Number(oportunidadPrioritaria.diasCobertura || 0) >= 999
-                        ? "Sin rotación"
-                        : `${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días`}
-                    </strong>
-                    cobertura estimada
-                  </span>
-                </div>
-                {Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length > 0 && (
-                  <small>{oportunidadPrioritaria.razones.join(" · ")}</small>
-                )}
-                <small className="growth-workspace__opportunity-caveat">
-                  La venta potencial no se inventa: se valida con una prueba y resultados reales.
-                </small>
-              </div>
-            )}
-
             <div className="growth-workspace__actions">
               <button
                 type="button"
@@ -397,7 +705,331 @@ export default function CentroTrabajoGrowth({
             </small>
           </div>
         </div>
+
+        <div className="growth-workspace__daily-context">
+          <article>
+            <span>Producto prioritario</span>
+            <strong>{productoGrowthPrioritario}</strong>
+          </article>
+          <article>
+            <span>Canal</span>
+            <strong>{canalGrowthPrioritario}</strong>
+          </article>
+          <article>
+            <span>Por qué</span>
+            <strong>{evidenciaGrowth}</strong>
+          </article>
+          <article>
+            <span>Valor que se medirá</span>
+            <strong>Ventas confirmadas, pedidos y utilidad incremental. Sin proyección hasta registrar resultados.</strong>
+          </article>
+        </div>
       </div>
+
+      <section className="growth-workspace__agenda-preview">
+        <div className="growth-workspace__agenda-heading">
+          <div>
+            <span>Calendario de trabajo</span>
+            <strong>Tu semana con tareas y horarios</strong>
+          </div>
+
+          <b>{tareasSemana} programadas</b>
+        </div>
+
+        {agendaVisible.length > 0 ? (
+          <div className="growth-workspace__agenda-list">
+            {agendaVisible.map((tarea) => (
+              <article key={tarea.id}>
+                <div>
+                  <span>{etiquetaFechaAgenda(tarea.fecha)}</span>
+                  <strong>{tarea.hora_limite || "Sin hora"}</strong>
+                </div>
+
+                <p>{tarea.titulo}</p>
+
+                <em>
+                  {String(tarea.estado || "pendiente").replaceAll("_", " ")}
+                </em>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="growth-workspace__agenda-empty">
+            <span aria-hidden="true">📅</span>
+            <div>
+              <strong>Aún no hay tareas autorizadas para Kary</strong>
+              <p>
+                El calendario está listo. Cuando Mónica autorice el plan semanal,
+                aquí aparecerán cada actividad y su hora.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="growth-workspace__agenda-button"
+          onClick={onVerSemana}
+        >
+          Ver calendario completo
+          <span aria-hidden="true">→</span>
+        </button>
+      </section>
+
+      <section className="growth-workspace__agency-live">
+        <div className="growth-workspace__agency-heading">
+          <div>
+            <span>Agencia IA trabajando</span>
+            <strong>
+              {turnosAgencia.every((turno) => turno.paso.completado)
+                ? "Ciclo completo · lista para decidir qué repetir"
+                : `${turnosAgencia[turnoAgenciaActivo].agente} tiene el siguiente turno`}
+            </strong>
+          </div>
+          <b>
+            {turnosAgencia.every((turno) => turno.paso.completado)
+              ? "Completado"
+              : "En preparación"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__agency-agents">
+          {turnosAgencia.map((turno, indice) => {
+            const activo =
+              !turno.paso.completado &&
+              indice === turnoAgenciaActivo;
+
+            return (
+              <article
+                key={turno.agente}
+                className={
+                  turno.paso.completado
+                    ? "growth-workspace__agency-agent growth-workspace__agency-agent--done"
+                    : activo
+                      ? "growth-workspace__agency-agent growth-workspace__agency-agent--active"
+                      : "growth-workspace__agency-agent"
+                }
+              >
+                <span aria-hidden="true">{turno.icono}</span>
+                <div>
+                  <strong>{turno.agente}</strong>
+                  <small>{turno.entrega}</small>
+                  <em>
+                    {turno.paso.completado
+                      ? "✓ Entrega comprobada"
+                      : activo
+                        ? `Ahora: ${turno.paso.detalle}`
+                        : "Espera la entrega anterior"}
+                  </em>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="growth-workspace__agency-next">
+          <span>Lo siguiente</span>
+          <strong>
+            {turnosAgencia.every((turno) => turno.paso.completado)
+              ? "Revisar utilidad y conservar el aprendizaje"
+              : turnosAgencia[turnoAgenciaActivo].paso.detalle}
+          </strong>
+          <button
+            type="button"
+            onClick={accionSugerida.ejecutar}
+          >
+            {accionSugerida.boton} →
+          </button>
+        </div>
+      </section>
+
+      <section className="growth-workspace__approval-light">
+        <div className="growth-workspace__approval-heading">
+          <div>
+            <span>Semáforo de autorización</span>
+            <strong>Lo que Kary puede hacer y lo que decide Mónica</strong>
+          </div>
+          <b>Control humano activo</b>
+        </div>
+
+        <div className="growth-workspace__approval-grid">
+          <article className={oportunidadVigente ? "is-green" : "is-red"}>
+            <span>{oportunidadVigente ? "✓" : "!"}</span>
+            <div>
+              <strong>Datos para decidir</strong>
+              <small>{oportunidadVigente ? "Ventas e inventario vigentes" : "Bloqueado hasta actualizar SICAR"}</small>
+            </div>
+          </article>
+
+          <article className={contenidoCampanaListo ? "is-green" : "is-amber"}>
+            <span>{contenidoCampanaListo ? "✓" : "○"}</span>
+            <div>
+              <strong>Contenido</strong>
+              <small>{contenidoCampanaListo ? "Kit preparado para revisión" : "Kary puede prepararlo; todavía no publica"}</small>
+            </div>
+          </article>
+
+          <article className={presupuestoConAutorizacion || presupuestoPropuestoCampana === 0 ? "is-green" : "is-red"}>
+            <span>{presupuestoConAutorizacion || presupuestoPropuestoCampana === 0 ? "✓" : "🔒"}</span>
+            <div>
+              <strong>Presupuesto y gasto</strong>
+              <small>
+                {presupuestoConAutorizacion
+                  ? `${moneda(presupuestoAutorizadoCampana)} autorizados por Mónica`
+                  : presupuestoPropuestoCampana > 0
+                    ? `${moneda(presupuestoPropuestoCampana)} propuestos · gasto permitido $0`
+                    : "Campaña orgánica · gasto permitido $0"}
+              </small>
+            </div>
+          </article>
+
+          <article className="is-red">
+            <span>🔒</span>
+            <div>
+              <strong>Publicación externa</strong>
+              <small>Requiere aprobación de Mónica y conexión oficial del canal</small>
+            </div>
+          </article>
+        </div>
+
+        <div className="growth-workspace__approval-action">
+          <p>
+            Kary puede analizar, diseñar y preparar. No puede publicar anuncios ni gastar dinero desde MONYS sin autorización.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("CAMPANAS")}
+          >
+            Revisar campaña →
+          </button>
+        </div>
+      </section>
+
+      <section
+        className={`growth-workspace__data-readiness ${
+          oportunidadVigente
+            ? "growth-workspace__data-readiness--ready"
+            : "growth-workspace__data-readiness--blocked"
+        }`}
+      >
+        <div className="growth-workspace__data-heading">
+          <div>
+            <span>Base para decidir</span>
+            <strong>
+              {oportunidadVigente
+                ? "Datos listos para recomendar campaña"
+                : "Primera campaña recomendada protegida"}
+            </strong>
+          </div>
+
+          <b>
+            {oportunidadVigente
+              ? "✓ Lista"
+              : `${datosFaltantes.length} actualización${
+                  datosFaltantes.length === 1 ? "" : "es"
+                } pendiente${datosFaltantes.length === 1 ? "" : "s"}`}
+          </b>
+        </div>
+
+        <p>
+          {oportunidadVigente
+            ? "MONYS ya puede cruzar demanda, existencia y margen para proponer producto, canal y prueba medible. La publicación y cualquier gasto siguen requiriendo autorización humana."
+            : `MONYS no sustituye datos antiguos con estimaciones. Actualiza las fuentes marcadas; al volver a cargar esta pantalla se recalcularán producto, canal y acción sugerida. Vigencia máxima: ${limiteVigencia} días.`}
+        </p>
+
+        <div className="growth-workspace__data-sources">
+          {fuentesCampana.map((fuente) => {
+            const vigente = fuente.dato?.vigente === true;
+
+            return (
+              <article key={fuente.clave}>
+                <span
+                  className={
+                    vigente
+                      ? "growth-workspace__data-icon growth-workspace__data-icon--ready"
+                      : "growth-workspace__data-icon growth-workspace__data-icon--blocked"
+                  }
+                  aria-hidden="true"
+                >
+                  {vigente ? "✓" : "!"}
+                </span>
+                <div>
+                  <strong>{fuente.titulo}</strong>
+                  <small>{fuente.descripcion}</small>
+                  <em>
+                    {fechaDato(fuente.dato?.fecha)} · {etiquetaAntiguedad(
+                      fuente.dato?.antiguedadDias
+                    )}
+                  </em>
+                </div>
+                <b>{vigente ? "Vigente" : "Actualizar"}</b>
+              </article>
+            );
+          })}
+        </div>
+
+        {!oportunidadVigente && (
+          <button
+            type="button"
+            className="growth-workspace__data-refresh"
+            onClick={onActualizar}
+          >
+            ↻ Comprobar nuevamente los datos
+          </button>
+        )}
+      </section>
+
+      <section className="growth-workspace__campaign-route">
+        <div className="growth-workspace__campaign-route-heading">
+          <div>
+            <span>Ruta de la campaña</span>
+            <strong>
+              {pasosRutaCompletados} de {rutaCampana.length} pasos comprobados
+            </strong>
+          </div>
+          <b>{porcentajeRutaCampana}%</b>
+        </div>
+
+        <div
+          className="growth-workspace__campaign-progress"
+          role="progressbar"
+          aria-label="Preparación comprobada de la campaña"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={porcentajeRutaCampana}
+        >
+          <span
+            style={{
+              width: `${porcentajeRutaCampana}%`,
+            }}
+          />
+        </div>
+
+        <div className="growth-workspace__campaign-steps">
+          {rutaCampana.map((paso) => (
+            <article
+              key={paso.etiqueta}
+              className={
+                paso.completado
+                  ? "growth-workspace__campaign-step growth-workspace__campaign-step--done"
+                  : "growth-workspace__campaign-step"
+              }
+            >
+              <span aria-hidden="true">
+                {paso.completado ? "✓" : "○"}
+              </span>
+              <div>
+                <strong>{paso.etiqueta}</strong>
+                <small>{paso.detalle}</small>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <p>
+          Este porcentaje mide pasos operativos confirmados; no estima ventas ni resultados futuros.
+        </p>
+      </section>
 
       <div className="growth-workspace__metrics">
         <article>
@@ -421,7 +1053,7 @@ export default function CentroTrabajoGrowth({
         <article>
           <span>Terminadas</span>
           <strong>{terminadas}</strong>
-          <small>valor entregado hoy</small>
+          <small>tareas cerradas hoy</small>
         </article>
       </div>
 
@@ -442,27 +1074,36 @@ export default function CentroTrabajoGrowth({
 
         <div className="growth-workspace__impact-grid">
           <article>
-            <span>Campañas activas</span>
+            <span>Campañas en curso</span>
             <strong>{resumenCampanas.activas}</strong>
           </article>
           <article>
             <span>Ventas atribuidas</span>
-            <strong>{moneda(resumenCampanas.ventas)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.ventas,
+              resumenCampanas.campanasConVentas
+            )}</strong>
           </article>
           <article>
             <span>Inversión</span>
-            <strong>{moneda(resumenCampanas.inversion)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.inversion,
+              resumenCampanas.campanasConInversion
+            )}</strong>
           </article>
           <article>
             <span>Utilidad estimada</span>
-            <strong>{moneda(resumenCampanas.utilidad)}</strong>
+            <strong>{valorAcumulado(
+              resumenCampanas.utilidad,
+              resumenCampanas.campanasConUtilidad
+            )}</strong>
           </article>
         </div>
 
         {resumenCampanas.decision && (
           <div className="growth-workspace__decision">
             <span>Decisión pendiente</span>
-            MONYS recomienda {resumenCampanas.decision.accion.toLowerCase()} {resumenCampanas.decision.producto}.
+            MONYS recomienda {textoDecision} {resumenCampanas.decision.producto}.
           </div>
         )}
       </div>
@@ -506,6 +1147,18 @@ export default function CentroTrabajoGrowth({
 
         <button
           type="button"
+          onClick={() => onAbrirModulo?.("CONTENIDO")}
+        >
+          <span className="growth-workspace__command-icon">↗</span>
+          <span>
+            <strong>Preparar publicación</strong>
+            <small>Revisar kit · no publica en redes</small>
+          </span>
+          <b aria-hidden="true">→</b>
+        </button>
+
+        <button
+          type="button"
           onClick={() => onAbrirModulo?.("RESULTADOS")}
         >
           <span className="growth-workspace__command-icon">↗</span>
@@ -516,6 +1169,10 @@ export default function CentroTrabajoGrowth({
           <b aria-hidden="true">→</b>
         </button>
       </div>
+
+      <p className="growth-workspace__publishing-note">
+        Preparar o agendar contenido aquí no lo publica en redes. Para publicar anuncios hace falta conectar la cuenta y autorizarlo.
+      </p>
 
       <div className="growth-workspace__principle">
         <span>✦</span>
