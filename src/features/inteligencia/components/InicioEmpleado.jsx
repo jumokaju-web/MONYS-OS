@@ -40,7 +40,8 @@ export default function InicioEmpleado({
       style={{
         minHeight: "100vh",
         background: "#fff7fb",
-        paddingBottom: "90px",
+        paddingBottom:
+          "calc(112px + env(safe-area-inset-bottom, 0px))",
       }}
     >
       {/* ======================================
@@ -256,6 +257,8 @@ export default function InicioEmpleado({
           borderTop:
             "1px solid #ead7e1",
           minHeight: "64px",
+          paddingBottom:
+            "env(safe-area-inset-bottom, 0px)",
           display: "flex",
           alignItems: "center",
           justifyContent:
