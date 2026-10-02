@@ -1042,7 +1042,7 @@ export async function revisarContenidoMarketing({
 export async function guardarResultadoMarketing({
   tareaId,
   canal = "",
-  publicacion = "PUBLICADA",
+  publicacion = "",
   alcance = 0,
   leads = 0,
   ventas = 0,
@@ -1062,29 +1062,94 @@ export async function guardarResultadoMarketing({
     );
   }
 
+  const publicacionNormalizada =
+    String(publicacion || "")
+      .trim()
+      .toUpperCase();
+
+  if (
+    ![
+      "PUBLICADA",
+      "NO_PUBLICADA",
+    ].includes(publicacionNormalizada)
+  ) {
+    throw new Error(
+      "Confirma si el contenido sí se publicó."
+    );
+  }
+
+  const valoresNumericos = {
+    alcance: Number(alcance || 0),
+    leads: Number(leads || 0),
+    ventas: Number(ventas || 0),
+    monto: Number(monto || 0),
+    gasto: Number(gasto || 0),
+  };
+
+  if (
+    !Object.values(
+      valoresNumericos
+    ).every(Number.isFinite)
+  ) {
+    throw new Error(
+      "Revisa las cifras capturadas; todas deben ser números válidos."
+    );
+  }
+
+  if (
+    Object.values(
+      valoresNumericos
+    ).some((valor) => valor < 0)
+  ) {
+    throw new Error(
+      "Las métricas reales no pueden ser negativas."
+    );
+  }
+
+  const hayResultadoExplicito = [
+    alcance,
+    leads,
+    ventas,
+    monto,
+    gasto,
+  ].some(
+    (valor) =>
+      String(valor).trim() !== ""
+  ) || String(observacion || "").trim() !== "";
+
+  if (
+    publicacionNormalizada ===
+      "PUBLICADA" &&
+    !hayResultadoExplicito
+  ) {
+    throw new Error(
+      "Registra el resultado observado. Puedes escribir 0 cuando la métrica real fue cero."
+    );
+  }
+
   const resultadoMarketing = {
     tipo: "marketing",
 
     publicacion:
-      String(publicacion || "PUBLICADA").trim(),
+      publicacionNormalizada,
 
     canal:
       String(canal || "").trim(),
 
     alcance:
-      Number(alcance || 0),
+      valoresNumericos.alcance,
 
     leads:
-      Number(leads || 0),
+      valoresNumericos.leads,
 
     ventas:
-      Number(ventas || 0),
+      valoresNumericos.ventas,
 
     monto:
-      Number(monto || 0),
+      valoresNumericos.monto,
 
     gasto:
-      Number(gasto || 0),
+      valoresNumericos.gasto,
 
     observacion:
       String(
