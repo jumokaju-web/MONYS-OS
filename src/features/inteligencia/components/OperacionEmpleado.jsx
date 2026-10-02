@@ -3770,6 +3770,33 @@ const aprendizajeProvisionalGrowth =
   campanaGuardada?.resultado?.aprendizajeProvisional || {};
 const ultimoResultadoGrowth =
   campanaGuardada?.resultado?.historial?.at?.(-1) || {};
+const historialGrowth = Array.isArray(
+  campanaGuardada?.resultado?.historial
+)
+  ? campanaGuardada.resultado.historial
+  : [];
+const campoGrowthConfirmado = (campo) =>
+  resultadoGrowthActual?.camposConfirmados?.[campo] === true ||
+  historialGrowth.some(
+    (registro) =>
+      registro?.camposConfirmados?.[campo] === true ||
+      Number(registro?.[campo]) > 0
+  );
+const formatoMetricaGrowth = (campo, valor) =>
+  campoGrowthConfirmado(campo)
+    ? Number(valor || 0).toLocaleString("es-MX")
+    : "Sin confirmar";
+const tasaEmbudoGrowth = (campoOrigen, origen, campoDestino, destino) => {
+  if (
+    !campoGrowthConfirmado(campoOrigen) ||
+    !campoGrowthConfirmado(campoDestino) ||
+    Number(origen) <= 0
+  ) {
+    return "Sin tasa todavía";
+  }
+
+  return `${((Number(destino || 0) / Number(origen)) * 100).toFixed(1)}% conversión`;
+};
 const productosCampanaGuardada = Array.isArray(
   campanaGuardada?.estrategia_ia?.productosSeleccionadosGrowth
 )
@@ -4959,6 +4986,29 @@ async function guardarSeguimientoCampana() {
           ?.mensajesAcumulados || 0
       ) + mensajesNuevos;
 
+    const camposConfirmados = {
+      alcance:
+        resultadoAnterior?.camposConfirmados?.alcance === true ||
+        String(alcanceCampana).trim() !== "" ||
+        alcanceAcumulado > 0,
+      mensajes:
+        resultadoAnterior?.camposConfirmados?.mensajes === true ||
+        String(mensajesCampana).trim() !== "" ||
+        mensajesAcumulados > 0,
+      pedidos:
+        resultadoAnterior?.camposConfirmados?.pedidos === true ||
+        String(pedidosCampana).trim() !== "" ||
+        pedidosAcumulados > 0,
+      venta:
+        resultadoAnterior?.camposConfirmados?.venta === true ||
+        String(ventaCampana).trim() !== "" ||
+        ventaAcumulada > 0,
+      gasto:
+        resultadoAnterior?.camposConfirmados?.gasto === true ||
+        String(gastoCampana).trim() !== "" ||
+        gastoAcumulado > 0,
+    };
+
     const evaluacionGrowth = evaluarResultadoCampanaGrowth({
       gastoAcumulado,
       pedidosAcumulados,
@@ -4969,6 +5019,9 @@ async function guardarSeguimientoCampana() {
           ?.datosRentabilidadBase
           ?.margenReal,
       publicacion: publicacionCampana,
+      gastoConfirmado: camposConfirmados.gasto,
+      pedidosConfirmados: camposConfirmados.pedidos,
+      ventaConfirmada: camposConfirmados.venta,
     });
 
     const registroNuevo = {
@@ -5001,6 +5054,14 @@ async function guardarSeguimientoCampana() {
       nota:
         String(observacionCampana || "").trim(),
 
+      camposConfirmados: {
+        alcance: String(alcanceCampana).trim() !== "",
+        mensajes: String(mensajesCampana).trim() !== "",
+        pedidos: String(pedidosCampana).trim() !== "",
+        venta: String(ventaCampana).trim() !== "",
+        gasto: String(gastoCampana).trim() !== "",
+      },
+
       registradoEn:
         new Date().toISOString(),
     };
@@ -5013,6 +5074,7 @@ async function guardarSeguimientoCampana() {
       ventaAcumulada,
       alcanceAcumulado,
       mensajesAcumulados,
+      camposConfirmados,
       ...evaluacionGrowth,
 
       historial: [
@@ -5862,17 +5924,37 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
       }}
     >
       {campanaGuardada?.id ? (
+        <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(125px, 1fr))", gap: "8px", marginTop: "10px" }}>
-          <span>Venta acumulada<br /><strong>{formatoMonedaGrowth(resultadoGrowthActual.ventaAcumulada)}</strong></span>
-          <span>Inversión<br /><strong>{formatoMonedaGrowth(resultadoGrowthActual.gastoAcumulado)}</strong></span>
-          <span>Alcance<br /><strong>{Number(resultadoGrowthActual.alcanceAcumulado || 0)}</strong></span>
-          <span>Mensajes<br /><strong>{Number(resultadoGrowthActual.mensajesAcumulados || 0)}</strong></span>
-          <span>Pedidos<br /><strong>{Number(resultadoGrowthActual.pedidosAcumulados || 0)}</strong></span>
+          <span>Venta acumulada<br /><strong>{campoGrowthConfirmado("venta") ? formatoMonedaGrowth(resultadoGrowthActual.ventaAcumulada) : "Sin confirmar"}</strong></span>
+          <span>Inversión<br /><strong>{campoGrowthConfirmado("gasto") ? formatoMonedaGrowth(resultadoGrowthActual.gastoAcumulado) : "Sin confirmar"}</strong></span>
+          <span>Alcance<br /><strong>{formatoMetricaGrowth("alcance", resultadoGrowthActual.alcanceAcumulado)}</strong></span>
+          <span>Mensajes<br /><strong>{formatoMetricaGrowth("mensajes", resultadoGrowthActual.mensajesAcumulados)}</strong></span>
+          <span>Pedidos<br /><strong>{formatoMetricaGrowth("pedidos", resultadoGrowthActual.pedidosAcumulados)}</strong></span>
           <span>Costo por pedido<br /><strong>{resultadoGrowthActual.costoPorPedido == null ? "Sin pedidos" : formatoMonedaGrowth(resultadoGrowthActual.costoPorPedido)}</strong></span>
           <span>Utilidad estimada<br /><strong>{resultadoGrowthActual.utilidadEstimadaCampana == null ? "Falta margen base" : formatoMonedaGrowth(resultadoGrowthActual.utilidadEstimadaCampana)}</strong></span>
           <span>Publicación<br /><strong>{ultimoResultadoGrowth.publicacion === "PUBLICADA" ? "Sí se publicó" : ultimoResultadoGrowth.publicacion === "NO_PUBLICADA" ? "No se publicó" : "Por confirmar"}</strong></span>
           <span>Decisión actual<br /><strong>{resultadoGrowthActual.decisionActual || "Pendiente de medición"}</strong></span>
         </div>
+        <div style={{ marginTop: "14px", padding: "12px", borderRadius: "12px", background: "linear-gradient(135deg, #fff0f6 0%, #fff 100%)", border: "1px solid #efc9dc" }}>
+          <strong style={{ color: "#7a234f" }}>Embudo real de la campaña</strong>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px", marginTop: "10px" }}>
+            {[
+              { etiqueta: "Vistas", valor: formatoMetricaGrowth("alcance", resultadoGrowthActual.alcanceAcumulado), tasa: "Inicio del embudo" },
+              { etiqueta: "Mensajes", valor: formatoMetricaGrowth("mensajes", resultadoGrowthActual.mensajesAcumulados), tasa: tasaEmbudoGrowth("alcance", resultadoGrowthActual.alcanceAcumulado, "mensajes", resultadoGrowthActual.mensajesAcumulados) },
+              { etiqueta: "Pedidos", valor: formatoMetricaGrowth("pedidos", resultadoGrowthActual.pedidosAcumulados), tasa: tasaEmbudoGrowth("mensajes", resultadoGrowthActual.mensajesAcumulados, "pedidos", resultadoGrowthActual.pedidosAcumulados) },
+              { etiqueta: "Venta", valor: campoGrowthConfirmado("venta") ? formatoMonedaGrowth(resultadoGrowthActual.ventaAcumulada) : "Sin confirmar", tasa: campoGrowthConfirmado("pedidos") && campoGrowthConfirmado("venta") && Number(resultadoGrowthActual.pedidosAcumulados) > 0 ? `${formatoMonedaGrowth(Number(resultadoGrowthActual.ventaAcumulada || 0) / Number(resultadoGrowthActual.pedidosAcumulados))} por pedido` : "Sin ticket todavía" },
+            ].map((paso, indice) => (
+              <div key={paso.etiqueta} style={{ position: "relative", padding: "10px", borderRadius: "10px", background: "#ffffff", border: "1px solid #f2dce7" }}>
+                <small style={{ color: "#8a6175" }}>{indice + 1}. {paso.etiqueta}</small>
+                <strong style={{ display: "block", marginTop: "3px", color: "#681b43", fontSize: "16px" }}>{paso.valor}</strong>
+                <small style={{ color: "#6f6470" }}>{paso.tasa}</small>
+              </div>
+            ))}
+          </div>
+          <small style={{ display: "block", marginTop: "9px", color: "#7a6470" }}>MONYS solo calcula conversiones con campos confirmados por Kary. Escribe 0 cuando el resultado real haya sido cero.</small>
+        </div>
+        </>
       ) : (
         <>Todavía no hay una campaña cargada para mostrar resultados. Diseña o registra una campaña y captura sus avances reales; no se mostrarán cifras estimadas como ventas reales.</>
       )}
