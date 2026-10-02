@@ -284,6 +284,28 @@ export default function CentroTrabajoGrowth({
       : "") ||
     "Por definir antes de publicar";
 
+  const controlFinancieroCampana =
+    campanaPrioritaria?.estrategia_ia?.controlFinanciero || {};
+  const presupuestoPropuestoCampana = Number(
+    controlFinancieroCampana.presupuestoPropuesto || 0
+  );
+  const presupuestoAutorizadoCampana = Number(
+    campanaPrioritaria?.presupuesto || 0
+  );
+  const presupuestoConAutorizacion =
+    presupuestoAutorizadoCampana > 0 &&
+    (
+      controlFinancieroCampana.estadoAutorizacion ===
+        "AUTORIZADO_POR_MONICA" ||
+      Number(
+        campanaPrioritaria?.resultado?.autorizacionDueno
+          ?.presupuestoNuevo || 0
+      ) >= presupuestoAutorizadoCampana
+    );
+  const contenidoCampanaListo = Boolean(
+    campanaPrioritaria?.estrategia_ia?.kitPublicacion
+  );
+
   const evidenciaGrowth =
     oportunidadPrioritaria && !oportunidadVigente
       ? `Ventas: ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} · inventario: ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Actualiza los reportes antes de decidir.`
@@ -736,6 +758,68 @@ export default function CentroTrabajoGrowth({
             onClick={accionSugerida.ejecutar}
           >
             {accionSugerida.boton} →
+          </button>
+        </div>
+      </section>
+
+      <section className="growth-workspace__approval-light">
+        <div className="growth-workspace__approval-heading">
+          <div>
+            <span>Semáforo de autorización</span>
+            <strong>Lo que Kary puede hacer y lo que decide Mónica</strong>
+          </div>
+          <b>Control humano activo</b>
+        </div>
+
+        <div className="growth-workspace__approval-grid">
+          <article className={oportunidadVigente ? "is-green" : "is-red"}>
+            <span>{oportunidadVigente ? "✓" : "!"}</span>
+            <div>
+              <strong>Datos para decidir</strong>
+              <small>{oportunidadVigente ? "Ventas e inventario vigentes" : "Bloqueado hasta actualizar SICAR"}</small>
+            </div>
+          </article>
+
+          <article className={contenidoCampanaListo ? "is-green" : "is-amber"}>
+            <span>{contenidoCampanaListo ? "✓" : "○"}</span>
+            <div>
+              <strong>Contenido</strong>
+              <small>{contenidoCampanaListo ? "Kit preparado para revisión" : "Kary puede prepararlo; todavía no publica"}</small>
+            </div>
+          </article>
+
+          <article className={presupuestoConAutorizacion || presupuestoPropuestoCampana === 0 ? "is-green" : "is-red"}>
+            <span>{presupuestoConAutorizacion || presupuestoPropuestoCampana === 0 ? "✓" : "🔒"}</span>
+            <div>
+              <strong>Presupuesto y gasto</strong>
+              <small>
+                {presupuestoConAutorizacion
+                  ? `${moneda(presupuestoAutorizadoCampana)} autorizados por Mónica`
+                  : presupuestoPropuestoCampana > 0
+                    ? `${moneda(presupuestoPropuestoCampana)} propuestos · gasto permitido $0`
+                    : "Campaña orgánica · gasto permitido $0"}
+              </small>
+            </div>
+          </article>
+
+          <article className="is-red">
+            <span>🔒</span>
+            <div>
+              <strong>Publicación externa</strong>
+              <small>Requiere aprobación de Mónica y conexión oficial del canal</small>
+            </div>
+          </article>
+        </div>
+
+        <div className="growth-workspace__approval-action">
+          <p>
+            Kary puede analizar, diseñar y preparar. No puede publicar anuncios ni gastar dinero desde MONYS sin autorización.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("CAMPANAS")}
+          >
+            Revisar campaña →
           </button>
         </div>
       </section>

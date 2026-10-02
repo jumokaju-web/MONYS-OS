@@ -719,12 +719,22 @@ for (
       convertirNumero(
         campana.presupuesto
       );
+    const presupuestoPropuesto =
+      convertirNumero(
+        campana?.estrategia_ia
+          ?.controlFinanciero
+          ?.presupuestoPropuesto
+      );
+    const presupuestoSugerido =
+      presupuestoPropuesto > presupuestoActual
+        ? presupuestoPropuesto
+        : presupuestoActual;
 
     const respuesta = window.prompt(
       `Presupuesto autorizado actual: ${formatearDinero(
         presupuestoActual
       )}. Escribe el nuevo presupuesto total autorizado:`,
-      String(presupuestoActual)
+      String(presupuestoSugerido)
     );
 
     if (respuesta === null) {
@@ -776,7 +786,10 @@ for (
           : [];
 
       const autorizacionPresupuesto = {
-        accion: "AUMENTAR_PRESUPUESTO",
+        accion:
+          presupuestoActual > 0
+            ? "AUMENTAR_PRESUPUESTO"
+            : "AUTORIZAR_PRESUPUESTO_INICIAL",
         fecha: new Date().toISOString(),
         usuarioId:
           usuario?.id || null,
@@ -794,6 +807,24 @@ for (
           {
             presupuesto:
               nuevoPresupuesto,
+            estrategia_ia: {
+              ...(campana.estrategia_ia || {}),
+              controlFinanciero: {
+                ...(campana?.estrategia_ia
+                  ?.controlFinanciero || {}),
+                presupuestoPropuesto:
+                  presupuestoPropuesto || nuevoPresupuesto,
+                presupuestoAutorizado:
+                  nuevoPresupuesto,
+                estadoAutorizacion:
+                  "AUTORIZADO_POR_MONICA",
+                requiereAutorizacion: false,
+                autorizadoEn:
+                  autorizacionPresupuesto.fecha,
+                autorizadoPor:
+                  autorizacionPresupuesto.usuarioNombre,
+              },
+            },
             resultado: {
               ...resultadoActual,
               autorizacionDueno:
@@ -2280,6 +2311,16 @@ for (
                 const ultimoRegistro =
                   historialResultados.at(-1) ||
                   null;
+                const presupuestoPropuesto =
+                  convertirNumero(
+                    campana?.estrategia_ia
+                      ?.controlFinanciero
+                      ?.presupuestoPropuesto
+                  );
+                const presupuestoAutorizado =
+                  convertirNumero(
+                    campana.presupuesto
+                  );
 
                 return (
                   <div
@@ -2348,15 +2389,21 @@ for (
                       </div>    
 
                       <div>
-                        <strong>
-                          Presupuesto
-                        </strong>
-                        <br />
-                        {formatearDinero(
-                          convertirNumero(
-                            campana.presupuesto
-                          )
+                        <strong>Presupuesto</strong>
+                        <br />Propuesto: {formatearDinero(
+                          presupuestoPropuesto
                         )}
+                        <br />Autorizado: {formatearDinero(
+                          presupuestoAutorizado
+                        )}
+                        <br />
+                        <small style={{ color: presupuestoAutorizado > 0 ? "#166534" : "#991b1b", fontWeight: "800" }}>
+                          {presupuestoAutorizado > 0
+                            ? "Autorización registrada"
+                            : presupuestoPropuesto > 0
+                              ? "Pendiente de Mónica · gasto permitido $0"
+                              : "Campaña orgánica · gasto $0"}
+                        </small>
                       </div>
 
                       <div>
@@ -3004,7 +3051,9 @@ for (
                       capacidadCompra
                     ) <= 0
                       ? "🔒 Sin presupuesto disponible"
-                      : "💰 Autorizar nuevo presupuesto"}
+                      : presupuestoAutorizado > 0
+                        ? "💰 Autorizar aumento de presupuesto"
+                        : "🛡️ Autorizar presupuesto inicial"}
                   </button>
                 </div>
               );
