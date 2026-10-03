@@ -191,6 +191,7 @@ function CentroInteligencia({
   cargandoDashboard,
   errorDashboard,
   volverAlDashboard,
+  onAbrirImportador,
   importacionId,
 }) {
   const [
@@ -832,6 +833,9 @@ const analisisRH =
           }
           onVolverAlDashboard={
             volverAlDashboard
+          }
+          onAbrirImportador={
+            onAbrirImportador
           }
         />
       )}
