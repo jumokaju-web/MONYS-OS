@@ -21,6 +21,7 @@ movimientos = [],
   abrirCompraMaestra,
   abrirUsuarios,
   abrirImportador,
+  abrirFlotilla,
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
@@ -170,7 +171,8 @@ const utilidadConsolidada =
     <main
       style={{
         minHeight: "100vh",
-        background: "#fff8fb",
+        background:
+          "radial-gradient(circle at 85% 0%, #fde7f2 0, transparent 30%), #fff9fc",
         paddingBottom: "40px",
       }}
     >
@@ -180,7 +182,8 @@ const utilidadConsolidada =
         style={{
           width: "min(100% - 24px, 1100px)",
           margin: "0 auto",
-          paddingTop: "18px",
+          paddingTop: "20px",
+          textAlign: "left",
         }}
       >
         {/* SALUDO */}
@@ -188,6 +191,13 @@ const utilidadConsolidada =
         <div
           style={{
             marginBottom: "14px",
+            padding: "20px",
+            border: "1px solid #efdce6",
+            borderRadius: "22px",
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,241,247,.96))",
+            boxShadow:
+              "0 14px 38px rgba(105, 37, 72, 0.08)",
           }}
         >
           <div
@@ -204,7 +214,8 @@ const utilidadConsolidada =
           <h1
             style={{
               margin: "4px 0 3px",
-              fontSize: "28px",
+              fontSize: "clamp(26px, 4vw, 38px)",
+              letterSpacing: "-0.8px",
               color: "#291d23",
             }}
           >
@@ -228,12 +239,13 @@ const utilidadConsolidada =
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(3, minmax(0, 1fr))",
+              "repeat(auto-fit, minmax(190px, 1fr))",
             gap: "8px",
-            marginBottom: "14px",
+            marginBottom: "16px",
           }}
         >
           <MetricaJefa
+            icono="↗"
             titulo="Ventas"
             valor={formatoDinero(
               ventasConsolidadas
@@ -241,6 +253,7 @@ const utilidadConsolidada =
           />
 
           <MetricaJefa
+            icono="◆"
             titulo="Utilidad"
             valor={formatoDinero(
               utilidadConsolidada
@@ -248,6 +261,7 @@ const utilidadConsolidada =
           />
 
          <MetricaJefa
+  icono="◎"
   titulo="Flujo neto del periodo"
   valor={formatoDinero(
     disponible
@@ -637,7 +651,7 @@ const utilidadConsolidada =
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(2, minmax(0, 1fr))",
+              "repeat(auto-fit, minmax(190px, 1fr))",
             gap: "9px",
             marginBottom: "18px",
           }}
@@ -669,11 +683,11 @@ const utilidadConsolidada =
             }
           />
 
-            <Acceso
-  icono="📄"
-  texto="Importar reportes"
-  onClick={abrirImportador}
-/>
+          <Acceso
+            icono="🚚"
+            texto="Flotilla"
+            onClick={abrirFlotilla}
+          />
 
           <Acceso
             icono="👥"
@@ -907,6 +921,7 @@ function DatoSucursal({
 }
 
 function MetricaJefa({
+  icono,
   titulo,
   valor,
   detalle = "",
@@ -917,26 +932,32 @@ function MetricaJefa({
         background: "#ffffff",
         border: "1px solid #eadde4",
         borderRadius: "14px",
-        padding: "11px 7px",
-        textAlign: "center",
+        padding: "15px",
+        textAlign: "left",
         minWidth: 0,
+        boxShadow:
+          "0 8px 24px rgba(83, 39, 62, 0.05)",
       }}
     >
       <div
         style={{
           color: "#8a7680",
-          fontSize: "10px",
-          fontWeight: "800",
-          marginBottom: "5px",
+          fontSize: "11px",
+          fontWeight: "900",
+          marginBottom: "7px",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
         }}
       >
-        {titulo}
+        <span style={{ color: "#c72772" }}>{icono}</span>
+        <span>{titulo}</span>
       </div>
 
       <strong
         style={{
           color: "#2d2026",
-          fontSize: "13px",
+          fontSize: "clamp(15px, 2vw, 20px)",
           wordBreak: "break-word",
         }}
       >

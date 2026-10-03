@@ -155,6 +155,8 @@ function AgendaJefa({
             <div
               style={{
                 display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(260px, 1fr))",
                 gap: "9px",
               }}
             >
@@ -168,6 +170,7 @@ function AgendaJefa({
                         "1px solid #efd9d0",
                       borderRadius: "12px",
                       background: "#ffffff",
+                      textAlign: "left",
                     }}
                   >
                     <strong
