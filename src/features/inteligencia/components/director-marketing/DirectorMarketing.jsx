@@ -164,6 +164,7 @@ function obtenerEstiloPrioridad(prioridad) {
 export default function DirectorMarketing({
   analisisMarketing,
   onVolverAlDashboard,
+  onAbrirImportador,
 }) {
 
     const {
@@ -2150,6 +2151,7 @@ for (
             actualizacionDatos
   }
   onActualizarDatos={
+    onAbrirImportador ||
     onVolverAlDashboard
   }
   productoLider={productoLider}
