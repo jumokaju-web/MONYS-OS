@@ -1132,6 +1132,11 @@ if (
             "dashboard"
           )
         }
+        onAbrirImportador={() =>
+          setPantallaActual(
+            "importador"
+          )
+        }
       />
     );
   }
