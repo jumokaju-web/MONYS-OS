@@ -235,7 +235,14 @@ export function orquestarAgenciaGrowth({
   const historial = Array.isArray(resultado?.historial)
     ? resultado.historial
     : [];
-  const tieneResultados = historial.length > 0;
+  const publicacionConfirmada = historial.some(
+    (registro) => registro?.publicacion === "PUBLICADA"
+  );
+  const tieneResultados = historial.some((registro) =>
+    Object.values(registro?.camposConfirmados || {}).some(
+      (confirmado) => confirmado === true
+    )
+  );
   const campoConfirmado = (campo) =>
     resultado?.camposConfirmados?.[campo] === true ||
     historial.some(
@@ -331,10 +338,19 @@ export function orquestarAgenciaGrowth({
       accion: "Registrar presupuesto y autorización",
     },
     {
+      id: "PUBLICACION",
+      agente: "Campañas",
+      etiqueta: "Publicación",
+      detalle: "Salida real del contenido confirmada por Kary",
+      completado: publicacionConfirmada,
+      destino: "campanas-marketing-activas",
+      accion: "Confirmar la publicación real",
+    },
+    {
       id: "RESULTADO",
       agente: "Embudo",
       etiqueta: "Resultado",
-      detalle: "Publicación y avance real comprobados",
+      detalle: "Primer avance real comprobado después de publicar",
       completado: tieneResultados,
       destino: "campanas-marketing-activas",
       accion: "Registrar el primer resultado real",
@@ -393,6 +409,7 @@ export function orquestarAgenciaGrowth({
     (etapa) => etapa.completado
   ).length;
   const etapasSeguimiento = [
+    "PUBLICACION",
     "RESULTADO",
     "VENTAS",
     "UTILIDAD",
@@ -433,6 +450,7 @@ const HORARIO_POR_ETAPA = {
   CONTENIDO: "13:00",
   CANAL: "14:00",
   INVERSION: "15:00",
+  PUBLICACION: "10:00",
   RESULTADO: "17:00",
   VENTAS: "17:15",
   UTILIDAD: "17:30",
@@ -453,8 +471,10 @@ const INSTRUCCIONES_POR_ETAPA = {
     "1. Confirmar dónde está la audiencia.\n2. Adaptar formato y CTA.\n3. Validar que la cuenta correcta esté disponible.\n4. No publicar todavía.",
   INVERSION:
     "1. Registrar presupuesto propuesto.\n2. Confirmar disponibilidad financiera.\n3. Dejar la campaña pausada.\n4. Solicitar autorización de Mónica antes de gastar.",
+  PUBLICACION:
+    "1. Abrir el kit aprobado.\n2. Confirmar el canal y la cuenta correctos.\n3. Publicar manualmente solo si Kary tiene acceso y el contenido fue aprobado.\n4. Registrar si sí se publicó o por qué quedó pendiente.\n5. No activar pauta ni gasto.",
   RESULTADO:
-    "1. Confirmar si se publicó.\n2. Registrar alcance o vistas reales.\n3. Registrar mensajes y pedidos nuevos.\n4. Registrar venta y gasto reales.\n5. Adjuntar evidencia si está disponible.",
+    "1. Registrar alcance o vistas reales.\n2. Registrar mensajes y pedidos nuevos.\n3. Registrar venta y gasto reales.\n4. Adjuntar evidencia si está disponible.\n5. No completar métricas que todavía no se puedan comprobar.",
   VENTAS:
     "1. Confirmar pedidos pagados.\n2. Separar preguntas de ventas reales.\n3. Registrar venta atribuida.\n4. No contar apartados o intenciones sin pago confirmado.",
   UTILIDAD:
@@ -477,6 +497,7 @@ export function construirTareaSiguienteAgenciaGrowth({
 
   const permiteDatosDesactualizados = [
     "CONTEXTO",
+    "PUBLICACION",
     "RESULTADO",
     "VENTAS",
     "UTILIDAD",
@@ -497,6 +518,7 @@ export function construirTareaSiguienteAgenciaGrowth({
       "Completar la siguiente etapa y guardar evidencia real.",
     requiereEvidencia: [
       "CONTENIDO",
+      "PUBLICACION",
       "RESULTADO",
       "VENTAS",
     ].includes(siguiente.id),

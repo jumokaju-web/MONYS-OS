@@ -208,6 +208,101 @@ export default function CentroTrabajoGrowth({
 
   const actualizacionOportunidad =
     oportunidadPrioritaria?.actualizacionDatos || null;
+
+  const resumenEmbudo = campanas.reduce(
+    (resumen, campana) => {
+      const resultado = campana?.resultado || {};
+      const historial = Array.isArray(resultado.historial)
+        ? resultado.historial
+        : [];
+      const confirmado = (campo) =>
+        resultado?.camposConfirmados?.[campo] === true ||
+        historial.some(
+          (registro) =>
+            registro?.camposConfirmados?.[campo] === true ||
+            Number(registro?.[campo]) > 0
+        );
+      const campos = [
+        ["alcance", "alcanceAcumulado"],
+        ["mensajes", "mensajesAcumulados"],
+        ["pedidos", "pedidosAcumulados"],
+        ["venta", "ventaAcumulada"],
+      ];
+
+      campos.forEach(([campo, acumulado]) => {
+        if (!confirmado(campo)) {
+          return;
+        }
+
+        resumen[campo] += Math.max(
+          0,
+          Number(resultado?.[acumulado]) || 0
+        );
+        resumen.confirmados[campo] += 1;
+      });
+
+      return resumen;
+    },
+    {
+      alcance: 0,
+      mensajes: 0,
+      pedidos: 0,
+      venta: 0,
+      confirmados: {
+        alcance: 0,
+        mensajes: 0,
+        pedidos: 0,
+        venta: 0,
+      },
+    }
+  );
+
+  const etapasEmbudo = [
+    {
+      clave: "alcance",
+      etiqueta: "Alcance",
+      icono: "👀",
+      valor: resumenEmbudo.alcance.toLocaleString("es-MX"),
+      conversion: null,
+    },
+    {
+      clave: "mensajes",
+      etiqueta: "Mensajes",
+      icono: "💬",
+      valor: resumenEmbudo.mensajes.toLocaleString("es-MX"),
+      conversion:
+        resumenEmbudo.confirmados.alcance > 0 &&
+        resumenEmbudo.alcance > 0
+          ? `${((resumenEmbudo.mensajes / resumenEmbudo.alcance) * 100).toFixed(1)}% del alcance`
+          : null,
+    },
+    {
+      clave: "pedidos",
+      etiqueta: "Pedidos",
+      icono: "🛍️",
+      valor: resumenEmbudo.pedidos.toLocaleString("es-MX"),
+      conversion:
+        resumenEmbudo.confirmados.mensajes > 0 &&
+        resumenEmbudo.mensajes > 0
+          ? `${((resumenEmbudo.pedidos / resumenEmbudo.mensajes) * 100).toFixed(1)}% de mensajes`
+          : null,
+    },
+    {
+      clave: "venta",
+      etiqueta: "Venta confirmada",
+      icono: "💵",
+      valor: moneda(resumenEmbudo.venta),
+      conversion:
+        resumenEmbudo.confirmados.pedidos > 0 &&
+        resumenEmbudo.pedidos > 0
+          ? `${moneda(resumenEmbudo.venta / resumenEmbudo.pedidos)} por pedido`
+          : null,
+    },
+  ];
+
+  const etapasEmbudoConfirmadas = Object.values(
+    resumenEmbudo.confirmados
+  ).filter((cantidad) => cantidad > 0).length;
   const textoDecision = {
     PAUSAR: "pausar nueva inversión en",
     REPROGRAMAR_PUBLICACION: "reprogramar la publicación de",
@@ -329,6 +424,12 @@ export default function CentroTrabajoGrowth({
   )
     ? campanaPrioritaria.resultado.historial
     : [];
+  const publicacionCampanaConfirmada =
+    historialCampana.some(
+      (registro) => registro?.publicacion === "PUBLICADA"
+    );
+  const ultimaPublicacionCampana =
+    historialCampana.at(-1)?.publicacion || "";
 
   const rutaCampana = [
     {
@@ -357,17 +458,14 @@ export default function CentroTrabajoGrowth({
       ),
     },
     {
-      etiqueta: "Seguimiento iniciado",
+      etiqueta: "Publicación confirmada",
       detalle:
-        String(
-          campanaPrioritaria?.estado || ""
-        ).toUpperCase() === "ACTIVA"
-          ? "Campaña activa dentro de MONYS"
-          : "Falta iniciar la medición",
-      completado:
-        String(
-          campanaPrioritaria?.estado || ""
-        ).toUpperCase() === "ACTIVA",
+        publicacionCampanaConfirmada
+          ? "Kary confirmó que el contenido salió"
+          : ultimaPublicacionCampana === "NO_PUBLICADA"
+            ? "Kary confirmó que aún no se publicó"
+            : "Seguimiento listo; falta confirmar publicación",
+      completado: publicacionCampanaConfirmada,
     },
     {
       etiqueta: "Resultado comprobado",
@@ -449,6 +547,33 @@ export default function CentroTrabajoGrowth({
     )
     .slice(0, 4);
 
+  const agendaPropuesta = [
+    {
+      id: "propuesta-confirmar-publicacion",
+      momento: "Próximo día hábil",
+      hora: "10:00",
+      titulo: publicacionCampanaConfirmada
+        ? "Revisar el primer corte de resultados reales"
+        : `Confirmar publicación de ${
+            campanaPrioritaria?.producto ||
+            campanaPrioritaria?.nombre ||
+            "la campaña preparada"
+          }`,
+    },
+    {
+      id: "propuesta-primer-corte",
+      momento: "Mismo día",
+      hora: "17:00",
+      titulo: "Registrar alcance, mensajes, pedidos, venta y gasto real",
+    },
+    {
+      id: "propuesta-decision",
+      momento: "24 h después",
+      hora: "11:00",
+      titulo: "Revisar utilidad y decidir: continuar, mejorar o detener",
+    },
+  ];
+
   const etiquetaFechaAgenda = (fecha) => {
     if (!fecha) {
       return "Fecha pendiente";
@@ -487,7 +612,13 @@ export default function CentroTrabajoGrowth({
       }
     : campanaPrioritaria
       ? {
-          titulo: historialCampana.length
+          titulo: !publicacionCampanaConfirmada
+            ? `Confirmar publicación de ${
+                campanaPrioritaria.producto ||
+                campanaPrioritaria.nombre ||
+                "la campaña preparada"
+              }`
+            : historialCampana.length
             ? `Actualizar resultados de ${
                 campanaPrioritaria.producto ||
                 campanaPrioritaria.nombre ||
@@ -498,13 +629,22 @@ export default function CentroTrabajoGrowth({
                 campanaPrioritaria.nombre ||
                 "la campaña activa"
               }`,
-          descripcion:
-            "Captura gasto, pedidos y venta real. Con esos datos MONYS calculará costo por pedido, utilidad y decidirá si conviene continuar, mejorar, escalar o detener.",
+          descripcion: !publicacionCampanaConfirmada
+            ? "Indica si el contenido realmente se publicó. Después registra únicamente alcance, mensajes, pedidos, venta y gasto observados; MONYS no inventará resultados."
+            : "Captura gasto, pedidos y venta real. Con esos datos MONYS calculará costo por pedido, utilidad y decidirá si conviene continuar, mejorar, escalar o detener.",
           criterio:
-            "Un avance real registrado para que la campaña deje de operar sin medición.",
-          etiqueta: "Acción recomendada",
-          clase: "growth-workspace__status--active",
-          boton: historialCampana.length
+            !publicacionCampanaConfirmada
+              ? "Separar claramente una campaña preparada dentro de MONYS de una publicación realmente confirmada por Kary."
+              : "Un avance real registrado para que la campaña deje de operar sin medición.",
+          etiqueta: !publicacionCampanaConfirmada
+            ? "Confirmación necesaria"
+            : "Acción recomendada",
+          clase: !publicacionCampanaConfirmada
+            ? "growth-workspace__status--warning"
+            : "growth-workspace__status--active",
+          boton: !publicacionCampanaConfirmada
+            ? "Confirmar publicación"
+            : historialCampana.length
             ? "Actualizar resultados"
             : "Registrar primer resultado",
           ejecutar: () =>
@@ -733,7 +873,11 @@ export default function CentroTrabajoGrowth({
             <strong>Tu semana con tareas y horarios</strong>
           </div>
 
-          <b>{tareasSemana} programadas</b>
+          <b>
+            {tareasSemana > 0
+              ? `${tareasSemana} programadas`
+              : "Borrador IA listo"}
+          </b>
         </div>
 
         {agendaVisible.length > 0 ? (
@@ -754,14 +898,30 @@ export default function CentroTrabajoGrowth({
             ))}
           </div>
         ) : (
-          <div className="growth-workspace__agenda-empty">
-            <span aria-hidden="true">📅</span>
-            <div>
-              <strong>Aún no hay tareas autorizadas para Kary</strong>
-              <p>
-                El calendario está listo. Cuando Mónica autorice el plan semanal,
-                aquí aparecerán cada actividad y su hora.
-              </p>
+          <div className="growth-workspace__agenda-draft">
+            <div className="growth-workspace__agenda-draft-note">
+              <span aria-hidden="true">🛡️</span>
+              <div>
+                <strong>Plan preparado · pendiente de autorización</strong>
+                <p>
+                  Estas son propuestas de la Agencia IA; todavía no cuentan como
+                  tareas asignadas ni autorizan publicación o gasto.
+                </p>
+              </div>
+            </div>
+
+            <div className="growth-workspace__agenda-list growth-workspace__agenda-list--draft">
+              {agendaPropuesta.map((tarea) => (
+                <article key={tarea.id}>
+                  <div>
+                    <span>{tarea.momento}</span>
+                    <strong>{tarea.hora}</strong>
+                  </div>
+
+                  <p>{tarea.titulo}</p>
+                  <em>Borrador IA</em>
+                </article>
+              ))}
             </div>
           </div>
         )}
@@ -841,6 +1001,132 @@ export default function CentroTrabajoGrowth({
             {accionSugerida.boton} →
           </button>
         </div>
+      </section>
+
+      <section className="growth-workspace__funnel">
+        <div className="growth-workspace__funnel-heading">
+          <div>
+            <span>Embudo de ventas real</span>
+            <strong>De contenido visto a dinero comprobado</strong>
+          </div>
+          <b>
+            {etapasEmbudoConfirmadas > 0
+              ? `${etapasEmbudoConfirmadas}/4 etapas con datos`
+              : "Esperando primer registro"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__funnel-grid">
+          {etapasEmbudo.map((etapa, indice) => {
+            const disponible =
+              resumenEmbudo.confirmados[etapa.clave] > 0;
+
+            return (
+              <article
+                key={etapa.clave}
+                className={disponible ? "is-confirmed" : "is-empty"}
+              >
+                <div className="growth-workspace__funnel-stage">
+                  <span aria-hidden="true">{etapa.icono}</span>
+                  <small>Etapa {indice + 1}</small>
+                </div>
+                <strong>{etapa.etiqueta}</strong>
+                <b>{disponible ? etapa.valor : "Sin dato"}</b>
+                <em>
+                  {disponible
+                    ? etapa.conversion || "Dato real registrado"
+                    : "Pendiente de registrar"}
+                </em>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="growth-workspace__funnel-action">
+          <p>
+            MONYS no rellena huecos con estimaciones. Cada etapa aparece solo
+            cuando Kary registra un resultado observado.
+          </p>
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("RESULTADOS")}
+          >
+            Registrar resultados →
+          </button>
+        </div>
+      </section>
+
+      <section className="growth-workspace__publishing-center">
+        <div className="growth-workspace__publishing-heading">
+          <div>
+            <span>Centro de publicación</span>
+            <strong>
+              {contenidoCampanaListo
+                ? "Contenido listo para revisión humana"
+                : "Preparar primero el kit de publicación"}
+            </strong>
+          </div>
+          <b
+            className={
+              publicacionCampanaConfirmada ? "is-published" : "is-locked"
+            }
+          >
+            {publicacionCampanaConfirmada
+              ? "✓ Publicación confirmada"
+              : "🔒 Publicación directa bloqueada"}
+          </b>
+        </div>
+
+        <div className="growth-workspace__publishing-flow">
+          <article className={contenidoCampanaListo ? "is-ready" : ""}>
+            <span>1</span>
+            <div>
+              <strong>Preparar</strong>
+              <small>Guion, formato, texto y CTA</small>
+            </div>
+          </article>
+          <article>
+            <span>2</span>
+            <div>
+              <strong>Revisar y autorizar</strong>
+              <small>Mónica confirma producto, precio y presupuesto</small>
+            </div>
+          </article>
+          <article
+            className={publicacionCampanaConfirmada ? "is-ready" : ""}
+          >
+            <span>3</span>
+            <div>
+              <strong>Publicar y comprobar</strong>
+              <small>
+                Conexiones externas pendientes; Kary confirma el resultado real
+              </small>
+            </div>
+          </article>
+        </div>
+
+        <div className="growth-workspace__publishing-actions">
+          <button
+            type="button"
+            onClick={() => onAbrirModulo?.("CONTENIDO")}
+          >
+            {contenidoCampanaListo
+              ? "Revisar kit listo"
+              : "Preparar publicación"}
+          </button>
+          <button
+            type="button"
+            className="is-secondary"
+            onClick={() => onAbrirModulo?.("RESULTADOS")}
+          >
+            Confirmar publicación o resultado
+          </button>
+        </div>
+
+        <p>
+          Meta, TikTok, Mercado Libre, WhatsApp y ChatGPT Ads permanecen sin
+          ejecución automática hasta completar sus accesos oficiales.
+        </p>
       </section>
 
       <section className="growth-workspace__approval-light">
@@ -1074,7 +1360,7 @@ export default function CentroTrabajoGrowth({
 
         <div className="growth-workspace__impact-grid">
           <article>
-            <span>Campañas en curso</span>
+            <span>Seguimientos internos</span>
             <strong>{resumenCampanas.activas}</strong>
           </article>
           <article>

@@ -18,6 +18,10 @@ export default function InicioEmpleado({
     usuario?.role ||
     "Operación";
 
+  const esMarketing = String(puesto)
+    .toLowerCase()
+    .includes("marketing");
+
   async function cerrarSesion() {
     try {
       await supabase.auth.signOut();
@@ -36,7 +40,8 @@ export default function InicioEmpleado({
       style={{
         minHeight: "100vh",
         background: "#fff7fb",
-        paddingBottom: "90px",
+        paddingBottom:
+          "calc(112px + env(safe-area-inset-bottom, 0px))",
       }}
     >
       {/* ======================================
@@ -95,7 +100,9 @@ export default function InicioEmpleado({
               fontSize: "14px",
             }}
           >
-            {puesto}
+            {esMarketing
+              ? "Centro de Crecimiento"
+              : puesto}
           </div>
 
           <button
@@ -134,7 +141,7 @@ export default function InicioEmpleado({
       >
         {/* MENSAJE PRINCIPAL */}
 
-        <div
+        {!esMarketing && <div
           style={{
             background:
               "linear-gradient(135deg, #fff 0%, #fff4f9 100%)",
@@ -170,7 +177,7 @@ export default function InicioEmpleado({
             termina cada trabajo cuando esté
             completo.
           </div>
-        </div>
+        </div>}
 
         {/* ======================================
             OPERACIÓN INDIVIDUAL
@@ -250,6 +257,8 @@ export default function InicioEmpleado({
           borderTop:
             "1px solid #ead7e1",
           minHeight: "64px",
+          paddingBottom:
+            "env(safe-area-inset-bottom, 0px)",
           display: "flex",
           alignItems: "center",
           justifyContent:
