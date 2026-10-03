@@ -6,7 +6,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   color: #29212a;
   background: #fff7fb;
 }
@@ -22,18 +23,56 @@ button {
 }
 
 .encabezado {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 28px;
+  gap: 16px;
+  width: min(calc(100% - 32px), 1100px);
+  margin: 14px auto 0;
+  padding: 13px 16px;
+  border: 1px solid #eedee6;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(104, 38, 73, 0.08);
+}
+
+.encabezado-marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  text-align: left;
+}
+
+.monys-logo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #d72c7d, #7b2858);
+  box-shadow: 0 8px 18px rgba(174, 43, 103, 0.22);
+  font-weight: 900;
 }
 
 .marca {
+  display: block;
   color: #c72772;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 2px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  line-height: 1.2;
+}
+
+.marca-subtitulo {
+  display: block;
+  margin-top: 3px;
+  color: #766b75;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 h1 {
@@ -48,13 +87,15 @@ h1 {
 }
 
 .perfil {
-  width: 52px;
-  height: 52px;
+  width: 42px;
+  height: 42px;
   border: 0;
   border-radius: 50%;
   color: white;
   background: #c72772;
   font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 7px 16px rgba(199, 39, 114, 0.2);
 }
 
 .indicadores {
@@ -170,6 +211,20 @@ h1 {
 }
 
 @media (max-width: 480px) {
+  .encabezado {
+    width: min(calc(100% - 20px), 1100px);
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 15px;
+  }
+
+  .marca-subtitulo {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .app {
     padding: 24px 14px 60px;
   }
