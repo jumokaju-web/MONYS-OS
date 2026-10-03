@@ -498,7 +498,7 @@ const horasSinAvance =
     ? "📊 Ir a registrar avance real"
     : datosActuales
       ? "✨ Convertir estrategia en plan de trabajo"
-      : "↩️ Volver para actualizar SICAR"}
+      : "📥 Actualizar SICAR ahora"}
 </button>
       </div>
 
