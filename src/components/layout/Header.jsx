@@ -37,23 +37,19 @@ function Header() {
   return (
     <header
       className="encabezado"
-      style={{
-        position: "relative",
-      }}
     >
-      <div>
-        <span className="marca">
-          {systemConfig.app.name}
-        </span>
+      <div className="encabezado-marca">
+        <span className="monys-logo">M</span>
 
-        <h1>
-          Bienvenida, Jefa 👋
-        </h1>
+        <div>
+          <span className="marca">
+            {systemConfig.app.name}
+          </span>
 
-        <p>
-          Sistema inteligente de{" "}
-          {systemConfig.app.company}
-        </p>
+          <span className="marca-subtitulo">
+            Control inteligente de {systemConfig.app.company}
+          </span>
+        </div>
       </div>
 
       <div
@@ -64,6 +60,8 @@ function Header() {
         <button
           type="button"
           className="perfil"
+          aria-label="Abrir menú de perfil"
+          title="Perfil y sesión"
           onClick={() =>
             setMenuAbierto(
               (valor) => !valor
