@@ -32,6 +32,7 @@ import {
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import OperacionEmpleado from "../OperacionEmpleado";
 import CentroAgenciaMarketing from "./CentroAgenciaMarketing";
+import CentroPublicacionesMarketing from "./CentroPublicacionesMarketing";
 
 function convertirNumero(valor) {
   const numero = Number(valor);
@@ -1688,6 +1689,22 @@ for (
             />
           </div>
         )}
+      </div>
+
+      <div
+        id="autorizaciones-publicacion-marketing"
+        style={{
+          marginTop: "24px",
+        }}
+      >
+        <CentroPublicacionesMarketing
+          usuario={usuario}
+          organizationId={
+            usuario?.organization_id
+          }
+          businessId={usuario?.business_id}
+          soloRevision
+        />
       </div>
 
       {/* PLAN SEMANAL AUTORIZADO POR EL DUEÑO */}
