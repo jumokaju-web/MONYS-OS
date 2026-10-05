@@ -362,7 +362,12 @@ export default function CentroTrabajoGrowth({
     : [];
 
   const productoGrowthPrioritario =
-    oportunidadPrioritaria && !oportunidadVigente
+    campanaPrioritaria
+      ? productosCampanaPrioritaria.join(", ") ||
+        campanaPrioritaria?.producto ||
+        campanaPrioritaria?.nombre ||
+        "Campaña activa"
+      : oportunidadPrioritaria && !oportunidadVigente
       ? "Pendiente de reportes actuales"
       : oportunidadPrioritaria?.nombre ||
     oportunidadPrioritaria?.producto ||
@@ -371,7 +376,14 @@ export default function CentroTrabajoGrowth({
     "Por confirmar con oportunidades reales";
 
   const canalGrowthPrioritario =
-    oportunidadPrioritaria && !oportunidadVigente
+    campanaPrioritaria
+      ? campanaPrioritaria?.canal_principal ||
+        campanaPrioritaria?.estrategia_ia?.canalPrincipal ||
+        (Array.isArray(campanaPrioritaria?.estrategia_ia?.canales)
+          ? campanaPrioritaria.estrategia_ia.canales.join(", ")
+          : "") ||
+        "Por confirmar antes de publicar"
+      : oportunidadPrioritaria && !oportunidadVigente
       ? "Se define después de validar datos"
       : campanaPrioritaria?.canal_principal ||
     campanaPrioritaria?.estrategia_ia?.canalPrincipal ||
@@ -402,8 +414,24 @@ export default function CentroTrabajoGrowth({
     campanaPrioritaria?.estrategia_ia?.kitPublicacion
   );
 
+  const historialCampana = Array.isArray(
+    campanaPrioritaria?.resultado?.historial
+  )
+    ? campanaPrioritaria.resultado.historial
+    : [];
+  const publicacionCampanaConfirmada =
+    historialCampana.some(
+      (registro) => registro?.publicacion === "PUBLICADA"
+    );
+  const ultimaPublicacionCampana =
+    historialCampana.at(-1)?.publicacion || "";
+
   const evidenciaGrowth =
-    oportunidadPrioritaria && !oportunidadVigente
+    campanaPrioritaria
+      ? publicacionCampanaConfirmada
+        ? "La publicación ya fue confirmada. Falta registrar alcance, mensajes, pedidos, venta y gasto observados para medir el resultado real."
+        : "Existe una campaña preparada dentro de MONYS, pero todavía falta confirmar si realmente se publicó antes de medir resultados."
+      : oportunidadPrioritaria && !oportunidadVigente
       ? `Ventas: ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} · inventario: ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Actualiza los reportes antes de decidir.`
       : oportunidadPrioritaria
     ? [
@@ -418,18 +446,6 @@ export default function CentroTrabajoGrowth({
       ].join(" · ")
     : tareaPrioritaria?.descripcion ||
       "Aún no hay evidencia suficiente para explicar una oportunidad de producto.";
-
-  const historialCampana = Array.isArray(
-    campanaPrioritaria?.resultado?.historial
-  )
-    ? campanaPrioritaria.resultado.historial
-    : [];
-  const publicacionCampanaConfirmada =
-    historialCampana.some(
-      (registro) => registro?.publicacion === "PUBLICADA"
-    );
-  const ultimaPublicacionCampana =
-    historialCampana.at(-1)?.publicacion || "";
 
   const rutaCampana = [
     {
@@ -593,24 +609,7 @@ export default function CentroTrabajoGrowth({
     }).format(valor);
   };
 
-  const accionSugerida = tareaPrioritaria
-    ? {
-        titulo: tareaPrioritaria.titulo,
-        descripcion:
-          tareaPrioritaria.descripcion ||
-          "Completa esta acción y registra evidencia para que MONYS mida el resultado.",
-        criterio: tareaPrioritaria.criterio_exito,
-        etiqueta: estado.etiqueta,
-        clase: estado.clase,
-        boton:
-          String(
-            tareaPrioritaria.estado || ""
-          ).toLowerCase() === "pendiente"
-            ? "Empezar tarea"
-            : "Continuar tarea",
-        ejecutar: onEmpezarPrioridad,
-      }
-    : campanaPrioritaria
+  const accionSugerida = campanaPrioritaria
       ? {
           titulo: !publicacionCampanaConfirmada
             ? `Confirmar publicación de ${
@@ -659,8 +658,25 @@ export default function CentroTrabajoGrowth({
             "No preparar una campaña usando ventas o existencias desactualizadas.",
           etiqueta: "Datos desactualizados",
           clase: "growth-workspace__status--warning",
-          boton: "Revisar oportunidades",
-          ejecutar: () => onAbrirModulo?.("OPORTUNIDADES"),
+          boton: "Comprobar nuevamente los datos",
+          ejecutar: onActualizar,
+        }
+      : tareaPrioritaria
+      ? {
+          titulo: tareaPrioritaria.titulo,
+          descripcion:
+            tareaPrioritaria.descripcion ||
+            "Completa esta acción y registra evidencia para que MONYS mida el resultado.",
+          criterio: tareaPrioritaria.criterio_exito,
+          etiqueta: estado.etiqueta,
+          clase: estado.clase,
+          boton:
+            String(
+              tareaPrioritaria.estado || ""
+            ).toLowerCase() === "pendiente"
+              ? "Empezar tarea"
+              : "Continuar tarea",
+          ejecutar: onEmpezarPrioridad,
         }
       : oportunidadPrioritaria
       ? {
@@ -874,11 +890,26 @@ export default function CentroTrabajoGrowth({
           </div>
 
           <b>
-            {tareasSemana > 0
+            {!oportunidadVigente && tareasSemana > 0
+              ? `${tareasSemana} en pausa · faltan datos`
+              : tareasSemana > 0
               ? `${tareasSemana} programadas`
               : "Borrador IA listo"}
           </b>
         </div>
+
+        {!oportunidadVigente && tareasSemana > 0 && (
+          <div className="growth-workspace__agenda-draft-note">
+            <span aria-hidden="true">🛡️</span>
+            <div>
+              <strong>Plan protegido por datos vencidos</strong>
+              <p>
+                Las tareas se conservan, pero Kary no debe ejecutar una nueva
+                campaña hasta que Mónica actualice ventas e inventario SICAR.
+              </p>
+            </div>
+          </div>
+        )}
 
         {agendaVisible.length > 0 ? (
           <div className="growth-workspace__agenda-list">
@@ -892,7 +923,9 @@ export default function CentroTrabajoGrowth({
                 <p>{tarea.titulo}</p>
 
                 <em>
-                  {String(tarea.estado || "pendiente").replaceAll("_", " ")}
+                  {!oportunidadVigente
+                    ? "En pausa · datos vencidos"
+                    : String(tarea.estado || "pendiente").replaceAll("_", " ")}
                 </em>
               </article>
             ))}
