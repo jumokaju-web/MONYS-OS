@@ -167,6 +167,64 @@ const utilidadConsolidada =
     0
   );
 
+  const recordatorioPrioritario =
+    recordatoriosJefa[0] || null;
+
+  const sucursalConRiesgo =
+    sucursalesDashboard.find(
+      (sucursal) =>
+        sucursal?.tieneDatos &&
+        sucursal?.salud?.causas?.length > 0
+    ) || null;
+
+  const decisionDelDia = cargandoRecordatorios
+    ? {
+        titulo: "Analizando la operación real de hoy",
+        detalle:
+          "MONYS está ordenando pendientes, datos y riesgos antes de recomendarte una acción.",
+        boton: "Revisando datos…",
+        accion: null,
+      }
+    : movimientosPendientes > 0
+      ? {
+          titulo:
+            movimientosPendientes === 1
+              ? "Aclarar el movimiento pendiente antes de decidir con el flujo"
+              : `Aclarar ${movimientosPendientes} movimientos antes de decidir con el flujo`,
+          detalle:
+            "La prioridad es dejar confiable el dinero real antes de autorizar nuevas compras o gastos.",
+          boton: "Revisar en Tesorería",
+          accion: abrirTesoreria,
+        }
+      : recordatorioPrioritario
+        ? {
+            titulo: recordatorioPrioritario.titulo,
+            detalle: recordatorioPrioritario.detalle,
+            boton: recordatorioPrioritario.boton,
+            accion:
+              recordatorioPrioritario.tipo === "importador"
+                ? abrirImportador
+                : abrirTesoreria,
+          }
+        : sucursalConRiesgo
+          ? {
+              titulo: `Revisar ${sucursalConRiesgo.nombre}: ${
+                sucursalConRiesgo.salud?.titulo || "requiere atención"
+              }`,
+              detalle:
+                sucursalConRiesgo.salud?.causas?.[0] ||
+                "La sucursal presenta una señal que necesita revisión.",
+              boton: "Abrir Junta Directiva",
+              accion: abrirJuntaDirectiva,
+            }
+          : {
+              titulo: "La operación no presenta una decisión crítica pendiente",
+              detalle:
+                "Puedes revisar oportunidades y siguientes acciones con tus Directores IA.",
+              boton: "Abrir Junta Directiva",
+              accion: abrirJuntaDirectiva,
+            };
+
   return (
     <main
       style={{
@@ -394,8 +452,7 @@ const utilidadConsolidada =
               lineHeight: 1.25,
             }}
           >
-            MONYS está preparando qué
-            merece tu atención primero.
+            {decisionDelDia.titulo}
           </div>
 
           <div
@@ -406,14 +463,13 @@ const utilidadConsolidada =
               lineHeight: 1.45,
             }}
           >
-            Tus Directores IA deben
-            concentrarte las decisiones,
-            no darte más trabajo.
+            {decisionDelDia.detalle}
           </div>
 
           <button
             type="button"
-            onClick={abrirJuntaDirectiva}
+            onClick={decisionDelDia.accion || undefined}
+            disabled={!decisionDelDia.accion}
             style={{
               marginTop: "13px",
               width: "100%",
@@ -423,10 +479,13 @@ const utilidadConsolidada =
               borderRadius: "13px",
               padding: "12px",
               fontWeight: "900",
-              cursor: "pointer",
+              cursor: decisionDelDia.accion
+                ? "pointer"
+                : "wait",
+              opacity: decisionDelDia.accion ? 1 : 0.72,
             }}
           >
-            👑 Entrar a Junta Directiva
+            {decisionDelDia.boton}
           </button>
         </section>
 
@@ -756,25 +815,29 @@ function SucursalCard({
     sucursal?.tieneDatos;
 
   return (
-    <div
+    <details
       style={{
-        padding: "13px",
         border:
           "1px solid #eee2e8",
         borderRadius: "14px",
         background: "#fffafd",
+        overflow: "hidden",
       }}
     >
-      <div
+      <summary
         style={{
           display: "flex",
           justifyContent:
             "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
           gap: "10px",
+          padding: "13px",
+          cursor: "pointer",
+          listStyle: "none",
         }}
       >
-        <div>
+        <div style={{ minWidth: "150px", flex: "1 1 180px" }}>
           <strong
             style={{
               display: "block",
@@ -798,6 +861,25 @@ function SucursalCard({
           </div>
         </div>
 
+        {tieneDatos && (
+          <div
+            style={{
+              display: "flex",
+              gap: "18px",
+              flex: "1 1 250px",
+            }}
+          >
+            <ResumenSucursal
+              titulo="Ventas"
+              valor={formatoDinero(sucursal.ventasTotales)}
+            />
+            <ResumenSucursal
+              titulo="Utilidad"
+              valor={formatoDinero(sucursal.utilidadTotal)}
+            />
+          </div>
+        )}
+
         <span
           style={{
             padding: "6px 9px",
@@ -811,57 +893,26 @@ function SucursalCard({
             fontSize: "10px",
             fontWeight: "900",
             whiteSpace: "nowrap",
+            flex: "0 0 auto",
           }}
         >
-        
-           {tieneDatos
-  ? (
-      sucursal?.salud?.titulo ||
-      "POR EVALUAR"
-    )
-  : "SIN DATOS"}
-
-  {tieneDatos &&
-  sucursal?.salud?.causas?.length > 0 && (
-    <div
-      style={{
-        marginTop: "8px",
-        fontSize: "12px",
-        color: "#7d6e75",
-        lineHeight: "1.45",
-      }}
-    >
-      {sucursal.salud.causas[0]}
-    </div>
-  )}
-
+          {tieneDatos
+            ? sucursal?.salud?.titulo || "POR EVALUAR"
+            : "SIN DATOS"}
         </span>
-      </div>
+      </summary>
 
       {tieneDatos && (
         <div
           style={{
+            borderTop: "1px solid #eee2e8",
+            padding: "12px 13px 13px",
             display: "grid",
             gridTemplateColumns:
               "repeat(2, minmax(0, 1fr))",
             gap: "8px",
-            marginTop: "12px",
           }}
         >
-          <DatoSucursal
-            titulo="Ventas"
-            valor={formatoDinero(
-              sucursal.ventasTotales
-            )}
-          />
-
-          <DatoSucursal
-            titulo="Utilidad"
-            valor={formatoDinero(
-              sucursal.utilidadTotal
-            )}
-          />
-
           <DatoSucursal
             titulo="Promedio diario"
             valor={formatoDinero(
@@ -873,8 +924,51 @@ function SucursalCard({
             titulo="Inventario"
             valor={`${sucursal.productosInventario || 0} registros`}
           />
+
+          {sucursal?.salud?.causas?.length > 0 && (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: "10px 11px",
+                borderRadius: "11px",
+                background: "#fff8e5",
+                color: "#735a12",
+                fontSize: "12px",
+                lineHeight: 1.45,
+              }}
+            >
+              <strong>Por qué requiere atención: </strong>
+              {sucursal.salud.causas[0]}
+            </div>
+          )}
         </div>
       )}
+    </details>
+  );
+}
+
+function ResumenSucursal({ titulo, valor }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          color: "#927f88",
+          fontSize: "10px",
+          fontWeight: "800",
+        }}
+      >
+        {titulo}
+      </div>
+      <strong
+        style={{
+          display: "block",
+          marginTop: "2px",
+          color: "#392a31",
+          fontSize: "13px",
+        }}
+      >
+        {valor}
+      </strong>
     </div>
   );
 }
