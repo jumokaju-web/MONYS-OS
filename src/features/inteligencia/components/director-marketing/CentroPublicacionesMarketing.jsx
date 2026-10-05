@@ -23,11 +23,27 @@ const CANALES = [
 ];
 
 function etiquetaEstado(estado) {
-  if (String(estado || "").toUpperCase() === "PROGRAMADA") {
+  const estadoNormalizado = String(
+    estado || "BORRADOR"
+  ).toUpperCase();
+
+  if (estadoNormalizado === "PROGRAMADA") {
     return "Agendada en MONYS · sin publicar";
   }
 
-  return String(estado || "BORRADOR")
+  if (estadoNormalizado === "APROBADA") {
+    return "Aprobada · lista para publicación manual";
+  }
+
+  if (estadoNormalizado === "PENDIENTE_APROBACION") {
+    return "Pendiente de Mónica";
+  }
+
+  if (estadoNormalizado === "REQUIERE_AJUSTES") {
+    return "Requiere ajustes de Kary";
+  }
+
+  return estadoNormalizado
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/^./, (letra) => letra.toUpperCase());
@@ -113,6 +129,32 @@ function contenidosDesdeKit(kit, canales, productos = []) {
   );
 }
 
+function textoContenido(contenido) {
+  if (!contenido || typeof contenido !== "object") {
+    return "Contenido todavía no disponible.";
+  }
+
+  const lineas = [
+    contenido.titulo,
+    contenido.gancho,
+    contenido.texto,
+    contenido.textoPublicacion,
+    contenido.descripcion,
+    contenido.beneficio,
+    contenido.oferta,
+    contenido.llamadoAComprar,
+    contenido.cta,
+    ...(Array.isArray(contenido.guion)
+      ? contenido.guion
+      : []),
+  ]
+    .map((linea) => String(linea || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(lineas)].join("\n\n") ||
+    "Contenido preparado sin texto de vista previa.";
+}
+
 export default function CentroPublicacionesMarketing({
   usuario,
   organizationId,
@@ -121,6 +163,7 @@ export default function CentroPublicacionesMarketing({
   campana = null,
   kit = null,
   productoPrincipal = "",
+  soloRevision = false,
 }) {
   const [productosTexto, setProductosTexto] =
     useState(productoPrincipal || "");
@@ -161,6 +204,35 @@ export default function CentroPublicacionesMarketing({
         .filter(Boolean),
     [productosTexto]
   );
+
+  const publicacionesOrdenadas = useMemo(() => {
+    const prioridadEstado = {
+      PENDIENTE_APROBACION: 0,
+      APROBADA: 1,
+      PROGRAMADA: 2,
+      REQUIERE_AJUSTES: 3,
+      BORRADOR: 4,
+    };
+
+    return [...publicaciones].sort((a, b) => {
+      const prioridadA =
+        prioridadEstado[a?.estado] ?? 9;
+      const prioridadB =
+        prioridadEstado[b?.estado] ?? 9;
+
+      if (prioridadA !== prioridadB) {
+        return prioridadA - prioridadB;
+      }
+
+      return new Date(b?.created_at || 0) -
+        new Date(a?.created_at || 0);
+    });
+  }, [publicaciones]);
+
+  const pendientesAprobacion = publicaciones.filter(
+    (publicacion) =>
+      publicacion.estado === "PENDIENTE_APROBACION"
+  ).length;
 
   const cargarPublicaciones = useCallback(async () => {
     if (!organizationId) {
@@ -258,6 +330,16 @@ export default function CentroPublicacionesMarketing({
   }
 
   async function resolver(publicacionId, aprobar) {
+    const confirmacion = window.confirm(
+      aprobar
+        ? "¿Autorizas este contenido para que Kary pueda publicarlo manualmente? Esta acción no publica en redes ni autoriza gasto."
+        : "¿Quieres devolver este contenido a Kary para que haga ajustes?"
+    );
+
+    if (!confirmacion) {
+      return;
+    }
+
     try {
       setError("");
       await resolverAprobacionPublicacion({
@@ -269,7 +351,7 @@ export default function CentroPublicacionesMarketing({
       });
       setMensaje(
         aprobar
-          ? "Publicación autorizada."
+          ? "Contenido autorizado. Quedó listo para publicación manual; MONYS todavía no lo publicó en redes."
           : "Publicación devuelta para ajustes."
       );
       await cargarPublicaciones();
@@ -329,7 +411,9 @@ export default function CentroPublicacionesMarketing({
           <strong
             style={{ color: "#7a234f" }}
           >
-            Publicación multicanal
+            {soloRevision
+              ? "Autorizaciones de publicación"
+              : "Publicación multicanal"}
           </strong>
           <div
             style={{
@@ -338,7 +422,9 @@ export default function CentroPublicacionesMarketing({
               fontSize: "12px",
             }}
           >
-            Varios productos, varios canales y autorización humana.
+            {soloRevision
+              ? "Mónica decide qué contenido puede pasar a publicación manual."
+              : "Varios productos, varios canales y autorización humana."}
           </div>
         </div>
 
@@ -352,7 +438,9 @@ export default function CentroPublicacionesMarketing({
             fontWeight: "900",
           }}
         >
-          {publicaciones.length} en cola
+          {soloRevision
+            ? `${pendientesAprobacion} por autorizar`
+            : `${publicaciones.length} en cola`}
         </span>
       </div>
 
@@ -376,6 +464,8 @@ export default function CentroPublicacionesMarketing({
         ya se publicó.
       </div>
 
+      {!soloRevision && (
+        <>
       <label
         style={{
           display: "grid",
@@ -460,6 +550,8 @@ export default function CentroPublicacionesMarketing({
           ? "Guardando..."
           : "Guardar borrador multicanal"}
       </button>
+        </>
+      )}
 
       {mensaje && (
         <div style={{ marginTop: "10px", color: "#26734d", fontSize: "12px" }}>
@@ -485,7 +577,7 @@ export default function CentroPublicacionesMarketing({
             Cargando cola...
           </div>
         ) : (
-          publicaciones.slice(0, 8).map(
+          publicacionesOrdenadas.slice(0, 8).map(
             (publicacion) => (
               <article
                 key={publicacion.id}
@@ -538,7 +630,60 @@ export default function CentroPublicacionesMarketing({
                   </div>
                 )}
 
-                {[
+                <details
+                  style={{
+                    marginTop: "9px",
+                    padding: "8px 9px",
+                    borderRadius: "9px",
+                    background: "#fff8fb",
+                    color: "#684b59",
+                    fontSize: "10px",
+                  }}
+                >
+                  <summary
+                    style={{
+                      cursor: "pointer",
+                      fontWeight: "900",
+                    }}
+                  >
+                    Revisar contenido por canal
+                  </summary>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: "8px",
+                      marginTop: "9px",
+                    }}
+                  >
+                    {Object.entries(
+                      publicacion.contenidos_por_canal || {}
+                    ).map(([canal, contenido]) => (
+                      <div
+                        key={canal}
+                        style={{
+                          padding: "9px",
+                          border: "1px solid #eadce3",
+                          borderRadius: "9px",
+                          background: "#ffffff",
+                        }}
+                      >
+                        <strong>{canal.replaceAll("_", " ")}</strong>
+                        <div
+                          style={{
+                            marginTop: "5px",
+                            lineHeight: 1.5,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {textoContenido(contenido)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                {!soloRevision && [
                   "BORRADOR",
                   "REQUIERE_AJUSTES",
                 ].includes(publicacion.estado) && (
@@ -578,14 +723,36 @@ export default function CentroPublicacionesMarketing({
                         onClick={() =>
                           resolver(publicacion.id, true)
                         }
+                        style={{
+                          flex: 1,
+                          padding: "9px 10px",
+                          border: "none",
+                          borderRadius: "9px",
+                          background: "#247a50",
+                          color: "#ffffff",
+                          fontSize: "10px",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                        }}
                       >
-                        Aprobar
+                        Aprobar contenido
                       </button>
                       <button
                         type="button"
                         onClick={() =>
                           resolver(publicacion.id, false)
                         }
+                        style={{
+                          flex: 1,
+                          padding: "9px 10px",
+                          border: "1px solid #b94848",
+                          borderRadius: "9px",
+                          background: "#fff5f5",
+                          color: "#9f2f2f",
+                          fontSize: "10px",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                        }}
                       >
                         Pedir ajustes
                       </button>
@@ -653,6 +820,25 @@ export default function CentroPublicacionesMarketing({
               </article>
             )
           )
+        )}
+
+        {!cargando && publicaciones.length === 0 && (
+          <div
+            style={{
+              padding: "14px",
+              border: "1px dashed #d9bdca",
+              borderRadius: "12px",
+              background: "#ffffff",
+              color: "#765f6b",
+              fontSize: "12px",
+              lineHeight: 1.5,
+              textAlign: "center",
+            }}
+          >
+            {soloRevision
+              ? "Todavía no hay contenido enviado por Kary para autorización."
+              : "Todavía no hay publicaciones en esta cola."}
+          </div>
         )}
       </div>
     </section>
