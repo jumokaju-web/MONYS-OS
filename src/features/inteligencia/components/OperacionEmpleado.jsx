@@ -7459,17 +7459,11 @@ Number.isFinite(
         .resultado
         .utilidadEstimadaCampana
     ).toFixed(2)}`
-    : Number(
-      campanaGuardada
-        ?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal ?? 0
-    ) > 0
-  ? `Lista para calcular · margen base ${Number(
-      campanaGuardada
-        ?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal ?? 0
+    : obtenerMargenRealBaseCampana(
+        campanaGuardada?.estrategia_ia?.datosRentabilidadBase
+      ) !== null
+  ? `Lista para calcular · margen base ${obtenerMargenRealBaseCampana(
+      campanaGuardada?.estrategia_ia?.datosRentabilidadBase
     ).toFixed(1)}%`
   : "Pendiente de margen real"}
 
