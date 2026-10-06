@@ -1,4 +1,4 @@
-import { construirComparativoSucursales } from "../../shared/resumenSucursalesFinanciero.js";
+import { construirComparativoSucursales, compararRangosSucursales } from "../../shared/resumenSucursalesFinanciero.js";
 
 const PALETA = {
   vino: "#64143f",
@@ -84,6 +84,7 @@ export default function TableroVisualFinanciero({
   const sucursalesResumen = construirComparativoSucursales(sucursales);
   const sucursalesValidas = sucursalesResumen.filter((sucursal) => sucursal.ventas !== null && sucursal.ventas > 0);
   const maxSucursal = Math.max(...sucursalesValidas.map((sucursal) => sucursal.ventas), 1);
+  const comparacionPeriodos = compararRangosSucursales(sucursalesValidas);
   const sucursalMayorVenta = [...sucursalesValidas].sort((a, b) => b.ventas - a.ventas)[0] || null;
   const sucursalMayorUtilidad = [...sucursalesValidas]
     .filter((sucursal) => sucursal.utilidadBruta !== null)
@@ -179,6 +180,11 @@ export default function TableroVisualFinanciero({
         {sucursalesValidas.length === 0 ? <MensajeSinDatos texto="La comparación se habilitará cuando existan ventas y utilidad registradas por sucursal." /> : (
           <>
             {sucursalesValidas.length > 1 && (
+              <div role={comparacionPeriodos.comparable ? "status" : "alert"} style={{ marginBottom: 12, padding: 11, borderRadius: 12, background: comparacionPeriodos.comparable ? "#eff8f2" : "#fff5df", border: comparacionPeriodos.comparable ? "1px solid #b9e5ce" : "1px solid #e4c37b", color: comparacionPeriodos.comparable ? "#276344" : "#765416", fontWeight: 750, lineHeight: 1.45 }}>
+                {comparacionPeriodos.mensaje}
+              </div>
+            )}
+            {sucursalesValidas.length > 1 && comparacionPeriodos.comparable && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 9, marginBottom: 13 }}>
                 {[
                   ["Mayor venta", sucursalMayorVenta, sucursalMayorVenta?.ventas],
@@ -196,6 +202,7 @@ export default function TableroVisualFinanciero({
               {sucursalesValidas.map((sucursal) => (
                 <div key={sucursal.id} style={{ padding: 15, borderRadius: 14, background: "#fff8fb", border: "1px solid #efdae4" }}>
                   <strong style={{ color: "#442333" }}>{sucursal.nombre}</strong>
+                  <small style={{ display: "block", marginTop: 3, color: "#735d68" }}>Rango detectado: {sucursal.periodoEtiqueta || "Sin fechas suficientes"}</small>
                   <Barra etiqueta="Ventas" valor={sucursal.ventas} maximo={maxSucursal} color={PALETA.rosa} />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
                     <div><small style={{ display: "block", color: "#735d68" }}>Costo de mercancía</small><strong>{sucursal.costoMercancia === null ? "Sin dato" : dinero(sucursal.costoMercancia)}</strong></div>
@@ -206,7 +213,7 @@ export default function TableroVisualFinanciero({
                 </div>
               ))}
             </div>
-            <p style={{ margin: "12px 0 0", color: "#75616b", fontSize: 12, lineHeight: 1.5 }}>La utilidad bruta todavía no descuenta nómina, renta, servicios ni otros gastos. Confirma que ambas sucursales tengan el mismo periodo antes de compararlas.</p>
+            <p style={{ margin: "12px 0 0", color: "#75616b", fontSize: 12, lineHeight: 1.5 }}>El rango se detecta con las fechas de los tickets importados. La utilidad bruta no descuenta nómina, renta ni otros gastos; valida también las horas del filtro SICAR.</p>
           </>
         )}
       </article>

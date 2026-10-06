@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { construirComparativoSucursales } from "../../src/features/inteligencia/shared/resumenSucursalesFinanciero.js";
+import { construirComparativoSucursales, compararRangosSucursales } from "../../src/features/inteligencia/shared/resumenSucursalesFinanciero.js";
 
 test("calcula costo, utilidad bruta y margen con datos registrados", () => {
   const [centro] = construirComparativoSucursales([
@@ -11,7 +11,7 @@ test("calcula costo, utilidad bruta y margen con datos registrados", () => {
   assert.ok(Math.abs(centro.margenBruto - (710 / 1800) * 100) < 0.01);
 });
 
-test("conserva ceros reales y no convierte datos faltantes en cero", () => {
+test("conserva ceros reales y deja faltantes sin convertirlos en cero", () => {
   const resultado = construirComparativoSucursales([
     { nombre: "Centro", ventasTotales: 0, utilidadTotal: 0 },
     { nombre: "General Anaya", ventasTotales: null, utilidadTotal: undefined },
@@ -30,4 +30,30 @@ test("marca inconsistencias en vez de ocultarlas", () => {
   ]);
   assert.equal(resultado.costoMercancia, -20);
   assert.equal(resultado.costoInconsistente, true);
+});
+
+test("habilita líderes solo si los rangos detectados coinciden", () => {
+  const sucursales = construirComparativoSucursales([
+    { nombre: "Centro", ventasTotales: 1800, utilidadTotal: 710, periodo: { fechaInicial: "2026-09-22", fechaFinal: "2026-10-05" } },
+    { nombre: "General Anaya", ventasTotales: 600, utilidadTotal: 230, periodo: { fechaInicio: "2026-09-22T10:00:00", fechaFin: "2026-10-05T20:00:00" } },
+  ]);
+  const comparacion = compararRangosSucursales(sucursales);
+  assert.equal(comparacion.comparable, true);
+  assert.equal(comparacion.estado, "MISMO_RANGO");
+});
+
+test("bloquea líderes cuando hay cortes distintos o fechas faltantes", () => {
+  const distintos = construirComparativoSucursales([
+    { nombre: "Centro", ventasTotales: 1000, utilidadTotal: 400, periodo: { fechaInicial: "2026-09-22", fechaFinal: "2026-10-05" } },
+    { nombre: "General Anaya", ventasTotales: 500, utilidadTotal: 200, periodo: { fechaInicial: "2026-09-23", fechaFinal: "2026-10-05" } },
+  ]);
+  assert.equal(compararRangosSucursales(distintos).estado, "CORTES_DISTINTOS");
+  assert.equal(compararRangosSucursales(distintos).comparable, false);
+
+  const faltante = construirComparativoSucursales([
+    { nombre: "Centro", ventasTotales: 1000, utilidadTotal: 400, periodo: { fechaInicial: "2026-09-22", fechaFinal: "2026-10-05" } },
+    { nombre: "General Anaya", ventasTotales: 500, utilidadTotal: 200 },
+  ]);
+  assert.equal(compararRangosSucursales(faltante).estado, "FECHA_FALTANTE");
+  assert.equal(compararRangosSucursales(faltante).comparable, false);
 });
