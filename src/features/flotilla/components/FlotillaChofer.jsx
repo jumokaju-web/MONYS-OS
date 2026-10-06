@@ -4,16 +4,28 @@ import {
 } from "react";
 
 import {
-  obtenerUnidadPorPlacas,
+  obtenerUnidadesFlotilla,
   obtenerRutaDeUnidadEnFecha,
 } from "./services/flotillaService";
 
-export default function FlotillaChofer() {
+function normalizarNombre(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
-      const [
-    unidad,
-    setUnidad,
-  ] = useState(null);
+export default function FlotillaChofer({
+  usuario = null,
+  volverAlDashboard,
+}) {
+
+  const [unidades, setUnidades] = useState([]);
+  const [unidadId, setUnidadId] = useState("");
+
+  const unidad =
+    unidades.find((item) => item.id === unidadId) || null;
 
   const [
     cargandoUnidad,
@@ -33,13 +45,35 @@ export default function FlotillaChofer() {
         setCargandoUnidad(true);
         setErrorUnidad("");
 
-        const resultado =
-          await obtenerUnidadPorPlacas(
-            "JY21009"
-          );
+        const resultado = await obtenerUnidadesFlotilla();
 
         if (activo) {
-          setUnidad(resultado);
+          const nombreUsuario = normalizarNombre(usuario?.nombre);
+          const asignada = resultado.find((item) => {
+            const chofer = normalizarNombre(item?.chofer_nombre);
+            return (
+              nombreUsuario &&
+              chofer &&
+              (chofer.includes(nombreUsuario) || nombreUsuario.includes(chofer))
+            );
+          });
+
+          const rol = String(usuario?.role || "").toLowerCase();
+          const puedeRevisarTodaLaFlotilla =
+            rol === "owner" || rol === "admin";
+          const unidadesPermitidas = puedeRevisarTodaLaFlotilla
+            ? resultado
+            : asignada
+              ? [asignada]
+              : [];
+
+          setUnidades(unidadesPermitidas);
+
+          setUnidadId((actual) =>
+            unidadesPermitidas.some((item) => item.id === actual)
+              ? actual
+              : asignada?.id || unidadesPermitidas[0]?.id || ""
+          );
         }
       } catch (error) {
         console.error(
@@ -65,14 +99,17 @@ export default function FlotillaChofer() {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [usuario?.nombre, usuario?.role]);
 
       const [rutaHoy, setRutaHoy] = useState(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState("");
 
   useEffect(() => {
-    if (!unidad?.id) return;
+    if (!unidad?.id) {
+      setRutaHoy(null);
+      return;
+    }
 
     let activo = true;
 
@@ -80,6 +117,7 @@ export default function FlotillaChofer() {
       try {
         setCargandoRuta(true);
         setErrorRuta("");
+        setRutaHoy(null);
 
         const hoy = new Date();
         const fechaLocal = [
@@ -119,13 +157,8 @@ export default function FlotillaChofer() {
     };
   }, [unidad?.id]);
 
-     console.log(
-    "UNIDAD FLOTILLA REAL:",
-    unidad
-  );
-
     const choferReal =
-    unidad?.chofer_nombre || "—";
+    unidad?.chofer_nombre || usuario?.nombre || "Sin asignar";
 
   const placasReales =
     unidad?.placas || "—";
@@ -201,11 +234,102 @@ export default function FlotillaChofer() {
           <div
             style={{
               fontSize: "23px",
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
             }}
           >
-            🔔
+            <span aria-label="Notificaciones">🔔</span>
+            {typeof volverAlDashboard === "function" && (
+              <button
+                type="button"
+                onClick={volverAlDashboard}
+                style={{
+                  border: "1px solid #c9ddeb",
+                  borderRadius: "10px",
+                  background: "#fff",
+                  color: "#174b7a",
+                  padding: "8px 10px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                Salir
+              </button>
+            )}
           </div>
         </div>
+
+        {cargandoUnidad && (
+          <p role="status">Consultando unidades autorizadas…</p>
+        )}
+
+        {errorUnidad && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: "14px",
+              padding: "12px",
+              borderRadius: "12px",
+              background: "#fff1f1",
+              border: "1px solid #e7aaaa",
+              color: "#9b2929",
+              fontWeight: 750,
+            }}
+          >
+            {errorUnidad}
+          </div>
+        )}
+
+        {!cargandoUnidad && !errorUnidad && unidades.length === 0 && (
+          <div
+            role="status"
+            style={{
+              marginBottom: "14px",
+              padding: "14px",
+              borderRadius: "12px",
+              background: "#fff8e8",
+              border: "1px solid #e8cc86",
+              color: "#705016",
+            }}
+          >
+            No hay una unidad autorizada para esta cuenta. Administración debe
+            registrar o asignar la unidad antes de crear rutas o gastos.
+          </div>
+        )}
+
+        {unidades.length > 1 && (
+          <label
+            style={{
+              display: "block",
+              marginBottom: "14px",
+              fontSize: "13px",
+              fontWeight: 850,
+            }}
+          >
+            Unidad a revisar
+            <select
+              value={unidadId}
+              onChange={(evento) => setUnidadId(evento.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "6px",
+                padding: "11px",
+                borderRadius: "11px",
+                border: "1px solid #c9ddeb",
+                background: "#fff",
+                color: "#14365a",
+                font: "inherit",
+              }}
+            >
+              {unidades.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.placas || "Sin placas"} · {item.chofer_nombre || "Sin chofer"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {/* SALUDO */}
         <div
@@ -322,6 +446,15 @@ export default function FlotillaChofer() {
               }}
             >
               Dueño: {propietarioReal}
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#647d94",
+              }}
+            >
+              Estado: {estadoReal}
             </div>
           </div>
         </div>
