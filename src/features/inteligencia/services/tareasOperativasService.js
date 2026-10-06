@@ -9,6 +9,7 @@ import {
 import {
   evaluarResultadoCampanaGrowth,
 } from "./growthAgencyService";
+import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 
 
 // ======================================================
@@ -1406,10 +1407,9 @@ async function sincronizarResultadoTareaConCampana({
     gastoAcumulado,
     pedidosAcumulados,
     ventaAcumulada,
-    margenRealBase:
-      campana?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal,
+    margenRealBase: obtenerMargenRealBaseCampana(
+      campana?.estrategia_ia?.datosRentabilidadBase
+    ),
     publicacion: resultadoMarketing.publicacion,
     gastoConfirmado: camposConfirmados.gasto,
     pedidosConfirmados: camposConfirmados.pedidos,
