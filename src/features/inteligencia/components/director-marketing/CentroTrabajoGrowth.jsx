@@ -75,6 +75,39 @@ function fechaDato(fecha) {
   }).format(valor);
 }
 
+function proximasFechasHabiles(cantidad = 5) {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/Mexico_City",
+  }).formatToParts(new Date());
+  const valorParte = (tipo) =>
+    Number(partes.find((parte) => parte.type === tipo)?.value || 0);
+  const fecha = new Date(
+    valorParte("year"),
+    valorParte("month") - 1,
+    valorParte("day"),
+    12,
+  );
+  const fechas = [];
+
+  while (fechas.length < cantidad) {
+    fecha.setDate(fecha.getDate() + 1);
+
+    if (![0, 6].includes(fecha.getDay())) {
+      fechas.push(
+        `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(
+          2,
+          "0",
+        )}-${String(fecha.getDate()).padStart(2, "0")}`,
+      );
+    }
+  }
+
+  return fechas;
+}
+
 export default function CentroTrabajoGrowth({
   usuario,
   porcentaje = 0,
@@ -492,31 +525,53 @@ export default function CentroTrabajoGrowth({
         `${tareaB?.fecha || ""} ${tareaB?.hora_limite || "99:99"}`,
       ),
     )
-    .slice(0, 4);
+    .slice(0, 5);
+
+  const fechasAgendaPropuesta = proximasFechasHabiles(5);
 
   const agendaPropuesta = [
     {
-      id: "propuesta-confirmar-publicacion",
-      momento: "Próximo día hábil",
-      hora: "10:00",
+      id: "propuesta-enfoque",
+      fecha: fechasAgendaPropuesta[0],
+      hora: "10:30",
+      titulo: `Confirmar producto, existencia y meta de ${
+        campanaPrioritaria?.producto ||
+        campanaPrioritaria?.nombre ||
+        productoGrowthPrioritario
+      }`,
+    },
+    {
+      id: "propuesta-contenido",
+      fecha: fechasAgendaPropuesta[1],
+      hora: "12:00",
+      titulo: `Crear y revisar contenido para ${
+        campanaPrioritaria?.producto ||
+        campanaPrioritaria?.nombre ||
+        productoGrowthPrioritario
+      }`,
+    },
+    {
+      id: "propuesta-publicacion",
+      fecha: fechasAgendaPropuesta[2],
+      hora: "18:00",
       titulo: publicacionCampanaConfirmada
-        ? "Revisar el primer corte de resultados reales"
-        : `Confirmar publicación de ${
+        ? `Atender prospectos en ${canalGrowthPrioritario}`
+        : `Publicar manualmente y atender prospectos en ${canalGrowthPrioritario}: ${
             campanaPrioritaria?.producto ||
             campanaPrioritaria?.nombre ||
-            "la campaña preparada"
+            productoGrowthPrioritario
           }`,
     },
     {
       id: "propuesta-primer-corte",
-      momento: "Mismo día",
-      hora: "17:00",
+      fecha: fechasAgendaPropuesta[3],
+      hora: "11:00",
       titulo: "Registrar alcance, mensajes, pedidos, venta y gasto real",
     },
     {
       id: "propuesta-decision",
-      momento: "24 h después",
-      hora: "11:00",
+      fecha: fechasAgendaPropuesta[4],
+      hora: "17:30",
       titulo: "Revisar utilidad y decidir: continuar, mejorar o detener",
     },
   ];
@@ -879,7 +934,7 @@ export default function CentroTrabajoGrowth({
               {agendaPropuesta.map((tarea) => (
                 <article key={tarea.id}>
                   <div>
-                    <span>{tarea.momento}</span>
+                    <span>{etiquetaFechaAgenda(tarea.fecha)}</span>
                     <strong>{tarea.hora}</strong>
                   </div>
 
