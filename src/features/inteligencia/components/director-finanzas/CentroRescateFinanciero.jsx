@@ -35,6 +35,25 @@ function fechaCorta(valor) {
   );
 }
 
+function diasHasta(valor) {
+  if (!valor) return null;
+  const fecha = new Date(`${String(valor).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(fecha.getTime())) return null;
+
+  const hoy = new Date();
+  hoy.setHours(12, 0, 0, 0);
+  return Math.ceil((fecha.getTime() - hoy.getTime()) / 86400000);
+}
+
+function prioridadPago(fecha) {
+  const dias = diasHasta(fecha);
+  if (dias === null) return { etiqueta: "FALTA FECHA", color: "#80530d", fondo: "#fff0c9" };
+  if (dias < 0) return { etiqueta: "VENCIDO", color: "#9b2525", fondo: "#ffe2e2" };
+  if (dias <= 7) return { etiqueta: "URGENTE", color: "#994119", fondo: "#ffe8d8" };
+  if (dias <= 30) return { etiqueta: "ESTE MES", color: "#765b00", fondo: "#fff5bf" };
+  return { etiqueta: "PROGRAMABLE", color: "#236641", fondo: "#e1f5e8" };
+}
+
 function esTablaPendiente(error) {
   const mensaje = String(error?.message || "").toLowerCase();
   return (
@@ -61,6 +80,10 @@ function CentroRescateFinanciero({
   organizationId,
   businessId = null,
   branchId = null,
+  flujoNetoPeriodo = 0,
+  reservaRecomendada = 0,
+  baseFinancieraVigente = false,
+  movimientosPendientes = 0,
 }) {
   const [deudas, setDeudas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -102,6 +125,27 @@ function CentroRescateFinanciero({
 
   const resumen = useMemo(() => calcularResumenDeudas(deudas), [deudas]);
   const datosFaltantes = resumen.sinTasa + resumen.sinPagoMensual;
+  const pagosOrdenados = useMemo(
+    () =>
+      [...deudas]
+        .filter((deuda) => String(deuda?.estado || "").toUpperCase() !== "CERRADA")
+        .sort((a, b) => {
+          const diasA = diasHasta(a?.fecha_proximo_pago);
+          const diasB = diasHasta(b?.fecha_proximo_pago);
+          return (diasA ?? Number.MAX_SAFE_INTEGER) - (diasB ?? Number.MAX_SAFE_INTEGER);
+        })
+        .slice(0, 6),
+    [deudas],
+  );
+  const pagosConFecha = pagosOrdenados.filter(
+    (deuda) => deuda?.fecha_proximo_pago && Number(deuda?.pago_mensual) > 0,
+  );
+  const montoProximosPagos = pagosConFecha.reduce(
+    (total, deuda) => total + (Number(deuda?.pago_mensual) || 0),
+    0,
+  );
+  const baseAptaParaProgramar =
+    baseFinancieraVigente && Number(movimientosPendientes) === 0;
 
   const actualizarCampo = (evento) => {
     const { name, value } = evento.target;
@@ -234,6 +278,166 @@ function CentroRescateFinanciero({
           </div>
         ))}
       </div>
+
+      <section
+        style={{
+          marginTop: "18px",
+          padding: "18px",
+          borderRadius: "16px",
+          background: "linear-gradient(135deg, #2d2025, #6f3d25)",
+          color: "#fff",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            alignItems: "flex-start",
+          }}
+        >
+          <div>
+            <p
+              style={{
+                margin: 0,
+                color: "#ffd9ae",
+                fontSize: "11px",
+                fontWeight: 900,
+                letterSpacing: ".08em",
+              }}
+            >
+              PROGRAMADOR SEGURO DE PAGOS
+            </p>
+            <h3 style={{ margin: "6px 0", fontSize: "21px" }}>
+              Qué vence primero y qué falta confirmar
+            </h3>
+          </div>
+          <span
+            style={{
+              padding: "7px 10px",
+              borderRadius: "999px",
+              background: baseAptaParaProgramar ? "#dff5e7" : "#ffe8b8",
+              color: baseAptaParaProgramar ? "#1d643b" : "#714b00",
+              fontSize: "11px",
+              fontWeight: 900,
+            }}
+          >
+            {baseAptaParaProgramar ? "Base revisable" : "Propuesta bloqueada"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+            gap: "9px",
+            marginTop: "13px",
+          }}
+        >
+          {[
+            ["Flujo neto del periodo", dinero(flujoNetoPeriodo)],
+            ["Reserva recomendada", dinero(reservaRecomendada)],
+            ["Próximos pagos registrados", dinero(montoProximosPagos)],
+          ].map(([etiqueta, valor]) => (
+            <div
+              key={etiqueta}
+              style={{
+                padding: "11px",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,.08)",
+                border: "1px solid rgba(255,255,255,.14)",
+              }}
+            >
+              <div style={{ fontSize: "10px", opacity: 0.72 }}>{etiqueta}</div>
+              <strong style={{ display: "block", marginTop: "5px", fontSize: "17px" }}>
+                {valor}
+              </strong>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "11px 12px",
+            borderRadius: "11px",
+            background: "rgba(255,255,255,.09)",
+            fontSize: "12px",
+            lineHeight: 1.5,
+          }}
+        >
+          {!baseFinancieraVigente
+            ? "Actualiza ventas y Tesorería antes de distribuir dinero."
+            : Number(movimientosPendientes) > 0
+              ? `Aclara ${movimientosPendientes} movimiento${Number(movimientosPendientes) === 1 ? "" : "s"} antes de programar.`
+              : "Orden sugerido: compromisos vencidos → operación esencial → reserva → crecimiento autorizado."}
+          <strong style={{ display: "block", marginTop: "4px", color: "#ffd9ae" }}>
+            MONYS prepara el calendario; no realiza transferencias ni pagos.
+          </strong>
+        </div>
+
+        {pagosOrdenados.length > 0 ? (
+          <div style={{ display: "grid", gap: "8px", marginTop: "13px" }}>
+            {pagosOrdenados.map((deuda) => {
+              const prioridad = prioridadPago(deuda.fecha_proximo_pago);
+              return (
+                <article
+                  key={`pago-${deuda.id}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    gap: "10px",
+                    padding: "11px 12px",
+                    borderRadius: "11px",
+                    background: "rgba(255,255,255,.96)",
+                    color: "#33291f",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ display: "block" }}>{deuda.nombre}</strong>
+                    <small style={{ color: "#76675c" }}>
+                      {fechaCorta(deuda.fecha_proximo_pago)} · {deuda.acreedor}
+                    </small>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "4px 7px",
+                        borderRadius: "999px",
+                        background: prioridad.fondo,
+                        color: prioridad.color,
+                        fontSize: "9px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {prioridad.etiqueta}
+                    </span>
+                    <strong style={{ display: "block", marginTop: "4px", fontSize: "13px" }}>
+                      {Number(deuda.pago_mensual) > 0
+                        ? dinero(deuda.pago_mensual)
+                        : "Falta monto"}
+                    </strong>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              marginTop: "13px",
+              padding: "13px",
+              borderRadius: "11px",
+              background: "rgba(255,255,255,.08)",
+              fontSize: "12px",
+            }}
+          >
+            Registra créditos, mensualidades y fechas para construir el calendario real.
+          </div>
+        )}
+      </section>
 
       {deudas.length > 0 && (
         <div style={{ display: "grid", gap: "10px", marginTop: "16px" }}>

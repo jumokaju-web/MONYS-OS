@@ -777,6 +777,10 @@ const historial =
         organizationId={organizationId}
         businessId={businessId}
         branchId={branchId}
+        flujoNetoPeriodo={dineroDisponible}
+        reservaRecomendada={reservaRecomendada}
+        baseFinancieraVigente={ventasVigentes}
+        movimientosPendientes={movimientosPendientes}
       />
 
       {!creditosProveedores?.importacion && (
