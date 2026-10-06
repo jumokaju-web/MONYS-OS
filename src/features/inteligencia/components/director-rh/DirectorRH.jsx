@@ -1778,6 +1778,9 @@ async function manejarEliminarEmpleado(
               "EVALUAR_CON_FINANZAS"
             ? "🟡 Evaluar con Finanzas"
             : estadoContratacion ===
+              "PENDIENTE_VALIDAR_CON_FINANZAS"
+            ? "🟡 Validar caja, bancos y costo con Finanzas"
+            : estadoContratacion ===
               "SIN_VACANTES"
             ? "🟢 Sin vacantes abiertas"
             : "⚪ Pendiente de información"}
