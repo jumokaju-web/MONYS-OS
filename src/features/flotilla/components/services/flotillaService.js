@@ -1,5 +1,33 @@
 import { supabase } from "../../../../supabase";
 
+const CAMPOS_UNIDAD = `
+  id,
+  placas,
+  tipo_operacion,
+  tipo_propiedad,
+  propietarios,
+  da_nombre,
+  chofer_nombre,
+  quien_saca_nombre,
+  estado,
+  aplica_admin_chory,
+  observaciones
+`;
+
+export async function obtenerUnidadesFlotilla() {
+  const { data, error } = await supabase
+    .from("flotilla_unidades")
+    .select(CAMPOS_UNIDAD)
+    .order("placas", { ascending: true });
+
+  if (error) {
+    console.error("Error al obtener unidades de Flotilla:", error);
+    throw new Error("No fue posible cargar las unidades de Flotilla.");
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function obtenerUnidadPorPlacas(
   placas
 ) {
@@ -14,19 +42,7 @@ export async function obtenerUnidadPorPlacas(
     error,
   } = await supabase
     .from("flotilla_unidades")
-    .select(`
-      id,
-      placas,
-      tipo_operacion,
-      tipo_propiedad,
-      propietarios,
-      da_nombre,
-      chofer_nombre,
-      quien_saca_nombre,
-      estado,
-      aplica_admin_chory,
-      observaciones
-    `)
+    .select(CAMPOS_UNIDAD)
     .eq("placas", placas)
     .single();
 
