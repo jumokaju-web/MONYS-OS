@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -6,6 +7,7 @@ import {
 import {
   obtenerUnidadesFlotilla,
   obtenerRutaDeUnidadEnFecha,
+  suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
 
 function normalizarNombre(valor) {
@@ -14,6 +16,15 @@ function normalizarNombre(valor) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function obtenerFechaLocal() {
+  const hoy = new Date();
+  return [
+    hoy.getFullYear(),
+    String(hoy.getMonth() + 1).padStart(2, "0"),
+    String(hoy.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 export default function FlotillaChofer({
@@ -101,61 +112,72 @@ export default function FlotillaChofer({
     };
   }, [usuario?.nombre, usuario?.role]);
 
-      const [rutaHoy, setRutaHoy] = useState(null);
+  const [rutaHoy, setRutaHoy] = useState(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState("");
+  const [estadoSincronizacion, setEstadoSincronizacion] =
+    useState("CONECTANDO");
+
+  const cargarRutaActual = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!unidad?.id) {
+        setRutaHoy(null);
+        return;
+      }
+
+      try {
+        if (!silencioso) {
+          setCargandoRuta(true);
+          setRutaHoy(null);
+        }
+        setErrorRuta("");
+
+        const resultado = await obtenerRutaDeUnidadEnFecha(
+          unidad.id,
+          obtenerFechaLocal()
+        );
+
+        setRutaHoy(resultado);
+      } catch (error) {
+        console.error("Error cargando ruta:", error);
+        setErrorRuta(
+          error?.message || "No fue posible cargar la ruta."
+        );
+      } finally {
+        if (!silencioso) {
+          setCargandoRuta(false);
+        }
+      }
+    },
+    [unidad?.id]
+  );
 
   useEffect(() => {
     if (!unidad?.id) {
       setRutaHoy(null);
+      setEstadoSincronizacion("SIN_UNIDAD");
       return;
     }
 
-    let activo = true;
+    cargarRutaActual();
 
-    const cargarRuta = async () => {
-      try {
-        setCargandoRuta(true);
-        setErrorRuta("");
-        setRutaHoy(null);
+    const detenerSuscripcion = suscribirseARutasDeUnidad({
+      unidadId: unidad.id,
+      onCambio: () => cargarRutaActual({ silencioso: true }),
+      onEstado: (estado) => setEstadoSincronizacion(estado),
+    });
 
-        const hoy = new Date();
-        const fechaLocal = [
-          hoy.getFullYear(),
-          String(hoy.getMonth() + 1).padStart(2, "0"),
-          String(hoy.getDate()).padStart(2, "0"),
-        ].join("-");
-
-        const resultado =
-          await obtenerRutaDeUnidadEnFecha(
-            unidad.id,
-            fechaLocal
-          );
-
-        if (activo) {
-          setRutaHoy(resultado);
-          console.log("RUTA REAL DE HOY:", resultado);
-        }
-      } catch (error) {
-        console.error("Error cargando ruta:", error);
-
-        if (activo) {
-          setErrorRuta(
-            error?.message ||
-              "No fue posible cargar la ruta."
-          );
-        }
-      } finally {
-        if (activo) setCargandoRuta(false);
-      }
-    };
-
-    cargarRuta();
+    // Respaldo para proyectos donde Realtime aún no esté habilitado.
+    const intervalo = window.setInterval(
+      () => cargarRutaActual({ silencioso: true }),
+      60000
+    );
 
     return () => {
-      activo = false;
+      detenerSuscripcion();
+      window.clearInterval(intervalo);
     };
-  }, [unidad?.id]);
+  }, [cargarRutaActual, unidad?.id]);
 
     const choferReal =
     unidad?.chofer_nombre || usuario?.nombre || "Sin asignar";
@@ -329,6 +351,56 @@ export default function FlotillaChofer({
               ))}
             </select>
           </label>
+        )}
+
+        {unidad?.id && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "14px",
+              padding: "10px 12px",
+              borderRadius: "11px",
+              background:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "#eaf9f0"
+                  : "#fff8e8",
+              border:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "1px solid #b8ddc5"
+                  : "1px solid #e8cc86",
+              color:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "#247044"
+                  : "#705016",
+              fontSize: "12px",
+              fontWeight: 800,
+            }}
+          >
+            <span>
+              {estadoSincronizacion === "SUBSCRIBED"
+                ? "● Sincronización automática activa"
+                : "● Comprobando sincronización"}
+            </span>
+            <button
+              type="button"
+              onClick={() => cargarRutaActual()}
+              disabled={cargandoRuta}
+              style={{
+                border: "1px solid currentColor",
+                borderRadius: "9px",
+                background: "#fff",
+                color: "inherit",
+                padding: "6px 9px",
+                fontWeight: 850,
+                cursor: cargandoRuta ? "wait" : "pointer",
+              }}
+            >
+              {cargandoRuta ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
         )}
 
         {/* SALUDO */}
