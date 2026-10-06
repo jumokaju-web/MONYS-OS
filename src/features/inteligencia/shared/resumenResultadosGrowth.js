@@ -55,6 +55,7 @@ export function resumirResultadosCampanas(campanas = []) {
       ).toUpperCase();
 
       if (
+        ["ACTIVA", "PREPARANDO"].includes(estado) &&
         [
           "PAUSAR",
           "REPROGRAMAR_PUBLICACION",
