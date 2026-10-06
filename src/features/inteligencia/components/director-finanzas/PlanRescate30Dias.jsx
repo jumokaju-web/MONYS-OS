@@ -3,7 +3,10 @@ import {
   crearTareaOperativa,
   obtenerCalendarioTareasOperativas,
 } from "../../services/tareasOperativasService";
-import { asignarResponsableAutomatico } from "../../services/empleadosRHService";
+import {
+  asignarResponsableAutomatico,
+  obtenerEmpleadosActivosParaAsignacion,
+} from "../../services/empleadosRHService";
 
 const COLOR = {
   vino: "#64143f",
@@ -31,6 +34,23 @@ function etiquetaFecha(valor) {
     day: "numeric",
     month: "short",
   }).format(new Date(`${valor}T12:00:00`));
+}
+
+function normalizar(valor) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function perfilesEmpleado(empleado) {
+  const puesto = normalizar(empleado?.puesto);
+  const perfiles = [];
+  if (/marketing|redes|contenido|mercado libre/.test(puesto)) perfiles.push("marketing");
+  if (/administracion|administrativa|administrativo|contab|finanz|encargad/.test(puesto)) perfiles.push("administracion");
+  if (/chofer|logistica|flotilla|ruta/.test(puesto)) perfiles.push("flotilla");
+  if (/venta|vendedor|vendedora|tienda|encargad/.test(puesto)) perfiles.push("ventas", "tienda", "inventario");
+  return [...new Set(perfiles)];
 }
 
 function construirPlan() {
@@ -81,6 +101,8 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [asignaciones, setAsignaciones] = useState([]);
+  const [empleados, setEmpleados] = useState([]);
+  const [cargandoEquipo, setCargandoEquipo] = useState(true);
 
   useEffect(() => {
     let activo = true;
@@ -111,6 +133,34 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
     return () => { activo = false; };
   }, [branchId, plan]);
 
+  useEffect(() => {
+    let activo = true;
+    async function cargarEquipo() {
+      if (!branchId) {
+        setEmpleados([]);
+        setCargandoEquipo(false);
+        return;
+      }
+      try {
+        setCargandoEquipo(true);
+        const registros = await obtenerEmpleadosActivosParaAsignacion(branchId);
+        if (activo) setEmpleados(registros || []);
+      } catch (error) {
+        console.error("No fue posible comprobar los accesos del equipo:", error);
+        if (activo) setEmpleados([]);
+      } finally {
+        if (activo) setCargandoEquipo(false);
+      }
+    }
+    cargarEquipo();
+    return () => { activo = false; };
+  }, [branchId]);
+
+  const empleadosConAcceso = empleados.filter((empleado) => Boolean(empleado?.usuario_id));
+  const perfilesCubiertos = new Set(empleadosConAcceso.flatMap(perfilesEmpleado));
+  const perfilesRequeridos = ["administracion", "ventas", "inventario", "marketing", "flotilla", "tienda"];
+  const perfilesFaltantes = perfilesRequeridos.filter((perfil) => !perfilesCubiertos.has(perfil));
+
   async function activarPlan() {
     if (!branchId || guardando) return;
 
@@ -132,6 +182,7 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
           descripcion: tarea.descripcion,
           area: tarea.area,
           fecha: tarea.fecha,
+          requiereUsuarioVinculado: true,
         });
 
         if (!responsable?.nombre) {
@@ -176,7 +227,7 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
       const faltantes = resultados.filter((resultado) => resultado.estado === "sin_responsable").length;
       setMensaje(
         faltantes > 0
-          ? `⚠️ Se enviaron ${tareasDelPlan.length} tareas. ${faltantes} requieren dar de alta a un empleado compatible.`
+          ? `⚠️ Se enviaron ${tareasDelPlan.length} tareas. ${faltantes} requieren un empleado compatible con acceso a MONYS.`
           : `✅ Plan activado: ${tareasDelPlan.length} tareas reales ya están disponibles en las cuentas del equipo.`
       );
     } catch (error) {
@@ -205,6 +256,30 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
             <p style={{ margin: "6px 0 0", color: "#77636d", fontSize: 13, lineHeight: 1.45 }}>{fase.meta}</p>
           </div>
         ))}
+      </div>
+
+      <div style={{ marginTop: 15, padding: 15, borderRadius: 15, background: perfilesFaltantes.length === 0 && empleadosConAcceso.length > 0 ? "#eef9f2" : "#fff6e2", border: perfilesFaltantes.length === 0 && empleadosConAcceso.length > 0 ? "1px solid #b8dcc5" : "1px solid #e4c47d" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <strong style={{ color: "#3b2831" }}>Acceso real del equipo</strong>
+            <p style={{ margin: "5px 0 0", color: "#715f67", fontSize: 13, lineHeight: 1.45 }}>
+              {cargandoEquipo
+                ? "Comprobando usuarios vinculados…"
+                : `${empleadosConAcceso.length} de ${empleados.length} empleados activos pueden entrar y recibir tareas.`}
+            </p>
+          </div>
+          <span style={{ padding: "7px 10px", borderRadius: 999, background: "#fff", color: empleadosConAcceso.length === empleados.length && empleados.length > 0 ? COLOR.verde : COLOR.dorado, fontWeight: 900, fontSize: 12 }}>
+            {empleadosConAcceso.length === empleados.length && empleados.length > 0 ? "✓ Equipo conectado" : `${Math.max(empleados.length - empleadosConAcceso.length, 0)} sin usuario`}
+          </span>
+        </div>
+        {!cargandoEquipo && perfilesFaltantes.length > 0 && (
+          <div style={{ marginTop: 10, color: "#7a5713", fontSize: 12, fontWeight: 750 }}>
+            Perfiles sin cobertura conectada: {perfilesFaltantes.join(", ")}.
+          </div>
+        )}
+        <p style={{ margin: "9px 0 0", color: "#76636c", fontSize: 11, lineHeight: 1.4 }}>
+          MONYS solo enviará nuevas tareas del rescate a personas activas con usuario vinculado. Las demás quedarán señaladas, no asignadas en silencio.
+        </p>
       </div>
 
       <button type="button" onClick={() => setAbierta((valor) => !valor)} style={{ width: "100%", marginTop: 15, minHeight: 45, borderRadius: 12, border: "1px solid #d9b9c8", background: "#fff", color: COLOR.vino, fontWeight: 850, cursor: "pointer" }}>
