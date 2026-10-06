@@ -1408,7 +1408,7 @@ async function sincronizarResultadoTareaConCampana({
     pedidosAcumulados,
     ventaAcumulada,
     margenRealBase: obtenerMargenRealBaseCampana(
-      campana?.estrategia_ia?.datosRentabilidadBase
+      campana?.estrategia_ia
     ),
     publicacion: resultadoMarketing.publicacion,
     gastoConfirmado: camposConfirmados.gasto,
