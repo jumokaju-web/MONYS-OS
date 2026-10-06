@@ -9,6 +9,7 @@ import {
   obtenerRutaDeUnidadEnFecha,
   suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
+import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
 
 function normalizarNombre(valor) {
   return String(valor || "")
@@ -402,6 +403,10 @@ export default function FlotillaChofer({
             </button>
           </div>
         )}
+
+        {["owner", "admin"].includes(
+          String(usuario?.role || "").toLowerCase()
+        ) && <ResumenFlotillaSocios unidades={unidades} />}
 
         {/* SALUDO */}
         <div
