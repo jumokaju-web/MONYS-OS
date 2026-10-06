@@ -1002,7 +1002,12 @@ if (
   }
 
   return (
-    <FlotillaChofer />
+    <FlotillaChofer
+      usuario={usuario}
+      volverAlDashboard={() =>
+        setPantallaActual("dashboard")
+      }
+    />
   );
 }
 
