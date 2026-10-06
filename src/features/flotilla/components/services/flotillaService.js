@@ -104,3 +104,39 @@ export async function obtenerRutaDeUnidadEnFecha(
 
   return data;
 }
+
+export function suscribirseARutasDeUnidad({
+  unidadId,
+  onCambio,
+  onEstado,
+}) {
+  if (!unidadId) {
+    return () => {};
+  }
+
+  const canal = supabase
+    .channel(`flotilla-rutas-${unidadId}-${Date.now()}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "flotilla_rutas",
+        filter: `unidad_id=eq.${unidadId}`,
+      },
+      (cambio) => {
+        if (typeof onCambio === "function") {
+          onCambio(cambio);
+        }
+      }
+    )
+    .subscribe((estado) => {
+      if (typeof onEstado === "function") {
+        onEstado(estado);
+      }
+    });
+
+  return () => {
+    supabase.removeChannel(canal);
+  };
+}
