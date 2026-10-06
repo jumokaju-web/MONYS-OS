@@ -191,6 +191,51 @@ export async function obtenerCalendarioTareasOperativas({
 // CREAR TAREA
 // ======================================================
 
+function normalizarNombreResponsable(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+async function resolverUsuarioResponsableTarea({
+  branchId,
+  responsable,
+  usuarioId = null,
+} = {}) {
+  if (usuarioId) {
+    return usuarioId;
+  }
+
+  if (!branchId || !responsable) {
+    return null;
+  }
+
+  try {
+    const empleados =
+      await obtenerEmpleadosActivosParaAsignacion(branchId);
+    const nombreBuscado = normalizarNombreResponsable(responsable);
+    const coincidencias = empleados.filter(
+      (empleado) =>
+        normalizarNombreResponsable(empleado?.nombre) === nombreBuscado,
+    );
+
+    if (coincidencias.length !== 1) {
+      return null;
+    }
+
+    return coincidencias[0]?.usuario_id || null;
+  } catch (error) {
+    console.warn(
+      "No se pudo vincular la tarea con el usuario del empleado:",
+      error,
+    );
+    return null;
+  }
+}
+
 export async function crearTareaOperativa({
   organizationId = null,
   businessId = null,
@@ -199,6 +244,7 @@ export async function crearTareaOperativa({
   descripcion = null,
   area = "general",
   responsable = null,
+  responsableUsuarioId = null,
   prioridad = "normal",
   fecha = null,
   horaLimite = null,
@@ -357,16 +403,38 @@ export async function crearTareaOperativa({
       new Date().toISOString(),
   };
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const usuarioResponsableId =
+    await resolverUsuarioResponsableTarea({
+      branchId,
+      responsable,
+      usuarioId: responsableUsuarioId,
+    });
+
+  if (usuarioResponsableId) {
+    nuevaTarea.responsable_usuario_id = usuarioResponsableId;
+  }
+
+  let { data, error } = await supabase
     .from("tareas_operativas")
-    .insert(
-      nuevaTarea
-    )
+    .insert(nuevaTarea)
     .select()
     .single();
+
+  if (
+    error &&
+    nuevaTarea.responsable_usuario_id &&
+    ["PGRST204", "42703"].includes(String(error.code || ""))
+  ) {
+    // El campo aparece al aplicar la migración; conserva la creación de tareas antes de aplicarla.
+    const tareaCompatible = { ...nuevaTarea };
+    delete tareaCompatible.responsable_usuario_id;
+
+    ({ data, error } = await supabase
+      .from("tareas_operativas")
+      .insert(tareaCompatible)
+      .select()
+      .single());
+  }
 
   if (error) {
     console.error(
