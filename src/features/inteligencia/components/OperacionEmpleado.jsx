@@ -1053,6 +1053,37 @@ export default function OperacionEmpleado({
     };
   }, [branchIdActivo, esCentroGrowth]);
 
+  async function actualizarCentroGrowthCompleto() {
+    await cargarTareas();
+
+    if (!esCentroGrowth || !branchIdActivo) {
+      setOportunidadesCentroGrowth([]);
+      return;
+    }
+
+    setCargandoOportunidadesCentroGrowth(true);
+
+    try {
+      const resultado =
+        await obtenerOportunidadesGrowthOS({
+          branchId: branchIdActivo,
+        });
+
+      setOportunidadesCentroGrowth(
+        Array.isArray(resultado?.oportunidades)
+          ? resultado.oportunidades
+          : []
+      );
+    } catch (errorOportunidades) {
+      console.error(
+        "Error actualizando el Centro de Crecimiento:",
+        errorOportunidades
+      );
+    } finally {
+      setCargandoOportunidadesCentroGrowth(false);
+    }
+  }
+
   function abrirTareaPrioritaria() {
     if (!tareaPrioritaria) {
       return;
@@ -1131,7 +1162,7 @@ export default function OperacionEmpleado({
           cargandoOportunidades={
             cargandoOportunidadesCentroGrowth
           }
-          onActualizar={cargarTareas}
+          onActualizar={actualizarCentroGrowthCompleto}
           onEmpezarPrioridad={
             abrirTareaPrioritaria
           }
