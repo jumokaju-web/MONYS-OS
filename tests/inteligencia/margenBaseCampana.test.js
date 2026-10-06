@@ -21,6 +21,21 @@ test("pondera los márgenes multiproducto por ventas históricas reales", () => 
   assert.ok(Math.abs(margen - 28.75) < 1e-10);
 });
 
+test("recupera SICAR histórico de campañas multiproducto anteriores", () => {
+  const margen = obtenerMargenRealBaseCampana({
+    datosRentabilidadBase: {
+      tipo: "METRICAS_SEPARADAS_POR_PRODUCTO",
+      productos: [{ nombre: "Producto A", margenReal: 25 }],
+    },
+    productosSeleccionadosGrowth: [
+      { nombre: "Producto A", importe: 1000, utilidad: 250 },
+      { nombre: "Producto B", importe: 2000, utilidad: 500 },
+    ],
+  });
+
+  assert.equal(margen, 25);
+});
+
 test("conserva un margen real igual a cero", () => {
   assert.equal(
     obtenerMargenRealBaseCampana({
