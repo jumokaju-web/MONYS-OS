@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { obtenerFechaLocalISO } from "../../shared/fechaLocal";
+import { asignarResponsableAutomatico } from "../../services/empleadosRHService";
+import { crearTareaOperativa } from "../../services/tareasOperativasService";
 import {
   calcularResumenDeudas,
   guardarDeudaFinanciera,
@@ -55,6 +57,18 @@ function prioridadPago(fecha) {
   return { etiqueta: "PROGRAMABLE", color: "#236641", fondo: "#e1f5e8" };
 }
 
+function obtenerFechaRevisionPago(fechaPago) {
+  const hoy = obtenerFechaLocalISO();
+  if (!fechaPago) return hoy;
+
+  const fechaRevision = new Date(`${String(fechaPago).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(fechaRevision.getTime())) return hoy;
+
+  fechaRevision.setDate(fechaRevision.getDate() - 3);
+  const fechaLocal = obtenerFechaLocalISO(fechaRevision);
+  return fechaLocal < hoy ? hoy : fechaLocal;
+}
+
 function esTablaPendiente(error) {
   const codigo = String(error?.code || "").toUpperCase();
   const texto = [error?.message, error?.details, error?.hint]
@@ -103,6 +117,7 @@ function CentroRescateFinanciero({
   const [formulario, setFormulario] = useState(FORMULARIO_INICIAL);
   const [mensaje, setMensaje] = useState("");
   const [basePendiente, setBasePendiente] = useState(false);
+  const [programacion, setProgramacion] = useState({ guardandoId: null, agendadas: {}, mensaje: "" });
 
   async function cargarDeudas() {
     if (!organizationId) {
@@ -161,6 +176,61 @@ function CentroRescateFinanciero({
   const actualizarCampo = (evento) => {
     const { name, value } = evento.target;
     setFormulario((anterior) => ({ ...anterior, [name]: value }));
+  };
+
+  const agendarRevisionPago = async (deuda) => {
+    if (!branchId || programacion.guardandoId) return;
+
+    try {
+      setProgramacion((actual) => ({ ...actual, guardandoId: deuda.id, mensaje: "" }));
+      const responsable = await asignarResponsableAutomatico({
+        branchId,
+        titulo: `Revisar pago · ${deuda.nombre}`,
+        descripcion: "Confirmar vencimiento y saldo del compromiso financiero.",
+        area: "administracion",
+        fecha: obtenerFechaRevisionPago(deuda.fecha_proximo_pago),
+        requiereUsuarioVinculado: true,
+      });
+
+      if (!responsable?.nombre) {
+        throw new Error("No hay una persona de administración con usuario MONYS vinculado en esta sucursal.");
+      }
+
+      const fechaRevision = obtenerFechaRevisionPago(deuda.fecha_proximo_pago);
+      const etiquetaVencimiento = deuda.fecha_proximo_pago
+        ? `Vence ${String(deuda.fecha_proximo_pago).slice(0, 10)}`
+        : "Falta confirmar la fecha de vencimiento";
+      const titulo = `Revisar pago · ${deuda.nombre} · ${etiquetaVencimiento}`;
+
+      await crearTareaOperativa({
+        organizationId,
+        businessId,
+        branchId,
+        titulo,
+        descripcion: `Revisar el crédito con ${deuda.acreedor}. ${etiquetaVencimiento}. Mensualidad registrada: ${Number(deuda.pago_mensual) > 0 ? dinero(deuda.pago_mensual) : "sin confirmar"}.`,
+        area: "administracion",
+        responsable: responsable.nombre,
+        prioridad: prioridadPago(deuda.fecha_proximo_pago).etiqueta === "VENCIDO" ? "urgente" : "alta",
+        fecha: fechaRevision,
+        horaLimite: "12:00",
+        instrucciones: "Confirma el saldo, la fecha y la disponibilidad de efectivo; prepara la propuesta para autorización de Mónica. No marques como pagado ni realices transferencias desde esta tarea.",
+        creadaPor: "Centro de Rescate Financiero",
+        requiereEvidencia: true,
+        criterioExito: "Datos del pago y disponibilidad verificados; propuesta documentada para autorización humana. Ningún pago se ejecuta automáticamente.",
+      });
+
+      setProgramacion((actual) => ({
+        guardandoId: null,
+        agendadas: { ...actual.agendadas, [deuda.id]: true },
+        mensaje: `Recordatorio agendado para ${responsable.nombre}, el ${fechaCorta(fechaRevision)}. No se realizó ningún pago.`,
+      }));
+    } catch (error) {
+      setProgramacion((actual) => ({
+        ...actual,
+        guardandoId: null,
+        mensaje: error?.message || "No se pudo agendar la revisión.",
+      }));
+    }
   };
 
   const guardar = async (evento) => {
@@ -431,6 +501,18 @@ function CentroRescateFinanciero({
                         : "Falta monto"}
                     </strong>
                   </div>
+                  <button
+                    type="button"
+                    disabled={!branchId || Boolean(programacion.guardandoId)}
+                    onClick={() => agendarRevisionPago(deuda)}
+                    style={{ gridColumn: "1 / -1", minHeight: 38, borderRadius: 9, border: "1px solid #d8bd91", background: programacion.agendadas[deuda.id] ? "#e3f5e8" : "#fff8e9", color: programacion.agendadas[deuda.id] ? "#236641" : "#714b00", fontWeight: 850, cursor: !branchId || programacion.guardandoId ? "wait" : "pointer" }}
+                  >
+                    {programacion.guardandoId === deuda.id
+                      ? "Agendando revisión…"
+                      : programacion.agendadas[deuda.id]
+                        ? "✓ Revisión agendada"
+                        : "Agendar revisión en tareas del equipo"}
+                  </button>
                 </article>
               );
             })}
@@ -446,6 +528,11 @@ function CentroRescateFinanciero({
             }}
           >
             Registra créditos, mensualidades y fechas para construir el calendario real.
+          </div>
+        )}
+        {programacion.mensaje && (
+          <div role="status" style={{ marginTop: 10, padding: 11, borderRadius: 10, background: programacion.mensaje.startsWith("Recordatorio") ? "rgba(225,245,232,.96)" : "rgba(255,240,224,.96)", color: programacion.mensaje.startsWith("Recordatorio") ? "#236641" : "#75451a", fontWeight: 750, fontSize: 12 }}>
+            {programacion.mensaje}
           </div>
         )}
       </section>
