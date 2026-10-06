@@ -125,9 +125,13 @@ export function evaluarResultadoCampanaGrowth({
   const gasto = Math.max(0, Number(gastoAcumulado) || 0);
   const pedidos = Math.max(0, Number(pedidosAcumulados) || 0);
   const venta = Math.max(0, Number(ventaAcumulada) || 0);
+  const tieneMargenReal =
+    margenRealBase !== null &&
+    margenRealBase !== undefined &&
+    margenRealBase !== "";
   const margenCandidato = Number(margenRealBase);
   const margen =
-    Number.isFinite(margenCandidato) && margenCandidato > 0
+    tieneMargenReal && Number.isFinite(margenCandidato)
       ? margenCandidato
       : null;
   const costoPorPedido =
