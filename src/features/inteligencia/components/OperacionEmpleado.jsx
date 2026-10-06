@@ -6245,6 +6245,56 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   </div>
 )}
 
+      {["CAMPANAS", "CONTENIDO"].includes(seccionGrowthActiva) && (
+        <div
+          style={{
+            marginBottom: "12px",
+            padding: "14px",
+            borderRadius: "14px",
+            border: "1px solid #e7cfdb",
+            background: "#ffffff",
+            boxShadow: "0 8px 22px rgba(112, 36, 73, 0.07)",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              color: "#b12c69",
+              fontSize: "10px",
+              fontWeight: "900",
+              letterSpacing: ".09em",
+              textTransform: "uppercase",
+            }}
+          >
+            {seccionGrowthActiva === "CONTENIDO"
+              ? "Brief para contenido"
+              : "Diseñador de campaña"}
+          </span>
+          <strong
+            style={{
+              display: "block",
+              margin: "4px 0 5px",
+              color: "#4d2639",
+              fontSize: "17px",
+            }}
+          >
+            {seccionGrowthActiva === "CONTENIDO"
+              ? "Prepara una pieza lista para revisión"
+              : "Crea una prueba medible y protegida"}
+          </strong>
+          <p
+            style={{
+              margin: "0 0 12px",
+              color: "#75636c",
+              fontSize: "12px",
+              lineHeight: "1.45",
+            }}
+          >
+            MONYS puede analizar, proponer y preparar. Publicar en una cuenta
+            externa o gastar dinero siempre requiere la conexión oficial y la
+            autorización de Mónica.
+          </p>
+
       <textarea
         id="growth-campana-form"
         value={objetivoUsuario}
@@ -6447,6 +6497,8 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           ? "🧠 MONYS preparando publicaciones..."
           : "📣 Generar kit listo para publicar"}
       </button>
+        </div>
+      )}
         </>
       )}
 
