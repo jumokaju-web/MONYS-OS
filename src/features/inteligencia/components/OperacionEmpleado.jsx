@@ -3677,7 +3677,9 @@ function ResultadoMarketingTarea({
       alert(
         guardado?.sincronizacionCampana?.sincronizada
           ? "Resultado guardado y campaña actualizada. La Agencia IA ya puede avanzar a la siguiente etapa."
-          : "Resultado guardado en la tarea. MONYS no encontró una campaña activa única para sincronizarlo automáticamente."
+          : guardado?.sincronizacionCampana?.motivo === "SIN_COINCIDENCIA_UNICA"
+            ? "Resultado guardado en la tarea, pero no atribuido a una campaña para evitar mezclar resultados. Confirma que haya una sola campaña activa coincidente y que la tarea mencione el producto."
+            : "Resultado guardado en la tarea, pero MONYS no pudo confirmar su sincronización con una campaña. Revisa la conexión e inténtalo de nuevo."
       );
     } catch (error) {
       console.error(
