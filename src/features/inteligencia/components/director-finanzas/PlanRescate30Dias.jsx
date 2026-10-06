@@ -200,6 +200,7 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
   }, [branchId]);
 
   const empleadosConAcceso = empleados.filter((empleado) => Boolean(empleado?.usuario_id));
+  const empleadosSinAcceso = empleados.filter((empleado) => !empleado?.usuario_id);
   const perfilesCubiertos = new Set(empleadosConAcceso.flatMap(perfilesEmpleado));
   const perfilesRequeridos = ["administracion", "ventas", "inventario", "marketing", "flotilla", "tienda"];
   const perfilesFaltantes = perfilesRequeridos.filter((perfil) => !perfilesCubiertos.has(perfil));
@@ -344,6 +345,13 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
         {!cargandoEquipo && perfilesFaltantes.length > 0 && (
           <div style={{ marginTop: 10, color: "#7a5713", fontSize: 12, fontWeight: 750 }}>
             Perfiles sin cobertura conectada: {perfilesFaltantes.join(", ")}.
+          </div>
+        )}
+        {!cargandoEquipo && empleadosSinAcceso.length > 0 && (
+          <div style={{ marginTop: 10, padding: 11, borderRadius: 11, background: "#fff", color: "#5d4531", fontSize: 12, lineHeight: 1.5 }}>
+            <strong>Personas que aún no recibirán tareas:</strong>{" "}
+            {empleadosSinAcceso.map((empleado) => `${empleado.nombre || "Sin nombre"}${empleado.puesto ? ` · ${empleado.puesto}` : ""}`).join("; ")}.
+            <div style={{ marginTop: 4, color: "#76636c" }}>Vincula sus cuentas desde Director de RH y después vuelve a activar las tareas pendientes.</div>
           </div>
         )}
         <p style={{ margin: "9px 0 0", color: "#76636c", fontSize: 11, lineHeight: 1.4 }}>
