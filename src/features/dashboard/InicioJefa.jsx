@@ -4,6 +4,7 @@ import {
 } from "react";
 import Header from "../../components/layout/Header";
 import AgendaJefa from "./components/AgendaJefa";
+import SalaRescateJefa from "./components/SalaRescateJefa";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
@@ -545,6 +546,11 @@ const utilidadConsolidada =
             ))}
           </div>
         </div>
+
+        <SalaRescateJefa
+          branchId={datosDashboard?.branch_id || null}
+          abrirDirectorFinanciero={abrirJuntaDirectiva}
+        />
 
         {/* MÉTRICAS */}
 
