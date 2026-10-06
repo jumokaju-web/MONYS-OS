@@ -21,34 +21,7 @@ export async function obtenerTareasOperativas({
 } = {}) {
   let consulta = supabase
     .from("tareas_operativas")
-    .select(`
-      id,
-      organization_id,
-      business_id,
-      branch_id,
-      titulo,
-      descripcion,
-      area,
-      responsable,
-      prioridad,
-      estado,
-      fecha,
-      hora_limite,
-      instrucciones,
-      resultado,
-      creada_por,
-      completada_por,
-      completada_at,
-      requiere_evidencia,
-      criterio_exito,
-      calificacion_final,
-      evaluacion_estado,
-      evaluacion_resumen,
-      requiere_revision,
-      checklist,
-      created_at,
-      updated_at
-    `)
+    .select("*")
     .order("prioridad", {
       ascending: false,
     })
@@ -109,27 +82,7 @@ export async function obtenerCalendarioTareasOperativas({
 
   let consulta = supabase
     .from("tareas_operativas")
-    .select(`
-      id,
-      organization_id,
-      business_id,
-      branch_id,
-      titulo,
-      descripcion,
-      area,
-      responsable,
-      prioridad,
-      estado,
-      fecha,
-      hora_limite,
-      instrucciones,
-      resultado,
-      requiere_evidencia,
-      criterio_exito,
-      checklist,
-      created_at,
-      updated_at
-    `)
+    .select("*")
     .gte(
       "fecha",
       fechaInicio
@@ -461,7 +414,20 @@ async function resolverResponsableMarketing({
     String(responsable || "").trim();
 
   if (responsableIndicado) {
-    return responsableIndicado;
+    const empleadosActivos =
+      await obtenerEmpleadosActivosParaAsignacion(
+        branchId
+      );
+    const coincidencias = empleadosActivos.filter(
+      (empleado) =>
+        normalizar(empleado.nombre) ===
+        normalizar(responsableIndicado)
+    );
+
+    return coincidencias.length === 1 &&
+      coincidencias[0]?.usuario_id
+      ? String(coincidencias[0].nombre).trim()
+      : "";
   }
 
   const normalizar = (valor) =>
@@ -537,16 +503,17 @@ async function resolverResponsableMarketing({
         branchId
       );
 
-    const empleadoActivoAnterior =
-      empleadosActivos.find(
+    const empleadosAnteriores =
+      empleadosActivos.filter(
         (empleado) =>
           normalizar(empleado.nombre) ===
-          normalizar(responsableAnterior)
+            normalizar(responsableAnterior) &&
+          empleado?.usuario_id
       );
 
-    if (empleadoActivoAnterior) {
+    if (empleadosAnteriores.length === 1) {
       return String(
-        empleadoActivoAnterior.nombre
+        empleadosAnteriores[0].nombre
       ).trim();
     }
   }
@@ -563,6 +530,7 @@ async function resolverResponsableMarketing({
         fecha: new Date()
           .toISOString()
           .slice(0, 10),
+        requiereUsuarioVinculado: true,
       });
 
     return String(
@@ -622,7 +590,7 @@ export async function crearPlanSemanalMarketing({
 
   if (!responsableFinal) {
     throw new Error(
-      "No encontramos una persona responsable de Marketing en esta sucursal."
+      "No encontramos una persona activa de Marketing con cuenta vinculada a MONYS OS en esta sucursal."
     );
   }
 
@@ -2862,6 +2830,7 @@ export async function crearTareaAutomaticaDesdePrioridad({
        area:
   areaTarea,
         fecha,
+        requiereUsuarioVinculado: true,
       });
   } catch (
     errorAsignacion
@@ -2897,10 +2866,33 @@ export async function crearTareaAutomaticaDesdePrioridad({
   }
 
 
+  if (!asignacion && prioridad.responsable) {
+    const usuarioResponsableId =
+      await resolverUsuarioResponsableTarea({
+        branchId,
+        responsable: prioridad.responsable,
+      });
+
+    if (usuarioResponsableId) {
+      asignacion = {
+        nombre: String(prioridad.responsable).trim(),
+        usuarioId: usuarioResponsableId,
+        metodo: "RESPONSABLE_VINCULADO",
+      };
+    }
+  }
+
+  if (!asignacion?.nombre || !asignacion?.usuarioId) {
+    return {
+      creada: false,
+      motivo: "SIN_EMPLEADO_CON_CUENTA_VINCULADA",
+      tarea: null,
+      asignacion: null,
+    };
+  }
+
   const responsableAutomatico =
-    asignacion?.nombre ||
-    prioridad.responsable ||
-    "Operación";
+    asignacion.nombre;
 
 
   const instruccionesAutomaticas =
@@ -2924,6 +2916,9 @@ area:
 
       responsable:
         responsableAutomatico,
+
+      responsableUsuarioId:
+        asignacion.usuarioId,
 
       prioridad:
         prioridadTarea,
