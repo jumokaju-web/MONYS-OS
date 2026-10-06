@@ -5197,7 +5197,7 @@ async function guardarSeguimientoCampana() {
       pedidosAcumulados,
       ventaAcumulada,
       margenRealBase: obtenerMargenRealBaseCampana(
-        campanaGuardada?.estrategia_ia?.datosRentabilidadBase
+        campanaGuardada?.estrategia_ia
       ),
       publicacion: publicacionCampana,
       gastoConfirmado: camposConfirmados.gasto,
@@ -7460,10 +7460,10 @@ Number.isFinite(
         .utilidadEstimadaCampana
     ).toFixed(2)}`
     : obtenerMargenRealBaseCampana(
-        campanaGuardada?.estrategia_ia?.datosRentabilidadBase
+        campanaGuardada?.estrategia_ia
       ) !== null
   ? `Lista para calcular · margen base ${obtenerMargenRealBaseCampana(
-      campanaGuardada?.estrategia_ia?.datosRentabilidadBase
+      campanaGuardada?.estrategia_ia
     ).toFixed(1)}%`
   : "Pendiente de margen real"}
 
