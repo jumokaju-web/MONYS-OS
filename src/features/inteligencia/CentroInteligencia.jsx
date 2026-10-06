@@ -822,6 +822,12 @@ const analisisRH =
   movimientos={
     movimientos
   }
+  creditosProveedores={
+    creditosProveedores
+  }
+  onAbrirImportador={
+    onAbrirImportador
+  }
 />
       )}
 
