@@ -56,12 +56,22 @@ function prioridadPago(fecha) {
 }
 
 function esTablaPendiente(error) {
-  const mensaje = String(error?.message || "").toLowerCase();
+  const codigo = String(error?.code || "").toUpperCase();
+  const texto = [error?.message, error?.details, error?.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (codigo === "42P01" || codigo === "PGRST205") {
+    return true;
+  }
+
   return (
-    mensaje.includes("deudas_financieras") &&
-    (mensaje.includes("does not exist") ||
-      mensaje.includes("schema cache") ||
-      mensaje.includes("no fue posible consultar"))
+    texto.includes("deudas_financieras") &&
+    ((texto.includes("relation") && texto.includes("does not exist")) ||
+      (texto.includes("could not find the table") &&
+        texto.includes("schema cache")) ||
+      (texto.includes("table") && texto.includes("not found")))
   );
 }
 
