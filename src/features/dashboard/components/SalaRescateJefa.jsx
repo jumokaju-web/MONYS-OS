@@ -152,7 +152,13 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
 
       {error && <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "rgba(255,221,171,.15)", border: "1px solid rgba(255,221,171,.35)" }}>{error}</div>}
 
-      {!cargando && tareas.length === 0 ? (
+      {!cargando && error && tareas.length === 0 ? (
+        <div style={{ marginTop: 16, padding: 17, borderRadius: 16, background: "rgba(255,221,171,.15)", border: "1px solid rgba(255,221,171,.35)" }}>
+          <strong style={{ display: "block", fontSize: 18 }}>No pudimos comprobar si el plan ya está activo</strong>
+          <p style={{ margin: "7px 0 13px", color: "rgba(255,255,255,.78)", fontSize: 13, lineHeight: 1.5 }}>{error} Vuelve a consultar para confirmar el estado antes de activar tareas.</p>
+          <button type="button" onClick={() => setVersionConsulta((valor) => valor + 1)} style={estiloBotonPrincipal}>Volver a consultar →</button>
+        </div>
+      ) : !cargando && tareas.length === 0 ? (
         <div style={{ marginTop: 16, padding: 17, borderRadius: 16, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.18)" }}>
           <strong style={{ display: "block", fontSize: 18 }}>El plan está diseñado y espera tu autorización</strong>
           <p style={{ margin: "7px 0 13px", color: "rgba(255,255,255,.75)", fontSize: 13, lineHeight: 1.5 }}>Entra al Director Financiero, revisa las 16 acciones y envíalas a las cuentas de los empleados.</p>
