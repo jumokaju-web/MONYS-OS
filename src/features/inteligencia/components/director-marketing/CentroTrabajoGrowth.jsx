@@ -1345,6 +1345,21 @@ export default function CentroTrabajoGrowth({
           </article>
         </div>
 
+        <p
+          role="note"
+          style={{
+            margin: "9px 0 0",
+            padding: "10px 12px",
+            borderRadius: "12px",
+            background: "rgba(255,255,255,.72)",
+            color: "#65475a",
+            fontSize: "12px",
+            lineHeight: 1.5,
+          }}
+        >
+          La utilidad es una estimación: venta atribuida × margen histórico de SICAR − gasto confirmado. Solo se incluye cuando venta y gasto están confirmados; no sustituye la utilidad contable real de cada venta.
+        </p>
+
         {resumenCampanas.decision && (
           <div className="growth-workspace__decision">
             <span>Decisión pendiente</span>
