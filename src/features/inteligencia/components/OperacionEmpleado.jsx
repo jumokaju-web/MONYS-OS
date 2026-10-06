@@ -3810,6 +3810,11 @@ const [
   setErrorOportunidadesGrowth,
 ] = useState("");
 
+const [
+  mensajePreparacionGrowth,
+  setMensajePreparacionGrowth,
+] = useState("");
+
   useEffect(() => {
     window.dispatchEvent(
       new CustomEvent(
@@ -4227,8 +4232,57 @@ function prepararOportunidadGrowth(oportunidad) {
   setErrorCampana("");
   setProductosSeleccionadosGrowth([]);
   setProducto(nombreOportunidad);
+  setExistenciaProducto(
+    oportunidad?.existencia == null
+      ? ""
+      : String(Number(oportunidad.existencia || 0))
+  );
+
+  const precioPromedioReal =
+    Number(oportunidad?.piezasVendidas || 0) > 0 &&
+    Number(oportunidad?.importe || 0) > 0
+      ? Number(oportunidad.importe) /
+        Number(oportunidad.piezasVendidas)
+      : null;
+
+  setPrecioProducto(
+    precioPromedioReal == null
+      ? ""
+      : precioPromedioReal.toFixed(2)
+  );
+  setAudienciaProducto("");
+  setOfertaProducto("");
+  setCanalPreferido(
+    oportunidad?.requierePruebaOrganica
+      ? "TikTok"
+      : ""
+  );
+  setPresupuestoMaximo(
+    oportunidad?.requierePruebaOrganica
+      ? "0"
+      : ""
+  );
   setObjetivoUsuario(
     `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
+  );
+  setMensajePreparacionGrowth(
+    `Datos SICAR precargados: ${Number(
+      oportunidad?.existencia || 0
+    ).toLocaleString("es-MX")} piezas disponibles${
+      precioPromedioReal == null
+        ? ""
+        : ` · precio promedio vendido $${precioPromedioReal.toLocaleString(
+            "es-MX",
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }
+          )}`
+    }${
+      oportunidad?.requierePruebaOrganica
+        ? " · prueba orgánica con gasto $0"
+        : " · MONYS decidirá el canal y la prueba"
+    }.`
   );
   setSeccionGrowthActiva("CAMPANAS");
 
@@ -4295,6 +4349,9 @@ function prepararCampanaMultipleGrowth() {
   setKitMarketing(null);
   setCampanaGuardada(null);
   setErrorCampana("");
+  setMensajePreparacionGrowth(
+    `${productosSeleccionadosGrowth.length} productos seleccionados con métricas SICAR separadas. MONYS validará si comparten audiencia y objetivo antes de agruparlos.`
+  );
   setProducto(nombres.join(", "));
   setPrecioProducto("");
   setExistenciaProducto("");
@@ -4425,19 +4482,9 @@ const ofertaFinal =
      estrategia: {
   objetivo: objetivoUsuario.trim(),
 
-  audiencia:
-    String(
-      audienciaProducto ||
-      estrategia?.audiencia ||
-      ""
-    ).trim(),
+  audiencia: audienciaFinal,
 
-  oferta:
-    String(
-      ofertaProducto ||
-      estrategia?.oferta ||
-      ""
-    ).trim(),
+  oferta: ofertaFinal,
 },
 
       campana: {
@@ -6325,6 +6372,25 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
             externa o gastar dinero siempre requiere la conexión oficial y la
             autorización de Mónica.
           </p>
+
+          {mensajePreparacionGrowth && (
+            <div
+              role="status"
+              style={{
+                marginBottom: "12px",
+                padding: "10px 11px",
+                border: "1px solid #bfe2cf",
+                borderRadius: "11px",
+                background: "#eefaf3",
+                color: "#246343",
+                fontSize: "12px",
+                fontWeight: "750",
+                lineHeight: "1.45",
+              }}
+            >
+              ✓ {mensajePreparacionGrowth}
+            </div>
+          )}
 
       <textarea
         id="growth-campana-form"
