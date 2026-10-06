@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
@@ -11,6 +12,25 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
   const puesto = usuario?.puesto || usuario?.role || "Operación";
 
   const esMarketing = String(puesto).toLowerCase().includes("marketing");
+  const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
+
+  useEffect(() => {
+    function reflejarSeccionGrowth(event) {
+      setSeccionGrowthActiva(String(event?.detail || "HOY").toUpperCase());
+    }
+
+    window.addEventListener(
+      "monys-growth-seccion-activa",
+      reflejarSeccionGrowth,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "monys-growth-seccion-activa",
+        reflejarSeccionGrowth,
+      );
+    };
+  }, []);
 
   async function cerrarSesion() {
     try {
@@ -23,16 +43,18 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
   }
 
   function navegarGrowth(seccion) {
-    if (seccion === "HOY") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
+    setSeccionGrowthActiva(seccion);
 
     window.dispatchEvent(
       new CustomEvent("monys-growth-navegar", {
         detail: seccion,
       }),
     );
+
+    if (seccion === "HOY") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
     window.setTimeout(() => {
       document
@@ -290,7 +312,17 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
               <button
                 key={seccion}
                 type="button"
-                className={`employee-home__nav-button ${seccion === "HOY" ? "is-active" : ""}`}
+                className={`employee-home__nav-button ${
+                  seccion === "OPORTUNIDADES"
+                    ? ["OPORTUNIDADES", "APRENDIZAJES"].includes(
+                        seccionGrowthActiva,
+                      )
+                      ? "is-active"
+                      : ""
+                    : seccionGrowthActiva === seccion
+                      ? "is-active"
+                      : ""
+                }`}
                 onClick={() => navegarGrowth(seccion)}
               >
                 <span>{icono}</span>

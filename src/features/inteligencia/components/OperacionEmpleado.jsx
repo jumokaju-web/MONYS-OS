@@ -3779,6 +3779,15 @@ const [
   setErrorOportunidadesGrowth,
 ] = useState("");
 
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(
+        "monys-growth-seccion-activa",
+        { detail: seccionGrowthActiva }
+      )
+    );
+  }, [seccionGrowthActiva]);
+
   const cargarOportunidadesGrowthRef =
     useRef(null);
 
@@ -5654,6 +5663,64 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
 </button>
 
 </div>
+    {seccionGrowthActiva !== "HOY" && (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          marginBottom: "12px",
+          padding: "12px",
+          border: "1px solid #ead4df",
+          borderRadius: "13px",
+          background: "#ffffff",
+        }}
+      >
+        <div>
+          <span
+            style={{
+              display: "block",
+              color: "#a52a62",
+              fontSize: "10px",
+              fontWeight: "900",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Centro de Crecimiento
+          </span>
+          <strong style={{ color: "#3f2632", fontSize: "16px" }}>
+            {{
+              OPORTUNIDADES: "Oportunidades reales",
+              CONTENIDO: "Crear contenido",
+              CAMPANAS: "Campañas",
+              RESULTADOS: "Resultados y embudo",
+              APRENDIZAJES: "Aprendizajes",
+            }[seccionGrowthActiva] || "Trabajo de Marketing"}
+          </strong>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSeccionGrowthActiva("HOY");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          style={{
+            flex: "0 0 auto",
+            padding: "8px 10px",
+            border: "1px solid #e5c8d6",
+            borderRadius: "10px",
+            background: "#fff7fb",
+            color: "#8a2453",
+            fontWeight: "850",
+            cursor: "pointer",
+          }}
+        >
+          ← Inicio
+        </button>
+      </div>
+    )}
     {seccionGrowthActiva === "HOY" && (
   <div
     style={{
