@@ -50,3 +50,15 @@ test("suma utilidad estimada solo con venta y gasto confirmados, incluidos ceros
   assert.equal(resumen.utilidad, 300);
   assert.equal(resumen.campanasConUtilidad, 2);
 });
+
+test("no presenta decisiones de campañas cerradas como pendientes", () => {
+  const resumen = resumirResultadosCampanas([
+    {
+      estado: "FINALIZADA",
+      decision_ia: "PAUSAR",
+      resultado: { decisionActual: "PAUSAR" },
+    },
+  ]);
+
+  assert.equal(resumen.decision, null);
+});
