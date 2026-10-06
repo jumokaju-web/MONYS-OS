@@ -512,7 +512,8 @@ const semaforoComercial =
         ? "1px solid #f0a5a5"
         : textoEstadoGeneral.includes("limitada") ||
           textoEstadoGeneral.includes("ajustada") ||
-          textoEstadoGeneral.includes("atención")
+          textoEstadoGeneral.includes("atención") ||
+          textoEstadoGeneral.includes("pendiente")
         ? "1px solid #e5c75d"
         : "1px solid #9fd2ae",
 
@@ -524,7 +525,8 @@ const semaforoComercial =
         ? "#9e2c2c"
         : textoEstadoGeneral.includes("limitada") ||
           textoEstadoGeneral.includes("ajustada") ||
-          textoEstadoGeneral.includes("atención")
+          textoEstadoGeneral.includes("atención") ||
+          textoEstadoGeneral.includes("pendiente")
         ? "#8a6800"
         : "#207a4a",
 
