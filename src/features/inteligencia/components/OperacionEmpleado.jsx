@@ -32,6 +32,7 @@ import {
 } from "../services/campanasMarketingService";
 
 import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
+import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
@@ -4855,6 +4856,8 @@ businessId:
           nombre: item.nombre,
           codigo: item.codigo,
           margenReal: item.margenReal,
+          importeBase: item.importe,
+          utilidadBase: item.utilidad,
           piezasVendidasPeriodo: item.piezasVendidas,
           existencia: item.existencia,
           diasCobertura: item.diasCobertura,
@@ -5193,11 +5196,9 @@ async function guardarSeguimientoCampana() {
       gastoAcumulado,
       pedidosAcumulados,
       ventaAcumulada,
-      margenRealBase:
-        campanaGuardada
-          ?.estrategia_ia
-          ?.datosRentabilidadBase
-          ?.margenReal,
+      margenRealBase: obtenerMargenRealBaseCampana(
+        campanaGuardada?.estrategia_ia?.datosRentabilidadBase
+      ),
       publicacion: publicacionCampana,
       gastoConfirmado: camposConfirmados.gasto,
       pedidosConfirmados: camposConfirmados.pedidos,
