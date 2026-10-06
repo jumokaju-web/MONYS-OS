@@ -1159,6 +1159,10 @@ if (esOwner) {
   return (
     <InicioJefa
 
+      datosDashboard={
+        datosDashboard
+      }
+
       sucursalesDashboard={
   sucursalesDashboard
 }

@@ -7,6 +7,7 @@ import AgendaJefa from "./components/AgendaJefa";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
+import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinancieroIA";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -18,6 +19,7 @@ function antiguedadEnDias(fecha) {
 }
 
 export default function InicioJefa({
+  datosDashboard = null,
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
@@ -220,6 +222,75 @@ const utilidadConsolidada =
         sucursal?.utilidadTotal
       ) || 0),
     0
+  );
+
+  const metricasFinancieras = datosDashboard?.metricas || {};
+  const costoConsolidado = Math.max(
+    ventasConsolidadas - utilidadConsolidada,
+    0,
+  );
+  const diasAnalizados = Number(metricasFinancieras.diasAnalizados) || 0;
+  const analisisFinanciero = generarAnalisisFinanciero({
+    movimientos,
+    ventasTotales: ventasConsolidadas || ventasTotales,
+    costoTotal:
+      ventasConsolidadas > 0
+        ? costoConsolidado
+        : Number(metricasFinancieras.costoTotal) || 0,
+    utilidadTotal: utilidadConsolidada || utilidadTotal,
+    margenUtilidad:
+      ventasConsolidadas > 0
+        ? (utilidadConsolidada / ventasConsolidadas) * 100
+        : Number(metricasFinancieras.margenUtilidad) || 0,
+    fechaInicial,
+    fechaFinal,
+    diasAnalizados,
+    ventaPromedioDiaria:
+      diasAnalizados > 0
+        ? (ventasConsolidadas || ventasTotales) / diasAnalizados
+        : 0,
+    utilidadPromedioDiaria:
+      diasAnalizados > 0
+        ? (utilidadConsolidada || utilidadTotal) / diasAnalizados
+        : 0,
+  });
+
+  const estadoResultados = [
+    ["Ventas", analisisFinanciero.ventasTotales],
+    ["Costo de mercancía", analisisFinanciero.costoTotal],
+    ["Utilidad bruta", analisisFinanciero.utilidadTotal],
+    ["Gastos operativos", analisisFinanciero.gastosOperativos],
+    ["Utilidad después de gastos", analisisFinanciero.utilidadNetaEstimada],
+  ];
+
+  const movimientosFlotilla = movimientos.filter((movimiento) => {
+    const referencia = [
+      movimiento?.negocio,
+      movimiento?.categoria,
+      movimiento?.expense_category,
+      movimiento?.concepto,
+      movimiento?.concept,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return referencia.includes("flotilla") || referencia.includes("ruta");
+  });
+
+  const flujoFlotilla = movimientosFlotilla.reduce((total, movimiento) => {
+    const tipo = String(
+      movimiento?.tipo || movimiento?.movement_type || "",
+    ).toLowerCase();
+    const monto = Number(movimiento?.monto ?? movimiento?.amount ?? 0) || 0;
+
+    if (tipo.includes("entrada")) return total + monto;
+    if (tipo.includes("salida")) return total - monto;
+    return total;
+  }, 0);
+
+  const puntoEquilibrioDisponible = Number.isFinite(
+    Number(analisisFinanciero.puntoEquilibrioVentas),
   );
 
   const recordatorioPrioritario =
@@ -590,6 +661,182 @@ const utilidadConsolidada =
             >
               Abrir Director Financiero
             </button>
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "#fff",
+            border: "1px solid #eadde4",
+            boxShadow: "0 10px 30px rgba(83,39,62,.06)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={estiloEyebrowJefa}>MAPA FINANCIERO DEL NEGOCIO</div>
+              <h2 style={{ margin: "5px 0", fontSize: "22px", color: "#291d23" }}>
+                Lo que ganas, lo que debes cubrir y lo que puedes decidir
+              </h2>
+            </div>
+            <span style={estiloEtiquetaPrivada}>🔒 Solo dirección</span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "10px",
+              marginTop: "15px",
+            }}
+          >
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>📑 Estado de resultados</div>
+              <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                {estadoResultados.map(([etiqueta, valor], indice) => (
+                  <div
+                    key={etiqueta}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      paddingTop: indice === estadoResultados.length - 1 ? "9px" : 0,
+                      borderTop:
+                        indice === estadoResultados.length - 1
+                          ? "1px solid #eadde4"
+                          : "none",
+                      color:
+                        indice === estadoResultados.length - 1 ? "#7c2653" : "#67565f",
+                      fontWeight: indice === estadoResultados.length - 1 ? 900 : 700,
+                      fontSize: "12px",
+                    }}
+                  >
+                    <span>{etiqueta}</span>
+                    <strong>{formatoDinero(valor)}</strong>
+                  </div>
+                ))}
+              </div>
+              {!datosFinancierosVigentes && (
+                <div style={estiloAvisoDato}>
+                  Histórico: actualiza reportes antes de decidir.
+                </div>
+              )}
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
+              <strong style={estiloCifraFinanciera}>
+                {puntoEquilibrioDisponible
+                  ? formatoDinero(analisisFinanciero.puntoEquilibrioVentas)
+                  : "Falta base suficiente"}
+              </strong>
+              <p style={estiloTextoPanel}>
+                Ventas mínimas estimadas para cubrir costos y gastos registrados.
+              </p>
+              <div style={estiloAvisoDato}>
+                Margen después de gastos: {Number(analisisFinanciero.margenConGastos || 0).toFixed(1)}%
+              </div>
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>🗓️ Pagos programables</div>
+              <strong style={estiloCifraFinanciera}>
+                {formatoDinero(analisisFinanciero.vencimientos7Dias || 0)}
+              </strong>
+              <p style={estiloTextoPanel}>Compromisos registrados para los próximos 7 días.</p>
+              <div style={estiloAvisoDato}>
+                Próximos 30 días: {formatoDinero(analisisFinanciero.vencimientos30Dias || 0)}
+              </div>
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>🚚 Dinero de Flotilla</div>
+              <strong style={estiloCifraFinanciera}>
+                {movimientosFlotilla.length > 0
+                  ? formatoDinero(flujoFlotilla)
+                  : "Pendiente de separar"}
+              </strong>
+              <p style={estiloTextoPanel}>
+                {movimientosFlotilla.length > 0
+                  ? `${movimientosFlotilla.length} movimientos identificados por ruta o flotilla.`
+                  : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
+              </p>
+              <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
+                Abrir Flotilla →
+              </button>
+            </article>
+          </div>
+
+          <button
+            type="button"
+            onClick={abrirJuntaDirectiva}
+            style={{ ...estiloBotonPanel, width: "100%", marginTop: "12px" }}
+          >
+            Ver análisis financiero completo →
+          </button>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "linear-gradient(135deg, #fff6e8, #fff 52%, #fff1f7)",
+            border: "1px solid #ead5b5",
+          }}
+        >
+          <div style={estiloEyebrowJefa}>RUTA DE CRECIMIENTO MONYS</div>
+          <h2 style={{ margin: "5px 0 4px", fontSize: "22px" }}>
+            Del rescate a un negocio franquiciable
+          </h2>
+          <p style={{ margin: 0, color: "#735f69", fontSize: "13px", lineHeight: 1.5 }}>
+            No saltaremos etapas: cada nivel necesita evidencia real antes de avanzar.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "14px",
+            }}
+          >
+            {[
+              ["1", "Rescatar", "Caja, deudas y pagos bajo control", "EN CURSO"],
+              ["2", "Estabilizar", "Punto de equilibrio y utilidad repetible", "SIGUE"],
+              ["3", "Escalar", "Sucursal que funciona sin depender de ti", "DESPUÉS"],
+              ["4", "Franquiciar", "Manual, números por unidad y controles", "META"],
+            ].map(([numero, titulo, detalle, estado], indice) => (
+              <article
+                key={numero}
+                style={{
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background: indice === 0 ? "#6f2750" : "rgba(255,255,255,.82)",
+                  color: indice === 0 ? "#fff" : "#392a31",
+                  border: indice === 0 ? "1px solid #6f2750" : "1px solid #eadde4",
+                }}
+              >
+                <div style={{ fontSize: "10px", fontWeight: 900, opacity: 0.7 }}>
+                  ETAPA {numero} · {estado}
+                </div>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "16px" }}>
+                  {titulo}
+                </strong>
+                <div style={{ marginTop: "5px", fontSize: "11px", lineHeight: 1.4, opacity: 0.8 }}>
+                  {detalle}
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -1432,6 +1679,76 @@ const estiloBotonControlDinero = {
   color: "#642448",
   borderRadius: "12px",
   padding: "10px 12px",
+  fontWeight: 900,
+  cursor: "pointer",
+  fontSize: "12px",
+};
+
+const estiloEyebrowJefa = {
+  color: "#a92e67",
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.75px",
+};
+
+const estiloEtiquetaPrivada = {
+  padding: "7px 10px",
+  borderRadius: "999px",
+  background: "#f7eef2",
+  color: "#7b2c52",
+  fontSize: "11px",
+  fontWeight: 850,
+};
+
+const estiloPanelFinanciero = {
+  minWidth: 0,
+  padding: "15px",
+  borderRadius: "15px",
+  background: "linear-gradient(145deg, #fff, #fff9fc)",
+  border: "1px solid #eadde4",
+};
+
+const estiloTituloPanel = {
+  color: "#432f39",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
+const estiloCifraFinanciera = {
+  display: "block",
+  marginTop: "11px",
+  color: "#7c2653",
+  fontSize: "clamp(19px, 4vw, 26px)",
+  lineHeight: 1.15,
+  wordBreak: "break-word",
+};
+
+const estiloTextoPanel = {
+  margin: "7px 0 0",
+  color: "#76656d",
+  fontSize: "12px",
+  lineHeight: 1.45,
+};
+
+const estiloAvisoDato = {
+  marginTop: "10px",
+  padding: "8px 9px",
+  borderRadius: "9px",
+  background: "#fbf3f7",
+  color: "#785366",
+  fontSize: "10px",
+  fontWeight: 750,
+  lineHeight: 1.4,
+};
+
+const estiloBotonPanel = {
+  marginTop: "10px",
+  minHeight: "40px",
+  border: "1px solid #dfc8d3",
+  background: "#fff",
+  color: "#7c2653",
+  borderRadius: "11px",
+  padding: "9px 11px",
   fontWeight: 900,
   cursor: "pointer",
   fontSize: "12px",
