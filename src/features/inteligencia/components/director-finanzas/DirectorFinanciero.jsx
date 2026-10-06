@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import CentroRescateFinanciero from "./CentroRescateFinanciero";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
   actualizarEjecucionDecision,
@@ -131,6 +132,12 @@ const margenConsolidado =
 
 const branchId =
   datosDashboard?.branch_id || null;
+
+const organizationId =
+  datosDashboard?.organization_id || null;
+
+const businessId =
+  datosDashboard?.business_id || null;
 
 const antiguedadVentasDias =
   obtenerAntiguedadDias(
@@ -776,6 +783,12 @@ const historial =
           ⚠️ Información financiera desactualizada: el último día de ventas fue hace {antiguedadVentasDias ?? "varios"} días. Los resultados históricos permanecen visibles, pero MONYS no debe usar esta base para autorizar compras, gasto o proyecciones nuevas.
         </div>
       )}
+
+      <CentroRescateFinanciero
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+      />
 
       <div
         style={{
