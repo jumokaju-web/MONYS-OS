@@ -115,12 +115,20 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
   const [asignaciones, setAsignaciones] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [cargandoEquipo, setCargandoEquipo] = useState(true);
+  const [cargandoAvance, setCargandoAvance] = useState(true);
+  const [revisionAvance, setRevisionAvance] = useState(0);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
 
   useEffect(() => {
     let activo = true;
 
     async function recuperarPlanActivo() {
-      if (!branchId) return;
+      if (!branchId) {
+        setAsignaciones([]);
+        setCargandoAvance(false);
+        return;
+      }
+      setCargandoAvance(true);
       try {
         const tareas = await obtenerCalendarioTareasOperativas({
           branchId,
@@ -169,12 +177,17 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
         if (activo) setAsignaciones(existentes);
       } catch (error) {
         console.error("No fue posible recuperar el plan de rescate:", error);
+      } finally {
+        if (activo) {
+          setCargandoAvance(false);
+          setUltimaActualizacion(new Date());
+        }
       }
     }
 
     recuperarPlanActivo();
     return () => { activo = false; };
-  }, [branchId, fechaInicio, plan]);
+  }, [branchId, fechaInicio, plan, revisionAvance]);
 
   useEffect(() => {
     let activo = true;
@@ -364,17 +377,27 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
           <div>
             <strong style={{ color: "#3b2831" }}>Avance comprobado del rescate</strong>
             <p style={{ margin: "5px 0 0", color: "#715f67", fontSize: 13 }}>
-              {tareasCreadas
+              {cargandoAvance
+                ? "Consultando el estado actual de las tareas…"
+                : tareasCreadas
                 ? `${tareasTerminadas} terminadas · ${tareasEnProceso} en proceso · ${Math.max(tareasCreadas - tareasTerminadas - tareasEnProceso, 0)} pendientes registradas · ${tareasCreadas} de ${plan.length} tareas creadas.`
                 : "El avance comenzará cuando actives el plan y el equipo registre sus tareas."}
             </p>
           </div>
-          <strong style={{ color: COLOR.rosa, fontSize: 24 }}>{porcentajeRescate}%</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <strong style={{ color: COLOR.rosa, fontSize: 24 }}>{porcentajeRescate}%</strong>
+            <button type="button" disabled={cargandoAvance} onClick={() => setRevisionAvance((valor) => valor + 1)} style={{ minHeight: 38, padding: "7px 11px", borderRadius: 10, border: "1px solid #d9b9c8", background: cargandoAvance ? "#f7edf2" : "#fff", color: COLOR.vino, fontWeight: 800, cursor: cargandoAvance ? "wait" : "pointer" }}>
+              {cargandoAvance ? "Actualizando…" : "↻ Actualizar avance"}
+            </button>
+          </div>
         </div>
         <div style={{ marginTop: 10, height: 9, borderRadius: 999, background: "#f0e1e8", overflow: "hidden" }}>
           <div style={{ width: `${porcentajeRescate}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${COLOR.rosa}, ${COLOR.vino})`, transition: "width .2s ease" }} />
         </div>
-        <small style={{ display: "block", marginTop: 7, color: "#806d76" }}>Porcentaje calculado con tareas terminadas sobre las 16 acciones; no representa ventas ni recuperación financiera.</small>
+        <small style={{ display: "block", marginTop: 7, color: "#806d76" }}>
+          Porcentaje calculado con tareas terminadas sobre las 16 acciones; no representa ventas ni recuperación financiera.
+          {ultimaActualizacion && ` Última consulta: ${ultimaActualizacion.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}.`}
+        </small>
       </div>
 
       <button type="button" onClick={() => setAbierta((valor) => !valor)} style={{ width: "100%", marginTop: 15, minHeight: 45, borderRadius: 12, border: "1px solid #d9b9c8", background: "#fff", color: COLOR.vino, fontWeight: 850, cursor: "pointer" }}>
