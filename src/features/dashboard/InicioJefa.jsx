@@ -293,6 +293,80 @@ const utilidadConsolidada =
     Number(analisisFinanciero.puntoEquilibrioVentas),
   );
 
+  const planFinanciero7Dias = [
+    {
+      id: "datos",
+      completada: datosFinancierosVigentes,
+      prioridad: datosFinancierosVigentes ? "LISTO" : "CRÍTICO",
+      titulo: datosFinancierosVigentes
+        ? "Reportes financieros vigentes"
+        : "Actualizar ventas e inventario",
+      detalle: datosFinancierosVigentes
+        ? "La base tiene menos de 8 días de antigüedad."
+        : "Sin reportes actuales MONYS no autorizará distribución ni compras.",
+      responsable: "Administración",
+      boton: datosFinancierosVigentes ? "Ver reportes" : "Actualizar ahora",
+      accion: abrirImportador,
+    },
+    {
+      id: "tesoreria",
+      completada: movimientosPendientes === 0,
+      prioridad: movimientosPendientes === 0 ? "LISTO" : "ALTO",
+      titulo:
+        movimientosPendientes === 0
+          ? "Tesorería sin movimientos pendientes"
+          : `Aclarar ${movimientosPendientes} movimiento${movimientosPendientes === 1 ? "" : "s"}`,
+      detalle:
+        movimientosPendientes === 0
+          ? "No se detectan movimientos esperando revisión."
+          : "Cada movimiento pendiente reduce la confianza del flujo.",
+      responsable: "Administración",
+      boton: "Abrir Tesorería",
+      accion: abrirTesoreria,
+    },
+    {
+      id: "pagos",
+      completada:
+        datosFinancierosVigentes &&
+        movimientosPendientes === 0 &&
+        Number(analisisFinanciero.vencimientos7Dias || 0) === 0,
+      prioridad:
+        Number(analisisFinanciero.vencimientos7Dias || 0) > 0 ? "ALTO" : "REVISAR",
+      titulo:
+        Number(analisisFinanciero.vencimientos7Dias || 0) > 0
+          ? `Revisar ${formatoDinero(analisisFinanciero.vencimientos7Dias)} por vencer`
+          : "Completar calendario de pagos",
+      detalle:
+        "MONYS ordena fechas y montos; Mónica decide qué se paga y cuándo.",
+      responsable: "Jefa + Finanzas",
+      boton: "Revisar programación",
+      accion: abrirJuntaDirectiva,
+    },
+    {
+      id: "flotilla",
+      completada: movimientosFlotilla.length > 0,
+      prioridad: movimientosFlotilla.length > 0 ? "LISTO" : "MEDIO",
+      titulo:
+        movimientosFlotilla.length > 0
+          ? "Flotilla identificada por separado"
+          : "Separar el dinero de Flotilla",
+      detalle:
+        movimientosFlotilla.length > 0
+          ? `${movimientosFlotilla.length} movimientos ya se reconocen como ruta o flotilla.`
+          : "Etiquetar ingresos, combustible, mantenimiento y pago por unidad.",
+      responsable: "Flotilla + Administración",
+      boton: "Abrir Flotilla",
+      accion: abrirFlotilla,
+    },
+  ];
+
+  const pasosPlanCompletos = planFinanciero7Dias.filter(
+    (paso) => paso.completada,
+  ).length;
+  const avancePlanFinanciero = Math.round(
+    (pasosPlanCompletos / planFinanciero7Dias.length) * 100,
+  );
+
   const recordatorioPrioritario =
     recordatoriosJefa[0] || null;
 
@@ -837,6 +911,171 @@ const utilidadConsolidada =
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "#fff",
+            border: "1px solid #eadde4",
+            boxShadow: "0 12px 34px rgba(83,39,62,.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={estiloEyebrowJefa}>PLAN EJECUTIVO · PRÓXIMOS 7 DÍAS</div>
+              <h2 style={{ margin: "5px 0 4px", fontSize: "22px" }}>
+                MONYS te quita pendientes, tú conservas decisiones
+              </h2>
+              <p style={{ margin: 0, color: "#76656d", fontSize: "12px", lineHeight: 1.45 }}>
+                Avance operativo confirmado; no representa ventas futuras.
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong style={{ display: "block", color: "#8b315d", fontSize: "26px" }}>
+                {avancePlanFinanciero}%
+              </strong>
+              <small style={{ color: "#8b7982", fontWeight: 750 }}>
+                {pasosPlanCompletos} de {planFinanciero7Dias.length} controles
+              </small>
+            </div>
+          </div>
+
+          <div
+            role="progressbar"
+            aria-label="Avance del plan financiero de siete días"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={avancePlanFinanciero}
+            style={{
+              height: "9px",
+              marginTop: "14px",
+              borderRadius: "999px",
+              background: "#f2e5eb",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                width: `${avancePlanFinanciero}%`,
+                height: "100%",
+                borderRadius: "inherit",
+                background: "linear-gradient(90deg, #b51f67, #ee5b9c)",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: "9px", marginTop: "15px" }}>
+            {planFinanciero7Dias.map((paso, indice) => (
+              <article
+                key={paso.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "36px minmax(0, 1fr)",
+                  gap: "11px",
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background: paso.completada ? "#f1faf4" : "#fff8fb",
+                  border: paso.completada ? "1px solid #bfdfc9" : "1px solid #ead5df",
+                }}
+              >
+                <div
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: "11px",
+                    background: paso.completada ? "#d8f0e0" : "#f8dfeb",
+                    color: paso.completada ? "#1e6a3d" : "#8b315d",
+                    fontWeight: 900,
+                  }}
+                >
+                  {paso.completada ? "✓" : indice + 1}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <strong style={{ color: "#35262d", fontSize: "14px" }}>
+                      {paso.titulo}
+                    </strong>
+                    <span
+                      style={{
+                        padding: "4px 7px",
+                        borderRadius: "999px",
+                        background: paso.completada ? "#dff4e6" : "#fff0c9",
+                        color: paso.completada ? "#24683e" : "#765200",
+                        fontSize: "9px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {paso.prioridad}
+                    </span>
+                  </div>
+                  <p style={{ margin: "5px 0 0", color: "#77666e", fontSize: "11px", lineHeight: 1.4 }}>
+                    {paso.detalle}
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "9px",
+                    }}
+                  >
+                    <small style={{ color: "#927f88", fontWeight: 750 }}>
+                      Responsable: {paso.responsable}
+                    </small>
+                    <button
+                      type="button"
+                      onClick={paso.accion}
+                      style={{ ...estiloBotonPanel, marginTop: 0, minHeight: "34px", padding: "6px 9px" }}
+                    >
+                      {paso.boton} →
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "13px",
+            }}
+          >
+            <div style={estiloResponsabilidadMonys}>
+              <strong>🤖 MONYS prepara</strong>
+              <span>Datos, alertas, prioridades, calendario y seguimiento.</span>
+            </div>
+            <div style={estiloResponsabilidadMonica}>
+              <strong>👑 Mónica decide</strong>
+              <span>Pagos, compras, deuda, inversión y crecimiento.</span>
+            </div>
           </div>
         </section>
 
@@ -1752,4 +1991,26 @@ const estiloBotonPanel = {
   fontWeight: 900,
   cursor: "pointer",
   fontSize: "12px",
+};
+
+const estiloResponsabilidadMonys = {
+  display: "grid",
+  gap: "5px",
+  padding: "12px",
+  borderRadius: "13px",
+  background: "#f7edf2",
+  color: "#6e2a4b",
+  fontSize: "11px",
+  lineHeight: 1.4,
+};
+
+const estiloResponsabilidadMonica = {
+  display: "grid",
+  gap: "5px",
+  padding: "12px",
+  borderRadius: "13px",
+  background: "#fff5d9",
+  color: "#6c5200",
+  fontSize: "11px",
+  lineHeight: 1.4,
 };
