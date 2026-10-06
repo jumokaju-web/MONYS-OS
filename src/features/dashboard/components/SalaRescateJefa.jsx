@@ -150,7 +150,7 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
         <div style={{ width: `${resumen.avance}%`, height: "100%", borderRadius: 999, background: resumen.avance >= 75 ? "#74d49e" : "linear-gradient(90deg, #f25199, #ffd0e4)" }} />
       </div>
 
-      {error && <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "rgba(255,221,171,.15)", border: "1px solid rgba(255,221,171,.35)" }}>{error}</div>}
+      {error && tareas.length > 0 && <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "rgba(255,221,171,.15)", border: "1px solid rgba(255,221,171,.35)" }}>No se pudo actualizar el plan. Se muestran las tareas cargadas anteriormente. {error}</div>}
 
       {!cargando && error && tareas.length === 0 ? (
         <div style={{ marginTop: 16, padding: 17, borderRadius: 16, background: "rgba(255,221,171,.15)", border: "1px solid rgba(255,221,171,.35)" }}>
