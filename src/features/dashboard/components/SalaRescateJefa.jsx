@@ -33,6 +33,7 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
   const [tareaAbierta, setTareaAbierta] = useState(null);
   const [evidencias, setEvidencias] = useState({});
   const [cargandoEvidencias, setCargandoEvidencias] = useState(null);
+  const [versionConsulta, setVersionConsulta] = useState(0);
 
   async function revisarTarea(tarea) {
     if (tareaAbierta === tarea.id) {
@@ -97,7 +98,7 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
 
     cargarPlan();
     return () => { activo = false; };
-  }, [branchId]);
+  }, [branchId, versionConsulta]);
 
   const resumen = useMemo(() => {
     const hoy = fechaISO(new Date());
@@ -133,9 +134,14 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
           <h2 style={{ margin: "7px 0 4px", fontSize: 26 }}>Tu negocio, el equipo y el siguiente movimiento</h2>
           <p style={{ margin: 0, color: "rgba(255,255,255,.76)", fontSize: 13, lineHeight: 1.5 }}>Aquí ves ejecución comprobada. El porcentaje sube únicamente cuando un empleado termina una tarea real del plan.</p>
         </div>
-        <div style={{ minWidth: 105, textAlign: "center", padding: "12px 15px", borderRadius: 18, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.18)" }}>
-          <strong style={{ display: "block", fontSize: 30 }}>{cargando ? "…" : `${resumen.avance}%`}</strong>
-          <small style={{ color: "rgba(255,255,255,.72)", fontWeight: 800 }}>avance real</small>
+        <div style={{ display: "grid", gap: 7 }}>
+          <div style={{ minWidth: 105, textAlign: "center", padding: "12px 15px", borderRadius: 18, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.18)" }}>
+            <strong style={{ display: "block", fontSize: 30 }}>{cargando ? "…" : `${resumen.avance}%`}</strong>
+            <small style={{ color: "rgba(255,255,255,.72)", fontWeight: 800 }}>avance real</small>
+          </div>
+          <button type="button" disabled={cargando} onClick={() => setVersionConsulta((valor) => valor + 1)} style={{ padding: "7px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,.22)", background: "rgba(255,255,255,.1)", color: "#fff", fontWeight: 800, cursor: cargando ? "wait" : "pointer" }}>
+            {cargando ? "Actualizando…" : "↻ Actualizar"}
+          </button>
         </div>
       </div>
 

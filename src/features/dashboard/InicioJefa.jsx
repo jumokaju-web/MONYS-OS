@@ -29,6 +29,7 @@ fechaFinal = null,
 movimientos = [],
   formatoDinero,
   abrirJuntaDirectiva,
+  abrirDirectorFinanciero,
   abrirTesoreria,
   abrirInventario,
   abrirCompraMaestra,
@@ -341,7 +342,7 @@ const utilidadConsolidada =
         "MONYS ordena fechas y montos; Mónica decide qué se paga y cuándo.",
       responsable: "Jefa + Finanzas",
       boton: "Revisar programación",
-      accion: abrirJuntaDirectiva,
+      accion: abrirDirectorFinanciero,
     },
     {
       id: "flotilla",
@@ -549,7 +550,7 @@ const utilidadConsolidada =
 
         <SalaRescateJefa
           branchId={datosDashboard?.branch_id || null}
-          abrirDirectorFinanciero={abrirJuntaDirectiva}
+          abrirDirectorFinanciero={abrirDirectorFinanciero}
         />
 
         {/* MÉTRICAS */}
@@ -736,7 +737,7 @@ const utilidadConsolidada =
             </button>
             <button
               type="button"
-              onClick={abrirJuntaDirectiva}
+              onClick={abrirDirectorFinanciero}
               style={estiloBotonControlDinero}
             >
               Abrir Director Financiero
@@ -859,7 +860,7 @@ const utilidadConsolidada =
 
           <button
             type="button"
-            onClick={abrirJuntaDirectiva}
+            onClick={abrirDirectorFinanciero}
             style={{ ...estiloBotonPanel, width: "100%", marginTop: "12px" }}
           >
             Ver análisis financiero completo →

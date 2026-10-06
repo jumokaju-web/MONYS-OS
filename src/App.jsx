@@ -103,6 +103,11 @@ function App() {
     setPantallaActual,
   ] = useState("dashboard");
 
+  const [
+    directorInteligenciaInicial,
+    setDirectorInteligenciaInicial,
+  ] = useState(null);
+
   const {
     datosDashboard,
     cargandoDashboard,
@@ -1108,6 +1113,9 @@ if (
 
     return (
       <CentroInteligencia
+        directorInicial={
+          directorInteligenciaInicial
+        }
         datosDashboard={
           datosDashboard
         }
@@ -1133,9 +1141,10 @@ if (
           errorDashboard
         }
         volverAlDashboard={() =>
-          setPantallaActual(
-            "dashboard"
-          )
+          {
+            setDirectorInteligenciaInicial(null);
+            setPantallaActual("dashboard");
+          }
         }
         onAbrirImportador={() =>
           setPantallaActual(
@@ -1200,9 +1209,17 @@ fechaFinal={
       }
 
       abrirJuntaDirectiva={() =>
-        setPantallaActual(
-          "inteligencia"
-        )
+        {
+          setDirectorInteligenciaInicial(null);
+          setPantallaActual("inteligencia");
+        }
+      }
+
+      abrirDirectorFinanciero={() =>
+        {
+          setDirectorInteligenciaInicial("financiero");
+          setPantallaActual("inteligencia");
+        }
       }
 
       abrirTesoreria={() =>
