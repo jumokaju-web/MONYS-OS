@@ -544,7 +544,7 @@ function CentroRescateFinanciero({
               key={deuda.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(160px, 1.6fr) repeat(3, minmax(110px, 1fr))",
+                gridTemplateColumns: "minmax(150px, 1.5fr) repeat(4, minmax(105px, 1fr))",
                 gap: "12px",
                 padding: "14px",
                 borderRadius: "13px",
@@ -566,7 +566,17 @@ function CentroRescateFinanciero({
               <div>
                 <small>Mensualidad</small>
                 <strong style={{ display: "block" }}>
-                  {deuda.pago_mensual === null ? "Falta dato" : dinero(deuda.pago_mensual)}
+                  {deuda.pago_mensual == null || deuda.pago_mensual === ""
+                    ? "Falta dato"
+                    : dinero(deuda.pago_mensual)}
+                </strong>
+              </div>
+              <div>
+                <small>Tasa anual</small>
+                <strong style={{ display: "block" }}>
+                  {deuda.tasa_anual == null || deuda.tasa_anual === ""
+                    ? "Falta dato"
+                    : `${Number(deuda.tasa_anual).toFixed(2)}% anual`}
                 </strong>
               </div>
               <div>
