@@ -3,9 +3,10 @@ import {
   obtenerCalendarioTareasOperativas,
   obtenerEvidenciasTarea,
 } from "../../inteligencia/services/tareasOperativasService";
+import { obtenerFechaLocalISO } from "../../inteligencia/shared/fechaLocal";
 
 function fechaISO(fecha) {
-  return fecha.toISOString().slice(0, 10);
+  return obtenerFechaLocalISO(fecha);
 }
 
 function fechaCorta(valor) {

@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { obtenerFechaLocalISO } from "../shared/fechaLocal";
 
 import {
   asignarResponsableAutomatico,
@@ -217,9 +218,7 @@ export async function crearTareaOperativa({
 
   const fechaTarea =
     fecha ||
-    new Date()
-      .toISOString()
-      .slice(0, 10);
+    obtenerFechaLocalISO();
 
   // Evita duplicar la misma tarea dentro del mismo día.
   // Una tarea recurrente con el mismo título sí debe poder
@@ -1383,7 +1382,7 @@ async function sincronizarResultadoTareaConCampana({
   const registroNuevo = {
     tareaId: tarea.id,
     fuente: "TAREA_MARKETING",
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: obtenerFechaLocalISO(),
     registradoEn: new Date().toISOString(),
     registradoPor: tarea.responsable || "Marketing",
     canal: resultadoMarketing.canal,

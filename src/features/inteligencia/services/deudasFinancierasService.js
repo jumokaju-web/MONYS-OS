@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { obtenerFechaLocalISO } from "../shared/fechaLocal";
 
 function numeroONulo(valor) {
   if (valor === "" || valor === null || valor === undefined) {
@@ -117,7 +118,7 @@ export async function guardarDeudaFinanciera({
     fecha_proximo_pago: fechaProximoPago || null,
     estado,
     fuente,
-    fecha_corte_dato: fechaCorteDato || new Date().toISOString().slice(0, 10),
+    fecha_corte_dato: fechaCorteDato || obtenerFechaLocalISO(),
     notas: limpiarTexto(notas) || null,
     updated_at: new Date().toISOString(),
   };

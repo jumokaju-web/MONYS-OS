@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { obtenerFechaLocalISO } from "../../shared/fechaLocal";
 import {
   calcularResumenDeudas,
   guardarDeudaFinanciera,
@@ -15,7 +16,7 @@ const FORMULARIO_INICIAL = {
   tasaAnual: "",
   fechaProximoPago: "",
   fuente: "CAPTURA_MANUAL",
-  fechaCorteDato: new Date().toISOString().slice(0, 10),
+  fechaCorteDato: obtenerFechaLocalISO(),
   notas: "",
 };
 
