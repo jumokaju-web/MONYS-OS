@@ -112,11 +112,14 @@ export default function ResumenFlotillaSocios({ unidades = [] }) {
                 <strong>{socio.socio}</strong>
                 <strong>{numero(socio.rutasPorUnidad, 2)} rutas/unidad</strong>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginTop: "10px", textAlign: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px 6px", marginTop: "10px", textAlign: "center" }}>
                 <div><small>Unidades</small><strong style={{ display: "block" }}>{socio.unidades}</strong></div>
                 <div><small>Rutas</small><strong style={{ display: "block" }}>{socio.rutas}</strong></div>
-                <div><small>Participación</small><strong style={{ display: "block" }}>{numero(socio.participacionRutas, 1)}%</strong></div>
+                <div><small>Participación de rutas</small><strong style={{ display: "block" }}>{numero(socio.participacionRutas, 1)}%</strong></div>
+                <div><small>Rutas por unidad</small><strong style={{ display: "block" }}>{numero(socio.rutasPorUnidad, 2)}</strong></div>
                 <div><small>Paquetes/ruta</small><strong style={{ display: "block" }}>{socio.paquetesPromedio === null ? "Sin dato" : numero(socio.paquetesPromedio, 1)}</strong></div>
+                <div><small>Paradas/ruta</small><strong style={{ display: "block" }}>{socio.parosPromedio === null ? "Sin dato" : numero(socio.parosPromedio, 1)}</strong></div>
+                <div><small>Kilómetros/ruta</small><strong style={{ display: "block" }}>{socio.kilometrosPromedio === null ? "Sin dato" : numero(socio.kilometrosPromedio, 1)}</strong></div>
               </div>
             </article>
           ))}
@@ -124,7 +127,7 @@ export default function ResumenFlotillaSocios({ unidades = [] }) {
       )}
 
       <p style={{ margin: "13px 0 0", color: "#66798b", fontSize: "11px", lineHeight: 1.5 }}>
-        Este tablero compara carga operativa ajustada por número de unidades. No calcula ganancia ni demuestra favoritismo por sí solo: para eso faltan pago real por ruta, gastos y peso confirmado.
+        Este tablero muestra carga operativa registrada por socio y por unidad. Los promedios solo usan rutas con el dato capturado; «Sin dato» indica que falta información. No calcula ganancia ni demuestra favoritismo por sí solo: para eso faltan pagos reales por ruta y gastos.
       </p>
     </section>
   );
