@@ -28,6 +28,18 @@ function sumarDiasPlan(fechaBase, dias) {
   return fecha;
 }
 
+function moverFechaISO(fechaISOBase, dias) {
+  const fecha = new Date(`${fechaISOBase}T12:00:00`);
+  fecha.setDate(fecha.getDate() + dias);
+  return fechaISO(fecha);
+}
+
+function diferenciaDias(fechaA, fechaB) {
+  const a = Date.parse(`${fechaA}T00:00:00Z`);
+  const b = Date.parse(`${fechaB}T00:00:00Z`);
+  return Math.round((a - b) / 86400000);
+}
+
 function etiquetaFecha(valor) {
   return new Intl.DateTimeFormat("es-MX", {
     weekday: "short",
@@ -53,9 +65,8 @@ function perfilesEmpleado(empleado) {
   return [...new Set(perfiles)];
 }
 
-function construirPlan() {
-  const inicio = new Date();
-  inicio.setHours(12, 0, 0, 0);
+function construirPlan(fechaInicio = fechaISO(new Date())) {
+  const inicio = new Date(`${fechaInicio}T12:00:00`);
 
   const definiciones = [
     [0, 1, "administracion", "Conciliar ventas, bancos y caja", "Confirmar que las ventas cobradas coincidan con bancos y efectivo.", "Captura o reporte conciliado; diferencias explicadas."],
@@ -96,7 +107,8 @@ const FASES = [
 ];
 
 export default function PlanRescate30Dias({ organizationId, businessId, branchId }) {
-  const plan = useMemo(() => construirPlan(), []);
+  const [fechaInicio, setFechaInicio] = useState(() => fechaISO(new Date()));
+  const plan = useMemo(() => construirPlan(fechaInicio), [fechaInicio]);
   const [abierta, setAbierta] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -112,18 +124,49 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
       try {
         const tareas = await obtenerCalendarioTareasOperativas({
           branchId,
-          fechaInicio: plan[0].fecha,
-          fechaFin: plan[plan.length - 1].fecha,
+          fechaInicio: moverFechaISO(fechaISO(new Date()), -35),
+          fechaFin: moverFechaISO(fechaISO(new Date()), 35),
         });
-        const existentes = (tareas || [])
-          .filter((tarea) => String(tarea?.titulo || "").startsWith("Rescate 30 días ·"))
-          .map((tarea) => ({
-            id: plan.find((item) => item.titulo === tarea.titulo)?.id,
-            responsable: tarea.responsable,
-          }))
-          .filter((tarea) => tarea.id && tarea.responsable);
+        const tareasRescate = (tareas || []).filter((tarea) => String(tarea?.titulo || "").startsWith("Rescate 30 días ·"));
+        const hoy = fechaISO(new Date());
+        const iniciosPorCreacion = tareasRescate.reduce((conteo, tarea) => {
+          const fechaCreacion = String(tarea?.created_at || "").slice(0, 10);
+          if (fechaCreacion && diferenciaDias(hoy, fechaCreacion) >= 0 && diferenciaDias(hoy, fechaCreacion) <= 30) {
+            conteo.set(fechaCreacion, (conteo.get(fechaCreacion) || 0) + 1);
+          }
+          return conteo;
+        }, new Map());
+        const inicioPorCreacion = [...iniciosPorCreacion.entries()]
+          .sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0];
+        const candidatos = tareasRescate
+          .map((tarea) => {
+            const definicion = plan.find((item) => item.titulo === tarea.titulo);
+            if (!definicion) return null;
+            const desfase = diferenciaDias(definicion.fecha, fechaInicio);
+            const inicioDetectado = moverFechaISO(tarea.fecha, -desfase);
+            const edad = diferenciaDias(hoy, inicioDetectado);
+            return edad >= 0 && edad <= 30 ? inicioDetectado : null;
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.localeCompare(a));
+        const inicioGuardado = inicioPorCreacion || candidatos[0];
+        if (activo && inicioGuardado && inicioGuardado !== fechaInicio) {
+          setFechaInicio(inicioGuardado);
+          return;
+        }
 
-        if (activo && existentes.length) setAsignaciones(existentes);
+        const existentes = tareasRescate
+          .map((tarea) => {
+            const definicion = plan.find((item) => item.titulo === tarea.titulo && item.fecha === tarea.fecha);
+            return definicion ? {
+              id: definicion.id,
+              responsable: tarea.responsable,
+              estadoTarea: tarea.estado || "pendiente",
+              fecha: tarea.fecha,
+            } : null;
+          })
+          .filter(Boolean);
+        if (activo) setAsignaciones(existentes);
       } catch (error) {
         console.error("No fue posible recuperar el plan de rescate:", error);
       }
@@ -131,7 +174,7 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
 
     recuperarPlanActivo();
     return () => { activo = false; };
-  }, [branchId, plan]);
+  }, [branchId, fechaInicio, plan]);
 
   useEffect(() => {
     let activo = true;
@@ -160,6 +203,10 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
   const perfilesCubiertos = new Set(empleadosConAcceso.flatMap(perfilesEmpleado));
   const perfilesRequeridos = ["administracion", "ventas", "inventario", "marketing", "flotilla", "tienda"];
   const perfilesFaltantes = perfilesRequeridos.filter((perfil) => !perfilesCubiertos.has(perfil));
+  const tareasTerminadas = asignaciones.filter((item) => item.estadoTarea === "terminada").length;
+  const tareasEnProceso = asignaciones.filter((item) => item.estadoTarea === "en_proceso").length;
+  const tareasCreadas = asignaciones.length;
+  const porcentajeRescate = Math.round((tareasTerminadas / plan.length) * 100);
 
   async function activarPlan() {
     if (!branchId || guardando) return;
@@ -175,7 +222,28 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
       setMensaje("");
 
       const resultados = [];
+      const tareasExistentes = await obtenerCalendarioTareasOperativas({
+        branchId,
+        fechaInicio: plan[0].fecha,
+        fechaFin: plan[plan.length - 1].fecha,
+      });
+      const existentesPorClave = new Map(
+        (tareasExistentes || [])
+          .filter((tarea) => String(tarea?.titulo || "").startsWith("Rescate 30 días ·"))
+          .map((tarea) => [`${tarea.titulo}|${tarea.fecha}`, tarea])
+      );
       for (const tarea of plan) {
+        const existente = existentesPorClave.get(`${tarea.titulo}|${tarea.fecha}`);
+        if (existente) {
+          resultados.push({
+            ...tarea,
+            estado: "existente",
+            responsable: existente.responsable,
+            estadoTarea: existente.estado || "pendiente",
+          });
+          continue;
+        }
+
         const responsable = await asignarResponsableAutomatico({
           branchId,
           titulo: tarea.titulo,
@@ -211,6 +279,7 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
           ...tarea,
           estado: creada?.id ? "asignada" : "existente",
           responsable: responsable.nombre,
+          estadoTarea: creada?.estado || "pendiente",
         });
       }
 
@@ -223,8 +292,8 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
         String(tarea?.titulo || "").startsWith("Rescate 30 días ·")
       );
 
-      setAsignaciones(resultados.filter((resultado) => resultado.responsable));
-      const faltantes = resultados.filter((resultado) => resultado.estado === "sin_responsable").length;
+      setAsignaciones(resultados.filter((resultado) => resultado.responsable || resultado.estado === "existente"));
+      const faltantes = resultados.filter((resultado) => !resultado.responsable).length;
       setMensaje(
         faltantes > 0
           ? `⚠️ Se enviaron ${tareasDelPlan.length} tareas. ${faltantes} requieren un empleado compatible con acceso a MONYS.`
@@ -282,6 +351,24 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
         </p>
       </div>
 
+      <div style={{ marginTop: 12, padding: 16, borderRadius: 15, background: "#fff", border: "1px solid #ead4de" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <strong style={{ color: "#3b2831" }}>Avance comprobado del rescate</strong>
+            <p style={{ margin: "5px 0 0", color: "#715f67", fontSize: 13 }}>
+              {tareasCreadas
+                ? `${tareasTerminadas} terminadas · ${tareasEnProceso} en proceso · ${Math.max(tareasCreadas - tareasTerminadas - tareasEnProceso, 0)} pendientes registradas · ${tareasCreadas} de ${plan.length} tareas creadas.`
+                : "El avance comenzará cuando actives el plan y el equipo registre sus tareas."}
+            </p>
+          </div>
+          <strong style={{ color: COLOR.rosa, fontSize: 24 }}>{porcentajeRescate}%</strong>
+        </div>
+        <div style={{ marginTop: 10, height: 9, borderRadius: 999, background: "#f0e1e8", overflow: "hidden" }}>
+          <div style={{ width: `${porcentajeRescate}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${COLOR.rosa}, ${COLOR.vino})`, transition: "width .2s ease" }} />
+        </div>
+        <small style={{ display: "block", marginTop: 7, color: "#806d76" }}>Porcentaje calculado con tareas terminadas sobre las 16 acciones; no representa ventas ni recuperación financiera.</small>
+      </div>
+
       <button type="button" onClick={() => setAbierta((valor) => !valor)} style={{ width: "100%", marginTop: 15, minHeight: 45, borderRadius: 12, border: "1px solid #d9b9c8", background: "#fff", color: COLOR.vino, fontWeight: 850, cursor: "pointer" }}>
         {abierta ? "Ocultar acciones" : "Ver las 16 acciones, fechas y responsables"} {abierta ? "▲" : "▼"}
       </button>
@@ -294,7 +381,10 @@ export default function PlanRescate30Dias({ organizationId, businessId, branchId
               <div key={tarea.id} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, alignItems: "center", padding: 14, borderRadius: 14, background: "#fff", border: "1px solid #eddce4" }}>
                 <div><strong style={{ color: COLOR.rosa }}>{etiquetaFecha(tarea.fecha)}</strong><small style={{ display: "block", color: "#806d76", marginTop: 3 }}>Semana {tarea.semana}</small></div>
                 <div><strong style={{ color: "#3b2330" }}>{tarea.titulo.replace("Rescate 30 días · ", "")}</strong><small style={{ display: "block", color: "#79666f", marginTop: 4, lineHeight: 1.4 }}>{tarea.criterio}</small></div>
-                <div style={{ color: asignada ? COLOR.verde : COLOR.dorado, fontWeight: 800, fontSize: 13 }}>{asignada ? `✓ ${asignada.responsable}` : `Perfil: ${tarea.area}`}</div>
+                <div style={{ color: asignada ? COLOR.verde : COLOR.dorado, fontWeight: 800, fontSize: 13 }}>
+                  {asignada?.responsable ? `✓ ${asignada.responsable}` : asignada ? "⚠ Tarea creada · falta responsable" : `Perfil: ${tarea.area}`}
+                  {asignada && <small style={{ display: "block", marginTop: 4, color: asignada.estadoTarea === "terminada" ? COLOR.verde : "#806d76", fontWeight: 700 }}>{asignada.estadoTarea === "terminada" ? "✓ Terminada" : asignada.estadoTarea === "en_proceso" ? "En proceso" : "Pendiente"}</small>}
+                </div>
               </div>
             );
           })}
