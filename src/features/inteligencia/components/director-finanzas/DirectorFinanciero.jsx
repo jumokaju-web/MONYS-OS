@@ -9,6 +9,7 @@ import {
 } from "react";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import CentroRescateFinanciero from "./CentroRescateFinanciero";
+import PlanRescate30Dias from "./PlanRescate30Dias";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
   actualizarEjecucionDecision,
@@ -781,6 +782,12 @@ const historial =
         reservaRecomendada={reservaRecomendada}
         baseFinancieraVigente={ventasVigentes}
         movimientosPendientes={movimientosPendientes}
+      />
+
+      <PlanRescate30Dias
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
       />
 
       {!creditosProveedores?.importacion && (
