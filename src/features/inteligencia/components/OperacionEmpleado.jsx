@@ -31,6 +31,8 @@ import {
   obtenerOportunidadesGrowthOS,
 } from "../services/campanasMarketingService";
 
+import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
+
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
 
@@ -238,68 +240,6 @@ function normalizarTexto(valor) {
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
-}
-
-function coincideResponsableUsuario(
-  responsable,
-  nombreUsuario
-) {
-  const responsableNormalizado =
-    normalizarTexto(responsable);
-
-  const usuarioNormalizado =
-    normalizarTexto(nombreUsuario);
-
-  if (
-    !responsableNormalizado ||
-    !usuarioNormalizado
-  ) {
-    return false;
-  }
-
-  if (
-    responsableNormalizado ===
-    usuarioNormalizado
-  ) {
-    return true;
-  }
-
-  const partesResponsable =
-    responsableNormalizado.split(" ");
-
-  const partesUsuario =
-    usuarioNormalizado.split(" ");
-
-  const coincidencias =
-    partesUsuario.filter(
-      (parteUsuario) =>
-        parteUsuario.length >= 4 &&
-        partesResponsable.some(
-          (parteResponsable) =>
-            parteResponsable.length >= 4 &&
-            (
-              parteResponsable ===
-                parteUsuario ||
-              parteResponsable.startsWith(
-                parteUsuario
-              ) ||
-              parteUsuario.startsWith(
-                parteResponsable
-              )
-            )
-        )
-    );
-
-  /*
-   * La sesión puede usar un nombre corto
-   * ("Kari Jiménez") mientras RH conserva
-   * el nombre completo
-   * ("Ana Karina Jiménez Meza").
-   * Dos partes compatibles evitan ocultar
-   * tareas reales sin confundir personas
-   * que solo comparten un nombre.
-   */
-  return coincidencias.length >= 2;
 }
 
 function etiquetaEstado(estado) {
@@ -549,26 +489,18 @@ export default function OperacionEmpleado({
       );
 
       /*
-       * IMPORTANTE:
-       * Esta pantalla NO muestra todas
-       * las tareas de la sucursal.
-       *
-       * Solo muestra las tareas cuyo
-       * responsable coincide con el
-       * usuario autenticado.
-       *
-       * Más adelante esto se cambiará
-       * por usuario_id / empleado_id.
+       * Las tareas nuevas se filtran por el ID del usuario autenticado.
+       * Las tareas históricas sin vínculo conservan el filtro por nombre.
        */
       const propias =
         (registros || []).filter(
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
-            coincideResponsableUsuario(
-              tarea.responsable,
-              usuario?.nombre
-            )
+            tareaPerteneceAlUsuario(tarea, {
+              authUserId: usuario?.auth_user_id,
+              nombreUsuario: usuario?.nombre,
+            })
         );
 
       const registrosCalendarioCompletos = [
@@ -595,10 +527,10 @@ export default function OperacionEmpleado({
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
-            coincideResponsableUsuario(
-              tarea.responsable,
-              usuario?.nombre
-            )
+            tareaPerteneceAlUsuario(tarea, {
+              authUserId: usuario?.auth_user_id,
+              nombreUsuario: usuario?.nombre,
+            })
         );
 
                   const tareasParaHoy = [
