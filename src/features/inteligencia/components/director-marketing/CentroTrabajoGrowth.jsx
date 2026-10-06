@@ -680,7 +680,7 @@ export default function CentroTrabajoGrowth({
         }
       : oportunidadPrioritaria
       ? {
-          titulo: `Validar oportunidad: ${
+          titulo: `${oportunidadPrioritaria.requierePruebaOrganica ? "Probar demanda sin gasto" : "Validar oportunidad"}: ${
             oportunidadPrioritaria.nombre ||
             oportunidadPrioritaria.codigo ||
             "producto con potencial"
@@ -688,10 +688,16 @@ export default function CentroTrabajoGrowth({
           descripcion:
             `Datos de la sucursal: ${Number(oportunidadPrioritaria.existencia || 0).toLocaleString("es-MX")} piezas en existencia y ${Number(oportunidadPrioritaria.diasCobertura || 0).toFixed(0)} días de cobertura.${oportunidadPrioritaria.fuente?.ventas ? ` Ventas recientes: ${Number(oportunidadPrioritaria.piezasVendidas || 0).toLocaleString("es-MX")} piezas.` : " No hay ventas recientes coincidentes para confirmar demanda."}${oportunidadPrioritaria.margenReal == null ? " Margen sin confirmar." : ` Margen importado: ${Number(oportunidadPrioritaria.margenReal).toFixed(1)}%.`} ${Array.isArray(oportunidadPrioritaria.razones) && oportunidadPrioritaria.razones.length ? oportunidadPrioritaria.razones.join(" · ") + "." : "Revisa la evidencia disponible."}`,
           criterio:
-            "Seleccionar la oportunidad y preparar una prueba medible; no se estima venta futura sin evidencia.",
-          etiqueta: "Oportunidad con datos reales",
+            oportunidadPrioritaria.requierePruebaOrganica
+              ? "Publicar una prueba orgánica pequeña y registrar el resultado real antes de proponer presupuesto."
+              : "Seleccionar la oportunidad y preparar una prueba medible; no se estima venta futura sin evidencia.",
+          etiqueta: oportunidadPrioritaria.requierePruebaOrganica
+            ? "Hipótesis · gasto permitido $0"
+            : "Demanda comprobada",
           clase: "growth-workspace__status--ready",
-          boton: "Revisar y preparar prueba",
+          boton: oportunidadPrioritaria.requierePruebaOrganica
+            ? "Preparar prueba orgánica"
+            : "Revisar y preparar prueba",
           ejecutar: () =>
             onTrabajarOportunidad
               ? onTrabajarOportunidad(oportunidadPrioritaria)
