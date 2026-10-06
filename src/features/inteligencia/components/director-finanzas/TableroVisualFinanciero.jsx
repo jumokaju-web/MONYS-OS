@@ -1,3 +1,5 @@
+import { construirComparativoSucursales } from "../../shared/resumenSucursalesFinanciero.js";
+
 const PALETA = {
   vino: "#64143f",
   rosa: "#d22b78",
@@ -79,8 +81,16 @@ export default function TableroVisualFinanciero({
   const avanceEquilibrio = punto > 0 ? (numero(ventas) / punto) * 100 : 0;
   const faltanteEquilibrio = punto > numero(ventas) ? punto - numero(ventas) : 0;
   const maxVencimiento = Math.max(...vencimientos.map((item) => numero(item.valor)), 1);
-  const sucursalesValidas = (Array.isArray(sucursales) ? sucursales : []).filter((sucursal) => numero(sucursal?.ventasTotales) > 0);
-  const maxSucursal = Math.max(...sucursalesValidas.map((sucursal) => numero(sucursal?.ventasTotales)), 1);
+  const sucursalesResumen = construirComparativoSucursales(sucursales);
+  const sucursalesValidas = sucursalesResumen.filter((sucursal) => sucursal.ventas !== null && sucursal.ventas > 0);
+  const maxSucursal = Math.max(...sucursalesValidas.map((sucursal) => sucursal.ventas), 1);
+  const sucursalMayorVenta = [...sucursalesValidas].sort((a, b) => b.ventas - a.ventas)[0] || null;
+  const sucursalMayorUtilidad = [...sucursalesValidas]
+    .filter((sucursal) => sucursal.utilidadBruta !== null)
+    .sort((a, b) => b.utilidadBruta - a.utilidadBruta)[0] || null;
+  const sucursalMayorMargen = [...sucursalesValidas]
+    .filter((sucursal) => sucursal.margenBruto !== null)
+    .sort((a, b) => b.margenBruto - a.margenBruto)[0] || null;
 
   const lecturaPrioritaria = !hayVentas
     ? "Sube ventas y costos para iniciar el diagnóstico."
@@ -164,22 +174,40 @@ export default function TableroVisualFinanciero({
       </div>
 
       <article style={{ marginTop: 15, padding: 18, borderRadius: 17, background: "#fff", border: "1px solid #eadce3" }}>
-        <h4 style={{ margin: "0 0 15px", color: PALETA.vino, fontSize: 18 }}>Ventas y utilidad por sucursal</h4>
-        {sucursalesValidas.length === 0 ? <MensajeSinDatos texto="La comparación se habilitará cuando los reportes identifiquen cada sucursal." /> : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-            {sucursalesValidas.map((sucursal, indice) => {
-              const ventaSucursal = numero(sucursal?.ventasTotales);
-              const utilidadSucursal = numero(sucursal?.utilidadTotal);
-              const margenSucursal = ventaSucursal > 0 ? (utilidadSucursal / ventaSucursal) * 100 : 0;
-              return (
-                <div key={sucursal?.branch_id || sucursal?.id || indice} style={{ padding: 15, borderRadius: 14, background: "#fff8fb", border: "1px solid #efdae4" }}>
-                  <strong style={{ color: "#442333" }}>{sucursal?.nombre || sucursal?.branch_name || `Sucursal ${indice + 1}`}</strong>
-                  <div style={{ marginTop: 10, height: 12, borderRadius: 999, overflow: "hidden", background: "#f0dfe7" }}><div style={{ height: "100%", width: `${(ventaSucursal / maxSucursal) * 100}%`, background: PALETA.rosa }} /></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 9, color: "#735d68", fontSize: 13 }}><span>{dinero(ventaSucursal)} ventas</span><strong>{porcentaje(margenSucursal)} margen</strong></div>
+        <h4 style={{ margin: "0 0 8px", color: PALETA.vino, fontSize: 18 }}>Comparativo financiero por sucursal</h4>
+        <p style={{ margin: "0 0 14px", color: "#75616b", fontSize: 13, lineHeight: 1.5 }}>Ventas, costo de mercancía y utilidad bruta según la última información importada.</p>
+        {sucursalesValidas.length === 0 ? <MensajeSinDatos texto="La comparación se habilitará cuando existan ventas y utilidad registradas por sucursal." /> : (
+          <>
+            {sucursalesValidas.length > 1 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 9, marginBottom: 13 }}>
+                {[
+                  ["Mayor venta", sucursalMayorVenta, sucursalMayorVenta?.ventas],
+                  ["Mayor utilidad bruta", sucursalMayorUtilidad, sucursalMayorUtilidad?.utilidadBruta],
+                  ["Mayor margen bruto", sucursalMayorMargen, sucursalMayorMargen?.margenBruto, true],
+                ].filter(([, sucursal]) => Boolean(sucursal)).map(([etiqueta, sucursal, valor, esPorcentaje]) => (
+                  <div key={etiqueta} style={{ padding: 11, borderRadius: 12, background: "#fff7fb", border: "1px solid #efdae4" }}>
+                    <small style={{ display: "block", color: "#735d68" }}>{etiqueta}</small>
+                    <strong style={{ display: "block", marginTop: 3, color: "#442333" }}>{sucursal.nombre} · {esPorcentaje ? porcentaje(valor) : dinero(valor)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+              {sucursalesValidas.map((sucursal) => (
+                <div key={sucursal.id} style={{ padding: 15, borderRadius: 14, background: "#fff8fb", border: "1px solid #efdae4" }}>
+                  <strong style={{ color: "#442333" }}>{sucursal.nombre}</strong>
+                  <Barra etiqueta="Ventas" valor={sucursal.ventas} maximo={maxSucursal} color={PALETA.rosa} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                    <div><small style={{ display: "block", color: "#735d68" }}>Costo de mercancía</small><strong>{sucursal.costoMercancia === null ? "Sin dato" : dinero(sucursal.costoMercancia)}</strong></div>
+                    <div><small style={{ display: "block", color: "#735d68" }}>Utilidad bruta SICAR</small><strong>{sucursal.utilidadBruta === null ? "Sin dato" : dinero(sucursal.utilidadBruta)}</strong></div>
+                    <div><small style={{ display: "block", color: "#735d68" }}>Margen bruto</small><strong>{sucursal.margenBruto === null ? "Sin dato" : porcentaje(sucursal.margenBruto)}</strong></div>
+                  </div>
+                  {sucursal.costoInconsistente && <p role="alert" style={{ margin: "10px 0 0", color: PALETA.rojo, fontWeight: 750 }}>Revisar importación: la utilidad supera las ventas registradas.</p>}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+            <p style={{ margin: "12px 0 0", color: "#75616b", fontSize: 12, lineHeight: 1.5 }}>La utilidad bruta todavía no descuenta nómina, renta, servicios ni otros gastos. Confirma que ambas sucursales tengan el mismo periodo antes de compararlas.</p>
+          </>
         )}
       </article>
 
