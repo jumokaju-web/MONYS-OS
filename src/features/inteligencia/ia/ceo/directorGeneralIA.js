@@ -147,7 +147,7 @@ export function generarDecisionCEO({
   // ======================================================
 
   let estadoLiquidez =
-    "ESTABLE";
+    "PENDIENTE_VALIDAR_SALDOS";
 
   if (
     dineroDisponible < 0 ||
