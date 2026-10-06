@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { obtenerCalendarioTareasOperativas } from "../../inteligencia/services/tareasOperativasService";
+import {
+  obtenerCalendarioTareasOperativas,
+  obtenerEvidenciasTarea,
+} from "../../inteligencia/services/tareasOperativasService";
 
 function fechaISO(fecha) {
   return fecha.toISOString().slice(0, 10);
@@ -26,6 +29,33 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
   const [tareas, setTareas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [supervisionAbierta, setSupervisionAbierta] = useState(false);
+  const [tareaAbierta, setTareaAbierta] = useState(null);
+  const [evidencias, setEvidencias] = useState({});
+  const [cargandoEvidencias, setCargandoEvidencias] = useState(null);
+
+  async function revisarTarea(tarea) {
+    if (tareaAbierta === tarea.id) {
+      setTareaAbierta(null);
+      return;
+    }
+
+    setTareaAbierta(tarea.id);
+    if (evidencias[tarea.id]) return;
+
+    try {
+      setCargandoEvidencias(tarea.id);
+      const registros = await obtenerEvidenciasTarea(tarea.id);
+      setEvidencias((anteriores) => ({ ...anteriores, [tarea.id]: registros || [] }));
+    } catch (errorEvidencia) {
+      setEvidencias((anteriores) => ({
+        ...anteriores,
+        [tarea.id]: [{ id: "error", error: errorEvidencia?.message || "No fue posible cargar la evidencia." }],
+      }));
+    } finally {
+      setCargandoEvidencias(null);
+    }
+  }
 
   useEffect(() => {
     let activo = true;
@@ -177,6 +207,74 @@ export default function SalaRescateJefa({ branchId, abrirDirectorFinanciero }) {
             </div>
           )}
 
+          <button
+            type="button"
+            onClick={() => setSupervisionAbierta((valor) => !valor)}
+            style={{ ...estiloBotonPrincipal, marginTop: 14, background: "rgba(255,255,255,.13)", color: "#fff", border: "1px solid rgba(255,255,255,.22)" }}
+          >
+            {supervisionAbierta ? "Ocultar supervisión" : "Supervisar tareas y evidencias"} {supervisionAbierta ? "▲" : "▼"}
+          </button>
+
+          {supervisionAbierta && (
+            <div style={{ display: "grid", gap: 9, marginTop: 11 }}>
+              {[...tareas]
+                .sort((a, b) => {
+                  if (Boolean(b.requiere_revision) !== Boolean(a.requiere_revision)) return Number(Boolean(b.requiere_revision)) - Number(Boolean(a.requiere_revision));
+                  return String(a.fecha || "").localeCompare(String(b.fecha || ""));
+                })
+                .map((tarea) => {
+                  const abierta = tareaAbierta === tarea.id;
+                  const listaEvidencias = evidencias[tarea.id] || [];
+                  const terminada = estadoTerminado(tarea.estado);
+                  return (
+                    <article key={tarea.id} style={{ borderRadius: 15, overflow: "hidden", background: "rgba(255,255,255,.96)", color: "#3b2731", border: tarea.requiere_revision ? "2px solid #f0b64f" : "1px solid rgba(255,255,255,.25)" }}>
+                      <button type="button" onClick={() => revisarTarea(tarea)} style={{ width: "100%", padding: 13, border: 0, background: "transparent", color: "inherit", textAlign: "left", cursor: "pointer" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <strong style={{ display: "block", fontSize: 13 }}>{String(tarea.titulo || "").replace("Rescate 30 días · ", "")}</strong>
+                            <small style={{ display: "block", marginTop: 4, color: "#7d6973" }}>{fechaCorta(tarea.fecha)} · {tarea.responsable || "Sin responsable"}</small>
+                          </div>
+                          <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: 999, background: tarea.requiere_revision ? "#fff0c9" : terminada ? "#dff4e6" : "#f6e8ef", color: tarea.requiere_revision ? "#765100" : terminada ? "#24683e" : "#7d3158", fontSize: 9, fontWeight: 900 }}>
+                            {tarea.requiere_revision ? "REVISAR" : terminada ? "TERMINADA" : estadoEnProceso(tarea.estado) ? "EN PROCESO" : "PENDIENTE"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {abierta && (
+                        <div style={{ padding: "0 13px 14px", borderTop: "1px solid #eadde4" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 9, marginTop: 12 }}>
+                            <div style={estiloDatoRevision}><small>TRABAJO</small><span>{tarea.descripcion || "Sin descripción"}</span></div>
+                            <div style={estiloDatoRevision}><small>CRITERIO DE ÉXITO</small><span>{tarea.criterio_exito || "Falta definir"}</span></div>
+                            <div style={estiloDatoRevision}><small>EVALUACIÓN MONYS</small><span>{tarea.evaluacion_resumen || (terminada ? "En espera de evaluación" : "Se evalúa al terminar")}</span>{tarea.calificacion_final !== null && tarea.calificacion_final !== undefined && <strong>{Number(tarea.calificacion_final).toFixed(0)}/100</strong>}</div>
+                          </div>
+
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ color: "#8b315d", fontSize: 10, fontWeight: 900, letterSpacing: ".07em" }}>EVIDENCIA</div>
+                            {cargandoEvidencias === tarea.id ? (
+                              <p style={{ color: "#7d6973", fontSize: 12 }}>Cargando evidencia…</p>
+                            ) : listaEvidencias.length === 0 ? (
+                              <div style={{ marginTop: 7, padding: 11, borderRadius: 11, background: "#fff6e8", color: "#775613", fontSize: 12, fontWeight: 750 }}>Todavía no hay archivos o fotografías comprobatorias.</div>
+                            ) : listaEvidencias[0]?.error ? (
+                              <div style={{ marginTop: 7, color: "#9b3547", fontSize: 12 }}>{listaEvidencias[0].error}</div>
+                            ) : (
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(105px, 1fr))", gap: 8, marginTop: 8 }}>
+                                {listaEvidencias.map((evidencia) => (
+                                  <a key={evidencia.id} href={evidencia.archivo_url || "#"} target="_blank" rel="noreferrer" style={{ minHeight: 86, padding: 9, borderRadius: 11, background: evidencia.archivo_url ? `linear-gradient(rgba(38,18,28,.34), rgba(38,18,28,.58)), url(${evidencia.archivo_url}) center/cover` : "#f4e8ee", color: evidencia.archivo_url ? "#fff" : "#5d4652", display: "flex", flexDirection: "column", justifyContent: "flex-end", textDecoration: "none", fontSize: 10, fontWeight: 850 }}>
+                                    <span>{String(evidencia.tipo || "evidencia").toUpperCase()}</span>
+                                    <small style={{ marginTop: 3, opacity: .85 }}>{evidencia.descripcion || "Abrir comprobante"}</small>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+            </div>
+          )}
+
           <button type="button" onClick={abrirDirectorFinanciero} style={{ ...estiloBotonPrincipal, marginTop: 14 }}>Abrir control completo del rescate →</button>
         </>
       )}
@@ -194,4 +292,15 @@ const estiloBotonPrincipal = {
   color: "#721f4d",
   fontWeight: 900,
   cursor: "pointer",
+};
+
+const estiloDatoRevision = {
+  padding: 11,
+  borderRadius: 11,
+  background: "#fbf4f7",
+  color: "#604b55",
+  fontSize: 11,
+  lineHeight: 1.45,
+  display: "grid",
+  gap: 5,
 };
