@@ -7,6 +7,16 @@ import AgendaJefa from "./components/AgendaJefa";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
+
+function antiguedadEnDias(fecha) {
+  if (!fecha) return null;
+
+  const valor = new Date(`${String(fecha).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(valor.getTime())) return null;
+
+  return Math.max(0, Math.floor((Date.now() - valor.getTime()) / 86400000));
+}
+
 export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
@@ -147,6 +157,51 @@ movimientos = [],
   const hayPendientes =
     movimientosPendientes > 0;
 
+  const antiguedadDatos = antiguedadEnDias(fechaFinal);
+  const datosFinancierosVigentes =
+    antiguedadDatos !== null && antiguedadDatos <= 7;
+  const flujoPositivo = Number(disponible) > 0;
+  const salidaNuevaBloqueada =
+    !datosFinancierosVigentes || hayPendientes || !flujoPositivo;
+
+  const controlesDinero = [
+    {
+      titulo: "Base para decidir",
+      valor: datosFinancierosVigentes ? "Vigente" : "Actualizar",
+      detalle:
+        antiguedadDatos === null
+          ? "No hay fecha confirmada"
+          : `Corte de hace ${antiguedadDatos} día${antiguedadDatos === 1 ? "" : "s"}`,
+      estado: datosFinancierosVigentes ? "bien" : "alerta",
+    },
+    {
+      titulo: "Flujo comprobable",
+      valor: datosFinancierosVigentes
+        ? formatoDinero(disponible)
+        : "Sin autorizar",
+      detalle: datosFinancierosVigentes
+        ? detallePeriodo
+        : "No usar datos antiguos para gastar",
+      estado: datosFinancierosVigentes && flujoPositivo ? "bien" : "alerta",
+    },
+    {
+      titulo: "Movimientos por aclarar",
+      valor: movimientosPendientes,
+      detalle: hayPendientes
+        ? "Primero conciliar en Tesorería"
+        : "Sin pendientes detectados",
+      estado: hayPendientes ? "alerta" : "bien",
+    },
+    {
+      titulo: "Nuevas salidas",
+      valor: salidaNuevaBloqueada ? "Detenidas" : "Con autorización",
+      detalle: salidaNuevaBloqueada
+        ? "No comprar ni pagar desde MONYS"
+        : "Mónica conserva la decisión final",
+      estado: salidaNuevaBloqueada ? "bloqueado" : "bien",
+    },
+  ];
+
     const ventasConsolidadas =
   sucursalesDashboard.reduce(
     (total, sucursal) =>
@@ -249,32 +304,58 @@ const utilidadConsolidada =
         <div
           style={{
             marginBottom: "14px",
-            padding: "20px",
-            border: "1px solid #efdce6",
-            borderRadius: "22px",
+            padding: "24px 20px",
+            border: "1px solid rgba(174,45,103,.2)",
+            borderRadius: "26px",
             background:
-              "linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,241,247,.96))",
+              "radial-gradient(circle at 88% 10%, rgba(255,154,201,.5), transparent 28%), linear-gradient(135deg, #fff 0%, #fff1f7 62%, #fbd9e9 100%)",
             boxShadow:
-              "0 14px 38px rgba(105, 37, 72, 0.08)",
+              "0 18px 46px rgba(105, 37, 72, 0.13)",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
           <div
             style={{
-              color: "#a92e67",
-              fontSize: "12px",
-              fontWeight: "900",
-              letterSpacing: "1px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap",
             }}
           >
-            MONYS OS · DIRECCIÓN
+            <div
+              style={{
+                color: "#a92e67",
+                fontSize: "12px",
+                fontWeight: "900",
+                letterSpacing: "1px",
+              }}
+            >
+              MONYS OS · CENTRO DE MANDO
+            </div>
+            <span
+              style={{
+                padding: "6px 10px",
+                borderRadius: "999px",
+                background: "rgba(255,255,255,.78)",
+                border: "1px solid rgba(169,46,103,.18)",
+                color: "#7c2a51",
+                fontSize: "11px",
+                fontWeight: 850,
+              }}
+            >
+              ● Dirección activa
+            </span>
           </div>
 
           <h1
             style={{
-              margin: "4px 0 3px",
-              fontSize: "clamp(26px, 4vw, 38px)",
-              letterSpacing: "-0.8px",
+              margin: "16px 0 4px",
+              fontSize: "clamp(31px, 6vw, 46px)",
+              letterSpacing: "-1.5px",
               color: "#291d23",
+              lineHeight: 1.02,
             }}
           >
             Hola, Jefa 👑
@@ -282,12 +363,41 @@ const utilidadConsolidada =
 
           <div
             style={{
-              color: "#7d6e75",
-              fontSize: "14px",
+              maxWidth: "650px",
+              color: "#6f5562",
+              fontSize: "15px",
+              lineHeight: 1.5,
+              fontWeight: 650,
             }}
           >
-            Esto es lo que requiere tu
-            atención hoy.
+            Tu negocio bajo control. MONYS ordena, alerta y da seguimiento;
+            tú conservas las decisiones importantes.
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              marginTop: "17px",
+            }}
+          >
+            {["Dinero", "Sucursales", "Equipo", "Decisiones"].map((area) => (
+              <span
+                key={area}
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: "10px",
+                  background: "rgba(255,255,255,.7)",
+                  border: "1px solid rgba(169,46,103,.12)",
+                  color: "#6f2a4c",
+                  fontSize: "11px",
+                  fontWeight: 850,
+                }}
+              >
+                {area}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -328,6 +438,160 @@ const utilidadConsolidada =
 />
 
         </div>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background:
+              "linear-gradient(145deg, #281b22 0%, #5f2445 100%)",
+            color: "#fff",
+            boxShadow: "0 14px 34px rgba(70, 28, 51, 0.18)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "#f2b9d3",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.8px",
+                }}
+              >
+                CONTROL DE DINERO · HOY
+              </div>
+              <h2 style={{ margin: "5px 0 4px", fontSize: "23px" }}>
+                Qué puedes decidir y qué debe esperar
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  maxWidth: "680px",
+                  color: "rgba(255,255,255,.78)",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                }}
+              >
+                MONYS ordena la información y protege el efectivo. No mueve dinero,
+                no realiza pagos y no autoriza compras por sí solo.
+              </p>
+            </div>
+            <span
+              style={{
+                padding: "8px 11px",
+                borderRadius: "999px",
+                background: salidaNuevaBloqueada ? "#ffe7b2" : "#dff6e7",
+                color: salidaNuevaBloqueada ? "#744d00" : "#17663a",
+                fontWeight: 900,
+                fontSize: "12px",
+              }}
+            >
+              {salidaNuevaBloqueada ? "⚠ Proteger efectivo" : "✓ Base revisable"}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "16px",
+            }}
+          >
+            {controlesDinero.map((control) => (
+              <article
+                key={control.titulo}
+                style={{
+                  minWidth: 0,
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background:
+                    control.estado === "bien"
+                      ? "rgba(222,247,231,.12)"
+                      : "rgba(255,229,177,.12)",
+                  border:
+                    control.estado === "bien"
+                      ? "1px solid rgba(181,231,199,.28)"
+                      : "1px solid rgba(255,221,153,.32)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "rgba(255,255,255,.68)",
+                    fontSize: "10px",
+                    fontWeight: 850,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.45px",
+                  }}
+                >
+                  {control.titulo}
+                </div>
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: "5px",
+                    color: control.estado === "bien" ? "#dff6e7" : "#ffe7b2",
+                    fontSize: "18px",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {control.valor}
+                </strong>
+                <div
+                  style={{
+                    marginTop: "5px",
+                    color: "rgba(255,255,255,.72)",
+                    fontSize: "11px",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {control.detalle}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: "8px",
+              marginTop: "14px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={abrirImportador}
+              style={estiloBotonControlDinero}
+            >
+              Actualizar reportes
+            </button>
+            <button
+              type="button"
+              onClick={abrirTesoreria}
+              style={estiloBotonControlDinero}
+            >
+              Revisar Tesorería
+            </button>
+            <button
+              type="button"
+              onClick={abrirJuntaDirectiva}
+              style={estiloBotonControlDinero}
+            >
+              Abrir Director Financiero
+            </button>
+          </div>
+        </section>
 
         {/* ATENCIÓN */}
 
@@ -1159,4 +1423,16 @@ const estiloBotonSecundario = {
   fontWeight: "800",
   cursor: "pointer",
   fontSize: "13px",
+};
+
+const estiloBotonControlDinero = {
+  minHeight: "44px",
+  border: "1px solid rgba(255,255,255,.3)",
+  background: "rgba(255,255,255,.96)",
+  color: "#642448",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontWeight: 900,
+  cursor: "pointer",
+  fontSize: "12px",
 };
