@@ -18,7 +18,7 @@ test("pondera los márgenes multiproducto por ventas históricas reales", () => 
     ],
   });
 
-  assert.equal(margen, 28.75);
+  assert.ok(Math.abs(margen - 28.75) < 1e-10);
 });
 
 test("conserva un margen real igual a cero", () => {
