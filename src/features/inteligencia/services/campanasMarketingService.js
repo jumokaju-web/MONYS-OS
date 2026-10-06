@@ -844,15 +844,31 @@ if (valorInventario >= 5000) {
   );
 }
 
-// EXISTENCIA SIN VENTAS: 15 puntos extra.
-if (
-  piezasVendidas === 0 &&
-  existencia > 0
-) {
-  prioridad += 15;
+// DEMANDA COMPROBADA: máximo 15 puntos.
+// Para la primera recomendación de Growth no premiamos un producto
+// únicamente por estar detenido. Las ventas observadas reducen el riesgo de
+// preparar una campaña para algo que todavía no demostró demanda.
+const puntosDemanda =
+  piezasVendidas > 0
+    ? Math.min(
+        piezasVendidas / 30,
+        1
+      ) * 15
+    : 0;
 
+prioridad += puntosDemanda;
+
+if (piezasVendidas >= 30) {
   razones.push(
-    "Tiene existencia y no registra venta reciente"
+    "Demanda comprobada con ventas reales"
+  );
+} else if (piezasVendidas > 0) {
+  razones.push(
+    "Registra ventas reales"
+  );
+} else if (existencia > 0) {
+  razones.push(
+    "Sin venta reciente: solo prueba orgánica pequeña"
   );
 }
 
@@ -893,6 +909,22 @@ prioridad =
           actualizacionDatos,
 
           prioridad,
+
+          tipoOportunidad:
+            piezasVendidas > 0
+              ? "ROTACION_CON_DEMANDA"
+              : "PRUEBA_DEMANDA",
+
+          confianzaDatos:
+            coincidenciaRentabilidad &&
+            coincidenciaVentas
+              ? "ALTA"
+              : piezasVendidas > 0
+              ? "MEDIA"
+              : "BAJA",
+
+          requierePruebaOrganica:
+            piezasVendidas === 0,
 
           razones,
 
