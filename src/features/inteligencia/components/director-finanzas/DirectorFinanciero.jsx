@@ -45,6 +45,12 @@ function obtenerAntiguedadDias(fecha) {
   datosDashboard,
   sucursalesDashboard = [],
   movimientos = [],
+  creditosProveedores = {
+    importacion: null,
+    creditos: [],
+    saldoTotal: 0,
+  },
+  onAbrirImportador,
 }) {
 
     const [
@@ -76,15 +82,6 @@ const [
   resultadosEjecucion,
   setResultadosEjecucion,
 ] = useState({});
-
-const [
-  creditosProveedores,
-  setCreditosProveedores,
-] = useState({
-  importacion: null,
-  creditos: [],
-  saldoTotal: 0,
-});
 
   const metricas =
     datosDashboard?.metricas || {};
@@ -301,14 +298,6 @@ ventasSobrePuntoEquilibrio,
     proyeccionListaParaDecision
       ? accionesPrioritarias
       : accionesActualizacionFinanciera;
-
-    useEffect(() => {
-  setCreditosProveedores({
-    importacion: null,
-    creditos: [],
-    saldoTotal: 0,
-  });
-}, [branchId]);
 
      // Las acciones se recalculan con la importación actual;
      // no se recarga el historial por cambios visuales del análisis.
@@ -790,6 +779,51 @@ const historial =
         branchId={branchId}
       />
 
+      {!creditosProveedores?.importacion && (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "18px",
+            borderRadius: "15px",
+            background: "#fff9ed",
+            border: "1px solid #e5c47d",
+          }}
+        >
+          <strong style={{ fontSize: "17px" }}>
+            📄 Falta el reporte de créditos de proveedores
+          </strong>
+          <p
+            style={{
+              margin: "7px 0 14px",
+              color: "#6f604d",
+              lineHeight: 1.55,
+            }}
+          >
+            Sube el reporte de SICAR para que MONYS muestre el saldo real por
+            proveedor y los compromisos de 7, 15, 30, 60 y 90 días. Sin ese
+            archivo no se autorizarán compras basadas en una deuda estimada.
+          </p>
+          {typeof onAbrirImportador === "function" && (
+            <button
+              type="button"
+              onClick={onAbrirImportador}
+              style={{
+                width: "100%",
+                minHeight: "46px",
+                border: 0,
+                borderRadius: "11px",
+                background: "#8a5410",
+                color: "#fff",
+                fontWeight: 850,
+                cursor: "pointer",
+              }}
+            >
+              Subir créditos de proveedores →
+            </button>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -806,8 +840,14 @@ const historial =
         />
 
        <TarjetaIndicador
-  titulo="Reporte de proveedores"
-  valor="Sin reporte confirmado"
+  titulo="Saldo con proveedores"
+  valor={
+    creditosProveedores?.importacion
+      ? formatoDinero(
+          creditosProveedores?.saldoTotal || 0
+        )
+      : "Pendiente de cargar"
+  }
   icono="💳"
 />
 
