@@ -58,3 +58,26 @@ test("rechaza el reporte si faltan columnas financieras obligatorias", () => {
     /faltan columnas financieras obligatorias: Utilidad/
   );
 });
+test("normaliza la exportación real de SICAR con columnas intercaladas vacías", () => {
+  const encabezados = [
+    "Documento", "", "", "Fecha", "Folio", "", "Cliente", "",
+    "Caja", "", "Usuario", "", "Folio F.", "", "", "Total Ven.",
+    "", "", "", "Total Com.", "", "", "", "Utilidad",
+  ];
+  const venta = [
+    "Tickets", "", "", "2026-09-28T10:25:39", "21095", "",
+    "Público en General", "", "Caja 1", "", "sucursalcentro", "",
+    "", "", "", "$ 422.31", "", "", "", "", "$ 256.00",
+    "", "", "", "$ 166.31",
+  ];
+
+  const resultado = normalizarUtilidadVentas([encabezados, venta]);
+
+  assert.equal(resultado.length, 1);
+  assert.equal(resultado[0].documento, "Tickets");
+  assert.equal(resultado[0].folio, "21095");
+  assert.equal(resultado[0].usuario, "sucursalcentro");
+  assert.equal(resultado[0].ventaTotal, 422.31);
+  assert.equal(resultado[0].costoTotal, 256);
+  assert.equal(resultado[0].utilidad, 166.31);
+});
