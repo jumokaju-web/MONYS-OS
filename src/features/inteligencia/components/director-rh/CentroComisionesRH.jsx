@@ -56,6 +56,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
   const [aviso, setAviso] = useState("");
   const [selecciones, setSelecciones] = useState({});
   const [filtroConciliacion, setFiltroConciliacion] = useState("PENDIENTES");
+  const importacionSeleccionada = importaciones.find((item) => item.id === importacionId) || null;
 
   async function cargarCatalogos() {
     if (!branchId) {
@@ -107,7 +108,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
       }
       setCargandoDetalle(true);
       try {
-        const filas = await leerDetalleImportacionVentas(importacionId);
+        const filas = await leerDetalleImportacionVentas(importacionId, importacionSeleccionada?.total_filas);
         if (activo) setDetalle(filas);
       } catch (err) {
         if (activo) {
