@@ -14,6 +14,8 @@ create table if not exists public.crm_oportunidades (
   monto_estimado numeric(14, 2) null,
   proximo_seguimiento date null,
   notas text null,
+  ultimo_resultado text null,
+  ultimo_seguimiento_at timestamptz null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint crm_oportunidades_cliente_check check (length(trim(cliente)) >= 2),
@@ -41,10 +43,36 @@ drop policy if exists "Duenos administran CRM oportunidades"
   on public.crm_oportunidades;
 drop policy if exists "Duenos consultan CRM oportunidades"
   on public.crm_oportunidades;
+drop policy if exists "Equipo consulta oportunidades asignadas"
+  on public.crm_oportunidades;
+drop policy if exists "Equipo actualiza oportunidad asignada"
+  on public.crm_oportunidades;
 drop policy if exists "Duenos actualizan CRM oportunidades"
   on public.crm_oportunidades;
 drop policy if exists "Duenos eliminan CRM oportunidades"
   on public.crm_oportunidades;
+
+create policy "Equipo consulta oportunidades asignadas"
+on public.crm_oportunidades
+for select
+to authenticated
+using (
+  asignado_a = (select auth.uid())
+  and exists (
+    select 1
+    from public.usuarios usuario
+    where usuario.auth_user_id = (select auth.uid())
+      and usuario.organization_id = crm_oportunidades.organization_id
+      and usuario.active
+  )
+  and exists (
+    select 1
+    from public.empleados empleado
+    where empleado.id = crm_oportunidades.empleado_id
+      and empleado.usuario_id = (select auth.uid())
+      and empleado.active
+  )
+);
 
 create policy "Duenos consultan CRM oportunidades"
 on public.crm_oportunidades
@@ -114,5 +142,44 @@ using (
       and usuario.organization_id = crm_oportunidades.organization_id
       and usuario.active
       and lower(usuario.role) in ('owner', 'admin')
+  )
+);
+
+create policy "Equipo actualiza oportunidad asignada"
+on public.crm_oportunidades
+for update
+to authenticated
+using (
+  asignado_a = (select auth.uid())
+  and exists (
+    select 1
+    from public.usuarios usuario
+    where usuario.auth_user_id = (select auth.uid())
+      and usuario.organization_id = crm_oportunidades.organization_id
+      and usuario.active
+  )
+  and exists (
+    select 1
+    from public.empleados empleado
+    where empleado.id = crm_oportunidades.empleado_id
+      and empleado.usuario_id = (select auth.uid())
+      and empleado.active
+  )
+)
+with check (
+  asignado_a = (select auth.uid())
+  and exists (
+    select 1
+    from public.usuarios usuario
+    where usuario.auth_user_id = (select auth.uid())
+      and usuario.organization_id = crm_oportunidades.organization_id
+      and usuario.active
+  )
+  and exists (
+    select 1
+    from public.empleados empleado
+    where empleado.id = crm_oportunidades.empleado_id
+      and empleado.usuario_id = (select auth.uid())
+      and empleado.active
   )
 );

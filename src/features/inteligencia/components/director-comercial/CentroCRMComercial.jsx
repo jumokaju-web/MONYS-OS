@@ -272,6 +272,7 @@ export default function CentroCRMComercial({
                   <div>Responsable: {persona?.nombre || "Sin asignar"}</div>
                   {item.telefono && <div>Contacto: {item.telefono}</div>}
                   {item.notas && <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>{item.notas}</div>}
+                  {item.ultimo_resultado && <div style={{ marginTop: 7, padding: 9, borderRadius: 9, background: "#f1fff5", color: "#276344", fontSize: 13 }}><strong>Último seguimiento:</strong> {item.ultimo_resultado}</div>}
                 </div>
                 <label style={{ display: "grid", gap: 6, marginTop: 12, color: "#556071", fontSize: 13 }}>Actualizar etapa
                   <select value={item.etapa} onChange={(e) => cambiarEtapa(item, e.target.value)} style={campo}>{ETAPAS_CRM.map((etapa) => <option key={etapa} value={etapa}>{ETIQUETAS[etapa]}</option>)}</select>

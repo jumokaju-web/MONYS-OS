@@ -751,13 +751,30 @@ export default function OperacionEmpleado({
       setError("");
       setMensaje("");
 
-      await cambiarEstadoTareaOperativa({
+      let resultadoSeguimiento = null;
+      if (
+        nuevoEstado === "terminada" &&
+        String(tarea?.titulo || "").startsWith("Seguimiento CRM:")
+      ) {
+        const capturado = window.prompt(
+          "¿Qué ocurrió en el seguimiento con el cliente? Escribe el resultado para actualizar el CRM."
+        );
+        if (capturado === null) return;
+        resultadoSeguimiento = capturado.trim();
+        if (!resultadoSeguimiento) {
+          setError("Escribe el resultado del contacto antes de terminar esta tarea.");
+          return;
+        }
+      }
+
+      const tareaActualizada = await cambiarEstadoTareaOperativa({
         tareaId: tarea.id,
         estado: nuevoEstado,
         completadaPor:
           usuario?.nombre ||
           tarea.responsable ||
           null,
+        resultado: resultadoSeguimiento,
       });
 
       if (
@@ -780,12 +797,18 @@ export default function OperacionEmpleado({
 
       await cargarTareas();
 
-      setMensaje(
-        nuevoEstado ===
-          "en_proceso"
-          ? "Tarea iniciada."
-          : "Tarea terminada. ¡Buen trabajo!"
-      );
+      if (tareaActualizada?.sincronizacionCRM?.sincronizada === false) {
+        setMensaje("La tarea terminó, pero el CRM no se pudo actualizar. Avisa a administración para revisar el seguimiento.");
+      } else {
+        setMensaje(
+          nuevoEstado ===
+            "en_proceso"
+            ? "Tarea iniciada."
+            : tareaActualizada?.sincronizacionCRM?.sincronizada
+              ? "Seguimiento registrado. El CRM quedó actualizado y sin fecha pendiente."
+              : "Tarea terminada. ¡Buen trabajo!"
+        );
+      }
     } catch (
       errorEstado
     ) {

@@ -1,5 +1,6 @@
 import { supabase } from "../../../supabase";
 import { obtenerFechaLocalISO } from "../shared/fechaLocal";
+import { construirActualizacionCRMDesdeSeguimiento } from "../shared/actualizacionCRM";
 
 import {
   asignarResponsableAutomatico,
@@ -1581,7 +1582,22 @@ export async function cambiarEstadoTareaOperativa({
     throw error;
   }
 
-  return data;
+  let sincronizacionCRM = null;
+  const identificadorCRM = String(data?.descripcion || "").match(/Oportunidad CRM ([0-9a-f-]{36})/i)?.[1];
+  if (estado === "terminada" && resultado && identificadorCRM) {
+    const ahora = new Date().toISOString();
+    const { data: oportunidadActualizada, error: errorCRM } = await supabase
+      .from("crm_oportunidades")
+      .update(construirActualizacionCRMDesdeSeguimiento(resultado, ahora))
+      .eq("id", identificadorCRM)
+      .select("id")
+      .maybeSingle();
+    sincronizacionCRM = errorCRM || !oportunidadActualizada
+      ? { sincronizada: false, error: errorCRM?.message || "MONYS no confirmó la actualización del CRM." }
+      : { sincronizada: true };
+  }
+
+  return { ...data, sincronizacionCRM };
 }
 
 
