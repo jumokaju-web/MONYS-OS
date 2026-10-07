@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { validarConteoImportacionSicar } from "../shared/resumenComisionesSicar";
 
 export async function listarOportunidadesGanadasComision({ branchId, businessId } = {}) {
   if (!branchId || !businessId) return [];
@@ -57,10 +58,10 @@ export async function listarImportacionesUtilidadVentas(branchId) {
     .eq("tipo_reporte", "Utilidad de ventas")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return Array.isArray(data) ? data : [];
+  return validarConteoImportacionSicar({ filas: data, totalFilasEsperadas });
 }
 
-export async function leerDetalleImportacionVentas(importacionId) {
+export async function leerDetalleImportacionVentas(importacionId, totalFilasEsperadas) {
   if (!importacionId) return [];
   const { data, error } = await supabase
     .from("importacion_detalle")
