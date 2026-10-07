@@ -19,6 +19,18 @@ const formatoNumero = new Intl.NumberFormat(
 const formatoPorcentaje = (valor) =>
   `${formatoNumero.format(Number(valor) || 0)}%`;
 
+function formatoFechaCorte(valor) {
+  if (!valor) return "Fecha no disponible";
+  const fecha = new Date(`${String(valor).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(fecha.getTime())) return "Fecha no disponible";
+  return fecha.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 const estilos = {
   pagina: {
     minHeight: "100vh",
@@ -218,6 +230,17 @@ const DashboardPage = () => {
   const productoMasVendido =
     metricas.productoMasVendido;
 
+  const periodoFinanciero =
+    datosDashboard.ventasOriginales?.periodo;
+
+  const inicioCorte = formatoFechaCorte(
+    periodoFinanciero?.fechaInicial
+  );
+
+  const finCorte = formatoFechaCorte(
+    periodoFinanciero?.fechaFinal
+  );
+
   return (
     <main style={estilos.pagina}>
       <header style={estilos.encabezado}>
@@ -226,10 +249,25 @@ const DashboardPage = () => {
         </h1>
 
         <p style={estilos.subtitulo}>
-          Este es el resumen real de la última
-          importación de ventas.
+          Este es el resumen real de la última importación de SICAR.
         </p>
       </header>
+
+      <section
+        aria-label="Periodo financiero SICAR"
+        style={{
+          marginBottom: "22px",
+          padding: "16px 20px",
+          borderRadius: "14px",
+          background: "#fdf4f8",
+          border: "1px solid #edcfdd",
+          color: "#5b3c4d",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Corte financiero: {inicioCorte} – {finCorte}</strong>
+        <div>Utilidad y margen son brutos según SICAR, antes de gastos operativos.</div>
+      </section>
 
       <section style={estilos.cuadricula}>
         <TarjetaMetrica
@@ -240,7 +278,7 @@ const DashboardPage = () => {
         />
 
         <TarjetaMetrica
-          etiqueta="Utilidad total"
+          etiqueta="Utilidad bruta"
           valor={formatoDinero.format(
             Number(metricas.utilidadTotal) || 0
           )}
@@ -254,7 +292,7 @@ const DashboardPage = () => {
         />
 
         <TarjetaMetrica
-          etiqueta="Margen de utilidad"
+          etiqueta="Margen bruto"
           valor={formatoPorcentaje(
             metricas.margenUtilidad
           )}
