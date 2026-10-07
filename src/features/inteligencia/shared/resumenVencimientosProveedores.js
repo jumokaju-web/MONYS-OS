@@ -1,5 +1,5 @@
 function diaUTC(valor) {
-  if (typeof valor !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(valor)) {
+  if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
     return null;
   }
 
