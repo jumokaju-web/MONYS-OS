@@ -116,3 +116,63 @@ test("permite atribuir por CRM un folio real sin usuario SICAR y lo deja rastrea
   assert.equal(resumen.conciliacion[0].estado, "CRM_ATRIBUIDO");
   assert.equal(resumen.conciliacion[0].usuarioSicar, "");
 });
+
+
+test("deja en revisión los folios atendidos por varias empleadas y muestra sus nombres", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{
+      id: "o5", etapa: "GANADO", folio_venta_sicar: "A-13", empleado_id: "1",
+      participantes_empleado_ids: ["1", "2"],
+      participantes_empleados: [{ id: "1", nombre: "Karla" }, { id: "2", nombre: "Kary" }],
+      participacion_verificada: true,
+    }],
+    filas: [{ fecha: "2026-10-06", folio: "A-13", usuario: "Karla", ventaTotal: 5000 }],
+  });
+  assert.equal(resumen.comisionTotal, 0);
+  assert.equal(resumen.ventasSinAsignar, 5000);
+  assert.equal(resumen.conciliacion[0].estado, "CRM_MULTIPLES_EMPLEADAS");
+  assert.deepEqual(resumen.conciliacion[0].participantes, ["Karla", "Kary"]);
+});
+
+test("no paga automáticamente cuando no se pudo verificar la participación del CRM", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{
+      id: "o6", etapa: "GANADO", folio_venta_sicar: "A-14", empleado_id: "2",
+      participantes_empleado_ids: ["2"], participacion_verificada: false,
+    }],
+    filas: [{ fecha: "2026-10-06", folio: "A-14", usuario: "Karla", ventaTotal: 3200 }],
+  });
+  assert.equal(resumen.comisionTotal, 0);
+  assert.equal(resumen.ventasSinAsignar, 3200);
+  assert.equal(resumen.conciliacion[0].estado, "CRM_PARTICIPACION_NO_VERIFICADA");
+});
+
+test("deduplica responsable y participante CRM cuando se trata de la misma empleada", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{
+      id: "o7", etapa: "GANADO", folio_venta_sicar: "A-15", empleado_id: "2",
+      participantes_empleado_ids: ["2"], participacion_verificada: true,
+    }],
+    filas: [{ fecha: "2026-10-06", folio: "A-15", usuario: "Karla", ventaTotal: 2100 }],
+  });
+  assert.equal(resumen.comisionTotal, 21);
+  assert.equal(resumen.comisiones[0].empleado, "Kary");
+});
+
+test("muestra participantes y revisión cuando falta el ticket en el reporte de SICAR", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{
+      id: "o8", etapa: "GANADO", folio_venta_sicar: "A-16", empleado_id: "1",
+      participantes_empleado_ids: ["1", "2"],
+      participantes_empleados: [{ id: "1", nombre: "Karla" }, { id: "2", nombre: "Kary" }],
+      participacion_verificada: true,
+    }],
+    filas: [],
+  });
+  assert.equal(resumen.conciliacion[0].estado, "CRM_MULTIPLES_EMPLEADAS");
+  assert.deepEqual(resumen.conciliacion[0].participantes, ["Karla", "Kary"]);
+});

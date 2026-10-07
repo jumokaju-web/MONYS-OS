@@ -106,18 +106,33 @@ export function resumirComisionesSicar({
     const coincidencias = venta.usuario ? (mapeo.get(normalizarUsuarioSicar(venta.usuario)) || []) : [];
     let empleadoCRM = null;
     let estado = "";
+    let participantesCRM = [];
     if (oportunidades.length > 1) {
       estado = "CRM_FOLIO_DUPLICADO";
     } else if (oportunidades.length === 1) {
       const oportunidad = oportunidades[0];
-      empleadoCRM = oportunidad.empleado_id
-        ? personal.find((persona) => persona.id === oportunidad.empleado_id) || null
-        : null;
-      estado = empleadoCRM
-        ? "CRM_ATRIBUIDO"
-        : oportunidad.empleado_id
-          ? "CRM_EMPLEADA_NO_ENCONTRADA"
-          : "CRM_SIN_RESPONSABLE";
+      participantesCRM = Array.isArray(oportunidad.participantes_empleados)
+        ? oportunidad.participantes_empleados.filter((persona) => persona.id)
+        : [];
+      const idsParticipantes = new Set([
+        ...(Array.isArray(oportunidad.participantes_empleado_ids) ? oportunidad.participantes_empleado_ids : []),
+        ...(oportunidad.empleado_id ? [oportunidad.empleado_id] : []),
+      ]);
+      if (oportunidad.participacion_verificada === false) {
+        estado = "CRM_PARTICIPACION_NO_VERIFICADA";
+      } else if (idsParticipantes.size > 1) {
+        estado = "CRM_MULTIPLES_EMPLEADAS";
+      } else if (idsParticipantes.size === 1) {
+        const empleadoId = [...idsParticipantes][0];
+        empleadoCRM = personal.find((persona) => persona.id === empleadoId)
+          || participantesCRM.find((persona) => persona.id === empleadoId)
+          || (oportunidad.empleado_id === empleadoId && oportunidad.empleado_nombre
+            ? { id: empleadoId, nombre: oportunidad.empleado_nombre }
+            : null);
+        estado = empleadoCRM ? "CRM_ATRIBUIDO" : "CRM_EMPLEADA_NO_ENCONTRADA";
+      } else {
+        estado = "CRM_SIN_RESPONSABLE";
+      }
     } else if (coincidencias.length === 1) {
       estado = "SICAR_ASIGNADO";
     } else {
@@ -129,6 +144,7 @@ export function resumirComisionesSicar({
       fecha: venta.fecha,
       usuarioSicar: venta.usuario,
       empleado: empleadoAsignado?.nombre || "",
+      participantes: participantesCRM.map((persona) => persona.nombre).filter(Boolean),
       importe: venta.venta,
       estado,
     });
@@ -177,6 +193,7 @@ export function resumirComisionesSicar({
       fecha: venta.fecha,
       usuarioSicar: venta.usuario,
       empleado: "",
+      participantes: [],
       importe: venta.venta,
       estado: "AJUSTE_NEGATIVO_PENDIENTE",
     });
@@ -185,13 +202,28 @@ export function resumirComisionesSicar({
   for (const [folio, oportunidades] of foliosCRM) {
     if (foliosEnReporte.has(folio)) continue;
     for (const oportunidad of oportunidades) {
+      const participantes = Array.isArray(oportunidad.participantes_empleados)
+        ? oportunidad.participantes_empleados.map((persona) => persona.nombre).filter(Boolean)
+        : [];
+      const idsParticipantes = new Set([
+        ...(Array.isArray(oportunidad.participantes_empleado_ids) ? oportunidad.participantes_empleado_ids : []),
+        ...(oportunidad.empleado_id ? [oportunidad.empleado_id] : []),
+      ]);
+      const estado = oportunidades.length > 1
+        ? "CRM_DUPLICADO_SIN_TICKET"
+        : oportunidad.participacion_verificada === false
+          ? "CRM_PARTICIPACION_NO_VERIFICADA"
+          : idsParticipantes.size > 1
+            ? "CRM_MULTIPLES_EMPLEADAS"
+            : "CRM_SIN_TICKET_EN_REPORTE";
       conciliacion.push({
         folio,
         fecha: "",
         usuarioSicar: "",
-        empleado: personal.find((persona) => persona.id === oportunidad.empleado_id)?.nombre || "",
+        empleado: oportunidad.empleado_nombre || personal.find((persona) => persona.id === oportunidad.empleado_id)?.nombre || "",
+        participantes,
         importe: null,
-        estado: oportunidades.length > 1 ? "CRM_DUPLICADO_SIN_TICKET" : "CRM_SIN_TICKET_EN_REPORTE",
+        estado,
       });
     }
   }

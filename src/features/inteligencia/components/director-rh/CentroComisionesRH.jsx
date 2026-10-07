@@ -70,7 +70,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     const [cargas, equipo, crm] = await Promise.allSettled([
       listarImportacionesUtilidadVentas(branchId),
       listarEmpleadosComision(branchId),
-      listarOportunidadesGanadasComision(branchId),
+      listarOportunidadesGanadasComision({ branchId, businessId }),
     ]);
     if (cargas.status === "fulfilled") {
       const lista = cargas.value;
@@ -241,14 +241,16 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
               </select>
             </label>
             <div style={{ overflow: "auto", maxHeight: 390 }}>
-              <table style={{ width: "100%", minWidth: 680, borderCollapse: "collapse" }}>
-                <thead><tr>{["Folio", "Fecha", "Usuario SICAR", "Responsable", "Venta SICAR", "Resultado"].map((label) => <th key={label} style={{ position: "sticky", top: 0, textAlign: "left", padding: 9, background: "#f7f9fc", borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
+              <table style={{ width: "100%", minWidth: 820, borderCollapse: "collapse" }}>
+                <thead><tr>{["Folio", "Fecha", "Usuario SICAR", "Responsable", "Empleadas CRM", "Venta SICAR", "Resultado"].map((label) => <th key={label} style={{ position: "sticky", top: 0, textAlign: "left", padding: 9, background: "#f7f9fc", borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
                 <tbody>
                   {filasConciliacion.map((fila, index) => {
                     const etiquetas = {
                       CRM_ATRIBUIDO: "Atribuida desde CRM",
                       SICAR_ASIGNADO: "Asignada por usuario SICAR",
                       CRM_FOLIO_DUPLICADO: "Revisar: folio repetido en CRM",
+                      CRM_MULTIPLES_EMPLEADAS: "Revisar: varias empleadas atendieron",
+                      CRM_PARTICIPACION_NO_VERIFICADA: "Revisar: no se pudo validar participación",
                       CRM_SIN_RESPONSABLE: "Revisar: CRM sin responsable",
                       CRM_EMPLEADA_NO_ENCONTRADA: "Revisar: responsable no encontrado",
                       SICAR_AMBIGUO: "Revisar: usuario SICAR duplicado",
@@ -263,11 +265,12 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
                       <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.fecha || "—"}</td>
                       <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.usuarioSicar || "—"}</td>
                       <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.empleado || "—"}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.participantes?.length ? fila.participantes.join(" · ") : "—"}</td>
                       <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.importe == null ? "—" : moneda(fila.importe)}</td>
                       <td style={{ padding: 9, borderBottom: "1px solid #eef0f4", color: ["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado) ? "#237847" : "#805700", fontWeight: 700 }}>{etiquetas[fila.estado] || fila.estado}</td>
                     </tr>;
                   })}
-                  {!filasConciliacion.length && <tr><td colSpan={6} style={{ padding: 14, color: "#697386", textAlign: "center" }}>No hay folios pendientes de revisión para este reporte y periodo.</td></tr>}
+                  {!filasConciliacion.length && <tr><td colSpan={7} style={{ padding: 14, color: "#697386", textAlign: "center" }}>No hay folios pendientes de revisión para este reporte y periodo.</td></tr>}
                 </tbody>
               </table>
             </div>
