@@ -58,7 +58,7 @@ export async function listarImportacionesUtilidadVentas(branchId) {
     .eq("tipo_reporte", "Utilidad de ventas")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return validarConteoImportacionSicar({ filas: data, totalFilasEsperadas });
+  return Array.isArray(data) ? data : [];
 }
 
 export async function leerDetalleImportacionVentas(importacionId, totalFilasEsperadas) {
@@ -69,7 +69,7 @@ export async function leerDetalleImportacionVentas(importacionId, totalFilasEspe
     .eq("importacion_id", importacionId)
     .order("numero_fila", { ascending: true });
   if (error) throw error;
-  return Array.isArray(data) ? data : [];
+  return validarConteoImportacionSicar({ filas: data, totalFilasEsperadas });
 }
 
 export async function listarEmpleadosComision(branchId) {
