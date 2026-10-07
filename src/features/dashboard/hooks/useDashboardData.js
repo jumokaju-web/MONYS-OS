@@ -219,6 +219,9 @@ export function useDashboardData() {
         const metricas = {
           ...metricasBase,
 
+          periodosComparables:
+            comparabilidadProductos.comparable,
+
           fechaInicial:
             periodoReal?.fechaInicial ||
             metricasBase?.fechaInicial ||
