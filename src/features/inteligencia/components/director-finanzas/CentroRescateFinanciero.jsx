@@ -7,6 +7,7 @@ import {
   guardarDeudaFinanciera,
   obtenerDeudasFinancieras,
 } from "../../services/deudasFinancierasService";
+import { calcularMensualidadesConFecha } from "../../shared/resumenProgramacionPagos.js";
 
 const FORMULARIO_INICIAL = {
   nombre: "",
@@ -154,7 +155,7 @@ function CentroRescateFinanciero({
   const pagosOrdenados = useMemo(
     () =>
       [...deudas]
-        .filter((deuda) => String(deuda?.estado || "").toUpperCase() !== "CERRADA")
+        .filter((deuda) => String(deuda?.estado || "").trim().toUpperCase() !== "CERRADA")
         .sort((a, b) => {
           const diasA = diasHasta(a?.fecha_proximo_pago);
           const diasB = diasHasta(b?.fecha_proximo_pago);
@@ -163,12 +164,9 @@ function CentroRescateFinanciero({
         .slice(0, 6),
     [deudas],
   );
-  const pagosConFecha = pagosOrdenados.filter(
-    (deuda) => deuda?.fecha_proximo_pago && Number(deuda?.pago_mensual) > 0,
-  );
-  const montoProximosPagos = pagosConFecha.reduce(
-    (total, deuda) => total + (Number(deuda?.pago_mensual) || 0),
-    0,
+  const mensualidadesConFecha = useMemo(
+    () => calcularMensualidadesConFecha(deudas),
+    [deudas],
   );
   const baseAptaParaProgramar =
     baseFinancieraVigente && Number(movimientosPendientes) === 0;
@@ -419,7 +417,7 @@ function CentroRescateFinanciero({
           {[
             ["Flujo neto del periodo", dinero(flujoNetoPeriodo)],
             ["Reserva recomendada", dinero(reservaRecomendada)],
-            ["Próximos pagos registrados", dinero(montoProximosPagos)],
+            ["Mensualidades con fecha", dinero(mensualidadesConFecha.montoTotal)],
           ].map(([etiqueta, valor]) => (
             <div
               key={etiqueta}
@@ -437,6 +435,10 @@ function CentroRescateFinanciero({
             </div>
           ))}
         </div>
+
+        <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,.78)", fontSize: "11px", lineHeight: 1.45 }}>
+          El total incluye todos los créditos activos con monto y vencimiento; la lista muestra hasta seis, ordenados por fecha.
+        </p>
 
         <div
           style={{
