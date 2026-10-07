@@ -45,3 +45,47 @@ test("prioriza confirmar saldos de proveedores cuando SICAR no reporta vencimien
     ),
   );
 });
+
+test("eleva a prioridad financiera el saldo de proveedores vencido", () => {
+  const analisis = generarAnalisisFinanciero({
+    ventasTotales: 10000,
+    costoTotal: 2000,
+    utilidadTotal: 8000,
+    margenUtilidad: 80,
+    movimientos: [
+      {
+        movement_type: "ENTRADA",
+        amount: 10000,
+        status: "Revisado",
+        occurred_at: "2026-10-07",
+      },
+      {
+        movement_type: "SALIDA",
+        amount: 8500,
+        status: "Revisado",
+        expense_category: "operacion",
+        expense_behavior: "variable",
+        occurred_at: "2026-10-07",
+      },
+    ],
+    saldoProveedores: 1200,
+    creditosProveedores: [
+      { saldo: 1200, fecha_vencimiento: "2026-10-01" },
+    ],
+  });
+
+  assert.equal(analisis.saldoProveedoresVencidos, 1200);
+  assert.equal(analisis.proveedoresVencidos, 1);
+  assert.match(analisis.decisionPrioritaria, /vencimiento anterior a hoy/i);
+  assert(
+    analisis.accionesPrioritarias.some(
+      (accion) =>
+        accion.titulo === "Revisar saldos de proveedores vencidos" &&
+        accion.prioridad === "ALTA",
+    ),
+  );
+  assert.match(
+    analisis.alertasFinancieras.join(" "),
+    /ya tiene vencimiento anterior a hoy/i,
+  );
+});
