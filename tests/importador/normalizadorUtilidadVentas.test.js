@@ -59,17 +59,32 @@ test("rechaza el reporte si faltan columnas financieras obligatorias", () => {
   );
 });
 test("normaliza la exportación real de SICAR con columnas intercaladas vacías", () => {
-  const encabezados = [
-    "Documento", "", "", "Fecha", "Folio", "", "Cliente", "",
-    "Caja", "", "Usuario", "", "Folio F.", "", "", "Total Ven.",
-    "", "", "", "Total Com.", "", "", "", "Utilidad",
-  ];
-  const venta = [
-    "Tickets", "", "", "2026-09-28T10:25:39", "21095", "",
-    "Público en General", "", "Caja 1", "", "sucursalcentro", "",
-    "", "", "", "$ 422.31", "", "", "", "", "$ 256.00",
-    "", "", "", "$ 166.31",
-  ];
+  const encabezados = Array(25).fill("");
+  Object.assign(encabezados, {
+    0: "Documento",
+    3: "Fecha",
+    4: "Folio",
+    6: "Cliente",
+    8: "Caja",
+    10: "Usuario",
+    12: "Folio F.",
+    15: "Total Ven.",
+    20: "Total Com.",
+    24: "Utilidad",
+  });
+
+  const venta = Array(25).fill("");
+  Object.assign(venta, {
+    0: "Tickets",
+    3: "2026-09-28T10:25:39",
+    4: "21095",
+    6: "Público en General",
+    8: "Caja 1",
+    10: "sucursalcentro",
+    15: "$ 422.31",
+    20: "$ 290.47",
+    24: "$ 131.84",
+  });
 
   const resultado = normalizarUtilidadVentas([encabezados, venta]);
 
@@ -78,6 +93,6 @@ test("normaliza la exportación real de SICAR con columnas intercaladas vacías"
   assert.equal(resultado[0].folio, "21095");
   assert.equal(resultado[0].usuario, "sucursalcentro");
   assert.equal(resultado[0].ventaTotal, 422.31);
-  assert.equal(resultado[0].costoTotal, 256);
-  assert.equal(resultado[0].utilidad, 166.31);
+  assert.equal(resultado[0].costoTotal, 290.47);
+  assert.equal(resultado[0].utilidad, 131.84);
 });
