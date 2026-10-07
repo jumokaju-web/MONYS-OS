@@ -409,41 +409,6 @@ if (
         ? generarAnalisisEjecutivo(resumen)
         : null;
 
-      if (resumen) {
-        registrarConocimientoReporte({
-          tipoReporte,
-          resumen,
-          nombreArchivo: item.file.name,
-        });
-      }
-
-      // ==========================================
-// Actualizar Memoria Central de MONYS OS
-// ==========================================
-
-if (tipoReporte === "Ventas por artículo" && resumen) {
-  actualizarEmpresa("ventas", {
-    total: resumen.ventasTotales ?? 0,
-    utilidad: resumen.utilidadTotal ?? 0,
-    margen: resumen.margenPromedio ?? 0,
-    productosVendidos: datosNormalizados,
-  });
-}
-
-if (
-  (tipoReporte === "Inventario" ||
-    tipoReporte === "Inventario / Utilidad") &&
-  resumen
-) {
-  actualizarEmpresa("inventario", {
-    valor: resumen.valorInventario ?? 0,
-    productos: datosNormalizados,
-    agotados: resumen.productosAgotados ?? [],
-    sobreInventario:
-      resumen.productosSobreInventario ?? [],
-  });
-}
-
       actualizarArchivo(item.id, {
         estado: "listo",
         tipoReporte,
@@ -671,8 +636,54 @@ if (
  branchId:
   branchIdSeleccionado || null,
 });
+
+          try {
+            if (item.resumen) {
+              registrarConocimientoReporte({
+                tipoReporte: item.tipoReporte,
+                resumen: item.resumen,
+                nombreArchivo: item.nombre,
+              });
+            }
+
+            if (item.tipoReporte === "Ventas por artículo" && item.resumen) {
+              actualizarEmpresa("ventas", {
+                total:
+                  item.resumen.ventaTotal ??
+                  item.resumen.ventasTotales ??
+                  0,
+                utilidad: item.resumen.utilidadTotal ?? 0,
+                margen:
+                  item.resumen.margenUtilidad ??
+                  item.resumen.margenPromedio ??
+                  0,
+                productosVendidos: item.datosNormalizados,
+              });
+            }
+
+            if (
+              (item.tipoReporte === "Inventario" ||
+                item.tipoReporte === "Inventario / Utilidad") &&
+              item.resumen
+            ) {
+              actualizarEmpresa("inventario", {
+                valor: item.resumen.valorInventario ?? 0,
+                productos: item.datosNormalizados,
+                agotados: item.resumen.productosAgotados ?? [],
+                sobreInventario:
+                  item.resumen.productosSobreInventario ?? [],
+              });
+            }
+          } catch (errorMemoria) {
+            console.error(
+              "El reporte se guardó, pero no se pudo actualizar la memoria local:",
+              errorMemoria
+            );
+          }
+
           actualizarArchivo(item.id, {
             estado: "importado",
+            importacionId: importacionGuardada?.id || null,
           });
 
           importadosCorrectamente += 1;
