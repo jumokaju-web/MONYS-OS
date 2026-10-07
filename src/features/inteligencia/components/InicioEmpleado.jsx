@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
+import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import "./InicioEmpleado.css";
 
 export default function InicioEmpleado({ usuario, datosDashboard }) {
@@ -11,19 +12,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
 
   const puesto = usuario?.puesto || usuario?.role || "Operación";
 
-  const contextoPuesto = [
-    puesto,
-    usuario?.area,
-    usuario?.departamento,
-    usuario?.department,
-    usuario?.unidad,
-    usuario?.equipo,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  const esMarketing = /marketing|growth|crecimiento/.test(contextoPuesto);
+  const esMarketing = esPerfilGrowth({ ...usuario, puesto });
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
 
   useEffect(() => {
