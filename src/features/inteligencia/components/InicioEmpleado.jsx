@@ -324,17 +324,25 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
               <button
                 key={seccion}
                 type="button"
-                className={`employee-home__nav-button ${
-                  seccion === "OPORTUNIDADES"
+                className={[
+                  "employee-home__nav-button",
+                  seccion === "CONTENIDO"
+                    ? "employee-home__nav-button--primary"
+                    : "",
+                  (seccion === "OPORTUNIDADES"
                     ? ["OPORTUNIDADES", "APRENDIZAJES"].includes(
                         seccionGrowthActiva,
                       )
-                      ? "is-active"
-                      : ""
-                    : seccionGrowthActiva === seccion
-                      ? "is-active"
-                      : ""
-                }`}
+                    : seccionGrowthActiva === seccion)
+                    ? "is-active"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-label={etiqueta}
+                aria-current={
+                  seccionGrowthActiva === seccion ? "page" : undefined
+                }
                 onClick={() => navegarGrowth(seccion)}
               >
                 <span>{icono}</span>
