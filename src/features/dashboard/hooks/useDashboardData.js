@@ -198,8 +198,9 @@ export function useDashboardData() {
           );
 
         const periodoReal =
-          periodoUtilidad ||
-          periodoVentas;
+          metricasBase?.fuenteFinanciera === "utilidad"
+            ? periodoUtilidad
+            : periodoVentas;
 
         const diasAnalizados =
           periodoReal?.diasAnalizados ||
