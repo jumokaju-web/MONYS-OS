@@ -1882,17 +1882,30 @@
 @media (max-width: 420px) {
   .growth-workspace {
     margin-inline: -7px;
-    padding: 12px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 20px;
   }
 
   .growth-workspace__header {
-    gap: 12px;
+    gap: 10px;
     margin-bottom: 14px;
   }
 
   .growth-workspace__header > div:first-child {
-    display: none;
+    display: block;
+  }
+
+  .growth-workspace__header h1 {
+    font-size: 25px;
+  }
+
+  .growth-workspace__tagline {
+    margin-top: 5px;
+    font-size: 11px;
+  }
+
+  .growth-workspace__company-panel {
+    gap: 6px;
   }
 
   .growth-workspace__snapshot {
@@ -1905,69 +1918,105 @@
     border-radius: 14px;
   }
 
-  .growth-workspace__focus p {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .growth-workspace__outcome {
-    display: none;
-  }
-
-  .growth-workspace__focus-grid {
-    gap: 16px;
-  }
-
-  .growth-workspace__score {
-    display: none;
-  }
-
-  .growth-workspace__daily-context article:nth-child(n + 3) {
-    display: none;
-  }
-
-  .growth-workspace__daily-context {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 14px;
-  }
-
-  .growth-workspace__header h1 {
-    font-size: 27px;
-  }
-
-  .growth-workspace__tagline {
-    margin-top: 6px;
-  }
-
-  .growth-workspace__company-panel {
-    gap: 6px;
-  }
-
   .growth-workspace__focus {
-    padding: 16px;
+    padding: 15px;
     border-radius: 18px;
   }
 
   .growth-workspace__focus-topline {
     align-items: flex-start;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 7px;
+  }
+
+  .growth-workspace__focus-grid {
+    gap: 13px;
+  }
+
+  .growth-workspace__focus h2 {
+    font-size: 23px;
+  }
+
+  .growth-workspace__focus p {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+
+  .growth-workspace__outcome {
+    display: block;
+    margin-top: 11px;
+    padding: 10px 11px;
+  }
+
+  .growth-workspace__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .growth-workspace__primary,
+  .growth-workspace__secondary {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .growth-workspace__score {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    justify-items: start;
+    gap: 11px;
+  }
+
+  .growth-workspace__ring {
+    width: 72px;
+    height: 72px;
+  }
+
+  .growth-workspace__ring > div {
+    width: 56px;
+    height: 56px;
+  }
+
+  .growth-workspace__ring strong {
+    font-size: 17px;
+  }
+
+  .growth-workspace__ring span {
+    margin-top: 2px;
+    font-size: 8px;
+  }
+
+  .growth-workspace__score small {
+    align-self: center;
+    max-width: 190px;
+    text-align: left;
   }
 
   .growth-workspace__daily-context {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 12px;
   }
 
-  .growth-workspace__campaign-steps {
-    grid-template-columns: 1fr;
+  .growth-workspace__daily-context article {
+    padding: 10px;
+    border-radius: 12px;
   }
 
-  .growth-workspace__agency-agents {
-    grid-template-columns: 1fr;
+  .growth-workspace__daily-context span {
+    font-size: 9px;
   }
 
+  .growth-workspace__daily-context strong {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .growth-workspace__campaign-steps,
+  .growth-workspace__agency-agents,
   .growth-workspace__approval-grid {
     grid-template-columns: 1fr;
   }
