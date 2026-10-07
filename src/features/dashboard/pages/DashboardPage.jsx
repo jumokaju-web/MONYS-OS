@@ -283,38 +283,30 @@ const DashboardPage = () => {
       <section style={estilos.cuadricula}>
         <TarjetaMetrica
           etiqueta="Ventas totales"
-          valor={formatoDinero.format(
-            metricas.tieneDatosFinancieros
-              ? Number(metricas.ventasTotales) || 0
-              : "Sin dato SICAR"
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.ventasTotales) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
           etiqueta="Utilidad bruta"
-          valor={formatoDinero.format(
-            metricas.tieneDatosFinancieros
-              ? Number(metricas.utilidadTotal) || 0
-              : "Sin dato SICAR"
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.utilidadTotal) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
           etiqueta="Costo total"
-          valor={formatoDinero.format(
-            metricas.tieneDatosFinancieros
-              ? Number(metricas.costoTotal) || 0
-              : "Sin dato SICAR"
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.costoTotal) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
           etiqueta="Margen bruto"
-          valor={formatoPorcentaje(
-            metricas.tieneDatosFinancieros
-              ? formatoPorcentaje(metricas.margenUtilidad)
-              : "Sin dato SICAR"
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoPorcentaje(metricas.margenUtilidad)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
