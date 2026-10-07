@@ -414,26 +414,20 @@ let datosNormalizados =
   );
 
 if (
-  tipoReporte ===
-  "Ventas por artículo"
+  tipoReporte === "Ventas por artículo" ||
+  tipoReporte === "Utilidad de ventas"
 ) {
-  if (
-    !periodoInicio ||
-    !periodoFin
-  ) {
+  if (!periodoInicio || !periodoFin) {
     throw new Error(
-      "MONYS OS no pudo detectar el periodo del reporte de Ventas por artículo."
+      `MONYS OS no pudo detectar el periodo del reporte de ${tipoReporte}.`
     );
   }
 
-  datosNormalizados =
-    datosNormalizados.map(
-      (fila) => ({
-        ...fila,
-        periodoInicio,
-        periodoFin,
-      })
-    );
+  datosNormalizados = datosNormalizados.map((fila) => ({
+    ...fila,
+    periodoInicio,
+    periodoFin,
+  }));
 }
 
       const vistaPrevia =
