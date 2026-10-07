@@ -25,3 +25,19 @@ test("rechaza periodos inválidos o invertidos", () => {
   ]), { periodoInicio: null, periodoFin: null });
   assert.equal(normalizarFechaSicar("not a date"), null);
 });
+
+
+test("extrae el periodo del encabezado SICAR con celdas combinadas", () => {
+  const encabezado = Array(27).fill("");
+  Object.assign(encabezado, {
+    16: "Periodo:",
+    19: "2026-09-28T14:27:59",
+    23: "-",
+    25: "2026-10-04T14:27:59",
+  });
+
+  assert.deepEqual(extraerPeriodoSicar([encabezado]), {
+    periodoInicio: "2026-09-28",
+    periodoFin: "2026-10-04",
+  });
+});
