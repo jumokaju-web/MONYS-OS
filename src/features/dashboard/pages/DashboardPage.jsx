@@ -262,16 +262,24 @@ const DashboardPage = () => {
 
         <TarjetaMetrica
           etiqueta="Piezas vendidas"
-          valor={formatoNumero.format(
-            Number(metricas.totalPiezas) || 0
-          )}
+          valor={
+            metricas.periodosComparables === false
+              ? "Sin corte comparable"
+              : formatoNumero.format(
+                  Number(metricas.totalPiezas) || 0
+                )
+          }
         />
 
         <TarjetaMetrica
           etiqueta="Registros analizados"
-          valor={formatoNumero.format(
-            Number(metricas.totalProductos) || 0
-          )}
+          valor={
+            metricas.periodosComparables === false
+              ? "Sin corte comparable"
+              : formatoNumero.format(
+                  Number(metricas.totalProductos) || 0
+                )
+          }
         />
       </section>
 
@@ -280,7 +288,9 @@ const DashboardPage = () => {
           Producto más vendido
         </h2>
 
-        {productoMasVendido ? (
+        {datosDashboard.comparabilidadProductos?.comparable === false ? (
+          <p role="status">{datosDashboard.comparabilidadProductos.mensaje}</p>
+        ) : productoMasVendido ? (
           <div
             style={
               estilos.productoDestacado
