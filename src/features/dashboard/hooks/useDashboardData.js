@@ -18,6 +18,8 @@ import {
   calcularMetricasDashboard,
 } from "../utils/dashboardMetrics";
 
+import { evaluarComparabilidadPeriodos } from "../utils/evaluarComparabilidadPeriodos";
+
 function convertirFechaValida(valor) {
   if (!valor) {
     return null;
@@ -169,10 +171,9 @@ export function useDashboardData() {
         const detallesInventario =
           resultadoInventario?.detalles || [];
 
-        const metricasBase =
-          calcularMetricasDashboard(
-            datosVentas,
-            detallesUtilidad
+        const periodoVentas =
+          obtenerPeriodoDesdeDetalles(
+            detallesVentasOriginales
           );
 
         const periodoUtilidad =
@@ -180,11 +181,25 @@ export function useDashboardData() {
             detallesUtilidad
           );
 
+        const comparabilidadProductos =
+          evaluarComparabilidadPeriodos(
+            periodoVentas,
+            periodoUtilidad,
+            datosVentas.length > 0 &&
+              detallesUtilidad.length > 0
+          );
+
+        const metricasBase =
+          calcularMetricasDashboard(
+            comparabilidadProductos.comparable
+              ? datosVentas
+              : [],
+            detallesUtilidad
+          );
+
         const periodoReal =
           periodoUtilidad ||
-          obtenerPeriodoDesdeDetalles(
-            detallesVentasOriginales
-          );
+          periodoVentas;
 
         const diasAnalizados =
           periodoReal?.diasAnalizados ||
@@ -232,6 +247,8 @@ export function useDashboardData() {
         setDatosDashboard({
           branch_id:
             branchId,
+
+          comparabilidadProductos,
 
           importacion:
             resultadoVentas.importacion,
