@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resumirComisionesSicar } from "../../src/features/inteligencia/shared/resumenComisionesSicar.js";
+import { resumirComisionesSicar, validarConteoImportacionSicar } from "../../src/features/inteligencia/shared/resumenComisionesSicar.js";
 
 const empleados = [
   { id: "1", nombre: "Karla", usuario_sicar: "KARLA" },
@@ -177,4 +177,18 @@ test("muestra participantes y revisión cuando falta el ticket en el reporte de 
   });
   assert.equal(resumen.conciliacion[0].estado, "CRM_MULTIPLES_EMPLEADAS");
   assert.deepEqual(resumen.conciliacion[0].participantes, ["Karla", "Kary"]);
+});
+
+
+test("bloquea comisiones cuando el detalle SICAR no coincide con las filas importadas", () => {
+  const filas = [{ numero_fila: 1 }, { numero_fila: 2 }];
+  assert.equal(validarConteoImportacionSicar({ filas, totalFilasEsperadas: 2 }), filas);
+  assert.throws(
+    () => validarConteoImportacionSicar({ filas, totalFilasEsperadas: 3 }),
+    /No se calcularán comisiones con este reporte/,
+  );
+  assert.throws(
+    () => validarConteoImportacionSicar({ filas }),
+    /No se pudo verificar el total esperado/,
+  );
 });
