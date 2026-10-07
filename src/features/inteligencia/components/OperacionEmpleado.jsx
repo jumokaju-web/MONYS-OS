@@ -745,24 +745,27 @@ export default function OperacionEmpleado({
 
   async function cambiarEstado(
     tarea,
-    nuevoEstado
+    nuevoEstado,
+    resultadoCapturado = null
   ) {
     try {
       setError("");
       setMensaje("");
 
       let resultadoSeguimiento = null;
-      if (
-        nuevoEstado === "terminada" &&
-        String(tarea?.titulo || "").startsWith("Seguimiento CRM:")
-      ) {
-        const capturado = window.prompt(
-          "¿Qué ocurrió en el seguimiento con el cliente? Escribe el resultado para actualizar el CRM."
-        );
-        if (capturado === null) return;
-        resultadoSeguimiento = capturado.trim();
+      const esSeguimientoCRM = normalizarTexto(
+        tarea?.titulo
+      ).startsWith("SEGUIMIENTO CRM:");
+
+      if (nuevoEstado === "terminada" && esSeguimientoCRM) {
+        resultadoSeguimiento = String(
+          resultadoCapturado || ""
+        ).trim();
+
         if (!resultadoSeguimiento) {
-          setError("Escribe el resultado del contacto antes de terminar esta tarea.");
+          setError(
+            "Escribe el resultado del contacto antes de terminar esta tarea."
+          );
           return;
         }
       }
@@ -2262,6 +2265,10 @@ export default function OperacionEmpleado({
                     evidencia.tipo ===
                     "final"
                 );
+              const esSeguimientoCRM = normalizarTexto(
+                tarea.titulo
+              ).startsWith("SEGUIMIENTO CRM:");
+
 
               const esUrgente =
                 tarea.prioridad ===
@@ -2451,6 +2458,7 @@ export default function OperacionEmpleado({
   )}
 
 
+                      {!esSeguimientoCRM && (
                       <div
                         style={{
                           display:
@@ -2532,6 +2540,7 @@ export default function OperacionEmpleado({
                           />
                         </label>
                       </div>
+                      )}
 
                       {evidencias.length >
                         0 && (
@@ -2562,8 +2571,22 @@ export default function OperacionEmpleado({
                         </div>
                       )}
 
+                      {tarea.estado === "en_proceso" &&
+                        esSeguimientoCRM && (
+                          <FormularioResultadoCRM
+                            onGuardar={(resultado) =>
+                              cambiarEstado(
+                                tarea,
+                                "terminada",
+                                resultado
+                              )
+                            }
+                          />
+                        )}
+
                       {tarea.estado ===
-                        "en_proceso" && (
+                        "en_proceso" &&
+                        !esSeguimientoCRM && (
                         <button
                           type="button"
                           disabled={
@@ -2606,6 +2629,7 @@ export default function OperacionEmpleado({
 
                       {tarea.estado ===
                         "en_proceso" &&
+                        !esSeguimientoCRM &&
                         !tieneFinal && (
                           <div
                             style={{
@@ -2654,6 +2678,92 @@ export default function OperacionEmpleado({
         </details>
       )}
     </section>
+  );
+}
+
+function FormularioResultadoCRM({ onGuardar }) {
+  const [resultado, setResultado] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  async function enviarResultado(evento) {
+    evento.preventDefault();
+    const texto = resultado.trim();
+
+    if (!texto || guardando) {
+      return;
+    }
+
+    setGuardando(true);
+    try {
+      await onGuardar(texto);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={enviarResultado}
+      style={{
+        display: "grid",
+        gap: "9px",
+        marginTop: "12px",
+        padding: "12px",
+        border: "1px solid #efd3e0",
+        borderRadius: "13px",
+        background: "#fff8fb",
+      }}
+    >
+      <label
+        style={{
+          color: "#6f2549",
+          fontSize: "13px",
+          fontWeight: "900",
+        }}
+      >
+        Resultado del contacto
+        <textarea
+          aria-label="Resultado del contacto con el cliente"
+          value={resultado}
+          onChange={(evento) => setResultado(evento.target.value)}
+          placeholder="Ejemplo: respondió, pidió precio, quiere que le escribamos el viernes o realizó compra."
+          rows={3}
+          maxLength={500}
+          required
+          style={{
+            display: "block",
+            width: "100%",
+            boxSizing: "border-box",
+            marginTop: "7px",
+            padding: "10px",
+            border: "1px solid #dec0cf",
+            borderRadius: "10px",
+            background: "#ffffff",
+            color: "#2a1e24",
+            font: "inherit",
+            resize: "vertical",
+          }}
+        />
+      </label>
+      <small style={{ color: "#806d76", lineHeight: 1.4 }}>
+        Se guardará en el seguimiento CRM. No incluyas datos sensibles del cliente.
+      </small>
+      <button
+        type="submit"
+        disabled={!resultado.trim() || guardando}
+        style={{
+          minHeight: "44px",
+          border: "none",
+          borderRadius: "11px",
+          background: resultado.trim() && !guardando ? "#2f8a5d" : "#d9dfdc",
+          color: "#ffffff",
+          fontWeight: "900",
+          cursor: resultado.trim() && !guardando ? "pointer" : "not-allowed",
+        }}
+      >
+        {guardando ? "Guardando resultado..." : "Guardar resultado y terminar"}
+      </button>
+    </form>
   );
 }
 
