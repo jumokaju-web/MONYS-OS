@@ -1314,6 +1314,8 @@ const historial =
         vencimientos90Dias || 0
       )}
     </div>
+  </div>
+
   <div
     style={{
       padding: "12px",
