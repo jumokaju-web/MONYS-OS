@@ -55,6 +55,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [selecciones, setSelecciones] = useState({});
+  const [filtroConciliacion, setFiltroConciliacion] = useState("PENDIENTES");
 
   async function cargarCatalogos() {
     if (!branchId) {
@@ -125,6 +126,13 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     () => resumirComisionesSicar({ filas: detalle, empleados: personal, desde, hasta, oportunidadesCRM }),
     [detalle, personal, desde, hasta, oportunidadesCRM],
   );
+
+  const filasConciliacion = useMemo(() => {
+    const filas = resumen.conciliacion || [];
+    return filtroConciliacion === "TODAS"
+      ? filas
+      : filas.filter((fila) => !["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado));
+  }, [resumen.conciliacion, filtroConciliacion]);
 
   const usuariosSicar = useMemo(() => {
     const unicos = new Map();
@@ -222,6 +230,48 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
               </tbody>
             </table>
           </div>
+
+          <details open style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#fff", border: "1px solid #dcece2" }}>
+            <summary style={{ color: "#245d3b", fontWeight: 800, cursor: "pointer" }}>Conciliación por folio · {(resumen.conciliacion || []).filter((fila) => !["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado)).length} por revisar</summary>
+            <p style={{ margin: "6px 0 10px", color: "#697386", fontSize: 13 }}>CRM identifica quién atendió; SICAR aporta el importe real. Los folios con dudas quedan fuera del cálculo automático.</p>
+            <label style={{ display: "grid", gridTemplateColumns: "minmax(180px, 260px) 1fr", alignItems: "center", gap: 8, marginBottom: 10, color: "#697386", fontSize: 13 }}>Mostrar
+              <select value={filtroConciliacion} onChange={(e) => setFiltroConciliacion(e.target.value)} style={campo}>
+                <option value="PENDIENTES">Solo folios por revisar</option>
+                <option value="TODAS">Todos los folios</option>
+              </select>
+            </label>
+            <div style={{ overflow: "auto", maxHeight: 390 }}>
+              <table style={{ width: "100%", minWidth: 680, borderCollapse: "collapse" }}>
+                <thead><tr>{["Folio", "Fecha", "Usuario SICAR", "Responsable", "Venta SICAR", "Resultado"].map((label) => <th key={label} style={{ position: "sticky", top: 0, textAlign: "left", padding: 9, background: "#f7f9fc", borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
+                <tbody>
+                  {filasConciliacion.map((fila, index) => {
+                    const etiquetas = {
+                      CRM_ATRIBUIDO: "Atribuida desde CRM",
+                      SICAR_ASIGNADO: "Asignada por usuario SICAR",
+                      CRM_FOLIO_DUPLICADO: "Revisar: folio repetido en CRM",
+                      CRM_SIN_RESPONSABLE: "Revisar: CRM sin responsable",
+                      CRM_EMPLEADA_NO_ENCONTRADA: "Revisar: responsable no encontrado",
+                      SICAR_AMBIGUO: "Revisar: usuario SICAR duplicado",
+                      SICAR_SIN_USUARIO: "Revisar: ticket sin usuario SICAR",
+                      SIN_ASIGNAR: "Revisar: sin asignación",
+                      AJUSTE_NEGATIVO_PENDIENTE: "Ajuste negativo por revisar",
+                      CRM_SIN_TICKET_EN_REPORTE: "Revisar: folio CRM no está en el reporte",
+                      CRM_DUPLICADO_SIN_TICKET: "Revisar: folio CRM duplicado y sin ticket",
+                    };
+                    return <tr key={`${fila.folio}-${fila.fecha}-${fila.estado}-${index}`}>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4", fontWeight: 700 }}>{fila.folio || "—"}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.fecha || "—"}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.usuarioSicar || "—"}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.empleado || "—"}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4" }}>{fila.importe == null ? "—" : moneda(fila.importe)}</td>
+                      <td style={{ padding: 9, borderBottom: "1px solid #eef0f4", color: ["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado) ? "#237847" : "#805700", fontWeight: 700 }}>{etiquetas[fila.estado] || fila.estado}</td>
+                    </tr>;
+                  })}
+                  {!filasConciliacion.length && <tr><td colSpan={6} style={{ padding: 14, color: "#697386", textAlign: "center" }}>No hay folios pendientes de revisión para este reporte y periodo.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </details>
 
           {usuariosSicar.length > 0 && <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#fff", border: "1px solid #dcece2" }}>
             <strong style={{ color: "#245d3b" }}>Asignar usuarios de SICAR</strong>

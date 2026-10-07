@@ -69,12 +69,11 @@ export function resumirComisionesSicar({
   const foliosCRM = new Map();
   for (const oportunidad of Array.isArray(oportunidadesCRM) ? oportunidadesCRM : []) {
     const folio = texto(oportunidad?.folio_venta_sicar).toLocaleLowerCase("es-MX");
-    if (!folio || oportunidad?.etapa !== "GANADO" || !oportunidad?.empleado_id) continue;
+    if (!folio || oportunidad?.etapa !== "GANADO") continue;
     const lista = foliosCRM.get(folio) || [];
     lista.push(oportunidad);
     foliosCRM.set(folio, lista);
   }
-  const crmPorFolio = new Map([...foliosCRM].filter(([, oportunidades]) => oportunidades.length === 1).map(([folio, oportunidades]) => [folio, oportunidades[0]]));
   const ticketsUnicos = new Map();
   const ajustesPendientesPorFolio = new Map();
   let filasSinIdentidad = 0;
@@ -90,22 +89,49 @@ export function resumirComisionesSicar({
       if (!ajustesPendientesPorFolio.has(llave)) ajustesPendientesPorFolio.set(llave, venta);
       continue;
     }
-    if (!venta.usuario) {
-      filasSinIdentidad += 1;
-      continue;
-    }
-    if (!ticketsUnicos.has(llave)) ticketsUnicos.set(llave, venta);
+    const anterior = ticketsUnicos.get(llave);
+    if (!anterior || (!anterior.usuario && venta.usuario)) ticketsUnicos.set(llave, venta);
   }
 
   const acumulado = new Map();
   const sinAsignar = new Map();
+  const conciliacion = [];
+  const foliosEnReporte = new Set();
   let ventasPeriodo = 0;
   for (const venta of ticketsUnicos.values()) {
     ventasPeriodo += venta.venta;
-    const crm = crmPorFolio.get(venta.folio.toLocaleLowerCase("es-MX"));
-    const coincidencias = mapeo.get(normalizarUsuarioSicar(venta.usuario)) || [];
-    const empleadoCRM = crm ? personal.find((persona) => persona.id === crm.empleado_id) : null;
-    const empleadoAsignado = empleadoCRM || (coincidencias.length === 1 ? coincidencias[0] : null);
+    const folioClave = venta.folio.toLocaleLowerCase("es-MX");
+    foliosEnReporte.add(folioClave);
+    const oportunidades = foliosCRM.get(folioClave) || [];
+    const coincidencias = venta.usuario ? (mapeo.get(normalizarUsuarioSicar(venta.usuario)) || []) : [];
+    let empleadoCRM = null;
+    let estado = "";
+    if (oportunidades.length > 1) {
+      estado = "CRM_FOLIO_DUPLICADO";
+    } else if (oportunidades.length === 1) {
+      const oportunidad = oportunidades[0];
+      empleadoCRM = oportunidad.empleado_id
+        ? personal.find((persona) => persona.id === oportunidad.empleado_id) || null
+        : null;
+      estado = empleadoCRM
+        ? "CRM_ATRIBUIDO"
+        : oportunidad.empleado_id
+          ? "CRM_EMPLEADA_NO_ENCONTRADA"
+          : "CRM_SIN_RESPONSABLE";
+    } else if (coincidencias.length === 1) {
+      estado = "SICAR_ASIGNADO";
+    } else {
+      estado = coincidencias.length > 1 ? "SICAR_AMBIGUO" : venta.usuario ? "SIN_ASIGNAR" : "SICAR_SIN_USUARIO";
+    }
+    const empleadoAsignado = empleadoCRM || (oportunidades.length === 0 && coincidencias.length === 1 ? coincidencias[0] : null);
+    conciliacion.push({
+      folio: venta.folio,
+      fecha: venta.fecha,
+      usuarioSicar: venta.usuario,
+      empleado: empleadoAsignado?.nombre || "",
+      importe: venta.venta,
+      estado,
+    });
     if (empleadoAsignado) {
       const empleado = empleadoAsignado;
       const actual = acumulado.get(empleado.id) || {
@@ -124,16 +150,49 @@ export function resumirComisionesSicar({
       actual.comision = Math.round(actual.ventas * tasa * 100) / 100;
       acumulado.set(empleado.id, actual);
     } else {
-      const key = normalizarUsuarioSicar(venta.usuario);
+      const key = normalizarUsuarioSicar(venta.usuario) || "SIN_USUARIO_SICAR";
       const actual = sinAsignar.get(key) || {
-        usuarioSicar: venta.usuario,
-        motivo: coincidencias.length > 1 ? "ASIGNACION_AMBIGUA" : "SIN_ASIGNAR",
+        usuarioSicar: venta.usuario || "Sin usuario SICAR",
+        motivo: oportunidades.length > 1
+          ? "CRM_FOLIO_DUPLICADO"
+          : oportunidades.length === 1
+            ? estado
+            : coincidencias.length > 1
+              ? "ASIGNACION_AMBIGUA"
+              : "SIN_ASIGNAR",
         tickets: 0,
         ventas: 0,
       };
       actual.tickets += 1;
       actual.ventas += venta.venta;
       sinAsignar.set(key, actual);
+    }
+  }
+
+  for (const venta of ajustesPendientesPorFolio.values()) {
+    const folioClave = venta.folio.toLocaleLowerCase("es-MX");
+    foliosEnReporte.add(folioClave);
+    conciliacion.push({
+      folio: venta.folio,
+      fecha: venta.fecha,
+      usuarioSicar: venta.usuario,
+      empleado: "",
+      importe: venta.venta,
+      estado: "AJUSTE_NEGATIVO_PENDIENTE",
+    });
+  }
+
+  for (const [folio, oportunidades] of foliosCRM) {
+    if (foliosEnReporte.has(folio)) continue;
+    for (const oportunidad of oportunidades) {
+      conciliacion.push({
+        folio,
+        fecha: "",
+        usuarioSicar: "",
+        empleado: personal.find((persona) => persona.id === oportunidad.empleado_id)?.nombre || "",
+        importe: null,
+        estado: oportunidades.length > 1 ? "CRM_DUPLICADO_SIN_TICKET" : "CRM_SIN_TICKET_EN_REPORTE",
+      });
     }
   }
 
@@ -155,5 +214,10 @@ export function resumirComisionesSicar({
     comisionTotal,
     comisiones,
     sinAsignar: [...sinAsignar.values()].sort((a, b) => b.ventas - a.ventas),
+    conciliacion: conciliacion.sort((a, b) => {
+      const revisarA = ["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(a.estado) ? 1 : 0;
+      const revisarB = ["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(b.estado) ? 1 : 0;
+      return revisarA - revisarB || b.fecha.localeCompare(a.fecha) || a.folio.localeCompare(b.folio);
+    }),
   };
 }

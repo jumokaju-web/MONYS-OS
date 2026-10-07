@@ -83,3 +83,36 @@ test("separa importes negativos como ajustes pendientes sin deducirlos automáti
   assert.equal(resumen.ajustesNegativosPendientes.tickets, 1);
   assert.equal(resumen.ajustesNegativosPendientes.importe, -250);
 });
+
+test("no asigna al cajero si la oportunidad CRM ganada aún no tiene responsable", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{ id: "o2", etapa: "GANADO", folio_venta_sicar: "A-10", empleado_id: null }],
+    filas: [{ fecha: "2026-10-06", folio: "A-10", usuario: "KARLA", ventaTotal: 3000 }],
+  });
+  assert.equal(resumen.comisionTotal, 0);
+  assert.equal(resumen.ventasSinAsignar, 3000);
+  assert.equal(resumen.conciliacion[0].estado, "CRM_SIN_RESPONSABLE");
+});
+test("lista folios CRM sin ticket en la importación seleccionada", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{ id: "o3", etapa: "GANADO", folio_venta_sicar: "A-11", empleado_id: "2" }],
+    filas: [],
+  });
+  assert.equal(resumen.tickets, 0);
+  assert.equal(resumen.conciliacion.length, 1);
+  assert.equal(resumen.conciliacion[0].estado, "CRM_SIN_TICKET_EN_REPORTE");
+  assert.equal(resumen.conciliacion[0].importe, null);
+});
+test("permite atribuir por CRM un folio real sin usuario SICAR y lo deja rastreable", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{ id: "o4", etapa: "GANADO", folio_venta_sicar: "A-12", empleado_id: "2" }],
+    filas: [{ fecha: "2026-10-06", folio: "A-12", usuario: "", ventaTotal: 1800 }],
+  });
+  assert.equal(resumen.tickets, 1);
+  assert.equal(resumen.comisionTotal, 18);
+  assert.equal(resumen.conciliacion[0].estado, "CRM_ATRIBUIDO");
+  assert.equal(resumen.conciliacion[0].usuarioSicar, "");
+});
