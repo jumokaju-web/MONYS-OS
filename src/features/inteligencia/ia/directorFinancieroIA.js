@@ -4,6 +4,8 @@
 // directorFinancieroIA.js
 // ======================================================
 
+import { calcularResumenVencimientosProveedores } from "../shared/resumenVencimientosProveedores.js";
+
 const convertirNumero = (valor) => {
   const numero = Number(valor);
 
@@ -145,88 +147,27 @@ const obtenerClaveFecha = (valor) => {
         claveFinPeriodo
     );
 
-    const hoy =
-  new Date();
-
-hoy.setHours(
-  0,
-  0,
-  0,
-  0
-);
-
-const creditosValidos =
+    const creditosValidos =
   Array.isArray(
     creditosProveedores
   )
     ? creditosProveedores
     : [];
 
-const calcularMontoPorHorizonte =
-  (diasHorizonte) => {
-    const fechaLimite =
-      new Date(hoy);
+const resumenVencimientos =
+  calcularResumenVencimientosProveedores(
+    creditosValidos
+  );
 
-    fechaLimite.setDate(
-      fechaLimite.getDate() +
-        diasHorizonte
-    );
-
-    return creditosValidos.reduce(
-      (
-        total,
-        credito
-      ) => {
-        const fechaCredito =
-          credito?.fecha_vencimiento_estimada
-            ? new Date(
-                `${credito.fecha_vencimiento_estimada}T00:00:00`
-              )
-            : null;
-
-        if (
-          !fechaCredito ||
-          Number.isNaN(
-            fechaCredito.getTime()
-          )
-        ) {
-          return total;
-        }
-
-        if (
-          fechaCredito <=
-          fechaLimite
-        ) {
-          return (
-            total +
-            (
-              Number(
-                credito?.saldo
-              ) || 0
-            )
-          );
-        }
-
-        return total;
-      },
-      0
-    );
-  };
-
-const vencimientos7Dias =
-  calcularMontoPorHorizonte(7);
-
-const vencimientos15Dias =
-  calcularMontoPorHorizonte(15);
-
-const vencimientos30Dias =
-  calcularMontoPorHorizonte(30);
-
-const vencimientos60Dias =
-  calcularMontoPorHorizonte(60);
-
-const vencimientos90Dias =
-  calcularMontoPorHorizonte(90);
+const {
+  vencimientos7Dias,
+  vencimientos15Dias,
+  vencimientos30Dias,
+  vencimientos60Dias,
+  vencimientos90Dias,
+  saldoSinFecha: saldoProveedoresSinFecha,
+  cantidadSinFecha: proveedoresSinFecha,
+} = resumenVencimientos;
 
    const normalizarValor = (
     valor = ""
@@ -918,6 +859,14 @@ recomendacion =
   );
 }
 
+  if (saldoProveedoresSinFecha > 0) {
+    alertasFinancieras.push(
+      `${formatoDinero(
+        saldoProveedoresSinFecha
+      )} en saldo de proveedores no tiene vencimiento exacto reportado; queda fuera de los horizontes de pago.`
+    );
+  }
+
   if (!periodoValido && ventas > 0) {
     alertasFinancieras.push(
       "No fue posible determinar con seguridad el periodo del reporte; la proyección mensual permanece desactivada."
@@ -1149,6 +1098,8 @@ ventasSobrePuntoEquilibrio,
     vencimientos30Dias,
     vencimientos60Dias,
     vencimientos90Dias,
+    saldoProveedoresSinFecha,
+    proveedoresSinFecha,
 
     alertasFinancieras,
     decisionPrioritaria,
