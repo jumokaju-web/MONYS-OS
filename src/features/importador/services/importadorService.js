@@ -46,15 +46,11 @@ export async function guardarImportacion({
       datos_originales: fila,
     }));
 
-    const { error: errorDetalles } = await supabase
-      .from("importacion_detalle")
-      .insert(detalles);
-
-    if (errorDetalles) {
-      throw new Error(
-        `No se pudieron guardar los detalles: ${errorDetalles.message}`
-      );
-    }
+    await insertarEnLotes(
+      "importacion_detalle",
+      detalles,
+      "No se pudieron guardar los detalles"
+    );
 
     const {
       count: filasGuardadas,
@@ -117,6 +113,23 @@ export async function guardarImportacion({
   }
 }
 
+async function insertarEnLotes(tabla, registros, mensajeError) {
+  const tamanoLote = 500;
+
+  for (let inicio = 0; inicio < registros.length; inicio += tamanoLote) {
+    const lote = registros.slice(inicio, inicio + tamanoLote);
+    const { error } = await supabase.from(tabla).insert(lote);
+
+    if (error) {
+      const loteActual = Math.floor(inicio / tamanoLote) + 1;
+      const totalLotes = Math.ceil(registros.length / tamanoLote);
+      throw new Error(
+        `${mensajeError} (lote ${loteActual} de ${totalLotes}): ${error.message}`
+      );
+    }
+  }
+}
+
 async function guardarDatosPorTipoReporte({
   tipoReporte,
   datosNormalizados,
@@ -172,15 +185,11 @@ async function guardarDatosPorTipoReporte({
           })
         );
 
-      const { error } = await supabase
-        .from("ventas_articulos")
-        .insert(registros);
-
-      if (error) {
-        throw new Error(
-          `Error al guardar ventas: ${error.message}`
-        );
-      }
+      await insertarEnLotes(
+        "ventas_articulos",
+        registros,
+        "Error al guardar ventas"
+      );
 
       break;
     }
