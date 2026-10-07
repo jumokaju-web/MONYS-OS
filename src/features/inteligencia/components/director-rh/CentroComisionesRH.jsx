@@ -193,6 +193,11 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
       </div>
       {importacionActual && <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 13 }}>Fuente: {importacionActual.archivo_original || "Reporte SICAR"} · importado {fechaCarga(importacionActual.created_at)} · {detalle.length.toLocaleString("es-MX")} filas leídas.</p>}
 
+      {resumen.ajustesNegativosPendientes?.tickets > 0 && <div role="status" style={{ marginTop: 12, padding: 13, borderRadius: 12, background: "#fff8e9", border: "1px solid #ead39c", color: "#805700" }}>
+        <strong>{resumen.ajustesNegativosPendientes.tickets} folios con importe negativo en SICAR · {moneda(resumen.ajustesNegativosPendientes.importe)} por revisar</strong>
+        <div style={{ marginTop: 4, fontSize: 13 }}>Se muestran aparte y no cambian la comisión hasta confirmar si son devolución, cancelación u otro ajuste. El reporte actual no identifica el motivo.</div>
+      </div>}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 10, marginTop: 14 }}>
         {[
           ["Ventas con folio", moneda(resumen.ventasPeriodo)],

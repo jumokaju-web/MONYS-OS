@@ -69,3 +69,17 @@ test("CRM atribuye al responsable por folio SICAR y deduplica tickets", () => {
   assert.equal(resumen.comisiones[0].ticketsCRM, 1);
   assert.equal(resumen.comisionTotal, 40);
 });
+test("separa importes negativos como ajustes pendientes sin deducirlos automáticamente de la comisión", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    filas: [
+      { fecha: "2026-10-06", folio: "R-1", usuario: "Karla", ventaTotal: 1000 },
+      { fecha: "2026-10-07", folio: "R-2", usuario: "Karla", ventaTotal: -250 },
+      { fecha: "2026-10-07", folio: "R-2", usuario: "Karla", ventaTotal: -250 },
+    ],
+  });
+  assert.equal(resumen.tickets, 1);
+  assert.equal(resumen.comisionTotal, 10);
+  assert.equal(resumen.ajustesNegativosPendientes.tickets, 1);
+  assert.equal(resumen.ajustesNegativosPendientes.importe, -250);
+});

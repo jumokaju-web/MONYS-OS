@@ -76,15 +76,24 @@ export function resumirComisionesSicar({
   }
   const crmPorFolio = new Map([...foliosCRM].filter(([, oportunidades]) => oportunidades.length === 1).map(([folio, oportunidades]) => [folio, oportunidades[0]]));
   const ticketsUnicos = new Map();
+  const ajustesPendientesPorFolio = new Map();
   let filasSinIdentidad = 0;
   for (const fila of registros) {
     const venta = leerVenta(fila);
-    if (!venta.fecha || !venta.folio || !venta.usuario || venta.venta < 0) {
+    if (!venta.fecha || !venta.folio) {
       filasSinIdentidad += 1;
       continue;
     }
     if (venta.fecha < desde || venta.fecha > hasta) continue;
     const llave = `${venta.fecha}|${venta.folio.toLocaleLowerCase("es-MX")}`;
+    if (venta.venta < 0) {
+      if (!ajustesPendientesPorFolio.has(llave)) ajustesPendientesPorFolio.set(llave, venta);
+      continue;
+    }
+    if (!venta.usuario) {
+      filasSinIdentidad += 1;
+      continue;
+    }
     if (!ticketsUnicos.has(llave)) ticketsUnicos.set(llave, venta);
   }
 
@@ -136,6 +145,10 @@ export function resumirComisionesSicar({
     tasa,
     tickets: ticketsUnicos.size,
     filasSinIdentidad,
+    ajustesNegativosPendientes: {
+      tickets: ajustesPendientesPorFolio.size,
+      importe: Math.round([...ajustesPendientesPorFolio.values()].reduce((suma, venta) => suma + venta.venta, 0) * 100) / 100,
+    },
     ventasPeriodo: Math.round(ventasPeriodo * 100) / 100,
     ventasAsignadas: Math.round(ventasAsignadas * 100) / 100,
     ventasSinAsignar: Math.round(ventasSinAsignar * 100) / 100,
