@@ -38,3 +38,16 @@ test("reconoce la siguiente acción registrada en la campaña actual", () => {
     true,
   );
 });
+
+test("no cuenta mensajes provisionales como aprendizaje registrado", () => {
+  assert.equal(
+    hayAprendizajeGrowth({
+      aprendizaje: {
+        resumenIA: "Pendiente",
+        decisionFutura: "REQUIERE_MAS_DATOS",
+        recomendacionFutura: "Por confirmar",
+      },
+    }),
+    false,
+  );
+});

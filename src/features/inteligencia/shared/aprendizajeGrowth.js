@@ -1,3 +1,13 @@
+const PLACEHOLDERS_DE_APRENDIZAJE = new Set([
+  "pendiente",
+  "sin dato",
+  "sin datos",
+  "no disponible",
+  "por confirmar",
+  "requiere mas datos",
+  "requiere_mas_datos",
+]);
+
 const CAMPOS_DE_APRENDIZAJE = [
   "resumenIA",
   "decisionFutura",
@@ -18,7 +28,11 @@ function tieneAprendizajeEscrito(aprendizaje) {
 
   return CAMPOS_DE_APRENDIZAJE.some((campo) => {
     const valor = aprendizaje[campo];
-    return typeof valor === "string" && valor.trim().length > 0;
+    if (typeof valor !== "string") return false;
+    const normalizado = valor.trim().toLocaleLowerCase("es-MX")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    return normalizado.length > 0 && !PLACEHOLDERS_DE_APRENDIZAJE.has(normalizado);
   });
 }
 
