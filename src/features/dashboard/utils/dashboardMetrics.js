@@ -150,8 +150,6 @@ export function calcularMetricasDashboard(
   let costoTotal = 0;
   let utilidadTotal = 0;
 
-  const fechasValidas = [];
-
   const calcularTotalesFinancieros = (
     lista = []
   ) => {
@@ -159,6 +157,7 @@ export function calcularMetricasDashboard(
     let costosCalculados = 0;
     let utilidadCalculada = 0;
     let registrosConImporte = 0;
+    const fechasValidas = [];
 
     for (const detalle of lista) {
       const datosOriginales =
@@ -222,6 +221,7 @@ export function calcularMetricasDashboard(
       costosCalculados,
       utilidadCalculada,
       registrosConImporte,
+      fechasValidas,
     };
   };
 
@@ -230,39 +230,33 @@ export function calcularMetricasDashboard(
       utilidadVentas
     );
 
+  let fuenteFinanciera = null;
+  let totalesFinancieros = totalesUtilidad;
+
   if (
-    totalesUtilidad
-      .registrosConImporte > 0
+    totalesUtilidad.registrosConImporte > 0
   ) {
-    ventasTotales =
-      totalesUtilidad
-        .ventasCalculadas;
-
-    costoTotal =
-      totalesUtilidad
-        .costosCalculados;
-
-    utilidadTotal =
-      totalesUtilidad
-        .utilidadCalculada;
+    fuenteFinanciera = "utilidad";
   } else {
-    const totalesVentas =
-      calcularTotalesFinancieros(
-        ventas
-      );
+    totalesFinancieros =
+      calcularTotalesFinancieros(ventas);
 
-    ventasTotales =
-      totalesVentas
-        .ventasCalculadas;
-
-    costoTotal =
-      totalesVentas
-        .costosCalculados;
-
-    utilidadTotal =
-      totalesVentas
-        .utilidadCalculada;
+    if (totalesFinancieros.registrosConImporte > 0) {
+      fuenteFinanciera = "ventas";
+    }
   }
+
+  ventasTotales =
+    totalesFinancieros.ventasCalculadas;
+
+  costoTotal =
+    totalesFinancieros.costosCalculados;
+
+  utilidadTotal =
+    totalesFinancieros.utilidadCalculada;
+
+  const fechasValidas =
+    totalesFinancieros.fechasValidas;
 
   const margenUtilidad =
     ventasTotales > 0
@@ -329,6 +323,11 @@ export function calcularMetricasDashboard(
     costoTotal,
 
     utilidadTotal,
+
+    fuenteFinanciera,
+
+    tieneDatosFinancieros:
+      fuenteFinanciera !== null,
 
     margenUtilidad,
 
