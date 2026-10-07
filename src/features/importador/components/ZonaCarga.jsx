@@ -1420,12 +1420,14 @@ if (
               cursor:
                 guardando ||
                 analizando ||
+                !branchIdSeleccionado ||
                 archivosListos.length === 0
                   ? "not-allowed"
                   : "pointer",
               background:
                 guardando ||
                 analizando ||
+                !branchIdSeleccionado ||
                 archivosListos.length === 0
                   ? "#b8a5b1"
                   : "#7a315f",
