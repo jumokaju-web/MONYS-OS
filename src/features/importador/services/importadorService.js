@@ -14,6 +14,20 @@ export async function guardarImportacion({
     throw new Error("No se puede importar un reporte SICAR sin filas de datos válidas.");
   }
 
+  const reportesPorSucursal = new Set([
+    "Ventas por artículo",
+    "Utilidad por artículos",
+    "Utilidad de ventas",
+    "Inventario",
+    "Inventario / Utilidad",
+    "Existencias",
+    "Movimientos de caja",
+  ]);
+
+  if (reportesPorSucursal.has(tipoReporte) && !branchId) {
+    throw new Error(`Selecciona una sucursal para importar el reporte de ${tipoReporte}.`);
+  }
+
   const {
     data: importacion,
     error: errorImportacion,
