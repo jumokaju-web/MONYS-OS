@@ -24,6 +24,7 @@ import {
 } from "../utils/resumenReporte";
 import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
+import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
@@ -674,6 +675,19 @@ if (
         "No existen reportes listos para importar."
       );
 
+      return;
+    }
+
+    const sucursal = sucursales.find(
+      (item) => item.id === branchIdSeleccionado
+    );
+    const errorSucursal = validarSucursalImportacion(
+      pendientesDeImportar,
+      sucursal
+    );
+
+    if (errorSucursal) {
+      setMensajeGeneral(`❌ ${errorSucursal}`);
       return;
     }
 
@@ -1396,6 +1410,7 @@ if (
             disabled={
               guardando ||
               analizando ||
+              !branchIdSeleccionado ||
               archivosListos.length === 0
             }
             style={{
@@ -1421,6 +1436,8 @@ if (
           >
             {guardando
               ? "Guardando reportes..."
+              : !branchIdSeleccionado
+              ? "Selecciona sucursal para importar"
               : `🚀 Importar ${archivosListos.length} reportes a MONYS OS`}
           </button>
 
