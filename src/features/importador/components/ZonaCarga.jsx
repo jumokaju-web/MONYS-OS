@@ -324,7 +324,7 @@ useEffect(() => {
 
       if (indiceEncabezados === -1) {
         throw new Error(
-          "No se encontró una fila válida de encabezados."
+          "No encontramos la tabla del reporte SICAR: faltan sus encabezados y filas de datos. El archivo puede contener solo el título o el formato. Vuelve a exportarlo desde SICAR como Excel o CSV incluyendo la tabla completa."
         );
       }
 
@@ -446,8 +446,7 @@ if (
           vistaPrevia,
           resultadoMotor: resultadoIA,
           error:
-            `El reporte "${tipoReporte}" fue reconocido, ` +
-            "pero su normalizador todavía no está conectado.",
+            `El reporte "${tipoReporte}" tiene encabezados, pero no produjo filas de datos válidas. Revisa que la exportación de SICAR incluya los registros del periodo y no solo el título o los totales.",
         });
 
         return;
