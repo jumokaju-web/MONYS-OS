@@ -414,18 +414,22 @@ const DashboardPage = () => {
                 : "sin importes disponibles"}
             </h3>
             <p style={estilos.detalleProducto}>
-              Archivo: {importacionFinanciera.archivo_original || "Sin fuente financiera válida"}
+              Archivo: {metricas.tieneDatosFinancieros
+                ? importacionFinanciera.archivo_original || "Sin nombre de archivo"
+                : "No se encontraron importes financieros válidos"}
             </p>
             <p style={estilos.detalleProducto}>
-              Periodo: {periodoFinanciero
+              Periodo: {metricas.tieneDatosFinancieros && periodoFinanciero
                 ? `${formatoFechaCorte(periodoFinanciero.fechaInicial)} – ${formatoFechaCorte(periodoFinanciero.fechaFinal)}`
-                : "Sin periodo registrado"}
+                : "Sin corte financiero válido"}
             </p>
             <p style={estilos.detalleProducto}>
-              Filas: {formatoNumero.format(Number(importacionFinanciera.total_filas) || 0)}
-              {" · "}Importado: {importacionFinanciera.created_at
+              Filas: {metricas.tieneDatosFinancieros
+                ? formatoNumero.format(Number(importacionFinanciera.total_filas) || 0)
+                : "Sin fuente válida"}
+              {" · "}Importado: {metricas.tieneDatosFinancieros && importacionFinanciera.created_at
                 ? new Date(importacionFinanciera.created_at).toLocaleString("es-MX")
-                : "Sin fecha"}
+                : "Sin fecha válida"}
             </p>
           </article>
 
