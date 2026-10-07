@@ -175,7 +175,13 @@ export function useDashboardData() {
             detallesUtilidad
           );
 
+        const periodoUtilidad =
+          obtenerPeriodoDesdeDetalles(
+            detallesUtilidad
+          );
+
         const periodoReal =
+          periodoUtilidad ||
           obtenerPeriodoDesdeDetalles(
             detallesVentasOriginales
           );
