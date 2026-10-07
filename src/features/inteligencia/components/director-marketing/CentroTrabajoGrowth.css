@@ -2051,3 +2051,12 @@ body:has(.growth-workspace)
   + div {
   display: none !important;
 }
+
+/* En la experiencia Growth, el saludo vive en el encabezado fijo del empleado. */
+.employee-home--growth .growth-workspace__header > div:first-child {
+  display: none;
+}
+
+.employee-home--growth .growth-workspace__header {
+  margin-bottom: 14px;
+}
