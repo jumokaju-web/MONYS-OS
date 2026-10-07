@@ -1,5 +1,22 @@
 const TASA_COMISION = 0.01;
 
+export function validarConteoImportacionSicar({ filas, totalFilasEsperadas } = {}) {
+  const registros = Array.isArray(filas) ? filas : [];
+  const esperado = Number(totalFilasEsperadas);
+
+  if (!Number.isInteger(esperado) || esperado < 0) {
+    throw new Error("No se pudo verificar el total esperado de filas de la importación SICAR.");
+  }
+
+  if (registros.length !== esperado) {
+    throw new Error(
+      `La importación SICAR está incompleta: se esperaban ${esperado} filas y se encontraron ${registros.length}. No se calcularán comisiones con este reporte.`
+    );
+  }
+
+  return registros;
+}
+
 function texto(valor) {
   return String(valor ?? "").trim();
 }
