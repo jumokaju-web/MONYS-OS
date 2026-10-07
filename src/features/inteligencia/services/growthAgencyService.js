@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { hayAprendizajeGrowth } from "../shared/aprendizajeGrowth";
 
 export async function obtenerEspaciosGrowth({
   organizationId,
@@ -389,9 +390,10 @@ export function orquestarAgenciaGrowth({
       agente: "Memoria",
       etiqueta: "Aprendizaje",
       detalle: "Qué funcionó, qué falló y qué no repetir",
-      completado:
-        tieneContenido(aprendizaje) ||
-        campanasFinalizadas.length > 0,
+      completado: hayAprendizajeGrowth({
+        aprendizaje,
+        campanasFinalizadas,
+      }),
       destino: "historial-aprendizaje-campanas",
       accion: "Finalizar y documentar aprendizaje",
     },
