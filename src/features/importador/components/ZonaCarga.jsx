@@ -22,6 +22,8 @@ import {
   generarResumenReporte,
   generarResumenInventario,
 } from "../utils/resumenReporte";
+import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
+import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
@@ -100,6 +102,10 @@ if (tipoReporte === "Movimientos de caja") {
 function generarResumen(tipoReporte, datosNormalizados) {
   if (tipoReporte === "Ventas por artículo") {
     return generarResumenReporte(datosNormalizados);
+  }
+
+  if (tipoReporte === "Utilidad de ventas") {
+    return generarResumenUtilidadVentas(datosNormalizados);
   }
 
   if (
@@ -1359,9 +1365,11 @@ if (
           )}
 
           {archivoActivo.resumen && (
-            <ResumenReporte
-              resumen={archivoActivo.resumen}
-            />
+            archivoActivo.tipoReporte === "Utilidad de ventas" ? (
+              <ResumenUtilidadVentas resumen={archivoActivo.resumen} />
+            ) : (
+              <ResumenReporte resumen={archivoActivo.resumen} />
+            )
           )}
 
           {archivoActivo.analisis && (
