@@ -254,6 +254,7 @@ export function useDashboardData() {
           comparabilidadProductos,
 
           importacion:
+            resultadoUtilidad?.importacion ||
             resultadoVentas.importacion,
 
           metricas,
@@ -271,7 +272,7 @@ export function useDashboardData() {
               detallesVentasOriginales,
 
             periodo:
-              periodoReal,
+              periodoVentas,
           },
 
           utilidadVentas: {
@@ -281,6 +282,9 @@ export function useDashboardData() {
 
             detalles:
               detallesUtilidad,
+
+            periodo:
+              periodoUtilidad,
           },
 
           inventario: {
