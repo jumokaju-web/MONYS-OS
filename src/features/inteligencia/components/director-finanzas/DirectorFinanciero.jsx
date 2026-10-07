@@ -279,6 +279,8 @@ ventasSobrePuntoEquilibrio,
     reservaRecomendada,
     capacidadCompra,
 
+    saldoProveedoresVencidos,
+    proveedoresVencidos,
     vencimientos7Dias,
     vencimientos15Dias,
     vencimientos30Dias,
@@ -1206,6 +1208,29 @@ const historial =
     gap: "10px",
   }}
 >
+  <div
+    style={{
+      padding: "12px",
+      borderRadius: "12px",
+      backgroundColor: "#ffffff",
+      border: "1px solid #eadfd3",
+    }}
+  >
+    <strong>Ya vencido</strong>
+    <div
+      style={{
+        marginTop: "5px",
+        fontWeight: "800",
+        color: saldoProveedoresVencidos > 0 ? "#a12c45" : "#3b7050",
+      }}
+    >
+      {formatoDinero(saldoProveedoresVencidos || 0)}
+    </div>
+    <small style={{ display: "block", marginTop: "4px", color: "#756d62" }}>
+      {proveedoresVencidos || 0} créditos con fecha anterior a hoy
+    </small>
+  </div>
+
   <div
     style={{
       padding: "12px",
