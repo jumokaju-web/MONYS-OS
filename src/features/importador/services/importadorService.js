@@ -22,7 +22,7 @@ export async function guardarImportacion({
     .insert({
       tipo_reporte: tipoReporte,
       archivo_original: archivoOriginal,
-      estado: "procesado",
+      estado: "procesando",
       total_filas: datosNormalizados.length,
       branch_id: branchId || null,
     })
@@ -35,8 +35,8 @@ export async function guardarImportacion({
     );
   }
 
-  const detalles = datosNormalizados.map(
-    (fila, indice) => ({
+  try {
+    const detalles = datosNormalizados.map((fila, indice) => ({
       importacion_id: importacion.id,
       numero_fila: indice + 1,
       codigo: fila.codigo,
@@ -44,30 +44,77 @@ export async function guardarImportacion({
       categoria: fila.categoria,
       cantidad: fila.cantidad,
       datos_originales: fila,
-    })
-  );
+    }));
 
-  console.log(detalles[0]);
-
-  const { error: errorDetalles } =
-    await supabase
+    const { error: errorDetalles } = await supabase
       .from("importacion_detalle")
       .insert(detalles);
 
-  if (errorDetalles) {
-    throw new Error(
-      `No se pudieron guardar los detalles: ${errorDetalles.message}`
-    );
+    if (errorDetalles) {
+      throw new Error(
+        `No se pudieron guardar los detalles: ${errorDetalles.message}`
+      );
+    }
+
+    const {
+      count: filasGuardadas,
+      error: errorConteo,
+    } = await supabase
+      .from("importacion_detalle")
+      .select("id", { count: "exact", head: true })
+      .eq("importacion_id", importacion.id);
+
+    if (errorConteo) {
+      throw new Error(
+        `No se pudo verificar cuántas filas quedaron guardadas: ${errorConteo.message}`
+      );
+    }
+
+    if (filasGuardadas !== datosNormalizados.length) {
+      throw new Error(
+        `Importación incompleta: SICAR entregó ${datosNormalizados.length} filas y MONYS guardó ${filasGuardadas ?? 0}.`
+      );
+    }
+
+    await guardarDatosPorTipoReporte({
+      tipoReporte,
+      datosNormalizados,
+      importacionId: importacion.id,
+      branchId,
+    });
+
+    const {
+      data: importacionProcesada,
+      error: errorEstado,
+    } = await supabase
+      .from("importaciones")
+      .update({ estado: "procesado" })
+      .eq("id", importacion.id)
+      .select()
+      .single();
+
+    if (errorEstado) {
+      throw new Error(
+        `Los datos se guardaron, pero no se pudo confirmar la importación: ${errorEstado.message}`
+      );
+    }
+
+    return importacionProcesada;
+  } catch (error) {
+    const { error: errorMarcar } = await supabase
+      .from("importaciones")
+      .update({ estado: "error" })
+      .eq("id", importacion.id);
+
+    if (errorMarcar) {
+      console.error(
+        "No se pudo marcar como fallida la importación incompleta:",
+        errorMarcar
+      );
+    }
+
+    throw error;
   }
-
-  await guardarDatosPorTipoReporte({
-    tipoReporte,
-    datosNormalizados,
-    importacionId: importacion.id,
-    branchId,
-  });
-
-  return importacion;
 }
 
 async function guardarDatosPorTipoReporte({
