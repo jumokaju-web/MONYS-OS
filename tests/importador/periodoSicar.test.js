@@ -8,7 +8,8 @@ test("convierte fechas SICAR en formato mexicano día/mes/año", () => {
 });
 
 test("convierte fechas seriales de Excel", () => {
-  assert.equal(normalizarFechaSicar(46300), "2026-09-09");
+  assert.equal(normalizarFechaSicar(46300), "2026-10-05");
+  assert.equal(normalizarFechaSicar("46300"), "2026-10-05");
 });
 
 test("extrae un periodo aunque las fechas vengan como texto", () => {
