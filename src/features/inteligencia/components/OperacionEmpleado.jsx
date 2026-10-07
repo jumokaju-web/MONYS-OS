@@ -1040,7 +1040,30 @@ export default function OperacionEmpleado({
     }
   }
 
-  function abrirTareaPrioritaria() {
+  function mostrarDetalleTarea(tareaId) {
+    window.setTimeout(() => {
+      const tarjeta = document.getElementById(
+        `tarea-${tareaId}`
+      );
+      const detalle = tarjeta?.querySelector("details");
+
+      if (detalle) {
+        detalle.open = true;
+      }
+
+      tarjeta?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }
+
+  async function iniciarTareaYMostrarDetalle(tarea) {
+    await cambiarEstado(tarea, "en_proceso");
+    mostrarDetalleTarea(tarea.id);
+  }
+
+  async function abrirTareaPrioritaria() {
     if (!tareaPrioritaria) {
       return;
     }
@@ -1050,27 +1073,11 @@ export default function OperacionEmpleado({
         tareaPrioritaria.estado
       ) === "PENDIENTE"
     ) {
-      cambiarEstado(
-        tareaPrioritaria,
-        "en_proceso"
-      );
-
+      await iniciarTareaYMostrarDetalle(tareaPrioritaria);
       return;
     }
 
-    const tarjeta =
-      document.getElementById(
-        `tarea-${tareaPrioritaria.id}`
-      );
-
-    tarjeta
-      ?.querySelector("details")
-      ?.setAttribute("open", "");
-
-    tarjeta?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    mostrarDetalleTarea(tareaPrioritaria.id);
   }
 
   if (cargando) {
@@ -2267,6 +2274,7 @@ export default function OperacionEmpleado({
                   key={tarea.id}
                   id={`tarea-${tarea.id}`}
                   style={{
+                    scrollMarginTop: "96px",
                     background:
                       "#ffffff",
                     border:
@@ -2350,10 +2358,7 @@ export default function OperacionEmpleado({
                     <button
                       type="button"
                       onClick={() =>
-                        cambiarEstado(
-                          tarea,
-                          "en_proceso"
-                        )
+                        iniciarTareaYMostrarDetalle(tarea)
                       }
                       style={{
                         width: "100%",
