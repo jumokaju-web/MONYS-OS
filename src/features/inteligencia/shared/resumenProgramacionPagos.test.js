@@ -20,6 +20,7 @@ test("excluye créditos cerrados y registros incompletos", () => {
     calcularMensualidadesConFecha([
       { estado: "ACTIVA", fecha_proximo_pago: "2026-11-01", pago_mensual: "250" },
       { estado: "CERRADA", fecha_proximo_pago: "2026-11-02", pago_mensual: 900 },
+      { estado: "PENDIENTE", fecha_proximo_pago: "2026-11-03", pago_mensual: 500 },
       { estado: "REESTRUCTURADA", fecha_proximo_pago: null, pago_mensual: 300 },
       { estado: "ACTIVA", fecha_proximo_pago: "2026-11-04", pago_mensual: 0 },
       { estado: "ACTIVA", fecha_proximo_pago: "2026-11-05", pago_mensual: "no válido" },
