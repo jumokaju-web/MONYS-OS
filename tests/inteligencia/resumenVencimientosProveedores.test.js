@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calcularResumenVencimientosProveedores } from "../../src/features/inteligencia/shared/resumenVencimientosProveedores.js";
+import {
+  calcularResumenVencimientosProveedores,
+  obtenerFechaHoyMexico,
+} from "../../src/features/inteligencia/shared/resumenVencimientosProveedores.js";
 
-test("calcula vencimientos acumulados solo con fecha exacta del reporte", () => {
+test("calcula vencimientos acumulados y separa saldos vencidos", () => {
   const resumen = calcularResumenVencimientosProveedores(
     [
       { saldo: 1000, fecha_vencimiento: "2026-10-01" },
@@ -19,6 +22,8 @@ test("calcula vencimientos acumulados solo con fecha exacta del reporte", () => 
   );
 
   assert.deepEqual(resumen, {
+    saldoVencido: 1000,
+    cantidadVencidos: 1,
     vencimientos7Dias: 1200,
     vencimientos15Dias: 1500,
     vencimientos30Dias: 1900,
@@ -36,13 +41,23 @@ test("no incluye fechas posteriores al horizonte", () => {
   );
 
   assert.equal(resumen.vencimientos90Dias, 0);
+  assert.equal(resumen.saldoVencido, 0);
   assert.equal(resumen.saldoSinFecha, 0);
+});
+
+test("usa la fecha civil de Ciudad de México, incluso antes de medianoche UTC", () => {
+  assert.equal(
+    obtenerFechaHoyMexico(new Date("2026-10-08T03:00:00.000Z")),
+    "2026-10-07",
+  );
 });
 
 test("maneja colecciones vacías", () => {
   assert.deepEqual(
     calcularResumenVencimientosProveedores([], "2026-10-07"),
     {
+      saldoVencido: 0,
+      cantidadVencidos: 0,
       vencimientos7Dias: 0,
       vencimientos15Dias: 0,
       vencimientos30Dias: 0,
