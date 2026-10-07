@@ -224,24 +224,25 @@ const DashboardPage = () => {
   const metricas =
     datosDashboard.metricas || {};
 
-  const importacion =
-    datosDashboard.importacion || {};
-
   const productoMasVendido =
     metricas.productoMasVendido;
 
+  const usaReporteUtilidad =
+    metricas.fuenteFinanciera === "utilidad";
+
   const importacionFinanciera =
-    datosDashboard.utilidadVentas?.importacion ||
-    datosDashboard.importacion ||
-    {};
+    usaReporteUtilidad
+      ? datosDashboard.utilidadVentas?.importacion || {}
+      : datosDashboard.ventasOriginales?.importacion || {};
 
   const importacionProductos =
     datosDashboard.ventasOriginales?.importacion ||
     {};
 
   const periodoFinanciero =
-    datosDashboard.utilidadVentas?.periodo ||
-    datosDashboard.ventasOriginales?.periodo;
+    usaReporteUtilidad
+      ? datosDashboard.utilidadVentas?.periodo
+      : datosDashboard.ventasOriginales?.periodo;
 
   const inicioCorte = formatoFechaCorte(
     periodoFinanciero?.fechaInicial
@@ -283,28 +284,36 @@ const DashboardPage = () => {
         <TarjetaMetrica
           etiqueta="Ventas totales"
           valor={formatoDinero.format(
-            Number(metricas.ventasTotales) || 0
+            metricas.tieneDatosFinancieros
+              ? Number(metricas.ventasTotales) || 0
+              : "Sin dato SICAR"
           )}
         />
 
         <TarjetaMetrica
           etiqueta="Utilidad bruta"
           valor={formatoDinero.format(
-            Number(metricas.utilidadTotal) || 0
+            metricas.tieneDatosFinancieros
+              ? Number(metricas.utilidadTotal) || 0
+              : "Sin dato SICAR"
           )}
         />
 
         <TarjetaMetrica
           etiqueta="Costo total"
           valor={formatoDinero.format(
-            Number(metricas.costoTotal) || 0
+            metricas.tieneDatosFinancieros
+              ? Number(metricas.costoTotal) || 0
+              : "Sin dato SICAR"
           )}
         />
 
         <TarjetaMetrica
           etiqueta="Margen bruto"
           valor={formatoPorcentaje(
-            metricas.margenUtilidad
+            metricas.tieneDatosFinancieros
+              ? formatoPorcentaje(metricas.margenUtilidad)
+              : "Sin dato SICAR"
           )}
         />
 
@@ -408,10 +417,12 @@ const DashboardPage = () => {
         }}>
           <article style={estilos.productoDestacado}>
             <h3 style={estilos.nombreProducto}>
-              Finanzas · {importacionFinanciera.tipo_reporte || "Reporte financiero"}
+              Finanzas · {metricas.tieneDatosFinancieros
+                ? importacionFinanciera.tipo_reporte || (usaReporteUtilidad ? "Utilidad de ventas" : "Ventas por artículo")
+                : "sin importes disponibles"}
             </h3>
             <p style={estilos.detalleProducto}>
-              Archivo: {importacionFinanciera.archivo_original || "Sin información"}
+              Archivo: {importacionFinanciera.archivo_original || "Sin fuente financiera válida"}
             </p>
             <p style={estilos.detalleProducto}>
               Periodo: {periodoFinanciero
