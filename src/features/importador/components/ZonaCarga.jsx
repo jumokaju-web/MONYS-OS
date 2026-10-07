@@ -25,6 +25,7 @@ import {
 import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
+import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
@@ -688,6 +689,15 @@ if (
 
     if (errorSucursal) {
       setMensajeGeneral(`❌ ${errorSucursal}`);
+      return;
+    }
+
+    const errorPeriodo = validarPeriodosSuperpuestos(
+      pendientesDeImportar
+    );
+
+    if (errorPeriodo) {
+      setMensajeGeneral(`⚠️ ${errorPeriodo}`);
       return;
     }
 
