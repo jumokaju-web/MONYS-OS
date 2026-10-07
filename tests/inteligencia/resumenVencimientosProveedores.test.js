@@ -31,7 +31,7 @@ test("calcula vencimientos acumulados solo con fecha exacta del reporte", () => 
 
 test("no incluye fechas posteriores al horizonte", () => {
   const resumen = calcularResumenVencimientosProveedores(
-    [{ saldo: 850, fecha_vencimiento: "2027-01-01" }],
+    [{ saldo: 850, fecha_vencimiento: "2027-02-01" }],
     "2026-10-07",
   );
 
