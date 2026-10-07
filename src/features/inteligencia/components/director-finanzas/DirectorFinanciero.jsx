@@ -284,6 +284,8 @@ ventasSobrePuntoEquilibrio,
     vencimientos30Dias,
     vencimientos60Dias,
     vencimientos90Dias,
+    saldoProveedoresSinFecha,
+    proveedoresSinFecha,
 
     alertasFinancieras = [],
     decisionPrioritaria,
@@ -1212,7 +1214,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>7 días</strong>
+    <strong>Hasta 7 días · reportado</strong>
 
     <div
       style={{
@@ -1234,7 +1236,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>15 días</strong>
+    <strong>Hasta 15 días · reportado</strong>
 
     <div
       style={{
@@ -1256,7 +1258,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>30 días</strong>
+    <strong>Hasta 30 días · reportado</strong>
 
     <div
       style={{
@@ -1278,7 +1280,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>60 días</strong>
+    <strong>Hasta 60 días · reportado</strong>
 
     <div
       style={{
@@ -1300,7 +1302,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>90 días</strong>
+    <strong>Hasta 90 días · reportado</strong>
 
     <div
       style={{
@@ -1312,8 +1314,26 @@ const historial =
         vencimientos90Dias || 0
       )}
     </div>
+  <div
+    style={{
+      padding: "12px",
+      borderRadius: "12px",
+      backgroundColor: "#fff8e8",
+      border: "1px solid #ecd392",
+    }}
+  >
+    <strong>Sin vencimiento exacto</strong>
+    <div style={{ marginTop: "5px", fontWeight: "800" }}>
+      {formatoDinero(saldoProveedoresSinFecha || 0)}
+    </div>
+    <small style={{ display: "block", marginTop: "4px", color: "#756d62" }}>
+      {proveedoresSinFecha || 0} créditos; confirmar fecha con el proveedor
+    </small>
   </div>
 </div>
+<p style={{ margin: "10px 0 0", color: "#756d62", fontSize: "12px", lineHeight: 1.5 }}>
+  Los horizontes usan fechas exactas del reporte. Los días de crédito no bastan para calcular un vencimiento.
+</p>
     <div
   style={{
     display: "grid",
@@ -1366,16 +1386,10 @@ const historial =
           {" · "}
 
           {credito.fecha_vencimiento
-            ? "Vence: "
-            : "Vencimiento estimado: "}
-
-          {credito.fecha_vencimiento_estimada
-            ? new Date(
-                `${credito.fecha_vencimiento_estimada}T00:00:00`
-              ).toLocaleDateString(
-                "es-MX"
-              )
-            : "Sin fecha"}
+            ? `Vence según reporte: ${new Date(
+                `${credito.fecha_vencimiento}T00:00:00`
+              ).toLocaleDateString("es-MX")}`
+            : "Sin vencimiento exacto en el reporte"}
         </div>
       </div>
     )
