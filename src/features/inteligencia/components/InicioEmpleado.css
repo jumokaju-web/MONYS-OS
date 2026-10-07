@@ -118,3 +118,56 @@
     border-radius: 20px;
   }
 }
+
+/* Navegación del Centro de Crecimiento de Kary */
+.employee-home__nav--growth {
+  min-height: 76px !important;
+  gap: 4px !important;
+  padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px)) !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-top: 1px solid #ead2df !important;
+  box-shadow: 0 -8px 24px rgba(96, 25, 59, 0.12) !important;
+}
+
+.employee-home__nav--growth .employee-home__nav-button {
+  min-height: 54px;
+  gap: 3px;
+  border-radius: 15px;
+  font-size: 10px;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.employee-home__nav--growth .employee-home__nav-button:active {
+  transform: scale(0.96);
+}
+
+.employee-home__nav--growth .employee-home__nav-button span {
+  width: 30px;
+  height: 30px;
+  font-size: 20px;
+}
+
+.employee-home__nav--growth .employee-home__nav-button--primary span {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c32870, #8d1e54);
+  color: #ffffff;
+  font-size: 25px;
+  box-shadow: 0 5px 13px rgba(141, 30, 84, 0.24);
+}
+
+.employee-home__nav--growth .employee-home__nav-button--primary.is-active span {
+  background: linear-gradient(145deg, #d33b83, #9d245b);
+  color: #ffffff;
+}
+
+.employee-home__nav--growth .employee-home__nav-button.is-active {
+  background: #fff1f7;
+}
+
+.employee-home__nav--growth .employee-home__nav-button:focus-visible {
+  outline: 3px solid #cf5b91;
+  outline-offset: 2px;
+}
