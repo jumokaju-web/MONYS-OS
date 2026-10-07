@@ -121,7 +121,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     }
     cargarDetalle();
     return () => { activo = false; };
-  }, [importacionId]);
+  }, [importacionId, importacionSeleccionada?.total_filas]);
 
   const resumen = useMemo(
     () => resumirComisionesSicar({ filas: detalle, empleados: personal, desde, hasta, oportunidadesCRM }),
