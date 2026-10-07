@@ -415,8 +415,14 @@ function CentroRescateFinanciero({
           }}
         >
           {[
-            ["Flujo neto del periodo", dinero(flujoNetoPeriodo)],
-            ["Reserva recomendada", dinero(reservaRecomendada)],
+            [
+              "Flujo neto del periodo",
+              baseFinancieraVigente ? dinero(flujoNetoPeriodo) : "Sin base vigente",
+            ],
+            [
+              "Reserva recomendada",
+              baseFinancieraVigente ? dinero(reservaRecomendada) : "Sin base vigente",
+            ],
             ["Mensualidades con fecha", dinero(mensualidadesConFecha.montoTotal)],
           ].map(([etiqueta, valor]) => (
             <div
