@@ -10,6 +10,10 @@ export async function guardarImportacion({
   datosNormalizados,
   branchId,
 }) {
+  if (!Array.isArray(datosNormalizados) || datosNormalizados.length === 0) {
+    throw new Error("No se puede importar un reporte SICAR sin filas de datos válidas.");
+  }
+
   const {
     data: importacion,
     error: errorImportacion,
