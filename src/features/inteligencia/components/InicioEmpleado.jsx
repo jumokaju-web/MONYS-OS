@@ -11,7 +11,19 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
 
   const puesto = usuario?.puesto || usuario?.role || "Operación";
 
-  const esMarketing = String(puesto).toLowerCase().includes("marketing");
+  const contextoPuesto = [
+    puesto,
+    usuario?.area,
+    usuario?.departamento,
+    usuario?.department,
+    usuario?.unidad,
+    usuario?.equipo,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const esMarketing = /marketing|growth|crecimiento/.test(contextoPuesto);
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
 
   useEffect(() => {
