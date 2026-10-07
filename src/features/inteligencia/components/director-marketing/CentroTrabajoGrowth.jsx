@@ -569,13 +569,15 @@ export default function CentroTrabajoGrowth({
     : oportunidadPrioritaria && !oportunidadVigente
       ? {
           titulo: "Actualizar SICAR antes de recomendar la primera campaña",
-          descripcion: `La sugerencia disponible usa ventas ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Primero actualiza los reportes de la sucursal; después MONYS volverá a priorizar el producto y el canal.`,
+          descripcion: `La sugerencia disponible usa ventas ${etiquetaAntiguedad(actualizacionOportunidad?.ventas?.antiguedadDias)} e inventario ${etiquetaAntiguedad(actualizacionOportunidad?.inventario?.antiguedadDias)}. Actualiza los reportes de la sucursal para que MONYS vuelva a priorizar. Mientras tanto puedes preparar un borrador; no publiques ni afirmes precio o existencia hasta confirmarlos.`,
           criterio:
-            "No preparar una campaña usando ventas o existencias desactualizadas.",
+            "El borrador queda para revisión; no se usa como oferta hasta confirmar precio e inventario.",
           etiqueta: "Datos desactualizados",
           clase: "growth-workspace__status--warning",
           boton: "Comprobar nuevamente los datos",
           ejecutar: onActualizar,
+          botonSecundario: "Preparar borrador de contenido",
+          ejecutarSecundaria: () => onAbrirModulo?.("CONTENIDO"),
         }
       : tareaPrioritaria
         ? {
@@ -753,9 +755,11 @@ export default function CentroTrabajoGrowth({
               <button
                 type="button"
                 className="growth-workspace__secondary"
-                onClick={onVerSemana}
+                onClick={
+                  accionSugerida.ejecutarSecundaria || onVerSemana
+                }
               >
-                Ver plan semanal
+                {accionSugerida.botonSecundario || "Ver plan semanal"}
               </button>
             </div>
           </div>
