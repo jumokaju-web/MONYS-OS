@@ -52,3 +52,20 @@ test("reporta filas sin folio, usuario o fecha como no verificables", () => {
   assert.equal(resumen.filasSinIdentidad, 1);
   assert.equal(resumen.tickets, 0);
 });
+
+test("CRM atribuye al responsable por folio SICAR y deduplica tickets", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{ id: "o1", etapa: "GANADO", folio_venta_sicar: "A-9", empleado_id: "2" }],
+    filas: [
+      { datos_originales: { fecha: "2026-10-06", folio: "A-9", usuario: "Karla", ventaTotal: 4000 } },
+      { datos_originales: { fecha: "2026-10-06", folio: "A-9", usuario: "Caja", ventaTotal: 4000 } },
+    ],
+  });
+  assert.equal(resumen.tickets, 1);
+  assert.equal(resumen.ventasAsignadas, 4000);
+  assert.equal(resumen.comisiones.length, 1);
+  assert.equal(resumen.comisiones[0].empleado, "Kary");
+  assert.equal(resumen.comisiones[0].ticketsCRM, 1);
+  assert.equal(resumen.comisionTotal, 40);
+});

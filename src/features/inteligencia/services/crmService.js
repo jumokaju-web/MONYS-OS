@@ -16,6 +16,28 @@ export async function listarOportunidadesCRM({ businessId } = {}) {
   return Array.isArray(data) ? data : [];
 }
 
+export async function listarInteraccionesCRM({ businessId } = {}) {
+  if (!businessId) return [];
+  const { data, error } = await supabase.from("crm_interacciones").select("*").eq("business_id", businessId).order("ocurrio_at", { ascending: false });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function registrarInteraccionCRM({ oportunidadId, organizationId, businessId, branchId = null, canal, direccion, mensaje } = {}) {
+  const contenido = String(mensaje || "").trim();
+  if (!oportunidadId || !organizationId || !businessId || !contenido) throw new Error("Escribe el mensaje y selecciona una oportunidad válida.");
+  if (!CANALES_CRM.has(canal) || !["ENTRANTE", "SALIENTE", "NOTA"].includes(direccion)) throw new Error("Selecciona un canal y tipo de registro válidos.");
+  const userId = (await supabase.auth.getUser()).data?.user?.id;
+  if (!userId) throw new Error("Inicia sesión para registrar la conversación.");
+  const { data, error } = await supabase.from("crm_interacciones").insert({
+    oportunidad_id: oportunidadId, organization_id: organizationId, business_id: businessId,
+    branch_id: branchId || null, canal, direccion, mensaje: contenido, registrado_por: userId,
+    ocurrio_at: new Date().toISOString(),
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function crearOportunidadCRM({
   organizationId,
   businessId,
@@ -24,6 +46,7 @@ export async function crearOportunidadCRM({
   telefono = null,
   canal = "MOSTRADOR",
   etapa = "NUEVO",
+  folioVentaSicar = null,
   productoInteres = null,
   montoEstimado = null,
   proximoSeguimiento = null,
@@ -40,9 +63,9 @@ export async function crearOportunidadCRM({
   if (!CANALES_CRM.has(canal)) {
     throw new Error("Selecciona un canal válido.");
   }
-  if (!ETAPAS_CRM.has(etapa)) {
-    throw new Error("Selecciona una etapa válida.");
-  }
+  if (!ETAPAS_CRM.has(etapa)) throw new Error("Selecciona una etapa válida.");
+  const folio = String(folioVentaSicar || "").trim();
+  if (etapa === "GANADO" && !folio) throw new Error("Para marcar una venta como ganada, captura el folio real de SICAR.");
   const importe = montoEstimado === "" || montoEstimado == null
     ? null
     : Number(montoEstimado);
@@ -59,6 +82,7 @@ export async function crearOportunidadCRM({
     telefono: String(telefono || "").trim() || null,
     canal,
     etapa,
+    folio_venta_sicar: folio || null,
     producto_interes: String(productoInteres || "").trim() || null,
     monto_estimado: importe,
     proximo_seguimiento: proximoSeguimiento || null,
@@ -105,13 +129,11 @@ export async function crearOportunidadCRM({
   return { oportunidad: data, tarea, errorTarea };
 }
 
-export async function actualizarEtapaCRM({ id, etapa } = {}) {
-  if (!id || !ETAPAS_CRM.has(etapa)) {
-    throw new Error("La oportunidad o etapa no es válida.");
-  }
-  const { data, error } = await supabase
-    .from("crm_oportunidades")
-    .update({ etapa, updated_at: new Date().toISOString() })
+export async function actualizarEtapaCRM({ id, etapa, folioVentaSicar } = {}) {
+  if (!id || !ETAPAS_CRM.has(etapa)) throw new Error("La oportunidad o etapa no es válida.");
+  const folio = String(folioVentaSicar || "").trim();
+  if (etapa === "GANADO" && !folio) throw new Error("Captura el folio SICAR para atribuir la comisión a quien atendió a la clienta.");
+  const { data, error } = await supabase.from("crm_oportunidades").update({ etapa, folio_venta_sicar: folio || null, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select()
     .single();

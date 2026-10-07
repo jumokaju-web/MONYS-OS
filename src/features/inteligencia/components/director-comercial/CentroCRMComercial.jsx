@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   actualizarEtapaCRM,
   crearOportunidadCRM,
+  listarInteraccionesCRM,
+  registrarInteraccionCRM,
   listarEmpleadosAsignablesCRM,
   listarOportunidadesCRM,
   programarSeguimientoCRM,
@@ -68,6 +70,7 @@ const inicial = {
   montoEstimado: "",
   proximoSeguimiento: "",
   empleadoId: "",
+  folioVentaSicar: "",
   notas: "",
 };
 
@@ -78,6 +81,9 @@ export default function CentroCRMComercial({
   empleados = [],
 }) {
   const [oportunidades, setOportunidades] = useState([]);
+  const [interacciones, setInteracciones] = useState([]);
+  const [borradoresInteraccion, setBorradoresInteraccion] = useState({});
+  const [registrandoInteraccionId, setRegistrandoInteraccionId] = useState("");
   const [equipoCRM, setEquipoCRM] = useState(empleados);
   const [edicionesSeguimiento, setEdicionesSeguimiento] = useState({});
   const [programandoId, setProgramandoId] = useState("");
@@ -100,6 +106,7 @@ export default function CentroCRMComercial({
   async function cargar() {
     if (!businessId) {
       setOportunidades([]);
+      setInteracciones([]);
       setEquipoCRM([]);
       setCargando(false);
       return;
@@ -107,12 +114,14 @@ export default function CentroCRMComercial({
     setCargando(true);
     setError("");
     try {
-      const [oportunidadesCargadas, equipoCargado] = await Promise.all([
+      const [oportunidadesCargadas, equipoCargado, interaccionesCargadas] = await Promise.all([
         listarOportunidadesCRM({ businessId }),
         listarEmpleadosAsignablesCRM({ businessId }),
+        listarInteraccionesCRM({ businessId }),
       ]);
       setOportunidades(oportunidadesCargadas);
       setEquipoCRM(equipoCargado);
+      setInteracciones(interaccionesCargadas);
     } catch (err) {
       setError(err?.message || "No se pudo cargar el CRM.");
     } finally {
@@ -157,6 +166,7 @@ export default function CentroCRMComercial({
         telefono: formulario.telefono,
         canal: formulario.canal,
         etapa: formulario.etapa,
+        folioVentaSicar: formulario.folioVentaSicar,
         productoInteres: formulario.productoInteres,
         montoEstimado: formulario.montoEstimado,
         proximoSeguimiento: formulario.proximoSeguimiento || null,
@@ -206,16 +216,34 @@ export default function CentroCRMComercial({
   async function cambiarEtapa(item, etapa) {
     setError("");
     setAviso("");
+    const folioVentaSicar = borradoresInteraccion[item.id]?.folioVentaSicar ?? item.folio_venta_sicar ?? "";
+    if (etapa === "GANADO" && !String(folioVentaSicar).trim()) {
+      setError("Captura primero el folio real de SICAR para registrar la venta ganada y asignar la comisión.");
+      return;
+    }
     try {
-      const actualizado = await actualizarEtapaCRM({ id: item.id, etapa });
+      const actualizado = await actualizarEtapaCRM({ id: item.id, etapa, folioVentaSicar });
       setOportunidades((anterior) => anterior.map((fila) => fila.id === actualizado.id ? actualizado : fila));
     } catch (err) {
       setError(err?.message || "No se pudo cambiar la etapa.");
     }
   }
 
-  return (
-    <section style={{ marginTop: 28, padding: 22, borderRadius: 18, background: "linear-gradient(135deg, #fff 0%, #f5f8ff 100%)", border: "1px solid #c9d7ff", boxShadow: "0 12px 30px rgba(50, 80, 150, .09)" }}>
+  async function guardarInteraccion(item) {
+    const borrador = borradoresInteraccion[item.id] || {};
+    const mensaje = String(borrador.mensaje || "").trim();
+    if (!mensaje) { setError("Escribe el mensaje o nota que quieres guardar en el historial."); return; }
+    setError(""); setAviso(""); setRegistrandoInteraccionId(item.id);
+    try {
+      await registrarInteraccionCRM({ oportunidadId: item.id, organizationId, businessId, branchId: item.branch_id || branchId, canal: borrador.canal || item.canal, direccion: borrador.direccion || "ENTRANTE", mensaje });
+      setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], mensaje: "" } }));
+      setAviso("Conversación guardada en el historial del CRM.");
+      setInteracciones(await listarInteraccionesCRM({ businessId }));
+    } catch (err) { setError(err?.message || "No se pudo guardar la conversación."); }
+    finally { setRegistrandoInteraccionId(""); }
+  }
+
+  return (    <section style={{ marginTop: 28, padding: 22, borderRadius: 18, background: "linear-gradient(135deg, #fff 0%, #f5f8ff 100%)", border: "1px solid #c9d7ff", boxShadow: "0 12px 30px rgba(50, 80, 150, .09)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <p style={{ margin: "0 0 6px", color: "#385bc7", fontWeight: 800, letterSpacing: ".08em" }}>MONYS OS · CRM Y VENTAS</p>
@@ -285,6 +313,9 @@ export default function CentroCRMComercial({
           <label style={{ display: "grid", gap: 6 }}>Venta potencial (MXN)
             <input type="number" min="0" step="0.01" value={formulario.montoEstimado} onChange={(e) => cambiar("montoEstimado", e.target.value)} style={campo} inputMode="decimal" />
           </label>
+          {formulario.etapa === "GANADO" && <label style={{ display: "grid", gap: 6 }}>Folio de venta SICAR *
+            <input required value={formulario.folioVentaSicar} onChange={(e) => cambiar("folioVentaSicar", e.target.value)} style={campo} placeholder="Folio del ticket" />
+          </label>}
           <label style={{ display: "grid", gap: 6 }}>Próximo seguimiento
             <input type="date" value={formulario.proximoSeguimiento} onChange={(e) => cambiar("proximoSeguimiento", e.target.value)} style={campo} />
           </label>
@@ -346,9 +377,35 @@ export default function CentroCRMComercial({
                     <button type="button" disabled={programandoId === item.id || !empleadosAsignables.length} onClick={() => programarSiguiente(item)} style={{ border: 0, borderRadius: 10, padding: "11px 12px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer", opacity: programandoId === item.id ? .65 : 1 }}>{programandoId === item.id ? "Programando…" : "Agendar"}</button>
                   </div>
                 )}
+                <label style={{ display: "grid", gap: 6, marginTop: 12, color: "#556071", fontSize: 13 }}>Folio de venta SICAR
+                  <input value={borradoresInteraccion[item.id]?.folioVentaSicar ?? item.folio_venta_sicar ?? ""} onChange={(e) => setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], folioVentaSicar: e.target.value } }))} style={campo} placeholder="Vincula el ticket para comisión por atención" />
+                </label>
+                {item.folio_venta_sicar && <p style={{ margin: "6px 0", color: "#267044", fontSize: 13 }}>Venta vinculada al folio {item.folio_venta_sicar}; comisión se valida desde SICAR.</p>}
                 <label style={{ display: "grid", gap: 6, marginTop: 12, color: "#556071", fontSize: 13 }}>Actualizar etapa
                   <select value={item.etapa} onChange={(e) => cambiarEtapa(item, e.target.value)} style={campo}>{ETAPAS_CRM.map((etapa) => <option key={etapa} value={etapa}>{ETIQUETAS[etapa]}</option>)}</select>
                 </label>
+                <details style={{ marginTop: 12, borderTop: "1px solid #e8ebf2", paddingTop: 10 }}>
+                  <summary style={{ cursor: "pointer", color: "#253d91", fontWeight: 800 }}>Conversaciones ({interacciones.filter((fila) => fila.oportunidad_id === item.id).length})</summary>
+                  <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                    {interacciones.filter((fila) => fila.oportunidad_id === item.id).map((fila) => (
+                      <div key={fila.id} style={{ padding: 9, borderRadius: 9, background: "#f6f8fc", fontSize: 13 }}>
+                        <strong>{CANALES.find(([id]) => id === fila.canal)?.[1] || fila.canal} · {fila.direccion === "ENTRANTE" ? "Recibido" : fila.direccion === "SALIENTE" ? "Enviado" : "Nota"}</strong>
+                        <div style={{ color: "#687386", margin: "3px 0" }}>{new Date(fila.ocurrio_at).toLocaleString("es-MX")} · {equipoCRM.find((persona) => persona.usuario_id === fila.registrado_por)?.nombre || "Equipo"}</div>
+                        <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{fila.mensaje}</div>
+                      </div>
+                    ))}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                      <label style={{ display: "grid", gap: 4, fontSize: 12, color: "#697386" }}>Canal
+                        <select value={borradoresInteraccion[item.id]?.canal || item.canal} onChange={(e) => setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], canal: e.target.value } }))} style={campo}>{CANALES.map(([id, etiqueta]) => <option key={id} value={id}>{etiqueta}</option>)}</select>
+                      </label>
+                      <label style={{ display: "grid", gap: 4, fontSize: 12, color: "#697386" }}>Tipo
+                        <select value={borradoresInteraccion[item.id]?.direccion || "ENTRANTE"} onChange={(e) => setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], direccion: e.target.value } }))} style={campo}><option value="ENTRANTE">Mensaje recibido</option><option value="SALIENTE">Mensaje enviado</option><option value="NOTA">Nota interna</option></select>
+                      </label>
+                    </div>
+                    <textarea rows={2} value={borradoresInteraccion[item.id]?.mensaje || ""} onChange={(e) => setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], mensaje: e.target.value } }))} style={{ ...campo, resize: "vertical" }} placeholder="Resumen o contenido del mensaje" />
+                    <button type="button" disabled={registrandoInteraccionId === item.id} onClick={() => guardarInteraccion(item)} style={{ border: 0, borderRadius: 9, padding: "10px 12px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{registrandoInteraccionId === item.id ? "Guardando…" : "Guardar conversación"}</button>
+                  </div>
+                </details>
               </article>
             );
           })}

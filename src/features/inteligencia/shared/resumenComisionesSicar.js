@@ -53,6 +53,7 @@ export function resumirComisionesSicar({
   desde,
   hasta,
   tasa = TASA_COMISION,
+  oportunidadesCRM = [],
 } = {}) {
   const registros = Array.isArray(filas) ? filas : [];
   const personal = Array.isArray(empleados) ? empleados : [];
@@ -65,6 +66,15 @@ export function resumirComisionesSicar({
     mapeo.set(clave, grupo);
   }
 
+  const foliosCRM = new Map();
+  for (const oportunidad of Array.isArray(oportunidadesCRM) ? oportunidadesCRM : []) {
+    const folio = texto(oportunidad?.folio_venta_sicar).toLocaleLowerCase("es-MX");
+    if (!folio || oportunidad?.etapa !== "GANADO" || !oportunidad?.empleado_id) continue;
+    const lista = foliosCRM.get(folio) || [];
+    lista.push(oportunidad);
+    foliosCRM.set(folio, lista);
+  }
+  const crmPorFolio = new Map([...foliosCRM].filter(([, oportunidades]) => oportunidades.length === 1).map(([folio, oportunidades]) => [folio, oportunidades[0]]));
   const ticketsUnicos = new Map();
   let filasSinIdentidad = 0;
   for (const fila of registros) {
@@ -74,8 +84,7 @@ export function resumirComisionesSicar({
       continue;
     }
     if (venta.fecha < desde || venta.fecha > hasta) continue;
-    const claveUsuario = normalizarUsuarioSicar(venta.usuario);
-    const llave = `${venta.fecha}|${claveUsuario}|${venta.folio.toLocaleLowerCase("es-MX")}`;
+    const llave = `${venta.fecha}|${venta.folio.toLocaleLowerCase("es-MX")}`;
     if (!ticketsUnicos.has(llave)) ticketsUnicos.set(llave, venta);
   }
 
@@ -84,19 +93,24 @@ export function resumirComisionesSicar({
   let ventasPeriodo = 0;
   for (const venta of ticketsUnicos.values()) {
     ventasPeriodo += venta.venta;
+    const crm = crmPorFolio.get(venta.folio.toLocaleLowerCase("es-MX"));
     const coincidencias = mapeo.get(normalizarUsuarioSicar(venta.usuario)) || [];
-    if (coincidencias.length === 1) {
-      const empleado = coincidencias[0];
+    const empleadoCRM = crm ? personal.find((persona) => persona.id === crm.empleado_id) : null;
+    const empleadoAsignado = empleadoCRM || (coincidencias.length === 1 ? coincidencias[0] : null);
+    if (empleadoAsignado) {
+      const empleado = empleadoAsignado;
       const actual = acumulado.get(empleado.id) || {
         empleadoId: empleado.id,
         empleado: empleado.nombre,
         usuarioSicar: venta.usuario,
         tickets: 0,
+        ticketsCRM: 0,
         ventas: 0,
         tasa,
         comision: 0,
       };
       actual.tickets += 1;
+      if (empleadoCRM) actual.ticketsCRM += 1;
       actual.ventas += venta.venta;
       actual.comision = Math.round(actual.ventas * tasa * 100) / 100;
       acumulado.set(empleado.id, actual);

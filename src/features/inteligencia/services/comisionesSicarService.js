@@ -1,5 +1,14 @@
 import { supabase } from "../../../supabase";
 
+export async function listarOportunidadesGanadasComision(branchId) {
+  if (!branchId) return [];
+  const { data, error } = await supabase.from("crm_oportunidades")
+    .select("id, branch_id, folio_venta_sicar, empleado_id, etapa")
+    .eq("branch_id", branchId).eq("etapa", "GANADO").not("folio_venta_sicar", "is", null);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
 export async function listarImportacionesUtilidadVentas(branchId) {
   if (!branchId) return [];
   const { data, error } = await supabase

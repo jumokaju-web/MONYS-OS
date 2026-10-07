@@ -4,6 +4,7 @@ import {
   leerDetalleImportacionVentas,
   listarEmpleadosComision,
   listarImportacionesUtilidadVentas,
+  listarOportunidadesGanadasComision,
 } from "../../services/comisionesSicarService";
 import { normalizarUsuarioSicar, resumirComisionesSicar } from "../../shared/resumenComisionesSicar";
 
@@ -47,6 +48,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
   const [importacionId, setImportacionId] = useState("");
   const [detalle, setDetalle] = useState([]);
   const [personal, setPersonal] = useState([]);
+  const [oportunidadesCRM, setOportunidadesCRM] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [guardandoUsuario, setGuardandoUsuario] = useState("");
@@ -58,14 +60,16 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     if (!branchId) {
       setImportaciones([]);
       setPersonal([]);
+      setOportunidadesCRM([]);
       setCargando(false);
       return;
     }
     setCargando(true);
     setError("");
-    const [cargas, equipo] = await Promise.allSettled([
+    const [cargas, equipo, crm] = await Promise.allSettled([
       listarImportacionesUtilidadVentas(branchId),
       listarEmpleadosComision(branchId),
+      listarOportunidadesGanadasComision(branchId),
     ]);
     if (cargas.status === "fulfilled") {
       const lista = cargas.value;
@@ -80,6 +84,11 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     } else {
       setPersonal([]);
       setError((anterior) => [anterior, "No se pudo cargar el mapeo de SICAR. Aplica la migración del campo usuario_sicar."].filter(Boolean).join(" "));
+    }
+    if (crm.status === "fulfilled") setOportunidadesCRM(crm.value);
+    else {
+      setOportunidadesCRM([]);
+      setError((anterior) => [anterior, "No se pudo cruzar el CRM con folios SICAR."].filter(Boolean).join(" "));
     }
     setCargando(false);
   }
@@ -113,8 +122,8 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
   }, [importacionId]);
 
   const resumen = useMemo(
-    () => resumirComisionesSicar({ filas: detalle, empleados: personal, desde, hasta }),
-    [detalle, personal, desde, hasta],
+    () => resumirComisionesSicar({ filas: detalle, empleados: personal, desde, hasta, oportunidadesCRM }),
+    [detalle, personal, desde, hasta, oportunidadesCRM],
   );
 
   const usuariosSicar = useMemo(() => {
@@ -161,7 +170,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
         <div>
           <p style={{ margin: "0 0 6px", color: "#227a48", fontWeight: 800, letterSpacing: ".08em" }}>MONYS OS · RH + FINANZAS</p>
           <h3 style={{ margin: 0, fontSize: 23 }}>💵 Comisión semanal SICAR</h3>
-          <p style={{ margin: "8px 0 0", color: "#586174", maxWidth: 700 }}>Cruza cada usuario/vendedor de SICAR con una empleada y calcula el 1% de sus ventas con folio. Es una estimación para revisión; no registra pagos ni modifica nómina.</p>
+          <p style={{ margin: "8px 0 0", color: "#586174", maxWidth: 700 }}>Cruza tickets SICAR con sus responsables: si el folio está vinculado a una venta ganada del CRM, la comisión se atribuye a la empleada que atendió a la clienta. Es una estimación para revisión; no registra pagos ni modifica nómina.</p>
         </div>
         <div style={{ padding: "9px 13px", borderRadius: 999, background: "#e9f8ef", color: "#226b3d", fontWeight: 800 }}>Tasa configurada: 1%</div>
       </div>
@@ -201,10 +210,10 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
           {resumen.filasSinIdentidad > 0 && <p style={{ color: "#916218", fontSize: 13 }}>{resumen.filasSinIdentidad} filas se omitieron porque les falta fecha, folio, usuario o venta válida.</p>}
           <div style={{ marginTop: 14, overflowX: "auto" }}>
             <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse", background: "#fff", borderRadius: 12 }}>
-              <thead><tr>{["Empleada", "Tickets", "Venta base", "1% estimado"].map((label) => <th key={label} style={{ textAlign: "left", padding: 11, borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
+              <thead><tr>{["Empleada", "Tickets", "Tickets CRM", "Venta base", "1% estimado"].map((label) => <th key={label} style={{ textAlign: "left", padding: 11, borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
               <tbody>
-                {resumen.comisiones.map((fila) => <tr key={fila.empleadoId}><td style={{ padding: 11, borderBottom: "1px solid #eef0f4", fontWeight: 700 }}>{fila.empleado}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4" }}>{fila.tickets}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4" }}>{moneda(fila.ventas)}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4", color: "#237847", fontWeight: 800 }}>{moneda(fila.comision)}</td></tr>)}
-                {!resumen.comisiones.length && <tr><td colSpan={4} style={{ padding: 15, color: "#697386", textAlign: "center" }}>Aún no hay ventas asignadas a empleadas para este rango.</td></tr>}
+                {resumen.comisiones.map((fila) => <tr key={fila.empleadoId}><td style={{ padding: 11, borderBottom: "1px solid #eef0f4", fontWeight: 700 }}>{fila.empleado}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4" }}>{fila.tickets}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4" }}>{fila.ticketsCRM || 0}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4" }}>{moneda(fila.ventas)}</td><td style={{ padding: 11, borderBottom: "1px solid #eef0f4", color: "#237847", fontWeight: 800 }}>{moneda(fila.comision)}</td></tr>)}
+                {!resumen.comisiones.length && <tr><td colSpan={5} style={{ padding: 15, color: "#697386", textAlign: "center" }}>Aún no hay ventas asignadas a empleadas para este rango.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -230,7 +239,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
 
           {resumen.sinAsignar.length > 0 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "#fff8e9", border: "1px solid #ead39c" }}>
             <strong style={{ color: "#805700" }}>Ventas pendientes de asignación</strong>
-            {resumen.sinAsignar.map((fila) => <div key={normalizarUsuarioSicar(fila.usuarioSicar)} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: "1px solid #efdfba" }}><span>{fila.usuarioSicar} · {fila.motivo === "ASIGNACION_AMBIGUA" ? "asignación duplicada" : "sin asignar"} · {fila.tickets} tickets</span><strong>{moneda(fila.ventas)}</strong></div>)}
+            {resumen.sinAsignar.map((fila) => <div key={normalizarUsuarioSicar(fila.usuarioSicar)} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: "1px solid #efdfba" }}><span>{fila.usuarioSicar} · {fila.motivo === "ASIGNACION_AMBIGUA" ? "asignación SICAR duplicada" : "sin asignar"} · {fila.tickets} tickets</span><strong>{moneda(fila.ventas)}</strong></div>)}
           </div>}
         </>
       )}
