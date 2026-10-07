@@ -165,6 +165,8 @@ const {
   vencimientos30Dias,
   vencimientos60Dias,
   vencimientos90Dias,
+  saldoVencido: saldoProveedoresVencidos,
+  cantidadVencidos: proveedoresVencidos,
   saldoSinFecha: saldoProveedoresSinFecha,
   cantidadSinFecha: proveedoresSinFecha,
 } = resumenVencimientos;
@@ -863,6 +865,12 @@ recomendacion =
   );
 }
 
+  if (saldoProveedoresVencidos > 0) {
+    alertasFinancieras.push(
+      `${formatoDinero(saldoProveedoresVencidos)} con ${proveedoresVencidos} proveedor(es) ya tiene vencimiento anterior a hoy según SICAR; confirma el saldo y acuerda el pago.`
+    );
+  }
+
   if (saldoProveedoresSinFecha > 0) {
     alertasFinancieras.push(
       `${formatoDinero(
@@ -887,6 +895,9 @@ recomendacion =
 if (dineroDisponible < 0) {
   decisionPrioritaria =
     "Prioridad máxima: recuperar liquidez y revisar salidas antes de autorizar nuevas compras.";
+} else if (saldoProveedoresVencidos > 0) {
+  decisionPrioritaria =
+    `Confirmar y calendarizar ${formatoDinero(saldoProveedoresVencidos)} con vencimiento anterior a hoy antes de comprometer efectivo.`;
 } else if (
   vencimientos30Dias > 0
 ) {
@@ -952,6 +963,17 @@ if (dineroDisponible < 0) {
           dineroDisponible
         )}. Revisa cobros pendientes y detén salidas no indispensables.`,
       impacto: "ALTO",
+    });
+  }
+
+  if (saldoProveedoresVencidos > 0) {
+    agregarAccion({
+      prioridad: "ALTA",
+      titulo: "Revisar saldos de proveedores vencidos",
+      descripcion:
+        `${formatoDinero(saldoProveedoresVencidos)} con ${proveedoresVencidos} proveedor(es) ya venció según las fechas exactas de SICAR. Confirma que el saldo siga pendiente y acuerda una fecha de pago antes de asumir nuevos compromisos.`,
+      impacto: "ALTO",
+      responsable: "Administración",
     });
   }
 
@@ -1115,6 +1137,8 @@ ventasSobrePuntoEquilibrio,
     reservaRecomendada,
     capacidadCompra,
 
+    saldoProveedoresVencidos,
+    proveedoresVencidos,
     vencimientos7Dias,
     vencimientos15Dias,
     vencimientos30Dias,
