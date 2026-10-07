@@ -446,7 +446,7 @@ if (
           vistaPrevia,
           resultadoMotor: resultadoIA,
           error:
-            `El reporte "${tipoReporte}" tiene encabezados, pero no produjo filas de datos válidas. Revisa que la exportación de SICAR incluya los registros del periodo y no solo el título o los totales.",
+            `El reporte "${tipoReporte}" tiene encabezados, pero no produjo filas de datos válidas. Revisa que la exportación de SICAR incluya los registros del periodo y no solo el título o los totales.` ,
         });
 
         return;
