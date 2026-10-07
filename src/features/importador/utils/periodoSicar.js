@@ -20,6 +20,11 @@ export function normalizarFechaSicar(valor) {
   }
 
   const texto = String(valor ?? "").trim();
+  if (/^\d+(\.\d+)?$/.test(texto) && Number(texto) > 10000) {
+    const milisegundos = Math.round((Number(texto) - 25569) * 86400 * 1000);
+    const fecha = new Date(milisegundos);
+    return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString().slice(0, 10);
+  }
   if (!texto) return null;
 
   const iso = texto.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
