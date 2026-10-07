@@ -30,7 +30,7 @@ test("normaliza el reporte SICAR de utilidad de ventas para el cálculo de comis
   ]);
 });
 
-test("descarta filas sin fecha o folio y conserva los ajustes negativos verificables", () => {
+test("descarta filas sin folio y conserva filas sin fecha para revisión posterior", () => {
   const filas = [
     ["Documento", "Fecha", "Folio", "Cliente", "Caja", "Usuario", "Total Ven.", "Total Com.", "Utilidad"],
     ["Venta", "2026-10-05", "", "Cliente", "Caja 1", "Karla", 500, 300, 200],
@@ -39,7 +39,9 @@ test("descarta filas sin fecha o folio y conserva los ajustes negativos verifica
   ];
 
   const resultado = normalizarUtilidadVentas(filas);
-  assert.equal(resultado.length, 1);
-  assert.equal(resultado[0].folio, "F-003");
-  assert.equal(resultado[0].ventaTotal, -250);
+  assert.equal(resultado.length, 2);
+  assert.equal(resultado[0].folio, "F-002");
+  assert.equal(resultado[0].fecha, "");
+  assert.equal(resultado[1].folio, "F-003");
+  assert.equal(resultado[1].ventaTotal, -250);
 });
