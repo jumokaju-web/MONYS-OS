@@ -4,7 +4,7 @@ export function calcularMensualidadesConFecha(deudas = []) {
     const pago = Number(deuda?.pago_mensual);
 
     return (
-      estado !== "CERRADA" &&
+      ["ACTIVA", "REESTRUCTURADA"].includes(estado) &&
       Boolean(deuda?.fecha_proximo_pago) &&
       Number.isFinite(pago) &&
       pago > 0
