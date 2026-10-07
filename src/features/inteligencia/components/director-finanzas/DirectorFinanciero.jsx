@@ -1214,7 +1214,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>Hasta 7 días · reportado</strong>
+    <strong>Vencidos + 7 días</strong>
 
     <div
       style={{
@@ -1236,7 +1236,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>Hasta 15 días · reportado</strong>
+    <strong>Vencidos + 15 días</strong>
 
     <div
       style={{
@@ -1258,7 +1258,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>Hasta 30 días · reportado</strong>
+    <strong>Vencidos + 30 días</strong>
 
     <div
       style={{
@@ -1280,7 +1280,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>Hasta 60 días · reportado</strong>
+    <strong>Vencidos + 60 días</strong>
 
     <div
       style={{
@@ -1302,7 +1302,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>Hasta 90 días · reportado</strong>
+    <strong>Vencidos + 90 días</strong>
 
     <div
       style={{
