@@ -26,6 +26,7 @@ import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
+import { extraerPeriodoSicar } from "../utils/periodoSicar";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
@@ -339,63 +340,8 @@ useEffect(() => {
     const filasAntesEncabezados =
   filas.slice(0, indiceEncabezados);
 
-let periodoInicio = null;
-let periodoFin = null;
-
-for (const filaCabecera of filasAntesEncabezados) {
-  const indicePeriodo =
-    filaCabecera.findIndex(
-      (valor) =>
-        String(valor ?? "")
-          .trim()
-          .toLowerCase()
-          .replace(":", "") ===
-        "periodo"
-    );
-
-  if (indicePeriodo === -1) {
-    continue;
-  }
-
-  const fechasNumericas =
-    filaCabecera
-      .slice(indicePeriodo + 1)
-      .map((valor) => Number(valor))
-      .filter(
-        (valor) =>
-          Number.isFinite(valor) &&
-          valor > 10000
-      );
-
-  if (fechasNumericas.length >= 2) {
-    const convertirFechaExcel = (
-      numeroExcel
-    ) => {
-      const milisegundos =
-        Math.round(
-          (numeroExcel - 25569) *
-            86400 *
-            1000
-        );
-
-      return new Date(milisegundos)
-        .toISOString()
-        .slice(0, 10);
-    };
-
-    periodoInicio =
-      convertirFechaExcel(
-        fechasNumericas[0]
-      );
-
-    periodoFin =
-      convertirFechaExcel(
-        fechasNumericas[1]
-      );
-
-    break;
-  }
-}
+const { periodoInicio, periodoFin } =
+  extraerPeriodoSicar(filasAntesEncabezados);
 
 const filasDelReporte =
   filas.slice(indiceEncabezados);
