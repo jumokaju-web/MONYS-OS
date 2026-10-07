@@ -15,7 +15,8 @@ const CANALES = [
   ["WHATSAPP", "WhatsApp"],
   ["FACEBOOK", "Facebook"],
   ["INSTAGRAM", "Instagram"],
-  ["TIKTOK", "TikTok"],
+  ["TIKTOK", "TikTok orgánico"],
+  ["TIKTOK_SHOP", "TikTok Shop"],
   ["MERCADO_LIBRE", "Mercado Libre"],
   ["OTRO", "Otro"],
 ];

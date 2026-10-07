@@ -2,7 +2,7 @@ import { supabase } from "../../../supabase";
 import { crearTareaOperativa } from "./tareasOperativasService";
 
 const ETAPAS_CRM = new Set(["NUEVO", "CONTACTADO", "COTIZANDO", "GANADO", "PERDIDO"]);
-const CANALES_CRM = new Set(["MOSTRADOR", "WHATSAPP", "FACEBOOK", "INSTAGRAM", "TIKTOK", "MERCADO_LIBRE", "OTRO"]);
+const CANALES_CRM = new Set(["MOSTRADOR", "WHATSAPP", "FACEBOOK", "INSTAGRAM", "TIKTOK", "TIKTOK_SHOP", "MERCADO_LIBRE", "OTRO"]);
 
 export async function listarOportunidadesCRM({ businessId } = {}) {
   if (!businessId) return [];
