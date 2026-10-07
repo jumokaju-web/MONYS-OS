@@ -829,6 +829,10 @@ const analisisRH =
           errorSucursales={
             errorSucursales
           }
+          organizationId={organizationId}
+          businessId={businessId}
+          branchId={branchId}
+          empleados={usuariosRH}
         />
       )}
 

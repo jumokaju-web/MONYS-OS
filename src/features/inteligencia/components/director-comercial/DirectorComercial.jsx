@@ -5,12 +5,17 @@
 
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import { directorComercialIA } from "../../directores/directorComercialIA";
+import CentroCRMComercial from "./CentroCRMComercial";
 
 function DirectorComercial({
   datosDashboard,
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
+  organizationId = null,
+  businessId = null,
+  branchId = null,
+  empleados = [],
 }) {
   const analisis = directorComercialIA(
     datosDashboard
@@ -816,6 +821,13 @@ function DirectorComercial({
           )
         )}
       </div>
+
+      <CentroCRMComercial
+        organizationId={organizationId || datosDashboard?.organization_id}
+        businessId={businessId || datosDashboard?.business_id}
+        branchId={branchId || datosDashboard?.branch_id}
+        empleados={empleados}
+      />
 
       {planAccion.length > 0 && (
         <div
