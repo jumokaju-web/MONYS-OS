@@ -230,7 +230,17 @@ const DashboardPage = () => {
   const productoMasVendido =
     metricas.productoMasVendido;
 
+  const importacionFinanciera =
+    datosDashboard.utilidadVentas?.importacion ||
+    datosDashboard.importacion ||
+    {};
+
+  const importacionProductos =
+    datosDashboard.ventasOriginales?.importacion ||
+    {};
+
   const periodoFinanciero =
+    datosDashboard.utilidadVentas?.periodo ||
     datosDashboard.ventasOriginales?.periodo;
 
   const inicioCorte = formatoFechaCorte(
@@ -388,58 +398,58 @@ const DashboardPage = () => {
 
       <section style={estilos.seccion}>
         <h2 style={estilos.tituloSeccion}>
-          Información de la importación
+          Fuentes de este tablero
         </h2>
 
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Reporte
-          </span>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: "16px",
+        }}>
+          <article style={estilos.productoDestacado}>
+            <h3 style={estilos.nombreProducto}>
+              Finanzas · {importacionFinanciera.tipo_reporte || "Reporte financiero"}
+            </h3>
+            <p style={estilos.detalleProducto}>
+              Archivo: {importacionFinanciera.archivo_original || "Sin información"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Periodo: {periodoFinanciero
+                ? `${formatoFechaCorte(periodoFinanciero.fechaInicial)} – ${formatoFechaCorte(periodoFinanciero.fechaFinal)}`
+                : "Sin periodo registrado"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Filas: {formatoNumero.format(Number(importacionFinanciera.total_filas) || 0)}
+              {" · "}Importado: {importacionFinanciera.created_at
+                ? new Date(importacionFinanciera.created_at).toLocaleString("es-MX")
+                : "Sin fecha"}
+            </p>
+          </article>
 
-          <span style={estilos.valorDato}>
-            {importacion.tipo_reporte ||
-              "Sin información"}
-          </span>
+          <article style={estilos.productoDestacado}>
+            <h3 style={estilos.nombreProducto}>
+              Productos · {importacionProductos.tipo_reporte || "Ventas por artículo"}
+            </h3>
+            <p style={estilos.detalleProducto}>
+              Archivo: {importacionProductos.archivo_original || "Sin información"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Periodo: {datosDashboard.ventasOriginales?.periodo
+                ? `${formatoFechaCorte(datosDashboard.ventasOriginales.periodo.fechaInicial)} – ${formatoFechaCorte(datosDashboard.ventasOriginales.periodo.fechaFinal)}`
+                : "Sin periodo registrado"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Filas: {formatoNumero.format(Number(importacionProductos.total_filas) || 0)}
+              {" · "}Importado: {importacionProductos.created_at
+                ? new Date(importacionProductos.created_at).toLocaleString("es-MX")
+                : "Sin fecha"}
+            </p>
+          </article>
         </div>
 
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Archivo
-          </span>
-
-          <span style={estilos.valorDato}>
-            {importacion.archivo_original ||
-              "Sin información"}
-          </span>
-        </div>
-
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Filas importadas
-          </span>
-
-          <span style={estilos.valorDato}>
-            {formatoNumero.format(
-              Number(
-                importacion.total_filas
-              ) || 0
-            )}
-          </span>
-        </div>
-
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Fecha de importación
-          </span>
-
-          <span style={estilos.valorDato}>
-            {importacion.created_at
-              ? new Date(
-                  importacion.created_at
-                ).toLocaleString("es-MX")
-              : "Sin información"}
-          </span>
-        </div>
+        <p style={estilos.detalleProducto}>
+          Cada cifra conserva el corte de su propio reporte SICAR; los reportes de finanzas y productos no se suman entre sí.
+        </p>
       </section>
     </main>
   );
