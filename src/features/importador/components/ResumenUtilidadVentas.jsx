@@ -28,7 +28,7 @@ export default function ResumenUtilidadVentas({ resumen }) {
           <p style={{ margin: "7px 0 0", color: "#756a70" }}>{fecha(resumen.fechaInicio)} – {fecha(resumen.fechaFin)}</p>
         </div>
         <span style={{ padding: "9px 13px", borderRadius: "999px", background: resumen.foliosDuplicados ? "#fff4d8" : "#eaf8f0", color: resumen.foliosDuplicados ? "#8a6800" : "#207a4a", fontWeight: 800 }}>
-          {resumen.foliosDuplicados ? `Revisar ${numero(resumen.foliosDuplicados)} folios repetidos` : "Sin folios repetidos"}
+          {resumen.foliosDuplicados ? `Revisar ${numero(resumen.foliosDuplicados)} tickets repetidos` : "Sin tickets repetidos en el archivo"}
         </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
