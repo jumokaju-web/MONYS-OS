@@ -45,3 +45,16 @@ test("descarta filas sin folio y conserva filas sin fecha para revisión posteri
   assert.equal(resultado[1].folio, "F-003");
   assert.equal(resultado[1].ventaTotal, -250);
 });
+
+
+test("rechaza el reporte si faltan columnas financieras obligatorias", () => {
+  const filas = [
+    ["Documento", "Fecha", "Folio", "Cliente", "Caja", "Usuario", "Total Ven.", "Total Com."],
+    ["Venta", "2026-10-05", "F-001", "Cliente", "Caja 1", "Karla", 1250, 760],
+  ];
+
+  assert.throws(
+    () => normalizarUtilidadVentas(filas),
+    /faltan columnas financieras obligatorias: Utilidad/
+  );
+});
