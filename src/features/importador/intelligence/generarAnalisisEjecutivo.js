@@ -189,6 +189,20 @@ function generarAnalisisVentas(resumen) {
   };
 }
 
+function generarAnalisisUtilidadVentas(resumen) {
+  const ventaTotal = Number(resumen.ventaTotal || 0);
+  const utilidadTotal = Number(resumen.utilidadTotal || 0);
+  const margen = Number(resumen.margenUtilidad || 0);
+
+  return {
+    titulo: "Corte financiero de SICAR listo para revisar",
+    mensaje:
+      `El reporte contiene ${formatoNumero(resumen.totalRegistros)} tickets. Las ventas suman ${formatoDinero(ventaTotal)}, el costo de venta ${formatoDinero(resumen.costoTotal)} y la utilidad bruta ${formatoDinero(utilidadTotal)} (${margen.toFixed(1)}% de margen). ` +
+      `${resumen.foliosDuplicados ? `Hay ${formatoNumero(resumen.foliosDuplicados)} folios repetidos para revisar antes de importar.` : "No se detectaron folios repetidos dentro del archivo."} La utilidad es antes de gastos operativos.`,
+    nivel: resumen.foliosDuplicados ? "advertencia" : "neutral",
+  };
+}
+
 export function generarAnalisisEjecutivo(resumen) {
   if (!resumen) {
     return {
@@ -197,6 +211,10 @@ export function generarAnalisisEjecutivo(resumen) {
         "Todavía no hay datos suficientes para generar un análisis ejecutivo.",
       nivel: "neutral",
     };
+  }
+
+  if (resumen.tipoResumen === "utilidad_ventas") {
+    return generarAnalisisUtilidadVentas(resumen);
   }
 
   const esInventario =
