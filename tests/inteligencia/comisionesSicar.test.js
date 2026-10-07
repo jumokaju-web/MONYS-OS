@@ -104,6 +104,7 @@ test("lista folios CRM sin ticket en la importación seleccionada", () => {
   assert.equal(resumen.conciliacion.length, 1);
   assert.equal(resumen.conciliacion[0].estado, "CRM_SIN_TICKET_EN_REPORTE");
   assert.equal(resumen.conciliacion[0].importe, null);
+  assert.equal(resumen.ticketsPorRevisar, 0);
 });
 test("permite atribuir por CRM un folio real sin usuario SICAR y lo deja rastreable", () => {
   const resumen = resumirComisionesSicar({
@@ -131,6 +132,7 @@ test("deja en revisión los folios atendidos por varias empleadas y muestra sus 
   });
   assert.equal(resumen.comisionTotal, 0);
   assert.equal(resumen.ventasSinAsignar, 5000);
+  assert.equal(resumen.ticketsPorRevisar, 1);
   assert.equal(resumen.conciliacion[0].estado, "CRM_MULTIPLES_EMPLEADAS");
   assert.deepEqual(resumen.conciliacion[0].participantes, ["Karla", "Kary"]);
 });

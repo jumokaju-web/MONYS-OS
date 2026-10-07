@@ -232,6 +232,9 @@ export function resumirComisionesSicar({
   const comisionTotal = Math.round(comisiones.reduce((suma, fila) => suma + fila.comision, 0) * 100) / 100;
   const ventasAsignadas = comisiones.reduce((suma, fila) => suma + fila.ventas, 0);
   const ventasSinAsignar = [...sinAsignar.values()].reduce((suma, fila) => suma + fila.ventas, 0);
+  const ticketsPorRevisar = conciliacion.filter((fila) =>
+    fila.importe != null && !["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado)
+  ).length;
   return {
     tasa,
     tickets: ticketsUnicos.size,
@@ -243,6 +246,7 @@ export function resumirComisionesSicar({
     ventasPeriodo: Math.round(ventasPeriodo * 100) / 100,
     ventasAsignadas: Math.round(ventasAsignadas * 100) / 100,
     ventasSinAsignar: Math.round(ventasSinAsignar * 100) / 100,
+    ticketsPorRevisar,
     comisionTotal,
     comisiones,
     sinAsignar: [...sinAsignar.values()].sort((a, b) => b.ventas - a.ventas),

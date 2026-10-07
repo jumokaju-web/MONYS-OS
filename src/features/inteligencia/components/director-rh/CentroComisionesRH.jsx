@@ -212,7 +212,8 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
           ["Ventas asignadas", moneda(resumen.ventasAsignadas)],
           ["Comisión estimada", moneda(resumen.comisionTotal)],
           ["Tickets identificados", resumen.tickets],
-          ["Venta por mapear", moneda(resumen.ventasSinAsignar)],
+          ["Venta pendiente de resolver", moneda(resumen.ventasSinAsignar)],
+          ["Folios por revisar", resumen.ticketsPorRevisar],
         ].map(([titulo, valor]) => <div key={titulo} style={{ background: "#fff", border: "1px solid #dcece2", borderRadius: 12, padding: 12 }}><div style={{ color: "#697386", fontSize: 12 }}>{titulo}</div><strong style={{ display: "block", marginTop: 5, color: "#245d3b", fontSize: 18 }}>{valor}</strong></div>)}
       </div>
 
