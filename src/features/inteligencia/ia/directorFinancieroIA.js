@@ -643,9 +643,13 @@ recomendacion =
       ? `La operación genera utilidad, pero existen ${formatoDinero(
           vencimientos30Dias
         )} en compromisos con proveedores dentro de los próximos 30 días. Conviene proteger liquidez y evitar nuevas compras que comprometan ese pago.`
-      : `La operación genera utilidad y existen ${formatoDinero(
-          saldoProveedores
-        )} pendientes con proveedores, pero no vencen dentro de los próximos 30 días. Mantén vigilancia sobre los próximos vencimientos.`
+      : saldoProveedoresSinFecha > 0
+        ? `La operación genera utilidad, pero ${formatoDinero(
+            saldoProveedoresSinFecha
+          )} con proveedores no tiene vencimiento exacto reportado. Confirma las fechas antes de comprometer más efectivo.`
+        : `La operación genera utilidad y existen ${formatoDinero(
+            saldoProveedores
+          )} pendientes con proveedores; con las fechas reportadas, ninguno vence dentro de los próximos 30 días. Mantén vigilancia.`
     : "La operación genera utilidad, pero conviene cuidar el efectivo y revisar pagos próximos antes de comprometer más dinero.";
 
     } else if (
@@ -890,6 +894,11 @@ if (dineroDisponible < 0) {
     `Proteger liquidez para cubrir ${formatoDinero(
       vencimientos30Dias
     )} en compromisos con proveedores dentro de los próximos 30 días antes de autorizar nuevas compras.`;
+} else if (saldoProveedoresSinFecha > 0) {
+  decisionPrioritaria =
+    `Confirmar el vencimiento de ${formatoDinero(
+      saldoProveedoresSinFecha
+    )} en saldos de proveedores sin fecha exacta antes de comprometer efectivo.`;
 } else if (
   porcentajeGastos >= 90
 ) {
@@ -943,6 +952,19 @@ if (dineroDisponible < 0) {
           dineroDisponible
         )}. Revisa cobros pendientes y detén salidas no indispensables.`,
       impacto: "ALTO",
+    });
+  }
+
+  if (saldoProveedoresSinFecha > 0) {
+    agregarAccion({
+      prioridad: "ALTA",
+      titulo: "Confirmar vencimientos de proveedores",
+      descripcion:
+        `${formatoDinero(
+          saldoProveedoresSinFecha
+        )} en saldos de proveedores no tiene fecha exacta en el reporte. Solicita las fechas de factura y pago antes de autorizar nuevas salidas.`,
+      impacto: "ALTO",
+      responsable: "Administración",
     });
   }
 
