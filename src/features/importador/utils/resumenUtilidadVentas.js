@@ -7,7 +7,9 @@ export function generarResumenUtilidadVentas(datos = []) {
   for (const fila of filas) {
     const folio = String(fila?.folio ?? "").trim().toLocaleUpperCase("es-MX");
     if (!folio) continue;
-    folios.set(folio, (folios.get(folio) || 0) + 1);
+    const fecha = String(fila?.fecha ?? "").trim().slice(0, 10);
+    const claveTicket = `${fecha}|${folio}`;
+    folios.set(claveTicket, (folios.get(claveTicket) || 0) + 1);
   }
 
   const fechasInicio = filas.map((fila) => fila?.periodoInicio).filter(Boolean);
