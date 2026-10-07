@@ -12,6 +12,10 @@ test("el resumen separa oportunidades abiertas, seguimientos vencidos y monto es
   assert.deepEqual(resumen, {
     total: 4,
     abiertas: 2,
+    porEtapa: { NUEVO: 1, CONTACTADO: 0, COTIZANDO: 1, GANADO: 1, PERDIDO: 1 },
+    ganadas: 1,
+    perdidas: 1,
+    tasaCierre: 50,
     seguimientosPendientes: 2,
     pipelineEstimado: 1200,
     montoConocido: 1,
@@ -24,4 +28,10 @@ test("el cero es un monto capturado y nunca contamina el embudo", () => {
   ], "2026-10-07");
   assert.equal(resumen.pipelineEstimado, 0);
   assert.equal(resumen.montoConocido, 1);
+});
+
+test("sin oportunidades cerradas la tasa de cierre queda como dato pendiente", () => {
+  const resumen = resumirCRM([{ etapa: "NUEVO", monto_estimado: null }], "2026-10-07");
+  assert.equal(resumen.tasaCierre, null);
+  assert.equal(resumen.porEtapa.NUEVO, 1);
 });

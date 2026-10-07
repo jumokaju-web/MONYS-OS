@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   actualizarEtapaCRM,
   crearOportunidadCRM,
+  listarEmpleadosAsignablesCRM,
   listarOportunidadesCRM,
+  programarSeguimientoCRM,
 } from "../../services/crmService";
 import { ETAPAS_CRM, resumirCRM } from "../../shared/resumenCRM";
 
@@ -76,6 +78,9 @@ export default function CentroCRMComercial({
   empleados = [],
 }) {
   const [oportunidades, setOportunidades] = useState([]);
+  const [equipoCRM, setEquipoCRM] = useState(empleados);
+  const [edicionesSeguimiento, setEdicionesSeguimiento] = useState({});
+  const [programandoId, setProgramandoId] = useState("");
   const [formulario, setFormulario] = useState(inicial);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [filtro, setFiltro] = useState("ABIERTAS");
@@ -85,21 +90,29 @@ export default function CentroCRMComercial({
   const [aviso, setAviso] = useState("");
 
   const empleadosAsignables = useMemo(
-    () => (Array.isArray(empleados) ? empleados : [])
-      .filter((persona) => persona.active && persona.usuario_id),
-    [empleados],
+    () => {
+      const lista = equipoCRM.length ? equipoCRM : (Array.isArray(empleados) ? empleados : []);
+      return lista.filter((persona) => persona.active && persona.usuario_id);
+    },
+    [equipoCRM, empleados],
   );
 
   async function cargar() {
     if (!businessId) {
       setOportunidades([]);
+      setEquipoCRM([]);
       setCargando(false);
       return;
     }
     setCargando(true);
     setError("");
     try {
-      setOportunidades(await listarOportunidadesCRM({ businessId }));
+      const [oportunidadesCargadas, equipoCargado] = await Promise.all([
+        listarOportunidadesCRM({ businessId }),
+        listarEmpleadosAsignablesCRM({ businessId }),
+      ]);
+      setOportunidades(oportunidadesCargadas);
+      setEquipoCRM(equipoCargado);
     } catch (err) {
       setError(err?.message || "No se pudo cargar el CRM.");
     } finally {
@@ -165,6 +178,31 @@ export default function CentroCRMComercial({
     }
   }
 
+  async function programarSiguiente(item) {
+    const edicion = edicionesSeguimiento[item.id] || {};
+    const fecha = edicion.fecha || "";
+    const empleadoId = edicion.empleadoId || item.empleado_id || "";
+    const persona = empleadosAsignables.find((fila) => fila.id === empleadoId);
+    if (!fecha || !persona) {
+      setError("Selecciona una fecha y una empleada con cuenta activa.");
+      return;
+    }
+    setError("");
+    setAviso("");
+    setProgramandoId(item.id);
+    try {
+      const resultado = await programarSeguimientoCRM({ id: item.id, fecha, empleado: persona });
+      setAviso(resultado.errorTarea
+        ? `Se guardó la fecha, pero falló la tarea del calendario: ${resultado.errorTarea}`
+        : `Siguiente contacto programado con ${persona.nombre} para el ${fechaLegible(fecha)}.`);
+      await cargar();
+    } catch (err) {
+      setError(err?.message || "No se pudo programar el seguimiento.");
+    } finally {
+      setProgramandoId("");
+    }
+  }
+
   async function cambiarEtapa(item, etapa) {
     setError("");
     setAviso("");
@@ -195,6 +233,7 @@ export default function CentroCRMComercial({
           ["Seguimientos vencidos / hoy", resumen.seguimientosPendientes],
           ["Monto estimado abierto", dinero(resumen.pipelineEstimado)],
           ["Oportunidades registradas", resumen.total],
+          ["Tasa de cierre", resumen.tasaCierre == null ? "Pendiente" : `${resumen.tasaCierre}%`],
         ].map(([titulo, valor]) => (
           <div key={titulo} style={{ ...caja, background: "#fff", padding: 13 }}>
             <div style={{ color: "#6b7280", fontSize: 13 }}>{titulo}</div>
@@ -202,7 +241,26 @@ export default function CentroCRMComercial({
           </div>
         ))}
       </div>
-      <p style={{ margin: "10px 0 0", color: "#6b7280", fontSize: 13 }}>El monto es una estimación capturada por el equipo; no se suma a ventas ni a utilidad SICAR.</p>
+      <p style={{ margin: "10px 0 0", color: "#6b7280", fontSize: 13 }}>El monto es una estimación capturada por el equipo; no se suma a ventas ni a utilidad SICAR. La tasa de cierre usa solo oportunidades marcadas como ganadas o perdidas.</p>
+
+      <div style={{ ...caja, marginTop: 14 }}>
+        <strong style={{ color: "#253d91" }}>Embudo por etapa</strong>
+        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+          {ETAPAS_CRM.map((etapa) => {
+            const cantidad = resumen.porEtapa[etapa] || 0;
+            const ancho = resumen.total ? Math.max((cantidad / resumen.total) * 100, cantidad ? 4 : 0) : 0;
+            return (
+              <div key={etapa} style={{ display: "grid", gridTemplateColumns: "92px 1fr 32px", alignItems: "center", gap: 10 }}>
+                <span style={{ color: "#586174", fontSize: 13 }}>{ETIQUETAS[etapa]}</span>
+                <div style={{ height: 10, borderRadius: 999, background: "#eef1f6", overflow: "hidden" }}>
+                  <div style={{ width: `${ancho}%`, height: "100%", borderRadius: 999, background: ["GANADO", "PERDIDO"].includes(etapa) ? "#8b6ab8" : "#4265d5" }} />
+                </div>
+                <strong style={{ textAlign: "right" }}>{cantidad}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {aviso && <p role="status" style={{ ...caja, marginTop: 14, borderColor: "#b9e5c9", color: "#226b3d", background: "#f1fff5" }}>{aviso}</p>}
       {error && <p role="alert" style={{ ...caja, marginTop: 14, borderColor: "#efb8b8", color: "#982d2d", background: "#fff4f4" }}>{error}</p>}
@@ -274,6 +332,20 @@ export default function CentroCRMComercial({
                   {item.notas && <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>{item.notas}</div>}
                   {item.ultimo_resultado && <div style={{ marginTop: 7, padding: 9, borderRadius: 9, background: "#f1fff5", color: "#276344", fontSize: 13 }}><strong>Último seguimiento:</strong> {item.ultimo_resultado}</div>}
                 </div>
+                {!["GANADO", "PERDIDO"].includes(item.etapa) && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 7, alignItems: "end", marginTop: 12 }}>
+                    <label style={{ display: "grid", gap: 5, color: "#697386", fontSize: 12 }}>Siguiente fecha
+                      <input type="date" value={edicionesSeguimiento[item.id]?.fecha ?? item.proximo_seguimiento ?? ""} onChange={(e) => setEdicionesSeguimiento((prev) => ({ ...prev, [item.id]: { ...prev[item.id], fecha: e.target.value } }))} style={campo} />
+                    </label>
+                    <label style={{ display: "grid", gap: 5, color: "#697386", fontSize: 12 }}>Responsable
+                      <select value={edicionesSeguimiento[item.id]?.empleadoId ?? item.empleado_id ?? ""} onChange={(e) => setEdicionesSeguimiento((prev) => ({ ...prev, [item.id]: { ...prev[item.id], empleadoId: e.target.value } }))} style={campo}>
+                        <option value="">Elegir empleada</option>
+                        {empleadosAsignables.map((persona) => <option key={persona.id} value={persona.id}>{persona.nombre}{persona.branch_id && persona.branch_id !== item.branch_id ? " · otra sucursal" : ""}</option>)}
+                      </select>
+                    </label>
+                    <button type="button" disabled={programandoId === item.id || !empleadosAsignables.length} onClick={() => programarSiguiente(item)} style={{ border: 0, borderRadius: 10, padding: "11px 12px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer", opacity: programandoId === item.id ? .65 : 1 }}>{programandoId === item.id ? "Programando…" : "Agendar"}</button>
+                  </div>
+                )}
                 <label style={{ display: "grid", gap: 6, marginTop: 12, color: "#556071", fontSize: 13 }}>Actualizar etapa
                   <select value={item.etapa} onChange={(e) => cambiarEtapa(item, e.target.value)} style={campo}>{ETAPAS_CRM.map((etapa) => <option key={etapa} value={etapa}>{ETIQUETAS[etapa]}</option>)}</select>
                 </label>

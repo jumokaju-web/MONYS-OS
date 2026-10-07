@@ -118,3 +118,87 @@ export async function actualizarEtapaCRM({ id, etapa } = {}) {
   if (error) throw error;
   return data;
 }
+
+export async function listarEmpleadosAsignablesCRM({ businessId } = {}) {
+  if (!businessId) return [];
+  const { data, error } = await supabase
+    .from("empleados")
+    .select("id, organization_id, business_id, branch_id, nombre, puesto, usuario_id, active")
+    .eq("business_id", businessId)
+    .eq("active", true)
+    .not("usuario_id", "is", null)
+    .order("nombre", { ascending: true });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function programarSeguimientoCRM({
+  id,
+  fecha,
+  empleado,
+} = {}) {
+  if (!id || !fecha || !empleado?.id || !empleado?.usuario_id) {
+    throw new Error("Elige una fecha y una empleada con cuenta activa para programar el seguimiento.");
+  }
+
+  const { data: actual, error: errorConsulta } = await supabase
+    .from("crm_oportunidades")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (errorConsulta) throw errorConsulta;
+
+  const ahora = new Date().toISOString();
+  const { data: oportunidad, error } = await supabase
+    .from("crm_oportunidades")
+    .update({
+      proximo_seguimiento: fecha,
+      empleado_id: empleado.id,
+      asignado_a: empleado.usuario_id,
+      branch_id: empleado.branch_id || actual.branch_id || null,
+      updated_at: ahora,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+
+  let errorTarea = null;
+  try {
+    const { error: errorCancelar } = await supabase
+      .from("tareas_operativas")
+      .update({
+        estado: "cancelada",
+        resultado: "Reprogramada desde el CRM de MONYS OS.",
+        updated_at: ahora,
+      })
+      .ilike("descripcion", `%Oportunidad CRM ${id}%`)
+      .in("estado", ["pendiente", "en_proceso", "analizando"]);
+    if (errorCancelar) throw errorCancelar;
+
+    await crearTareaOperativa({
+      organizationId: oportunidad.organization_id,
+      businessId: oportunidad.business_id,
+      branchId: oportunidad.branch_id,
+      titulo: `Seguimiento CRM: ${oportunidad.cliente}`,
+      descripcion: [
+        oportunidad.producto_interes ? `Interés: ${oportunidad.producto_interes}` : null,
+        oportunidad.telefono ? `Contacto: ${oportunidad.telefono}` : null,
+        `Oportunidad CRM ${oportunidad.id}`,
+      ].filter(Boolean).join(" · "),
+      area: "ventas",
+      responsable: empleado.nombre,
+      responsableUsuarioId: empleado.usuario_id,
+      prioridad: "alta",
+      fecha,
+      instrucciones: "Contactar al cliente por el canal acordado, actualizar la etapa y registrar el resultado en MONYS OS.",
+      creadaPor: "MONYS OS · CRM",
+      requiereEvidencia: false,
+      criterioExito: "Seguimiento realizado y resultado registrado en MONYS OS.",
+    });
+  } catch (err) {
+    errorTarea = err?.message || "No se pudo actualizar la tarea del calendario.";
+  }
+
+  return { oportunidad, errorTarea };
+}
