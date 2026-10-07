@@ -3,6 +3,7 @@ import {
 } from "react";
 
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import CentroComisionesRH from "./CentroComisionesRH";
 
 import {
   crearEmpleadoRH,
@@ -1994,6 +1995,11 @@ async function manejarEliminarEmpleado(
           </p>
         )}
       </div>
+      <CentroComisionesRH
+        branchId={branchId}
+        empleados={empleados}
+      />
+
     </section>
   );
 }
