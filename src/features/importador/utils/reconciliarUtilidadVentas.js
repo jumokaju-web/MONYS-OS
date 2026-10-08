@@ -41,15 +41,58 @@ export function reconciliarUtilidadVentas(filasReporte = [], datosNormalizados =
   const filaTotal = filasReporte.find((fila) =>
     Array.isArray(fila) && fila.some((valor) => limpiar(valor) === "total ventas")
   );
-  if (!filaTotal) {
-    return { estado: "sin_control", mensaje: "El archivo no incluye la fila Total Ventas de SICAR." };
+  let totalesSicar = filaTotal
+    ? {
+        venta: dinero(filaTotal[columnas.venta]),
+        costo: dinero(filaTotal[columnas.costo]),
+        utilidad: dinero(filaTotal[columnas.utilidad]),
+      }
+    : null;
+
+  // Algunas exportaciones de SICAR muestran el resumen en dos filas:
+  // encabezados "Ventas | Compra | Utilidad" y, debajo, sus importes.
+  // Se busca desde el final para no confundir los encabezados del detalle.
+  if (!totalesSicar) {
+    const aliasTotales = {
+      venta: new Set(["venta", "ventas", "total ven", "total venta", "total ventas"]),
+      costo: new Set(["compra", "compras", "costo", "total com", "total compra", "total compras"]),
+      utilidad: new Set(["utilidad", "utilidades", "total utilidad"]),
+    };
+    let filaEtiquetas = null;
+    for (let indiceFila = filasReporte.length - 1; indiceFila >= 0; indiceFila -= 1) {
+      const fila = filasReporte[indiceFila];
+      if (!Array.isArray(fila)) continue;
+      const indices = {};
+      fila.forEach((valor, indiceColumna) => {
+        const etiqueta = limpiar(valor);
+        for (const [campo, alias] of Object.entries(aliasTotales)) {
+          if (alias.has(etiqueta) && indices[campo] == null) indices[campo] = indiceColumna;
+        }
+      });
+      if (Object.keys(aliasTotales).every((campo) => indices[campo] != null)) {
+        filaEtiquetas = { indiceFila, indices };
+        break;
+      }
+    }
+
+    if (filaEtiquetas) {
+      const filaValores = filasReporte.slice(filaEtiquetas.indiceFila + 1).find((fila) =>
+        Array.isArray(fila)
+        && Object.values(filaEtiquetas.indices).every((indiceColumna) => dinero(fila[indiceColumna]) != null)
+      );
+      if (filaValores) {
+        totalesSicar = {
+          venta: dinero(filaValores[filaEtiquetas.indices.venta]),
+          costo: dinero(filaValores[filaEtiquetas.indices.costo]),
+          utilidad: dinero(filaValores[filaEtiquetas.indices.utilidad]),
+        };
+      }
+    }
   }
 
-  const totalesSicar = {
-    venta: dinero(filaTotal[columnas.venta]),
-    costo: dinero(filaTotal[columnas.costo]),
-    utilidad: dinero(filaTotal[columnas.utilidad]),
-  };
+  if (!totalesSicar) {
+    return { estado: "sin_control", mensaje: "El archivo no incluye una fila de totales SICAR reconocible." };
+  }
   if (Object.values(totalesSicar).some((valor) => valor == null)) {
     return { estado: "sin_control", mensaje: "No se pudieron leer todos los importes de la fila Total Ventas de SICAR." };
   }
