@@ -1,3 +1,4 @@
+import { saldoProveedor, fechaProveedor } from './datosProveedor';
 function limpiarEncabezado(valor) {
   return String(valor ?? "")
     .trim()
@@ -1073,6 +1074,8 @@ export function normalizarCreditosProveedores(filas) {
       ]
     ),
 
+    fechaVencimiento: buscarColumna(encabezadosLimpios, ['fecha vencimiento','fecha de vencimiento','vencimiento']),
+    diasCredito: buscarColumna(encabezadosLimpios, ['dias credito','dias de credito']),
     saldo: buscarColumna(
       encabezadosLimpios,
       [
@@ -1095,7 +1098,7 @@ export function normalizarCreditosProveedores(filas) {
         obtenerValor(fila, columnas.nombre)
       ).trim();
 
-      const saldo = convertirNumero(
+      const saldo = saldoProveedor(
         obtenerValor(fila, columnas.saldo)
       );
 
@@ -1112,6 +1115,8 @@ export function normalizarCreditosProveedores(filas) {
         ).trim(),
 
         saldo,
+        fechaVencimiento: fechaProveedor(obtenerValor(fila, columnas.fechaVencimiento)),
+        diasCredito: String(obtenerValor(fila, columnas.diasCredito)).trim() === '' ? null : saldoProveedor(obtenerValor(fila, columnas.diasCredito)),
 
         codigo: numeroProveedor,
 
@@ -1130,7 +1135,7 @@ export function normalizarCreditosProveedores(filas) {
       (fila) =>
         fila.numeroProveedor !== "" ||
         fila.nombre !== "" ||
-        fila.saldo !== 0
+        (fila.saldo !== null && fila.saldo !== 0)
     );
 }
 

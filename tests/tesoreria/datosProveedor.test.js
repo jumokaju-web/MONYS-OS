@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {saldoProveedor,fechaProveedor} from '../../src/features/importador/utils/datosProveedor.js';
+test('saldo ausente o ilegible no es cero y cero explícito se conserva',()=>{for(const x of ['',null,'abc'])assert.equal(saldoProveedor(x),null);assert.equal(saldoProveedor('0'),0);assert.equal(saldoProveedor('$1,200.50'),1200.5);});
+test('fechas explícitas y seriales Excel; no inventa vencimientos',()=>{assert.equal(fechaProveedor('08/10/2026'),'2026-10-08');assert.equal(fechaProveedor('2026-10-08'),'2026-10-08');assert.equal(fechaProveedor('30/02/2026'),null);assert.equal(fechaProveedor(''),null);assert.equal(fechaProveedor(46303),'2026-10-08');});

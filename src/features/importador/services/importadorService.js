@@ -3,6 +3,7 @@ import { guardarCargaConfirmada } from '../utils/guardarCargaConfirmada';
 import { supabase } from "../../../supabase";
 import { guardarMovimientosTesoreriaMasivos } from "../../tesoreria/services/tesoreriaService";
 export async function guardarImportacion(carga) {
+ if(carga.tipoReporte === 'Créditos de proveedores' && Array.isArray(carga.datosNormalizados) && carga.datosNormalizados.some(p=>p.saldo == null || !Number.isFinite(Number(p.saldo)) || Number(p.saldo)<0)) throw new Error('Hay saldos ausentes, inválidos o negativos. Revisa el reporte; no se creó una carga.');
  return guardarCargaConfirmada(carga, {
   async buscar(id) { const {data,error}=await supabase.from('importaciones').select('id,estado').eq('id',id).eq('branch_id',carga.branchId).maybeSingle();if(error)throw new Error(`No se pudo comprobar una carga anterior: ${error.message}`);return data; },
   async crear({id,estado}) { const {data,error}=await supabase.from('importaciones').insert({id,tipo_reporte:carga.tipoReporte,archivo_original:carga.archivoOriginal,estado,total_filas:carga.datosNormalizados.length,branch_id:carga.branchId}).select().single();if(error)throw new Error(error.message);return data; },
@@ -128,6 +129,7 @@ async function guardarDatosPorTipoReporte({
     }
 
     case "Créditos de proveedores": {
+
       console.log(
         "Guardando créditos de proveedores...",
         datosNormalizados.length
@@ -153,7 +155,9 @@ async function guardarDatosPorTipoReporte({
               proveedor.celular || null,
 
             saldo:
-              proveedor.saldo || 0,
+              proveedor.saldo,
+            fecha_vencimiento: proveedor.fechaVencimiento ?? null,
+            dias_credito: proveedor.diasCredito ?? null,
           })
         );
 
