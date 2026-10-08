@@ -5,6 +5,7 @@ import {
 import FormularioMovimiento from "../components/FormularioMovimiento";
 import "./TesoreriaPage.css";
 import HistorialMovimientos from "../components/HistorialMovimientos";
+import RevisionFinanciera from "../components/RevisionFinanciera";
 import ResumenBancario from "../components/ResumenBancario";
 import {
   guardarMovimientoTesoreria,
@@ -381,6 +382,8 @@ function TesoreriaPage({
               </section>
             )}
 
+            <RevisionFinanciera movimientos={movimientos} formatoDinero={formatoDinero} />
+            <div id="historial-tesoreria" />
             <HistorialMovimientos
               movimientos={movimientos}
               formatoDinero={formatoDinero}
