@@ -210,7 +210,7 @@ useEffect(() => {
   branchIdSeleccionado,
 ]);
 
-  console.log("USUARIO EN ZONA CARGA:", usuario);
+
   const inputArchivo = useRef(null);
 
   const [archivosProcesados, setArchivosProcesados] =
@@ -533,6 +533,8 @@ if (
   }
 
   async function procesarArchivos(files) {
+    if (analizando || guardando) return;
+    if (!branchIdSeleccionado) { setMensajeGeneral("Selecciona primero la sucursal a la que pertenecen estos archivos."); return; }
     const listaArchivos = Array.from(files || []);
 
     if (listaArchivos.length === 0) {
@@ -665,6 +667,8 @@ if (
   }
 
   async function importarTodos() {
+    if (guardando || analizando) return;
+    if (!branchIdSeleccionado) { setMensajeGeneral("Selecciona la sucursal antes de importar."); return; }
     const pendientesDeImportar =
       archivosProcesados.filter(
         (item) => item.estado === "listo"
@@ -834,6 +838,7 @@ if (
   </label>
 
   <select
+    disabled={guardando || analizando || archivosProcesados.length > 0}
     value={branchIdSeleccionado}
     onChange={(evento) =>
       setBranchIdSeleccionado(
@@ -862,6 +867,7 @@ if (
       </option>
     ))}
   </select>
+  <p>Destino: <strong>{sucursales.find(s => s.id === branchIdSeleccionado)?.name || "Selecciona sucursal"}</strong>. Prepara únicamente archivos de esta sucursal. Para cambiar de tienda, importa o limpia la lista primero.</p>
 </div>
       <div
         onClick={seleccionarArchivos}
@@ -1395,7 +1401,7 @@ if (
             disabled={
               guardando ||
               analizando ||
-              archivosListos.length === 0
+              archivosListos.length === 0 || !branchIdSeleccionado
             }
             style={{
               padding: "15px 28px",

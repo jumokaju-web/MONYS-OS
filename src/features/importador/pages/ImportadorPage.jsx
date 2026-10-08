@@ -61,7 +61,7 @@ function ImportadorPage({ volverAlDashboard }) {
           </p>
         </header>
         
-<ZonaCarga />
+<section style={{background:'#fffafc',border:'1px solid #ead8e2',borderRadius:16,padding:20,marginBottom:20}} aria-label="Guía para cargar información financiera"><h2 style={{color:'#5e3048',marginTop:0}}>Carga tus reportes · paso a paso</h2><ol><li>Selecciona Centro o General Anaya antes de elegir archivos.</li><li>Sube el Excel o CSV original de SICAR. Puedes elegir varios reportes de la misma tienda.</li><li>Revisa el tipo detectado, los registros y la vista previa. Preparado no significa guardado.</li><li>Pulsa Importar y espera la confirmación de cada archivo. Si aparece un error, revisa su detalle antes de reintentar.</li><li>Regresa al inicio para consultar los datos. Para comparar tiendas, sus reportes deben cubrir el mismo periodo.</li></ol><details><summary>Qué necesitas para conocer tus números</summary><p>Utilidad de ventas: ventas, costo y utilidad bruta. Ventas por artículo: productos y unidades. Movimientos de caja: entradas y salidas. Créditos de proveedores: saldos y fechas reportadas. Inventario y existencias: stock disponible.</p><p>Estados bancarios PDF, capturas, gastos y nómina todavía no tienen un importador completo en este flujo. No se convertirán automáticamente en registros conciliados. Las ventas y la utilidad bruta no equivalen a dinero disponible ni utilidad neta.</p><p>Evita volver a subir un reporte ya importado. La lista evita repetidos dentro de esta sesión; todavía no existe detección por contenido entre sesiones.</p></details></section><ZonaCarga />
        
       </section>
     </main>

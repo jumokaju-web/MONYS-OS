@@ -1,3 +1,4 @@
+import { validarCarga } from '../utils/validarCarga';
 import { supabase } from "../../../supabase";
 
 import {
@@ -10,6 +11,7 @@ export async function guardarImportacion({
   datosNormalizados,
   branchId,
 }) {
+  validarCarga({branchId,tipoReporte,datosNormalizados});
   const {
     data: importacion,
     error: errorImportacion,
