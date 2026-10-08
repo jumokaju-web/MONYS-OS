@@ -66,7 +66,7 @@ export default function TableroVisualFinanciero({
   entradas = 0,
   salidas = 0,
   disponible = 0,
-  reserva = 0,
+  reserva = null,
   movimientosPendientes = 0,
   vencimientos = [],
   sucursales = [],
@@ -101,7 +101,7 @@ export default function TableroVisualFinanciero({
         ? `Faltan ${dinero(faltanteEquilibrio)} en ventas para cubrir el punto de equilibrio del periodo.`
         : numero(utilidadNeta) < 0
           ? "Hay venta, pero los gastos consumen el margen. Revisa primero las salidas controlables."
-          : "La operación cubre el punto de equilibrio; protege la reserva antes de comprometer efectivo.";
+          : "La operación cubre el punto de equilibrio. Confirma saldos de caja, bancos y obligaciones antes de comprometer efectivo.";
 
   return (
     <section style={{ marginTop: 22, padding: 22, borderRadius: 22, border: "1px solid #e5cfda", background: "linear-gradient(150deg, #fff 0%, #fff7fb 100%)", boxShadow: "0 18px 45px rgba(82, 20, 53, .07)" }}>
@@ -159,7 +159,9 @@ export default function TableroVisualFinanciero({
               <Barra etiqueta="Entradas" valor={entradas} maximo={maxFlujo} color={PALETA.verde} />
               <Barra etiqueta="Salidas" valor={salidas} maximo={maxFlujo} color={PALETA.rojo} />
               <Barra etiqueta="Flujo disponible" valor={disponible} maximo={maxFlujo} color={numero(disponible) >= 0 ? PALETA.rosa : PALETA.rojo} />
-              <Barra etiqueta="Reserva recomendada" valor={reserva} maximo={maxFlujo} color={PALETA.dorado} />
+              {reserva === null || reserva === undefined
+                ? <MensajeSinDatos texto="Reserva no calculada: faltan saldos iniciales de caja y bancos y pagos completos." />
+                : <Barra etiqueta="Reserva recomendada" valor={reserva} maximo={maxFlujo} color={PALETA.dorado} />}
               {numero(movimientosPendientes) > 0 && <p style={{ margin: "8px 0 0", color: "#8b5c0a", fontWeight: 780 }}>⚠ {movimientosPendientes} movimientos todavía no están clasificados.</p>}
             </>
           )}
