@@ -1,6 +1,4 @@
-import {
-  crearOrdenCompra,
-} from "../services/ordenesCompraService";
+
 
 export function crearDecisionEjecutiva({
   tipo,
@@ -121,7 +119,7 @@ function obtenerTipoDecision(decision = {}) {
   return "GENERAL";
 }
 
-export async function ejecutarDecision(decision) {
+export async function ejecutarDecision(decision, { crearOrden = null } = {}) {
   if (!decision) {
     throw new Error(
       "No se recibió una decisión para ejecutar."
@@ -136,15 +134,15 @@ export async function ejecutarDecision(decision) {
     titulo:
       decision.titulo ||
       "Decisión ejecutiva",
-    estado: "EJECUTADA",
-    ejecutadaEn:
-      new Date().toISOString(),
+    estado: "PENDIENTE_EJECUCION",
+    ejecutadaEn: null,
   };
 
   switch (tipo) {
     case "COMPRAS_INVENTARIO": {
+      const crearOrdenConfirmada = crearOrden || (await import("../services/ordenesCompraService")).crearOrdenCompra;
       const ordenCompra =
-        await crearOrdenCompra({
+        await crearOrdenConfirmada({
           titulo:
             decision.titulo,
           descripcion:
@@ -160,12 +158,16 @@ export async function ejecutarDecision(decision) {
             decision.id,
         });
 
+      if (!ordenCompra?.id) throw new Error("No se confirmó el registro de la orden de compra.");
+
       return {
         ...resultadoBase,
+        estado: "ORDEN_CREADA",
+        registradaEn: new Date().toISOString(),
         accion:
           "CREAR_ORDEN_COMPRA",
         mensaje:
-          "Orden de compra creada correctamente.",
+          "Orden de compra registrada y pendiente de gestión. La compra y su recepción aún no están comprobadas.",
         ordenCompra,
       };
     }
@@ -176,7 +178,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "GENERAR_ACCION_FINANCIERA",
         mensaje:
-          "La decisión fue enviada al flujo financiero.",
+          "Aprobada. Pendiente de registrar y asignar una acción en el área financiero. No se ha ejecutado.",
       };
 
     case "COMERCIAL":
@@ -185,7 +187,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "GENERAR_ACCION_COMERCIAL",
         mensaje:
-          "La decisión fue enviada al flujo comercial.",
+          "Aprobada. Pendiente de registrar y asignar una acción en el área comercial. No se ha ejecutado.",
       };
 
     case "MARKETING":
@@ -194,7 +196,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "GENERAR_ACCION_MARKETING",
         mensaje:
-          "La decisión fue enviada al flujo de Marketing.",
+          "Aprobada. Pendiente de registrar y asignar una acción en el área de Marketing. No se ha ejecutado.",
       };
 
     case "RECURSOS_HUMANOS":
@@ -203,7 +205,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "GENERAR_ACCION_RH",
         mensaje:
-          "La decisión fue enviada al flujo de Recursos Humanos.",
+          "Aprobada. Pendiente de registrar y asignar una acción en el área de Recursos Humanos. No se ha ejecutado.",
       };
 
     case "LOGISTICA":
@@ -212,7 +214,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "GENERAR_ACCION_LOGISTICA",
         mensaje:
-          "La decisión fue enviada al flujo de Logística.",
+          "Aprobada. Pendiente de registrar y asignar una acción en el área de Logística. No se ha ejecutado.",
       };
 
     default:
@@ -221,7 +223,7 @@ export async function ejecutarDecision(decision) {
         accion:
           "REVISION_EJECUTIVA",
         mensaje:
-          "La decisión quedó registrada para revisión ejecutiva.",
+          "Aprobada. Pendiente de asignar una acción y comprobar su resultado.",
       };
   }
 }

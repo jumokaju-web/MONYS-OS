@@ -299,14 +299,16 @@ function CentroAccionesCEO({
       await cargarHistorial();
 
       try {
-        await ejecutarDecision({
+        const resultado = await ejecutarDecision({
           ...decision,
           id:
             decisionGuardada.id,
         });
+        setMensaje(`Decisión aprobada: ${resultado.mensaje}`);
       } catch (
         errorEjecucion
       ) {
+        setMensaje(`⚠️ Aprobación guardada. La acción no se pudo confirmar: ${errorEjecucion.message || "revisa su registro antes de reintentar"}`);
         console.error(
           "La decisión fue aprobada, pero ocurrió un problema al ejecutar la acción:",
           errorEjecucion
@@ -831,6 +833,7 @@ function CentroAccionesCEO({
                       }}
                     >
                       {decision.estado}
+                      {aprobada && <span style={{ display: "block", color: "#785d6c", fontWeight: 400 }}>La aprobación no confirma la ejecución ni el resultado.</span>}
                     </div>
                   )}
 
