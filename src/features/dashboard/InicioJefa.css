@@ -9,3 +9,17 @@
  .monys-owner .owner-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));}
  .monys-owner .owner-metrics strong{font-size:19px!important;}
 }
+.owner-agenda{border:1px solid #e7d8df;border-radius:18px;padding:16px;background:#fffdfa;margin-bottom:14px;color:#352932;}
+.owner-agenda header{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.owner-agenda header span{font-size:10px;letter-spacing:1.5px;color:#94647b;font-weight:800;}
+.owner-agenda h2{font-size:19px;margin:6px 0 12px;color:#442837;}
+.owner-agenda header>strong{background:#f2e2eb;color:#73405c;border-radius:50%;padding:10px 14px;}
+.owner-agenda article{display:flex;gap:12px;padding:14px 0;border-top:1px solid #eee4e9;}
+.owner-priority-number{font-family:Georgia,serif;font-size:22px;color:#ab7c94;min-width:30px;}
+.owner-agenda h3{font-size:14px;line-height:1.4;margin:0;color:#412e39;}
+.owner-agenda p{font-size:12px;line-height:1.5;color:#7a6973;margin:6px 0;}
+.owner-agenda button{border:0;background:#f3e7ee;color:#6a3351;border-radius:9px;padding:9px 12px;min-height:40px;font-weight:700;cursor:pointer;}
+.owner-agenda small{display:block;font-size:10px;line-height:1.5;color:#8a7882;margin-top:12px;}
+.owner-agenda .owner-more{width:100%;background:transparent;border:1px solid #ead8e2;}
+.owner-decision-summary{margin-bottom:14px;border:1px solid #e7d8df;border-radius:14px;padding:12px;background:#fffdfa;color:#64394f;}
+.owner-decision-summary summary{cursor:pointer;font-size:13px;font-weight:700;}

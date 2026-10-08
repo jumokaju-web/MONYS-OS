@@ -220,9 +220,9 @@ const utilidadConsolidada =
               accion: abrirJuntaDirectiva,
             }
           : {
-              titulo: "La operación no presenta una decisión crítica pendiente",
+              titulo: "Revisar las siguientes decisiones en la Junta",
               detalle:
-                "Puedes revisar oportunidades y siguientes acciones con tus Directores IA.",
+                "No hay una prioridad específica en estas fuentes; revisa su vigencia y los análisis conectados.",
               boton: "Abrir Junta Directiva",
               accion: abrirJuntaDirectiva,
             };
@@ -429,6 +429,7 @@ const utilidadConsolidada =
         </section>
 
         {/* DECISIÓN DEL DÍA */}
+        <details className="owner-decision-summary"><summary>Ver motivo de la prioridad recomendada</summary>
 
         <section
           style={{
@@ -498,6 +499,7 @@ const utilidadConsolidada =
           </button>
         </section>
 
+        </details>
         {/* SUCURSALES */}
 
         <section
