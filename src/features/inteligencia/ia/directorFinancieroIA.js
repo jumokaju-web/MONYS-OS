@@ -806,10 +806,10 @@ recomendacion =
   // RESERVA Y CAPACIDAD DE COMPRA
   // ======================================================
 
-  const reservaRecomendada =
-    flujoNetoTesoreria > 0
-      ? flujoNetoTesoreria * 0.20
-      : 0;
+  // El flujo del periodo no incluye el saldo inicial real de caja/bancos
+  // ni el calendario completo de obligaciones. Por eso no sustenta una
+  // reserva monetaria y MONYS debe mostrarla como pendiente de calcular.
+  const reservaRecomendada = null;
 
   /*
     No se autoriza una capacidad de compra
