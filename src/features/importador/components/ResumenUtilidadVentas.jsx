@@ -31,6 +31,22 @@ export default function ResumenUtilidadVentas({ resumen }) {
           {resumen.foliosDuplicados ? `Revisar ${numero(resumen.foliosDuplicados)} tickets repetidos` : "Sin tickets repetidos en el archivo"}
         </span>
       </div>
+      {resumen.controlSicar && (() => {
+        const control = resumen.controlSicar;
+        const colores = control.estado === "conciliado"
+          ? { fondo: "#eaf8f0", borde: "#b8e5ca", texto: "#207a4a", etiqueta: "Totales verificados" }
+          : control.estado === "diferencia"
+            ? { fondo: "#fff0f0", borde: "#efb8b8", texto: "#a52d2d", etiqueta: "Importación detenida" }
+            : { fondo: "#fff8df", borde: "#f2dc8b", texto: "#8a6800", etiqueta: "Sin conciliación disponible" };
+        return (
+          <div role="status" aria-live="polite" style={{ marginBottom: "16px", padding: "14px 16px", borderRadius: "12px", background: colores.fondo, border: `1px solid ${colores.borde}`, color: colores.texto }}>
+            <strong>{colores.etiqueta}.</strong> {control.mensaje}
+            {control.diferencias && control.estado === "diferencia" && (
+              <span> Diferencias: ventas {dinero(control.diferencias.venta)}, costo {dinero(control.diferencias.costo)}, utilidad {dinero(control.diferencias.utilidad)}.</span>
+            )}
+          </div>
+        );
+      })()}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
         {[
           ["Ventas", dinero(resumen.ventaTotal), `${numero(resumen.totalRegistros)} tickets SICAR`],
