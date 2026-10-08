@@ -1117,14 +1117,8 @@ const historial =
         />
 
         <TarjetaIndicador
-          titulo={
-            ventasVigentes
-              ? "Reserva recomendada"
-              : "Reserva de referencia anterior"
-          }
-          valor={formatoDinero(
-            reservaRecomendada
-          )}
+          titulo="Reserva por calcular"
+          valor="Faltan saldos iniciales de caja y bancos"
           icono="🏦"
         />
       </div>
