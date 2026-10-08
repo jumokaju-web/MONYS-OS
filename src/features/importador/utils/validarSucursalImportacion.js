@@ -14,17 +14,36 @@ function sucursalConocida(valor = "") {
   return null;
 }
 
+function detectarSucursalesArchivo(archivo = {}) {
+  const evidencia = [
+    archivo.nombre || archivo.name || "",
+    ...(Array.isArray(archivo.datosNormalizados)
+      ? archivo.datosNormalizados.flatMap((fila) => [
+          fila?.sucursal,
+          fila?.usuario,
+          fila?.vendedor,
+        ])
+      : []),
+  ];
+  return new Set(evidencia.map(sucursalConocida).filter(Boolean));
+}
+
 export function validarSucursalImportacion(archivos = [], sucursalSeleccionada) {
   if (!sucursalSeleccionada?.id) {
     return "Selecciona la sucursal del reporte antes de importar.";
   }
 
   const sucursalElegida = sucursalConocida(sucursalSeleccionada.name);
-  const sucursalesDetectadas = new Set(
-    archivos
-      .map((archivo) => sucursalConocida(archivo.nombre || archivo.name))
-      .filter(Boolean)
-  );
+  const sucursalesDetectadas = new Set();
+
+  for (const archivo of archivos) {
+    const evidenciaArchivo = detectarSucursalesArchivo(archivo);
+    if (evidenciaArchivo.size > 1) {
+      const nombre = archivo.nombre || archivo.name || "El reporte";
+      return `El reporte “${nombre}” mezcla registros de Centro y General Anaya. Sepáralo antes de importar.`;
+    }
+    for (const sucursal of evidenciaArchivo) sucursalesDetectadas.add(sucursal);
+  }
 
   if (sucursalesDetectadas.size > 1) {
     return "La cola mezcla archivos de Centro y General Anaya. Importa una sucursal por carga.";
