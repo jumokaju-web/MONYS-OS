@@ -647,18 +647,21 @@ if (
             }
 
             if (item.tipoReporte === "Ventas por artículo" && item.resumen) {
-              actualizarEmpresa("ventas", {
-                total:
-                  item.resumen.ventaTotal ??
-                  item.resumen.ventasTotales ??
-                  0,
-                utilidad: item.resumen.utilidadTotal ?? 0,
-                margen:
-                  item.resumen.margenUtilidad ??
-                  item.resumen.margenPromedio ??
-                  0,
+              const actualizacionVentas = {
                 productosVendidos: item.datosNormalizados,
-              });
+              };
+
+              if (item.resumen.ventaDisponible !== false && Number.isFinite(item.resumen.ventaTotal)) {
+                actualizacionVentas.total = item.resumen.ventaTotal;
+              }
+              if (item.resumen.utilidadDisponible !== false && Number.isFinite(item.resumen.utilidadTotal)) {
+                actualizacionVentas.utilidad = item.resumen.utilidadTotal;
+              }
+              if (item.resumen.ventaDisponible !== false && item.resumen.utilidadDisponible !== false && item.resumen.ventaTotal > 0) {
+                actualizacionVentas.margen = (item.resumen.utilidadTotal / item.resumen.ventaTotal) * 100;
+              }
+
+              actualizarEmpresa("ventas", actualizacionVentas);
             }
 
             if (
