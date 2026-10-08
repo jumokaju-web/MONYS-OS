@@ -1,11 +1,27 @@
 import { useState } from 'react';
+import { useUser } from '../../../../context/UserContext';
+import { claveBorradorCierre, leerBorradorCierre, guardarBorradorCierre } from '../../utils/borradorCierreFinanciero';
 
-export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo }) {
-  const [confirmaciones, setConfirmaciones] = useState({});
+export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo, revisionFuentes = "" }) {
+  const { usuario } = useUser();
+  const [borradores, setBorradores] = useState({});
   const inicio = metricas.fechaInicial;
   const fin = metricas.fechaFinal;
   const periodo = `${inicio || 'Sin fecha'} · ${fin || 'Sin fecha'}`;
-  const confirmado = confirmaciones[periodo] || {};
+  const clave = claveBorradorCierre(usuario, inicio, fin);
+  const revision = JSON.stringify([consolidacionValida, metricas.diasAnalizados, analisis.ventasTotales, analisis.costoTotal, analisis.utilidadTotal, analisis.gastosFijos, analisis.gastosVariables, analisis.movimientosPendientes, revisionFuentes]);
+  const identidad = JSON.stringify([clave, revision]);
+  let almacenado;
+  try { almacenado = leerBorradorCierre(window.localStorage, clave, revision); }
+  catch { almacenado = { confirmaciones: {}, estado: 'error' }; }
+  const borrador = borradores[identidad] || almacenado;
+  const confirmado = borrador.confirmaciones;
+  const cambiarConfirmacion = (campo, valor) => {
+    const nuevas = { ...confirmado, [campo]: valor };
+    let guardado = false;
+    try { guardado = guardarBorradorCierre(window.localStorage, clave, revision, nuevas); } catch { /* Continúa en memoria cuando el dispositivo bloquea el almacenamiento. */ }
+    setBorradores((previo) => ({ ...previo, [identidad]: { confirmaciones: nuevas, estado: guardado ? 'guardado' : 'error' } }));
+  };
   const controles = [
     ['ventas', 'Ventas y utilidad SICAR de ambas tiendas con el mismo corte'],
     ['caja', 'Movimientos de caja SICAR completos y revisados'],
@@ -30,7 +46,7 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
       ['Gastos variables revisados', analisis.gastosVariables, 'Registros cargados'],
       ['Resultado después de gastos registrados', listo ? analisis.utilidadNetaEstimada : '', listo ? 'Estimación del corte' : 'Pendiente de completar'],
       ['Meta diaria de equilibrio', objetivoDiario ?? '', 'Estimación con gastos del corte'],
-      ...controles.map(([clave, etiqueta]) => [etiqueta, confirmado[clave] ? 'Confirmado' : 'Pendiente', 'Confirmación de esta sesión']),
+      ...controles.map(([clave, etiqueta]) => [etiqueta, confirmado[clave] ? 'Confirmado' : 'Pendiente', 'Borrador de revisión, no cierre contable definitivo']),
     ];
     const csv = '\uFEFF' + filas.map((fila) => fila.map((celda) => `"${String(celda).replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -40,8 +56,9 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
     <h2>Cierre semanal · completar reportes</h2>
     <p><strong>{periodo}</strong> · {listo ? 'Base confirmada para revisión final' : `${pendientes.length} comprobaciones pendientes`}</p>
     <p>{consolidacionValida ? "Las sucursales tienen un corte comparable." : (motivo || "Falta confirmar el mismo corte de las dos sucursales.")}</p>
-    <p>Confirma cada punto después de revisar los reportes. Las confirmaciones pertenecen a esta sesión y este corte; no sustituyen un cierre contable guardado.</p>
-    {controles.map(([clave, etiqueta]) => <label key={clave} style={{ display: 'block', padding: '8px 0' }}><input type="checkbox" checked={Boolean(confirmado[clave])} onChange={(evento) => setConfirmaciones((previo) => ({ ...previo, [periodo]: { ...previo[periodo], [clave]: evento.target.checked } }))} /> {etiqueta}</label>)}
+    <p>Confirma cada punto después de revisar los reportes. El avance se conserva en este dispositivo por usuario y periodo. No se sincroniza entre dispositivos ni sustituye un cierre contable definitivo.</p>
+    <p role="status">{borrador.estado === 'error' ? 'No se pudo guardar el avance en este dispositivo. Descarga el cierre para conservarlo.' : borrador.estado === 'sin_identidad' ? 'Falta identificar usuario, negocio o periodo para guardar el borrador.' : borrador.estado === 'datos_cambiaron' ? 'Los datos cambiaron desde tu última revisión. Confirma nuevamente los puntos con los reportes actualizados.' : borrador.estado === 'recuperado' ? 'Avance recuperado de este dispositivo.' : borrador.estado === 'guardado' ? 'Avance guardado en este dispositivo.' : 'Marca las comprobaciones para guardar tu avance.'}</p>
+    {controles.map(([clave, etiqueta]) => <label key={clave} style={{ display: 'block', padding: '8px 0' }}><input type="checkbox" checked={Boolean(confirmado[clave])} onChange={(evento) => cambiarConfirmacion(clave, evento.target.checked)} /> {etiqueta}</label>)}
     <p><strong>{analisis.movimientosPendientes} movimientos cargados pendientes de revisión.</strong> Corrígelos en Tesorería antes de completar el cierre.</p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 16 }}>
       <div><strong>Utilidad después de gastos</strong><p>{listo ? formatoDinero(analisis.utilidadNetaEstimada) : 'Pendiente de completar reportes'}</p><small>Estimación con los gastos registrados del corte.</small></div>

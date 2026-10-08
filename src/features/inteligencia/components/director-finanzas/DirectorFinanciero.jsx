@@ -588,7 +588,7 @@ const historial =
           "0 12px 35px rgba(180, 120, 40, 0.12)",
       }}
     >
-      <CierreSemanalFinanciero consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
+      <CierreSemanalFinanciero revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
       {mensajeDecision && (
         <div
           style={{
