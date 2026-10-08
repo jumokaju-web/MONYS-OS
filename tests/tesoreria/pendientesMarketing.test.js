@@ -10,3 +10,20 @@ test('no propone medir campañas cerradas ni valida campos ausentes con una band
   const [p] = pendientesResultadosMarketing([{ estado: 'ACTIVA', resultado: { camposConfirmados: { venta: true } } }]);
   assert.equal(p.faltantes.length, 3);
 });
+test('prioriza presupuesto excedido y gasto sin ventas; conserva cero confirmado', () => {
+  const lista = pendientesResultadosMarketing([
+    { id: 'pendiente', estado: 'ACTIVA', resultado: {} },
+    { id: 'sinventa', estado: 'ACTIVA', presupuesto: 300, resultado: { gastoAcumulado: 200 } },
+    { id: 'excedida', estado: 'ACTIVA', presupuesto: 100, resultado: { gastoAcumulado: 150, ventaAcumulada: 300, pedidosAcumulados: 2 } },
+    { id: 'cero', estado: 'ACTIVA', presupuesto: 300, resultado: { gastoAcumulado: 250, ventaAcumulada: 0, pedidosAcumulados: 0, camposConfirmados: { venta: true, pedidos: true } } },
+  ]);
+  assert.deepEqual(lista.map((p) => p.campana.id), ['excedida', 'sinventa', 'cero', 'pendiente']);
+  assert.equal(lista[2].venta, 0);
+});
+test('la antigüedad usa resultados reales y no cambios administrativos de campaña', () => {
+  const ahora = Date.parse('2026-10-08T04:00:00Z');
+  const resultado = { ventaAcumulada: 500, gastoAcumulado: 100, pedidosAcumulados: 2 };
+  assert.deepEqual(pendientesResultadosMarketing([{ estado: 'ACTIVA', updated_at: '2026-10-01', resultado }], ahora), []);
+  const [p] = pendientesResultadosMarketing([{ estado: 'ACTIVA', updated_at: '2026-10-08', resultado: { ...resultado, historial: [{ registradoEn: '2026-10-05T04:00:00Z' }] } }], ahora);
+  assert.equal(p.horasSinResultados, 72);
+});

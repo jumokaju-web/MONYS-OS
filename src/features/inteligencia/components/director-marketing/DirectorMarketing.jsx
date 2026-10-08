@@ -1490,6 +1490,8 @@ for (
     planSemanal[0]?.origen ===
       "orquestador_growth";
 
+  const prioridadesCampanas = pendientesResultadosMarketing(campanasMarketing);
+
   return (
     <section
       style={{
@@ -1504,13 +1506,15 @@ for (
       }}
     >
       <section style={{ background: "#ffffff", border: "1px solid #efbfd3", borderRadius: 16, padding: 18, marginBottom: 20 }}>
-        <h3>Resultados que faltan para decidir</h3>
-        <p>Completa venta, pedidos y gasto reales antes de evaluar una campaña. Un cero confirmado sí cuenta como resultado.</p>
-        {cargandoCampanas ? <p>Consultando campañas…</p> : errorCampanas ? <p>No se pudo confirmar la lista. Revisa el aviso de campañas.</p> : pendientesResultadosMarketing(campanasMarketing).length === 0 ? <p>No hay campos pendientes en las campañas activas cargadas. Esto no confirma rentabilidad ni atribución a SICAR.</p> : pendientesResultadosMarketing(campanasMarketing).map(({ campana, faltantes }) => (
+        <h3>Qué atender primero en Marketing</h3>
+        <p>Primero revisa presupuesto y campañas con gasto; después completa los resultados pendientes. Un cero confirmado sí cuenta como resultado.</p>
+        {cargandoCampanas ? <p>Consultando campañas…</p> : errorCampanas ? <p>No se pudo confirmar la lista. Revisa el aviso de campañas.</p> : prioridadesCampanas.length === 0 ? <p>Las campañas activas cargadas no presentan estos pendientes. La utilidad y atribución a SICAR requieren su propia revisión.</p> : prioridadesCampanas.map(({ campana, faltantes, motivo, accion, gasto, horasSinResultados }, indice) => (
           <div key={campana.id} style={{ padding: "12px 0", borderTop: "1px solid #efbfd3" }}>
-            <strong>{campana.nombre || campana.producto || "Campaña activa"}</strong>
-            <p>Falta confirmar: {faltantes.join(", ")}.</p>
-            <button type="button" onClick={() => document.getElementById(`campana-marketing-${campana.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Completar resultados de esta campaña</button>
+            <strong>{indice + 1}. {campana.nombre || campana.producto || "Campaña activa"}</strong>
+            <p><strong>{motivo}.</strong> {accion}</p>
+            <p>{gasto === null ? "Gasto pendiente de confirmar" : `Gasto registrado: ${formatearDinero(gasto)}`}{horasSinResultados === null ? " · Sin fecha verificable de resultados" : ` · ${horasSinResultados} horas desde el último registro de resultados`}</p>
+            {faltantes.length > 0 && <p>Falta confirmar: {faltantes.join(", ")}.</p>}
+            <button type="button" onClick={() => document.getElementById(`campana-marketing-${campana.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Revisar campaña y registrar resultados</button>
           </div>
         ))}
       </section>
