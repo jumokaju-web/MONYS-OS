@@ -290,13 +290,14 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
               {usuariosSicar.map(({ clave, usuarioSicar }) => {
                 const actual = personal.find((persona) => normalizarUsuarioSicar(persona.usuario_sicar) === clave);
                 const seleccionado = selecciones[clave] ?? actual?.id ?? "";
+                const compartido = esUsuarioSicarCompartido(usuarioSicar);
                 return <div key={clave} style={{ display: "grid", gridTemplateColumns: "minmax(140px, 1fr) minmax(180px, 1fr) auto", alignItems: "center", gap: 8, padding: 9, borderRadius: 10, background: "#f8fbf9" }}>
-                  <strong>{usuarioSicar}</strong>
-                  <select value={seleccionado} onChange={(e) => setSelecciones((prev) => ({ ...prev, [clave]: e.target.value }))} style={campo}>
+                  <div><strong>{usuarioSicar}</strong>{compartido && <small style={{ display: "block", color: "#805700", marginTop: 4 }}>Cuenta compartida de sucursal; no se asigna a una empleada.</small>}</div>
+                  <select disabled={compartido} value={seleccionado} onChange={(e) => setSelecciones((prev) => ({ ...prev, [clave]: e.target.value }))} style={{ ...campo, background: compartido ? "#f1f2f4" : "#fff" }}>
                     <option value="">Elegir empleada</option>
                     {empleadosDisponibles.map((persona) => <option key={persona.id} value={persona.id}>{persona.nombre}{persona.active ? "" : " · baja"}</option>)}
                   </select>
-                  <button type="button" disabled={!seleccionado || guardandoUsuario === usuarioSicar} onClick={() => guardarMapeo(usuarioSicar)} style={{ border: 0, borderRadius: 9, background: "#277648", color: "#fff", padding: "10px 12px", fontWeight: 800, cursor: "pointer" }}>{guardandoUsuario === usuarioSicar ? "Guardando…" : "Guardar"}</button>
+                  <button type="button" disabled={compartido || !seleccionado || guardandoUsuario === usuarioSicar} onClick={() => guardarMapeo(usuarioSicar)} style={{ border: 0, borderRadius: 9, background: "#277648", color: "#fff", padding: "10px 12px", fontWeight: 800, cursor: "pointer" }}>{guardandoUsuario === usuarioSicar ? "Guardando…" : "Guardar"}</button>
                 </div>;
               })}
             </div>
