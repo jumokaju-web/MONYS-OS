@@ -1,3 +1,4 @@
+import './InicioJefa.css';
 import {
   useEffect,
   useState,
@@ -227,7 +228,7 @@ const utilidadConsolidada =
             };
 
   return (
-    <main
+    <main className="monys-owner"
       style={{
         minHeight: "100vh",
         background:
@@ -241,7 +242,7 @@ const utilidadConsolidada =
         style={{
           width: "min(100% - 24px, 1100px)",
           margin: "0 auto",
-          paddingTop: "20px",
+          paddingTop: "12px",
           textAlign: "left",
         }}
       >
@@ -250,7 +251,7 @@ const utilidadConsolidada =
         <div
           style={{
             marginBottom: "14px",
-            padding: "20px",
+            padding: "16px",
             border: "1px solid #efdce6",
             borderRadius: "22px",
             background:
@@ -278,7 +279,7 @@ const utilidadConsolidada =
               color: "#291d23",
             }}
           >
-            Hola, Jefa 👑
+            Hola, Mónica
           </h1>
 
           <div
@@ -290,19 +291,12 @@ const utilidadConsolidada =
             Esto es lo que requiere tu
             atención hoy.
           </div>
+          <p className="owner-period">Cifras del corte: {detallePeriodo}. No representan ventas de hoy.</p>
         </div>
 
         {/* MÉTRICAS */}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: "8px",
-            marginBottom: "16px",
-          }}
-        >
+        <div className="owner-metrics">
           <MetricaJefa
             icono="↗"
             titulo="Ventas"
@@ -321,25 +315,29 @@ const utilidadConsolidada =
 
          <MetricaJefa
   icono="◎"
-  titulo="Flujo neto del periodo"
-  valor={formatoDinero(
-    disponible
-  )}
-  detalle={detallePeriodo}
+  titulo="Flujo de movimientos cargados"
+  valor={movimientos.length ? formatoDinero(disponible) : "Por completar"}
+  detalle="No equivale al saldo bancario disponible"
 />
 
         </div>
 
         <section style={{ background: "#49293e", borderRadius: 18, padding: 20, color: "white", marginBottom: 18 }}>
           <div style={{ fontSize: 10, letterSpacing: 1.4, color: "#e9bed3", fontWeight: 800 }}>DIRECCIÓN · INTELIGENCIA · RESULTADOS</div>
-          <h2 style={{ fontSize: 23, margin: "10px 0" }}>Tu Junta y el valor de tus decisiones</h2>
-          <p style={{ fontSize: 13, color: "#ead5e2", lineHeight: 1.5 }}>Revisa propuestas, trabaja iniciativas y comprueba sus resultados. Los ingresos por vender MONYS se consultan por separado.</p>
+          <h2 style={{ fontSize: 21, margin: "8px 0", color: "#fff8fc", lineHeight: 1.25 }}>Decide con evidencia</h2>
+          <p style={{ fontSize: 13, color: "#ead5e2", lineHeight: 1.5 }}>Revisa prioridades y comprueba qué acciones mejoraron tu negocio.</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" onClick={abrirJuntaDirectiva} style={{ padding: "12px 16px", minHeight: 44, border: 0, borderRadius: 11, background: "#f0c1d8", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Abrir Junta Directiva →</button>
             <button type="button" onClick={abrirCentroValor} style={{ padding: "12px 16px", minHeight: 44, border: "1px solid #e6bdd2", borderRadius: 11, background: "white", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Centro de Valor →</button>
           </div>
         </section>
 
+        <nav className="owner-shortcuts" aria-label="Accesos de dirección">
+          <button type="button" onClick={abrirTesoreria}>Dinero y movimientos →</button>
+          <button type="button" onClick={abrirImportador}>Subir reportes →</button>
+          <button type="button" onClick={abrirInventario}>Inventario →</button>
+          <button type="button" onClick={() => document.getElementById('operacion-equipo')?.scrollIntoView({behavior:'smooth'})}>Operación del equipo ↓</button>
+        </nav>
         {/* ATENCIÓN */}
 
                 <AgendaJefa
