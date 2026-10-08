@@ -305,7 +305,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
 
           {resumen.sinAsignar.length > 0 && <div style={{ marginTop: 14, padding: 13, borderRadius: 12, background: "#fff8e9", border: "1px solid #ead39c" }}>
             <strong style={{ color: "#805700" }}>Ventas pendientes de asignación</strong>
-            {resumen.sinAsignar.map((fila) => <div key={normalizarUsuarioSicar(fila.usuarioSicar)} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: "1px solid #efdfba" }}><span>{fila.usuarioSicar} · {fila.motivo === "ASIGNACION_AMBIGUA" ? "asignación SICAR duplicada" : "sin asignar"} · {fila.tickets} tickets</span><strong>{moneda(fila.ventas)}</strong></div>)}
+            {resumen.sinAsignar.map((fila) => <div key={normalizarUsuarioSicar(fila.usuarioSicar)} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: "1px solid #efdfba" }}><span>{fila.usuarioSicar} · {fila.motivo === "ASIGNACION_AMBIGUA" ? "asignación SICAR duplicada" : fila.motivo === "USUARIO_SICAR_COMPARTIDO" ? "cuenta compartida de sucursal" : "sin asignar"} · {fila.tickets} tickets</span><strong>{moneda(fila.ventas)}</strong></div>)}
           </div>}
         </>
       )}
