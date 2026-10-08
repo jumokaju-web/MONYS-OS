@@ -1,3 +1,4 @@
+import EquilibrioDiario from './EquilibrioDiario';
 import FlujoCaja13Semanas from './FlujoCaja13Semanas';
 // ======================================================
 // MONYS OS
@@ -891,7 +892,7 @@ const historial =
 />
 
 <TarjetaIndicador
-  titulo="Punto de equilibrio"
+  titulo="Equilibrio del corte · estimado"
   valor={
     Number.isFinite(
       Number(puntoEquilibrioVentas)
@@ -903,6 +904,7 @@ const historial =
   }
   icono="⚖️"
 />
+      <EquilibrioDiario key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <h3
         style={{
           marginTop: "32px",
