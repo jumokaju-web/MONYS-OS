@@ -1,3 +1,4 @@
+import HistorialImportaciones from './HistorialImportaciones';
 import {
   useEffect,
   useRef,
@@ -1451,6 +1452,7 @@ if (
         </div>
       )}
 
+      <HistorialImportaciones branchId={branchIdSeleccionado} revision={archivosImportados.length} />
       {mensajeGeneral && (
         <p
           style={{
