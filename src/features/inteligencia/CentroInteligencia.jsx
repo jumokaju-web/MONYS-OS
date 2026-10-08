@@ -1,3 +1,4 @@
+import JuntaDirectiva from './components/JuntaDirectiva';
 import CentroMando from "./components/CentroMando";
 import {
   useEffect,
@@ -543,6 +544,7 @@ const analisisRH =
         setDirectorAbierto(id);
         requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
       }} />
+      <JuntaDirectiva sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => { setDirectorAbierto(id); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))); }} />
       <button
         type="button"
         onClick={volverAlDashboard}

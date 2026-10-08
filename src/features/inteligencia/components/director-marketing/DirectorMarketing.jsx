@@ -1,3 +1,4 @@
+import './CampanasAplicacion.css';
 import { pendientesResultadosMarketing } from "../../utils/pendientesResultadosMarketing";
 import {
   useEffect,
@@ -1500,7 +1501,7 @@ for (
 
 
   return (
-    <section
+    <section className="marketing-app"
       style={{
         marginTop: "30px",
         padding: "28px",
@@ -2385,6 +2386,7 @@ for (
                 return (
                   <div
                     key={campana.id}
+                    className="marketing-campana"
                     id={`campana-marketing-${campana.id}`}
                     style={{
                       padding: "18px",
