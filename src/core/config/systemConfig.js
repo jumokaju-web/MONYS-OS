@@ -1,6 +1,6 @@
 export const systemConfig = {
   app: {
-    name: "MONYS ERP AI",
+    name: "MONYS OS",
     version: "1.0.0",
     company: "Monys",
     environment: "development",

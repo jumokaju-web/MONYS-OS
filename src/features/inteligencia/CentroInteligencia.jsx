@@ -195,6 +195,7 @@ function CentroInteligencia({
   volverAlDashboard,
   onAbrirImportador,
   importacionId,
+  onAbrirValor,
 }) {
   const [
     directorAbierto,
@@ -351,7 +352,7 @@ useEffect(() => {
 
   const analisisFinancieroCEO =
     generarAnalisisFinanciero({
-      movimientos,
+      movimientos: (movimientos || []).filter(m => m.branch_id === branchId),
 
       ventasTotales:
         metricas.ventasTotales ?? 0,
@@ -544,6 +545,7 @@ const analisisRH =
         setDirectorAbierto(id);
         requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
       }} />
+      {typeof onAbrirValor === "function" && <section className="junta"><span className="junta-label">DIRECCIÓN · EJECUCIÓN · VALOR ECONÓMICO</span><h2>¿Qué cambió gracias a nuestras acciones?</h2><p>Registra pruebas con línea base y evidencia, revisa resultados y consulta por separado los ingresos por vender MONYS OS.</p><button type="button" onClick={onAbrirValor}>Abrir Centro de Valor →</button></section>}
       <JuntaDirectiva analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => { setDirectorAbierto(id); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))); }} />
       <button
         type="button"

@@ -1,3 +1,4 @@
+import CentroValor from './features/valor/CentroValor';
 import {
   useEffect,
   useState,
@@ -54,6 +55,7 @@ const modulos = [
   ["📋", "Centro de Órdenes"],
   ["👥", "Usuarios"],
   ["🤖", "Director General IA"],
+  ["✦", "Centro de Valor"],
 ];
 
 function App() {
@@ -93,10 +95,7 @@ function App() {
     setMovimientos,
   ] = useState([]);
 
-  const [
-    importacionId,
-    setImportacionId,
-  ] = useState(null);
+
 
   const [
     pantallaActual,
@@ -114,6 +113,8 @@ function App() {
   cargandoSucursales,
   errorSucursales,
 } = useDashboardSucursales();
+
+  const importacionId = datosDashboard?.branch_id === usuario?.branch_id ? datosDashboard?.importacion?.id || null : null;
 
   const esOwner =
     usuario?.role === "owner";
@@ -214,6 +215,9 @@ function App() {
       case "Usuarios":
         return puedeAdministrarUsuarios();
 
+      case "Centro de Valor":
+        return esOwner;
+
       case "Director General IA":
         return puedeUsarInteligencia();
 
@@ -258,6 +262,10 @@ function App() {
           registros.map(
             (registro) => ({
               id: registro.id,
+              organization_id: registro.organization_id,
+              business_id: registro.business_id,
+              branch_id: registro.branch_id,
+              occurred_at: registro.occurred_at,
 
               tipo:
                 registro.movement_type,
@@ -696,6 +704,8 @@ const disponible =
         return;
       }
 
+      if (nombre === "Centro de Valor") { setPantallaActual("valor"); return; }
+
       if (
         nombre ===
         "Registrar dinero"
@@ -1086,6 +1096,11 @@ if (
     );
   }
 
+  if (pantallaActual === "valor") {
+    if (!esOwner) return mostrarAccesoDenegado("Centro de Valor");
+    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirInteligencia={() => setPantallaActual("inteligencia")} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("operacion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" }))); }} />;
+  }
+
   /*
     INTELIGENCIA
   */
@@ -1102,7 +1117,7 @@ if (
     }
 
     return (
-      <CentroInteligencia
+      <CentroInteligencia onAbrirValor={() => setPantallaActual("valor")}
         datosDashboard={
           datosDashboard
         }
@@ -1116,7 +1131,7 @@ if (
           errorSucursales
         }
         movimientos={
-          movimientos
+          movimientos.filter(m => m.organization_id === usuario?.organization_id && m.business_id === usuario?.business_id)
         }
         importacionId={
           importacionId
@@ -1252,7 +1267,7 @@ fechaFinal={
       }
 
       contenidoOperacion={
-        <OperacionHoy
+        <div id="operacion-equipo"><OperacionHoy
           organizationId={
             datosDashboard?.organization_id ||
             null
@@ -1265,7 +1280,7 @@ fechaFinal={
             datosDashboard?.branch_id ||
             null
           }
-        />
+        /></div>
       }
 
       contenidoSicar={
@@ -1421,6 +1436,7 @@ fechaFinal={
         />
       )}
 
+       <div id="operacion-equipo" />
        <OperacionHoy
   organizationId={
     datosDashboard?.organization_id ||

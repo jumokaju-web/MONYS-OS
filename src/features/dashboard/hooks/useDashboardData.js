@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  useRef,
 } from "react";
 
 import {
@@ -114,8 +115,12 @@ export function useDashboardData() {
     setErrorDashboard,
   ] = useState("");
 
+  const solicitudActual = useRef(0);
+
   const cargarDatosDashboard =
     useCallback(async () => {
+      const solicitud = ++solicitudActual.current;
+      setDatosDashboard(null);
       try {
 
       if (!branchId) {
@@ -144,6 +149,8 @@ export function useDashboardData() {
             branchId
           ),
         ]);
+
+        if (solicitud !== solicitudActual.current) return;
 
         if (!resultadoVentas) {
           setDatosDashboard(null);
@@ -224,6 +231,8 @@ export function useDashboardData() {
         };
 
         setDatosDashboard({
+          organization_id: usuario?.organization_id || null,
+          business_id: usuario?.business_id || null,
           branch_id:
             branchId,
 
@@ -293,6 +302,7 @@ export function useDashboardData() {
           },
         });
       } catch (error) {
+        if (solicitud !== solicitudActual.current) return;
         console.error(
           "Error al preparar los datos del Dashboard:",
           error
@@ -303,9 +313,9 @@ export function useDashboardData() {
             "No fue posible cargar los datos del Dashboard."
         );
       } finally {
-        setCargandoDashboard(false);
+        if (solicitud === solicitudActual.current) setCargandoDashboard(false);
       }
-    }, [branchId]);
+    }, [branchId, usuario?.organization_id, usuario?.business_id]);
 
   useEffect(() => {
     cargarDatosDashboard();
