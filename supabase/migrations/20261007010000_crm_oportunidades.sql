@@ -105,6 +105,38 @@ with check (
   )
 );
 
+-- Permite a cada empleada registrar sus propios prospectos y conversaciones,
+-- sin crear oportunidades a nombre de otra persona ni de otra sucursal.
+drop policy if exists "Equipo crea oportunidades propias"
+  on public.crm_oportunidades;
+
+create policy "Equipo crea oportunidades propias"
+on public.crm_oportunidades
+for insert
+to authenticated
+with check (
+  created_by = (select auth.uid())
+  and asignado_a = (select auth.uid())
+  and etapa in ('NUEVO', 'CONTACTADO', 'COTIZANDO')
+  and exists (
+    select 1
+    from public.usuarios usuario
+    where usuario.auth_user_id = (select auth.uid())
+      and usuario.organization_id = crm_oportunidades.organization_id
+      and usuario.active
+  )
+  and exists (
+    select 1
+    from public.empleados empleado
+    where empleado.id = crm_oportunidades.empleado_id
+      and empleado.usuario_id = (select auth.uid())
+      and empleado.organization_id = crm_oportunidades.organization_id
+      and empleado.business_id = crm_oportunidades.business_id
+      and empleado.branch_id is not distinct from crm_oportunidades.branch_id
+      and empleado.active
+  )
+);
+
 create policy "Duenos actualizan CRM oportunidades"
 on public.crm_oportunidades
 for update
