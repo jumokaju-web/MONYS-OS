@@ -54,3 +54,35 @@ test("avisa cuando el archivo no tiene una fila de totales SICAR", () => {
   ]);
   assert.equal(resultado.estado, "sin_control");
 });
+
+test("reconcilia los totales SICAR separados en encabezados y fila de importes", () => {
+  const encabezados = Array(27).fill("");
+  Object.assign(encabezados, {
+    0: "Documento",
+    3: "Fecha",
+    4: "Folio",
+    15: "Total Ven.",
+    20: "Total Com.",
+    24: "Utilidad",
+  });
+  const ticket = Array(27).fill("");
+  Object.assign(ticket, {
+    0: "Tickets",
+    3: "2026-09-28T10:25:39",
+    4: "21095",
+    15: "$ 422.31",
+    20: "$ 290.47",
+    24: "$ 131.84",
+  });
+  const encabezadosTotales = Array(27).fill("");
+  Object.assign(encabezadosTotales, { 11: "Ventas", 18: "Compra", 22: "Utilidad" });
+  const importesTotales = Array(27).fill("");
+  Object.assign(importesTotales, { 11: "$ 422.31", 18: "$ 290.47", 22: "$ 131.84" });
+
+  const resultado = reconciliarUtilidadVentas(
+    [encabezados, ticket, encabezadosTotales, importesTotales],
+    [{ ventaTotal: 422.31, costoTotal: 290.47, utilidad: 131.84 }],
+  );
+  assert.equal(resultado.estado, "conciliado");
+  assert.deepEqual(resultado.diferencias, { venta: 0, costo: 0, utilidad: 0 });
+});
