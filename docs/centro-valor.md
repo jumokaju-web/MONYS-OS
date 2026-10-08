@@ -27,3 +27,11 @@ El Dashboard ahora entrega la importación real a la Junta y conserva IDs y fech
 Pruebas automáticas: importes ausentes, ceros confirmados, tipos de movimientos, fechas inválidas, duraciones distintas, costos, escenarios, contexto ajeno, rol inactivo, registro de iniciativa, resultado separado de revisión y conflictos de edición. El repositorio compila con Vite.
 
 La prueba real de guardado, revisión y lectura entre sesiones, las políticas RLS y la apariencia en navegador siguen pendientes de acceso a la sesión. La automatización de facturación, licencias, cobro de suscripciones, alta de clientes, demanda perdida y atribución causal no forman parte de este bloque. Se conserva una ruta de mejora para incorporarlas después de un ciclo verificado.
+
+## Demanda no atendida
+
+El cierre de turno admite solicitudes estructuradas con producto/variante, unidades, motivo, compra no realizada y precio conocido. Se añaden al borrador del cierre y se persisten mediante el guardado ya existente en `cierres_turno`; no se simula un cierre aparte. Las notas anteriores permanecen disponibles y no se extraen cifras de texto libre.
+
+Centro de Valor consulta hasta 200 cierres de la sucursal validada, filtra por fechas y agrupa únicamente misma descripción normalizada y motivo. Los importes son potenciales con precio conocido, no ventas ni utilidad. Puede preparar una iniciativa de revisión de stock, compra o campaña; no genera compras ni autoriza descuentos.
+
+El 8 de octubre se verificaron en producción el inicio Owner, los accesos directos a Junta y Centro de Valor, y la consulta vacía correcta de sus registros. Se encontró y corrigió que la navegación de InicioJefa ocultaba los módulos nuevos. El intento posterior de selección de un archivo SICAR quedó bloqueado por protección del navegador; no se confirmó la importación. La captura estructurada de demanda aún requiere prueba completa de guardado y lectura en sesión.

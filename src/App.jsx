@@ -1096,9 +1096,14 @@ if (
     );
   }
 
+  if (pantallaActual === "captura-demanda") {
+    if (!esOwner) return mostrarAccesoDenegado("Demanda no atendida");
+    return <main style={{maxWidth:1100,margin:"0 auto",padding:20}}><button type="button" onClick={() => setPantallaActual("valor")}>← Centro de Valor</button><CierreTurno branchId={usuario?.branch_id || null} /></main>;
+  }
+
   if (pantallaActual === "valor") {
     if (!esOwner) return mostrarAccesoDenegado("Centro de Valor");
-    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirInteligencia={() => setPantallaActual("inteligencia")} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("operacion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" }))); }} />;
+    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirCapturaDemanda={() => setPantallaActual("captura-demanda")} onAbrirInteligencia={() => setPantallaActual("inteligencia")} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("operacion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" }))); }} />;
   }
 
   /*

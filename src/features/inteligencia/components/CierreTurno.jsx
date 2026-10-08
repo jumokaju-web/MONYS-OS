@@ -1,3 +1,4 @@
+import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
   useEffect,
   useMemo,
@@ -1201,6 +1202,7 @@ export default function CierreTurno({
           <label>
             🛍️ Productos solicitados
           </label>
+          <CapturaDemanda onAgregar={(linea) => setFormulario(anterior => ({ ...anterior, productosSolicitados: [anterior.productosSolicitados, linea].filter(Boolean).join("\n") }))} />
 
           <textarea
             name="productosSolicitados"

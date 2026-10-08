@@ -11,9 +11,9 @@ async function validarCuenta(usuario) {
 function aplicarAlcance(consulta,u) {return consulta.eq('organization_id',u.organization_id).eq('business_id',u.business_id).eq('branch_id',u.branch_id);}
 async function cargarCentroValor(usuario) {
  const u=await validarCuenta(usuario);
- const [tareas,caja]=await Promise.all([aplicarAlcance(supabase.from('tareas_operativas').select('id,titulo,descripcion,responsable,estado,fecha,resultado,updated_at,evaluacion_estado'),u).like('titulo','[Valor]%').order('created_at',{ascending:false}).limit(200),aplicarAlcance(supabase.from('cash_movements').select('id,concept,amount,movement_type,status,occurred_at,counterparty'),u).or('concept.ilike.[MONYS LICENCIA]%,concept.ilike.[MONYS IMPLEMENTACION]%,concept.ilike.[MONYS COSTO]%').order('occurred_at',{ascending:false}).limit(500)]);
+ const [tareas,caja,cierres]=await Promise.all([aplicarAlcance(supabase.from('tareas_operativas').select('id,titulo,descripcion,responsable,estado,fecha,resultado,updated_at,evaluacion_estado'),u).like('titulo','[Valor]%').order('created_at',{ascending:false}).limit(200),aplicarAlcance(supabase.from('cash_movements').select('id,concept,amount,movement_type,status,occurred_at,counterparty'),u).or('concept.ilike.[MONYS LICENCIA]%,concept.ilike.[MONYS IMPLEMENTACION]%,concept.ilike.[MONYS COSTO]%').order('occurred_at',{ascending:false}).limit(500),supabase.from('cierres_turno').select('id,branch_id,fecha,responsable,productos_solicitados').eq('branch_id',u.branch_id).order('fecha',{ascending:false}).limit(200)]);
  if(tareas.error)throw new Error(`No se pudieron cargar iniciativas: ${tareas.error.message}`);
- return {iniciativas:(tareas.data || []).filter(t=>leerRegistroValor(t)),movimientos:caja.data || [],errorCaja:caja.error?.message || '',limiteIniciativas:(tareas.data || []).length>=200,limiteMovimientos:(caja.data || []).length>=500};
+ return {cierres: cierres.data || [], errorDemanda: cierres.error?.message || '', limiteCierres: (cierres.data || []).length>=200, iniciativas:(tareas.data || []).filter(t=>leerRegistroValor(t)),movimientos:caja.data || [],errorCaja:caja.error?.message || '',limiteIniciativas:(tareas.data || []).length>=200,limiteMovimientos:(caja.data || []).length>=500};
 }
 async function crearIniciativaValor(usuario,datos) {
  const u=await validarCuenta(usuario);const d=validarIniciativa(datos);
