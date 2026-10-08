@@ -56,5 +56,5 @@ test("bloquea un nombre de archivo que contradice los datos de usuario SICAR", (
   assert.match(validarSucursalImportacion([{
     nombre: "RepUtilidadCentro.xlsx",
     datosNormalizados: [{ usuario: "general.anaya" }],
-  }], centro), /mezcla registros/);
+  }], centro), /nombre de .*indica Centro.*filas SICAR indican General Anaya/);
 });
