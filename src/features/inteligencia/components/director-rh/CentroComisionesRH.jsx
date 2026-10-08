@@ -262,6 +262,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
                       SICAR_AMBIGUO: "Revisar: usuario SICAR duplicado",
                       SICAR_SIN_USUARIO: "Revisar: ticket sin usuario SICAR",
                       SIN_ASIGNAR: "Revisar: sin asignación",
+                      USUARIO_SICAR_COMPARTIDO: "Revisar: cuenta compartida de sucursal",
                       AJUSTE_NEGATIVO_PENDIENTE: "Ajuste negativo por revisar",
                       CRM_SIN_TICKET_EN_REPORTE: "Revisar: folio CRM no está en el reporte",
                       CRM_DUPLICADO_SIN_TICKET: "Revisar: folio CRM duplicado y sin ticket",
