@@ -14,6 +14,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
 
   const esMarketing = esPerfilGrowth({ ...usuario, puesto });
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
+  const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
 
   useEffect(() => {
     function reflejarSeccionGrowth(event) {
@@ -62,6 +63,30 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
         .getElementById("centro-growth-operativo")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 40);
+  }
+
+  function navegarOperacion(seccion) {
+    setSeccionOperacionActiva(seccion);
+
+    if (seccion === "HOY") {
+      document
+        .getElementById("employee-work-today")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const panelTurno = document.getElementById("employee-shift-close");
+    if (panelTurno) panelTurno.open = true;
+
+    window.setTimeout(() => {
+      const destino =
+        seccion === "INCIDENCIAS"
+          ? document.getElementById("employee-incident-input")
+          : document.getElementById("employee-shift-select");
+
+      destino?.scrollIntoView({ behavior: "smooth", block: "center" });
+      destino?.focus({ preventScroll: true });
+    }, 80);
   }
 
   return (
@@ -221,6 +246,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
             ====================================== */}
 
         <div
+          id="employee-work-today"
           className={
             esMarketing
               ? "employee-home__operation employee-home__operation--growth"
@@ -233,6 +259,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
             overflow: "hidden",
             marginBottom: "18px",
             boxShadow: "0 7px 22px rgba(93, 44, 67, 0.05)",
+            scrollMarginTop: "104px",
           }}
         >
           <OperacionEmpleado branchId={branchId} usuario={usuario} />
@@ -243,12 +270,14 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
             ====================================== */}
 
         <details
+          id="employee-shift-close"
           style={{
             background: "#ffffff",
             border: "1px solid #ecdce4",
             borderRadius: "18px",
             overflow: "hidden",
             boxShadow: "0 7px 22px rgba(93, 44, 67, 0.05)",
+            scrollMarginTop: "104px",
           }}
         >
           <summary
@@ -341,59 +370,46 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           </>
         ) : (
           <>
-            <div
-              style={{
-                textAlign: "center",
-                color: "#ae2d68",
-                fontWeight: "900",
-                fontSize: "13px",
-              }}
-            >
-              <div
+            {[
+              ["HOY", "📋", "Hoy"],
+              ["INCIDENCIAS", "⚠️", "Incidencias"],
+              ["TURNO", "📝", "Turno"],
+            ].map(([seccion, icono, etiqueta]) => (
+              <button
+                key={seccion}
+                type="button"
+                aria-label={etiqueta}
+                aria-current={
+                  seccionOperacionActiva === seccion ? "page" : undefined
+                }
+                onClick={() => navegarOperacion(seccion)}
                 style={{
-                  fontSize: "22px",
+                  flex: 1,
+                  minHeight: "64px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "3px",
+                  border: 0,
+                  background: "transparent",
+                  color:
+                    seccionOperacionActiva === seccion
+                      ? "#ae2d68"
+                      : "#94858c",
+                  fontWeight:
+                    seccionOperacionActiva === seccion ? "900" : "700",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  touchAction: "manipulation",
                 }}
               >
-                📋
-              </div>
-              Hoy
-            </div>
-
-            <div
-              style={{
-                textAlign: "center",
-                color: "#94858c",
-                fontWeight: "700",
-                fontSize: "13px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "22px",
-                }}
-              >
-                ⚠️
-              </div>
-              Incidencias
-            </div>
-
-            <div
-              style={{
-                textAlign: "center",
-                color: "#94858c",
-                fontWeight: "700",
-                fontSize: "13px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "22px",
-                }}
-              >
-                📝
-              </div>
-              Turno
-            </div>
+                <span aria-hidden="true" style={{ fontSize: "22px" }}>
+                  {icono}
+                </span>
+                <span>{etiqueta}</span>
+              </button>
+            ))}
           </>
         )}
       </nav>
