@@ -1167,7 +1167,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa
+    <InicioJefa abrirCentroValor={() => setPantallaActual("valor")}
 
       sucursalesDashboard={
   sucursalesDashboard

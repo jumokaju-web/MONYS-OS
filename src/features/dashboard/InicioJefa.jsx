@@ -16,6 +16,7 @@ fechaFinal = null,
 movimientos = [],
   formatoDinero,
   abrirJuntaDirectiva,
+  abrirCentroValor,
   abrirTesoreria,
   abrirInventario,
   abrirCompraMaestra,
@@ -312,7 +313,7 @@ const utilidadConsolidada =
 
           <MetricaJefa
             icono="◆"
-            titulo="Utilidad"
+            titulo="Utilidad bruta"
             valor={formatoDinero(
               utilidadConsolidada
             )}
@@ -328,6 +329,16 @@ const utilidadConsolidada =
 />
 
         </div>
+
+        <section style={{ background: "#49293e", borderRadius: 18, padding: 20, color: "white", marginBottom: 18 }}>
+          <div style={{ fontSize: 10, letterSpacing: 1.4, color: "#e9bed3", fontWeight: 800 }}>DIRECCIÓN · INTELIGENCIA · RESULTADOS</div>
+          <h2 style={{ fontSize: 23, margin: "10px 0" }}>Tu Junta y el valor de tus decisiones</h2>
+          <p style={{ fontSize: 13, color: "#ead5e2", lineHeight: 1.5 }}>Revisa propuestas, trabaja iniciativas y comprueba sus resultados. Los ingresos por vender MONYS se consultan por separado.</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" onClick={abrirJuntaDirectiva} style={{ padding: "12px 16px", minHeight: 44, border: 0, borderRadius: 11, background: "#f0c1d8", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Abrir Junta Directiva →</button>
+            <button type="button" onClick={abrirCentroValor} style={{ padding: "12px 16px", minHeight: 44, border: "1px solid #e6bdd2", borderRadius: 11, background: "white", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Centro de Valor →</button>
+          </div>
+        </section>
 
         {/* ATENCIÓN */}
 
