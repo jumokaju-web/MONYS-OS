@@ -14,18 +14,20 @@ function sucursalConocida(valor = "") {
   return null;
 }
 
-function detectarSucursalesArchivo(archivo = {}) {
-  const evidencia = [
-    archivo.nombre || archivo.name || "",
-    ...(Array.isArray(archivo.datosNormalizados)
-      ? archivo.datosNormalizados.flatMap((fila) => [
-          fila?.sucursal,
-          fila?.usuario,
-          fila?.vendedor,
-        ])
-      : []),
-  ];
-  return new Set(evidencia.map(sucursalConocida).filter(Boolean));
+function nombreSucursal(sucursal) {
+  return sucursal === "centro" ? "Centro" : "General Anaya";
+}
+
+function sucursalesDeFilas(archivo = {}) {
+  const filas = Array.isArray(archivo.datosNormalizados)
+    ? archivo.datosNormalizados
+    : [];
+  return new Set(
+    filas
+      .flatMap((fila) => [fila?.sucursal, fila?.usuario, fila?.vendedor])
+      .map(sucursalConocida)
+      .filter(Boolean)
+  );
 }
 
 export function validarSucursalImportacion(archivos = [], sucursalSeleccionada) {
@@ -37,12 +39,21 @@ export function validarSucursalImportacion(archivos = [], sucursalSeleccionada) 
   const sucursalesDetectadas = new Set();
 
   for (const archivo of archivos) {
-    const evidenciaArchivo = detectarSucursalesArchivo(archivo);
-    if (evidenciaArchivo.size > 1) {
-      const nombre = archivo.nombre || archivo.name || "El reporte";
+    const nombre = archivo.nombre || archivo.name || "El reporte";
+    const sucursalNombre = sucursalConocida(nombre);
+    const sucursalesFilas = sucursalesDeFilas(archivo);
+
+    if (sucursalesFilas.size > 1) {
       return `El reporte “${nombre}” mezcla registros de Centro y General Anaya. Sepáralo antes de importar.`;
     }
-    for (const sucursal of evidenciaArchivo) sucursalesDetectadas.add(sucursal);
+
+    const sucursalContenido = [...sucursalesFilas][0];
+    if (sucursalNombre && sucursalContenido && sucursalNombre !== sucursalContenido) {
+      return `El nombre de “${nombre}” indica ${nombreSucursal(sucursalNombre)}, pero sus filas SICAR indican ${nombreSucursal(sucursalContenido)}. Verifica el archivo antes de importarlo.`;
+    }
+
+    if (sucursalNombre) sucursalesDetectadas.add(sucursalNombre);
+    if (sucursalContenido) sucursalesDetectadas.add(sucursalContenido);
   }
 
   if (sucursalesDetectadas.size > 1) {
@@ -51,9 +62,7 @@ export function validarSucursalImportacion(archivos = [], sucursalSeleccionada) 
 
   const sucursalDelArchivo = [...sucursalesDetectadas][0];
   if (sucursalDelArchivo && sucursalElegida && sucursalDelArchivo !== sucursalElegida) {
-    const nombreEsperado = sucursalDelArchivo === "centro" ? "Centro" : "General Anaya";
-    const nombreElegido = sucursalElegida === "centro" ? "Centro" : "General Anaya";
-    return `El archivo parece ser de ${nombreEsperado}, pero está seleccionada ${nombreElegido}. Corrige la sucursal antes de importar.`;
+    return `El archivo parece ser de ${nombreSucursal(sucursalDelArchivo)}, pero está seleccionada ${nombreSucursal(sucursalElegida)}. Corrige la sucursal antes de importar.`;
   }
 
   return null;
