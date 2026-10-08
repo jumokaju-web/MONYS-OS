@@ -268,7 +268,7 @@ const utilidadConsolidada =
               letterSpacing: "1px",
             }}
           >
-            MONYS OS · DIRECCIÓN · INICIO 08 OCT / 2
+            MONYS OS · DIRECCIÓN · INICIO 08 OCT / 3
           </div>
 
           <h1
@@ -336,7 +336,7 @@ const utilidadConsolidada =
           <button type="button" onClick={abrirTesoreria}>Dinero y movimientos →</button>
           <button type="button" onClick={abrirImportador}>Subir reportes →</button>
           <button type="button" onClick={abrirInventario}>Inventario →</button>
-          <button type="button" onClick={() => document.getElementById('operacion-equipo')?.scrollIntoView({behavior:'smooth'})}>Operación del equipo ↓</button>
+          <button type="button" onClick={() => { const panel=document.getElementById('operacion-equipo'); const bloque=panel?.closest('details'); if(bloque)bloque.open=true; panel?.scrollIntoView({behavior:'smooth'}); }}>Operación del equipo ↓</button>
         </nav>
         {/* ATENCIÓN */}
 
@@ -705,28 +705,7 @@ const utilidadConsolidada =
 
         {/* ACCIONES RÁPIDAS */}
 
-        <div
-          style={{
-            marginBottom: "8px",
-            fontSize: "11px",
-            fontWeight: "900",
-            color: "#846e79",
-            letterSpacing: "0.5px",
-          }}
-        >
-          ACCIONES RÁPIDAS
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: "9px",
-            marginBottom: "18px",
-          }}
-        >
-         
+        <div className="owner-module-grid">
               <Acceso
   icono="📄"
   texto="Importar reportes"
@@ -826,7 +805,7 @@ function SucursalCard({
     sucursal?.tieneDatos;
 
   return (
-    <details
+    <details className="owner-branch-card"
       style={{
         border:
           "1px solid #eee2e8",
@@ -885,7 +864,7 @@ function SucursalCard({
               valor={formatoDinero(sucursal.ventasTotales)}
             />
             <ResumenSucursal
-              titulo="Utilidad"
+              titulo="Utilidad bruta"
               valor={formatoDinero(sucursal.utilidadTotal)}
             />
           </div>

@@ -23,3 +23,9 @@
 .owner-agenda .owner-more{width:100%;background:transparent;border:1px solid #ead8e2;}
 .owner-decision-summary{margin-bottom:14px;border:1px solid #e7d8df;border-radius:14px;padding:12px;background:#fffdfa;color:#64394f;}
 .owner-decision-summary summary{cursor:pointer;font-size:13px;font-weight:700;}
+.monys-owner .owner-module-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:18px;}
+.monys-owner .owner-module-grid button{min-height:54px;font-size:12px;line-height:1.4;}
+.monys-owner .owner-branch-card summary{gap:8px!important;}
+.monys-owner .owner-branch-card summary>div:first-child{min-width:0!important;flex:1 1 130px!important;}
+.monys-owner .owner-branch-card summary>div:nth-child(2){flex:1 1 180px!important;gap:12px!important;}
+@media(max-width:600px){.monys-owner .owner-module-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.monys-owner .owner-module-grid button:last-child{grid-column:1/-1;}.monys-owner .owner-branch-card summary{padding:12px!important;}}
