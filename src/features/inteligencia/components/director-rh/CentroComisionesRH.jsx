@@ -151,6 +151,10 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     : empleados.filter((item) => item.active);
 
   async function guardarMapeo(usuarioSicar) {
+    if (esUsuarioSicarCompartido(usuarioSicar)) {
+      setError("La cuenta compartida de una sucursal no se puede asignar a una sola empleada.");
+      return;
+    }
     const empleadoId = selecciones[normalizarUsuarioSicar(usuarioSicar)];
     if (!empleadoId) {
       setError("Selecciona a qué empleada corresponde ese usuario de SICAR.");
