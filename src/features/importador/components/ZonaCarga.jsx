@@ -25,10 +25,8 @@ import {
 } from "../utils/resumenReporte";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
-import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
 import AnalisisEjecutivo from "./AnalisisEjecutivo";
 import { ejecutarIA } from "../../../core/engine/iaEngine";
-import { actualizarEmpresa } from "../../../core/engine/empresaActual";
 import {
   obtenerSucursalesInventario,
 } from "../../inventario/services/inventarioService";
@@ -463,41 +461,7 @@ if (
         ? generarAnalisisEjecutivo(resumen)
         : null;
 
-      if (resumen) {
-        registrarConocimientoReporte({
-          tipoReporte,
-          resumen,
-          nombreArchivo: item.file.name,
-        });
-      }
-
-      // ==========================================
-// Actualizar Memoria Central de MONYS OS
-// ==========================================
-
-if (tipoReporte === "Ventas por artículo" && resumen) {
-  actualizarEmpresa("ventas", {
-    total: resumen.ventasTotales ?? 0,
-    utilidad: resumen.utilidadTotal ?? 0,
-    margen: resumen.margenPromedio ?? 0,
-    productosVendidos: datosNormalizados,
-  });
-}
-
-if (
-  (tipoReporte === "Inventario" ||
-    tipoReporte === "Inventario / Utilidad") &&
-  resumen
-) {
-  actualizarEmpresa("inventario", {
-    valor: resumen.valorInventario ?? 0,
-    productos: datosNormalizados,
-    agotados: resumen.productosAgotados ?? [],
-    sobreInventario:
-      resumen.productosSobreInventario ?? [],
-  });
-}
-
+      // La vista previa no modifica la memoria empresarial ni representa datos guardados.
       actualizarArchivo(item.id, {
         estado: "listo",
         tipoReporte,
@@ -698,8 +662,7 @@ if (
         });
 
         try {
-         const importacionGuardada =
- await guardarImportacion({
+         await guardarImportacion({
   tipoReporte: item.tipoReporte,
   archivoOriginal: item.nombre,
   datosNormalizados:

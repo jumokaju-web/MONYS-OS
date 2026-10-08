@@ -1,3 +1,4 @@
+import { confirmarFilasCaja } from '../utils/confirmarFilasCaja';
 import { guardarCargaConfirmada } from '../utils/guardarCargaConfirmada';
 import { supabase } from "../../../supabase";
 import { guardarMovimientosTesoreriaMasivos } from "../../tesoreria/services/tesoreriaService";
@@ -113,7 +114,7 @@ async function guardarDatosPorTipoReporte({
         datosNormalizados.length
       );
 
-      await guardarMovimientosTesoreriaMasivos(
+      const filasGuardadas = await guardarMovimientosTesoreriaMasivos(
         datosNormalizados,
         {
           branchId:
@@ -121,6 +122,7 @@ async function guardarDatosPorTipoReporte({
           importacionId,
         }
       );
+      confirmarFilasCaja(filasGuardadas, datosNormalizados.length);
 
       break;
     }
