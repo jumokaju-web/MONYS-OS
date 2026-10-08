@@ -123,6 +123,18 @@ function generarAnalisisVentas(resumen) {
     resumen.cantidadProductoMasVendido || 0
   );
 
+  if (resumen.ventaDisponible === false || resumen.utilidadDisponible === false) {
+    return {
+      titulo: "Demanda de productos analizada",
+      mensaje:
+        `Se analizaron ${formatoNumero(resumen.totalRegistros)} registros de ${formatoNumero(resumen.articulosDiferentes)} productos y ${formatoNumero(cantidadTotal)} piezas vendidas. El producto líder fue "${resumen.productoMasVendido || "Sin información}", con ${formatoNumero(cantidadProductoLider)} piezas. Este reporte no incluye ${[
+          resumen.ventaDisponible === false ? "importes de venta" : "",
+          resumen.utilidadDisponible === false ? "costos ni utilidad" : "",
+        ].filter(Boolean).join(" ni ")}; MONYS no calcula ni sustituye esos valores.`,
+      nivel: "neutral",
+    };
+  }
+
   const margenUtilidad =
     ventaTotal > 0
       ? (utilidadTotal / ventaTotal) * 100
