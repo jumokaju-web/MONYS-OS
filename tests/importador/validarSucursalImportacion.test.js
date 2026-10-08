@@ -27,3 +27,34 @@ test("permite un archivo cuya sucursal coincide", () => {
 test("permite nombres sin sucursal detectable, con sucursal seleccionada", () => {
   assert.equal(validarSucursalImportacion([{ nombre: "Utilidad_octubre.xlsx" }], centro), null);
 });
+
+test("detecta la sucursal en los usuarios SICAR aunque el nombre del archivo sea genérico", () => {
+  assert.equal(validarSucursalImportacion([{
+    nombre: "Utilidad_octubre.xlsx",
+    datosNormalizados: [{ usuario: "general.anaya" }],
+  }], general), null);
+});
+
+test("bloquea si el contenido SICAR contradice la sucursal seleccionada", () => {
+  assert.match(validarSucursalImportacion([{
+    nombre: "Utilidad_octubre.xlsx",
+    datosNormalizados: [{ usuario: "sucursalcentro" }],
+  }], general), /parece ser de Centro/);
+});
+
+test("bloquea un reporte que contiene filas de ambas sucursales", () => {
+  assert.match(validarSucursalImportacion([{
+    nombre: "Utilidad_octubre.xlsx",
+    datosNormalizados: [
+      { usuario: "sucursalcentro" },
+      { usuario: "general.anaya" },
+    ],
+  }], centro), /mezcla registros/);
+});
+
+test("bloquea un nombre de archivo que contradice los datos de usuario SICAR", () => {
+  assert.match(validarSucursalImportacion([{
+    nombre: "RepUtilidadCentro.xlsx",
+    datosNormalizados: [{ usuario: "general.anaya" }],
+  }], centro), /mezcla registros/);
+});
