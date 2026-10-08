@@ -6,6 +6,7 @@ import FormularioMovimiento from "../components/FormularioMovimiento";
 import "./TesoreriaPage.css";
 import HistorialMovimientos from "../components/HistorialMovimientos";
 import RevisionFinanciera from "../components/RevisionFinanciera";
+import RevisionEstadoBancario from "../components/RevisionEstadoBancario";
 import ResumenBancario from "../components/ResumenBancario";
 import {
   guardarMovimientoTesoreria,
@@ -284,6 +285,8 @@ function TesoreriaPage({
         error={errorSaldos}
         formatoDinero={formatoDinero}
       />
+
+      <RevisionEstadoBancario />
 
       <section className="acciones">
         {!formularioVisible && (
