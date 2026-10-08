@@ -19,6 +19,7 @@ export async function obtenerCreditosProveedoresActuales(
     .select(
       "id, branch_id, archivo_original, created_at"
     )
+    .eq("estado", "procesado")
     .eq(
       "tipo_reporte",
       "Créditos de proveedores"

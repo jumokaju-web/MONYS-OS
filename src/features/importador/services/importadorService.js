@@ -1,71 +1,14 @@
-import { validarCarga } from '../utils/validarCarga';
+import { guardarCargaConfirmada } from '../utils/guardarCargaConfirmada';
 import { supabase } from "../../../supabase";
-
-import {
-  guardarMovimientosTesoreriaMasivos,
-} from "../../tesoreria/services/tesoreriaService";
-
-export async function guardarImportacion({
-  tipoReporte,
-  archivoOriginal,
-  datosNormalizados,
-  branchId,
-}) {
-  validarCarga({branchId,tipoReporte,datosNormalizados});
-  const {
-    data: importacion,
-    error: errorImportacion,
-  } = await supabase
-    .from("importaciones")
-    .insert({
-      tipo_reporte: tipoReporte,
-      archivo_original: archivoOriginal,
-      estado: "procesado",
-      total_filas: datosNormalizados.length,
-      branch_id: branchId || null,
-    })
-    .select()
-    .single();
-
-  if (errorImportacion) {
-    throw new Error(
-      `No se pudo crear la importación: ${errorImportacion.message}`
-    );
-  }
-
-  const detalles = datosNormalizados.map(
-    (fila, indice) => ({
-      importacion_id: importacion.id,
-      numero_fila: indice + 1,
-      codigo: fila.codigo,
-      descripcion: fila.descripcion,
-      categoria: fila.categoria,
-      cantidad: fila.cantidad,
-      datos_originales: fila,
-    })
-  );
-
-  console.log(detalles[0]);
-
-  const { error: errorDetalles } =
-    await supabase
-      .from("importacion_detalle")
-      .insert(detalles);
-
-  if (errorDetalles) {
-    throw new Error(
-      `No se pudieron guardar los detalles: ${errorDetalles.message}`
-    );
-  }
-
-  await guardarDatosPorTipoReporte({
-    tipoReporte,
-    datosNormalizados,
-    importacionId: importacion.id,
-    branchId,
-  });
-
-  return importacion;
+import { guardarMovimientosTesoreriaMasivos } from "../../tesoreria/services/tesoreriaService";
+export async function guardarImportacion(carga) {
+ return guardarCargaConfirmada(carga, {
+  async buscar(id) { const {data,error}=await supabase.from('importaciones').select('id,estado').eq('id',id).eq('branch_id',carga.branchId).maybeSingle();if(error)throw new Error(`No se pudo comprobar una carga anterior: ${error.message}`);return data; },
+  async crear({id,estado}) { const {data,error}=await supabase.from('importaciones').insert({id,tipo_reporte:carga.tipoReporte,archivo_original:carga.archivoOriginal,estado,total_filas:carga.datosNormalizados.length,branch_id:carga.branchId}).select().single();if(error)throw new Error(error.message);return data; },
+  async detalles(registro) { const detalles=carga.datosNormalizados.map((fila,indice)=>({importacion_id:registro.id,numero_fila:indice+1,codigo:fila.codigo,descripcion:fila.descripcion,categoria:fila.categoria,cantidad:fila.cantidad,datos_originales:fila}));const {error}=await supabase.from('importacion_detalle').insert(detalles);if(error)throw new Error(error.message); },
+  async destino(registro) { await guardarDatosPorTipoReporte({ ...carga,importacionId:registro.id }); },
+  async confirmar(registro) { const {data,error}=await supabase.from('importaciones').update({estado:'procesado'}).eq('id',registro.id).eq('branch_id',carga.branchId).eq('estado','pendiente').select().single();if(error)throw new Error(error.message);return data; }
+ });
 }
 
 async function guardarDatosPorTipoReporte({
@@ -226,9 +169,6 @@ async function guardarDatosPorTipoReporte({
     }
 
     default:
-      console.log(
-        "Reporte sin manejador:",
-        tipoReporte
-      );
+      throw new Error(`Reporte sin manejador: ${tipoReporte}`);
   }
 }
