@@ -8,8 +8,10 @@ export function generarResumenReporte(datos) {
     return {
       totalRegistros: 0,
       cantidadTotal: 0,
-      ventaTotal: 0,
-      utilidadTotal: 0,
+      ventaTotal: null,
+      utilidadTotal: null,
+      ventaDisponible: false,
+      utilidadDisponible: false,
       articulosDiferentes: 0,
       productoMasVendido: "Sin información",
       cantidadProductoMasVendido: 0,
@@ -72,11 +74,16 @@ export function generarResumenReporte(datos) {
     }
   );
 
+  const ventaDisponible = datos.every((fila) => fila.importeDisponible !== false);
+  const utilidadDisponible = datos.every((fila) => fila.utilidadDisponible !== false);
+
   return {
     totalRegistros: datos.length,
     cantidadTotal,
-    ventaTotal,
-    utilidadTotal,
+    ventaTotal: ventaDisponible ? ventaTotal : null,
+    utilidadTotal: utilidadDisponible ? utilidadTotal : null,
+    ventaDisponible,
+    utilidadDisponible,
     articulosDiferentes: productos.size,
     productoMasVendido: productoMasVendido.descripcion,
     codigoProductoMasVendido: productoMasVendido.codigo,
