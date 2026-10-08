@@ -27,6 +27,7 @@ import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
 import { extraerPeriodoSicar } from "../utils/periodoSicar";
+import { reconciliarUtilidadVentas } from "../utils/reconciliarUtilidadVentas";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import { registrarConocimientoReporte } from "../../inteligencia/conocimiento/motorConocimiento";
@@ -400,10 +401,16 @@ if (
         return;
       }
 
-      const resumen = generarResumen(
+      const resumenBase = generarResumen(
         tipoReporte,
         datosNormalizados
       );
+      const controlSicar = tipoReporte === "Utilidad de ventas"
+        ? reconciliarUtilidadVentas(filasDelReporte, datosNormalizados)
+        : null;
+      const resumen = resumenBase && controlSicar
+        ? { ...resumenBase, controlSicar }
+        : resumenBase;
 
       const analisis = resumen
         ? generarAnalisisEjecutivo(resumen)
@@ -587,6 +594,18 @@ if (
         "No existen reportes listos para importar."
       );
 
+      return;
+    }
+
+    const reporteConDiferencias = pendientesDeImportar.find(
+      (item) =>
+        item.tipoReporte === "Utilidad de ventas" &&
+        item.resumen?.controlSicar?.estado === "diferencia"
+    );
+    if (reporteConDiferencias) {
+      setMensajeGeneral(
+        `❌ No se importó “${reporteConDiferencias.nombre}”: sus importes no coinciden con los totales de SICAR. Revisa el archivo antes de volver a cargarlo.`
+      );
       return;
     }
 
