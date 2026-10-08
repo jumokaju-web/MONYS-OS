@@ -260,7 +260,8 @@ const vencimientos90Dias =
   ) =>
     normalizarValor(
       movimiento?.expense_category ||
-        movimiento?.expenseCategory
+        movimiento?.expenseCategory ||
+        movimiento?.categoria
     );
 
   const obtenerComportamientoMovimiento =
@@ -468,6 +469,7 @@ const vencimientos90Dias =
         return (
           tipo === "salida" &&
           estado === "Revisado" &&
+          !["compras_inventario", "anticipo_prestamo", "retiro_propietaria", "traspaso_caja", "pago_capital", "aportacion"].includes(obtenerCategoriaMovimiento(movimiento)) &&
           (
             comportamiento === "fijo" ||
             comportamiento === "variable"

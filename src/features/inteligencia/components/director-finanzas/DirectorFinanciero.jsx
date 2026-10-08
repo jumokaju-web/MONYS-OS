@@ -7,6 +7,8 @@ import {
   useEffect,
   useState,
 } from "react";
+import { consolidarFinanzasSucursales } from "../../shared/resumenSucursalesFinanciero";
+import CierreSemanalFinanciero from "./CierreSemanalFinanciero";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
@@ -85,49 +87,19 @@ const [
   saldoTotal: 0,
 });
 
-  const metricas =
-    datosDashboard?.metricas || {};
-
-  const hayDatosConsolidados =
-  Array.isArray(
-    sucursalesDashboard
-  ) &&
-  sucursalesDashboard.length > 0;
-
-const ventasConsolidadas =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.ventasTotales
-      ) || 0),
-    0
-  );
-
-const utilidadConsolidada =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.utilidadTotal
-      ) || 0),
-    0
-  );
-
-const costoConsolidado =
-  Math.max(
-    ventasConsolidadas -
-      utilidadConsolidada,
-    0
-  );
-
-const margenConsolidado =
-  ventasConsolidadas > 0
-    ? (
-        utilidadConsolidada /
-        ventasConsolidadas
-      ) * 100
-    : 0;
+  const metricasOrigen = datosDashboard?.metricas || {};
+  const consolidacion = consolidarFinanzasSucursales(sucursalesDashboard);
+  const hayDatosConsolidados = consolidacion.disponible;
+  const metricas = hayDatosConsolidados ? {
+    ...metricasOrigen,
+    fechaInicial: consolidacion.fechaInicial,
+    fechaFinal: consolidacion.fechaFinal,
+    diasAnalizados: consolidacion.diasAnalizados,
+  } : metricasOrigen;
+  const ventasConsolidadas = consolidacion.ventas;
+  const utilidadConsolidada = consolidacion.utilidad;
+  const costoConsolidado = consolidacion.costo;
+  const margenConsolidado = consolidacion.margen;
 
 const branchId =
   datosDashboard?.branch_id || null;
@@ -616,6 +588,7 @@ const historial =
           "0 12px 35px rgba(180, 120, 40, 0.12)",
       }}
     >
+      <CierreSemanalFinanciero consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
       {mensajeDecision && (
         <div
           style={{

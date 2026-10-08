@@ -1,3 +1,4 @@
+import { pendientesResultadosMarketing } from "../../utils/pendientesResultadosMarketing";
 import {
   useEffect,
   useState,
@@ -1502,6 +1503,17 @@ for (
           "0 12px 35px rgba(180, 65, 120, 0.12)",
       }}
     >
+      <section style={{ background: "#ffffff", border: "1px solid #efbfd3", borderRadius: 16, padding: 18, marginBottom: 20 }}>
+        <h3>Resultados que faltan para decidir</h3>
+        <p>Completa venta, pedidos y gasto reales antes de evaluar una campaña. Un cero confirmado sí cuenta como resultado.</p>
+        {cargandoCampanas ? <p>Consultando campañas…</p> : errorCampanas ? <p>No se pudo confirmar la lista. Revisa el aviso de campañas.</p> : pendientesResultadosMarketing(campanasMarketing).length === 0 ? <p>No hay campos pendientes en las campañas activas cargadas. Esto no confirma rentabilidad ni atribución a SICAR.</p> : pendientesResultadosMarketing(campanasMarketing).map(({ campana, faltantes }) => (
+          <div key={campana.id} style={{ padding: "12px 0", borderTop: "1px solid #efbfd3" }}>
+            <strong>{campana.nombre || campana.producto || "Campaña activa"}</strong>
+            <p>Falta confirmar: {faltantes.join(", ")}.</p>
+            <button type="button" onClick={() => document.getElementById(`campana-marketing-${campana.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Completar resultados de esta campaña</button>
+          </div>
+        ))}
+      </section>
       {/* ENCABEZADO */}
 
       <div
