@@ -107,7 +107,7 @@ function CentroRescateFinanciero({
   businessId = null,
   branchId = null,
   flujoNetoPeriodo = 0,
-  reservaRecomendada = 0,
+  reservaRecomendada = null,
   baseFinancieraVigente = false,
   movimientosPendientes = 0,
 }) {
@@ -421,7 +421,11 @@ function CentroRescateFinanciero({
             ],
             [
               "Reserva recomendada",
-              baseFinancieraVigente ? dinero(reservaRecomendada) : "Sin base vigente",
+              !baseFinancieraVigente
+                ? "Sin base vigente"
+                : reservaRecomendada === null || reservaRecomendada === undefined
+                  ? "Sin base suficiente"
+                  : dinero(reservaRecomendada),
             ],
             ["Mensualidades con fecha", dinero(mensualidadesConFecha.montoTotal)],
           ].map(([etiqueta, valor]) => (
