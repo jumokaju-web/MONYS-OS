@@ -1120,6 +1120,7 @@ export default function CierreTurno({
             </label>
 
             <select
+              id="employee-shift-select"
               name="turno"
               value={
                 formulario.turno
@@ -1179,6 +1180,7 @@ export default function CierreTurno({
           </label>
 
           <textarea
+            id="employee-incident-input"
             name="incidencias"
             value={
               formulario.incidencias
