@@ -6,7 +6,7 @@ import {
   listarImportacionesUtilidadVentas,
   listarOportunidadesGanadasComision,
 } from "../../services/comisionesSicarService";
-import { normalizarUsuarioSicar, resumirComisionesSicar } from "../../shared/resumenComisionesSicar";
+import { esUsuarioSicarCompartido, normalizarUsuarioSicar, resumirComisionesSicar } from "../../shared/resumenComisionesSicar";
 
 function fechaLocal(valor) {
   return [valor.getFullYear(), String(valor.getMonth() + 1).padStart(2, "0"), String(valor.getDate()).padStart(2, "0")].join("-");
