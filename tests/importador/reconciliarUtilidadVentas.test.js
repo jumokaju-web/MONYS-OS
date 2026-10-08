@@ -74,13 +74,15 @@ test("reconcilia los totales SICAR separados en encabezados y fila de importes",
     20: "$ 290.47",
     24: "$ 131.84",
   });
+  const marcaTotales = Array(27).fill("");
+  marcaTotales[11] = "TOTALES";
   const encabezadosTotales = Array(27).fill("");
   Object.assign(encabezadosTotales, { 11: "Ventas", 18: "Compra", 22: "Utilidad" });
   const importesTotales = Array(27).fill("");
   Object.assign(importesTotales, { 11: "$ 422.31", 18: "$ 290.47", 22: "$ 131.84" });
 
   const resultado = reconciliarUtilidadVentas(
-    [encabezados, ticket, encabezadosTotales, importesTotales],
+    [encabezados, ticket, marcaTotales, encabezadosTotales, importesTotales],
     [{ ventaTotal: 422.31, costoTotal: 290.47, utilidad: 131.84 }],
   );
   assert.equal(resultado.estado, "conciliado");
