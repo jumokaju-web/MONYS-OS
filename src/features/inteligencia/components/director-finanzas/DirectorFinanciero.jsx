@@ -1,3 +1,4 @@
+import ObligacionesProveedores from './ObligacionesProveedores';
 import EquilibrioDiario from './EquilibrioDiario';
 import FlujoCaja13Semanas from './FlujoCaja13Semanas';
 // ======================================================
@@ -904,6 +905,7 @@ const historial =
   }
   icono="⚖️"
 />
+      <ObligacionesProveedores reporte={creditosProveedores} />
       <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <h3
         style={{

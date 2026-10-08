@@ -1,38 +1,5 @@
 import { supabase } from "../../../supabase";
 
-function calcularFechaVencimientoEstimada(
-  fechaBase,
-  diasCredito
-) {
-  if (
-    !fechaBase ||
-    !diasCredito ||
-    Number(diasCredito) <= 0
-  ) {
-    return null;
-  }
-
-  const fecha =
-    new Date(fechaBase);
-
-  if (
-    Number.isNaN(
-      fecha.getTime()
-    )
-  ) {
-    return null;
-  }
-
-  fecha.setDate(
-    fecha.getDate() +
-      Number(diasCredito)
-  );
-
-  return fecha
-    .toISOString()
-    .slice(0, 10);
-}
-
 export async function obtenerCreditosProveedoresActuales(
   branchId
 ) {
@@ -121,11 +88,7 @@ export async function obtenerCreditosProveedoresActuales(
           null;
 
         const fechaVencimientoEstimada =
-          fechaVencimientoReal ||
-          calcularFechaVencimientoEstimada(
-            importacion.created_at,
-            credito?.dias_credito
-          );
+          fechaVencimientoReal;
 
         return {
           ...credito,
