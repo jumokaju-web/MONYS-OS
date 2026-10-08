@@ -1,3 +1,4 @@
+import CentroMando from "./components/CentroMando";
 import {
   useEffect,
   useState,
@@ -538,6 +539,10 @@ const analisisRH =
     >
 
 
+      <CentroMando sucursales={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => {
+        setDirectorAbierto(id);
+        requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
+      }} />
       <button
         type="button"
         onClick={volverAlDashboard}
@@ -780,6 +785,7 @@ const analisisRH =
         </div>
       </section>
 
+      <div id="panel-director-activo" />
       {directorAbierto ===
         "comercial" && (
         <DirectorComercial
