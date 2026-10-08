@@ -1,4 +1,4 @@
-function numero(v) { if(v === '' || v == null || typeof v === 'boolean') return null; const n=Number(v);return Number.isFinite(n) && n>=0?n:null; }
+function numero(v) { if((typeof v === 'string' && !v.trim()) || v == null || !['string','number'].includes(typeof v)) return null; const n=Number(v);return Number.isFinite(n) && n>=0?n:null; }
 export function calcularEquilibrioDiario(datos={}) {
  const campos=['gastosFijos','margenBruto','variablePorcentaje','diasAbiertos','deuda','ventaPrevista'];
  const n=Object.fromEntries(campos.map(c=>[c,numero(datos[c])]));

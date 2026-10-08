@@ -904,7 +904,7 @@ const historial =
   }
   icono="⚖️"
 />
-      <EquilibrioDiario key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
+      <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <h3
         style={{
           marginTop: "32px",
