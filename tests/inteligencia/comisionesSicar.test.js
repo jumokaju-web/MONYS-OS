@@ -192,3 +192,28 @@ test("bloquea comisiones cuando el detalle SICAR no coincide con las filas impor
     /No se pudo verificar el total esperado/,
   );
 });
+
+test("no asigna la cuenta SICAR compartida de una sucursal a una sola empleada", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11",
+    empleados: [...empleados, { id: "3", nombre: "Centro", usuario_sicar: "sucursalcentro" }],
+    filas: [{ fecha: "2026-10-06", folio: "S-1", usuario: "sucursalcentro", ventaTotal: 8200 }],
+  });
+  assert.equal(resumen.comisiones.length, 0);
+  assert.equal(resumen.ventasSinAsignar, 8200);
+  assert.equal(resumen.comisionTotal, 0);
+  assert.equal(resumen.conciliacion[0].estado, "USUARIO_SICAR_COMPARTIDO");
+  assert.equal(resumen.sinAsignar[0].motivo, "USUARIO_SICAR_COMPARTIDO");
+});
+
+test("CRM puede atribuir por folio aunque SICAR use la cuenta compartida de sucursal", () => {
+  const resumen = resumirComisionesSicar({
+    desde: "2026-10-05", hasta: "2026-10-11", empleados,
+    oportunidadesCRM: [{ id: "o-shared", etapa: "GANADO", folio_venta_sicar: "S-2", empleado_id: "2" }],
+    filas: [{ fecha: "2026-10-06", folio: "S-2", usuario: "general.anaya", ventaTotal: 3200 }],
+  });
+  assert.equal(resumen.ventasAsignadas, 3200);
+  assert.equal(resumen.comisionTotal, 32);
+  assert.equal(resumen.comisiones[0].empleado, "Kary");
+  assert.equal(resumen.conciliacion[0].estado, "CRM_ATRIBUIDO");
+});
