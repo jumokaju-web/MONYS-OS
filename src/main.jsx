@@ -1,3 +1,4 @@
+import ActualizacionApp from './components/system/ActualizacionApp';
 import {
   StrictMode,
   useEffect,
@@ -191,6 +192,7 @@ function Root() {
   */
   return (
     <UserProvider>
+      <ActualizacionApp />
       <App />
     </UserProvider>
   );

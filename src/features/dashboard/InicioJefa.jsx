@@ -268,7 +268,7 @@ const utilidadConsolidada =
               letterSpacing: "1px",
             }}
           >
-            MONYS OS · DIRECCIÓN
+            MONYS OS · DIRECCIÓN · INICIO 08 OCT / 2
           </div>
 
           <h1
