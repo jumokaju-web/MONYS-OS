@@ -29,6 +29,11 @@ export function normalizarUsuarioSicar(valor) {
     .replace(/\s+/g, " ");
 }
 
+export function esUsuarioSicarCompartido(valor) {
+  const clave = normalizarUsuarioSicar(valor).replace(/[\s._-]+/g, "");
+  return ["sucursalcentro", "sucursalgeneralanaya", "generalanaya"].includes(clave);
+}
+
 function fechaISO(valor) {
   if (valor instanceof Date && Number.isFinite(valor.getTime())) {
     return [valor.getFullYear(), String(valor.getMonth() + 1).padStart(2, "0"), String(valor.getDate()).padStart(2, "0")].join("-");
@@ -150,12 +155,24 @@ export function resumirComisionesSicar({
       } else {
         estado = "CRM_SIN_RESPONSABLE";
       }
-    } else if (coincidencias.length === 1) {
+    } else if (coincidencias.length === 1 && !esUsuarioSicarCompartido(venta.usuario)) {
       estado = "SICAR_ASIGNADO";
     } else {
-      estado = coincidencias.length > 1 ? "SICAR_AMBIGUO" : venta.usuario ? "SIN_ASIGNAR" : "SICAR_SIN_USUARIO";
+      estado = esUsuarioSicarCompartido(venta.usuario)
+        ? "USUARIO_SICAR_COMPARTIDO"
+        : coincidencias.length > 1
+          ? "SICAR_AMBIGUO"
+          : venta.usuario
+            ? "SIN_ASIGNAR"
+            : "SICAR_SIN_USUARIO";
     }
-    const empleadoAsignado = empleadoCRM || (oportunidades.length === 0 && coincidencias.length === 1 ? coincidencias[0] : null);
+    const empleadoAsignado = empleadoCRM || (
+      oportunidades.length === 0
+      && !esUsuarioSicarCompartido(venta.usuario)
+      && coincidencias.length === 1
+        ? coincidencias[0]
+        : null
+    );
     conciliacion.push({
       folio: venta.folio,
       fecha: venta.fecha,
@@ -190,9 +207,11 @@ export function resumirComisionesSicar({
           ? "CRM_FOLIO_DUPLICADO"
           : oportunidades.length === 1
             ? estado
-            : coincidencias.length > 1
-              ? "ASIGNACION_AMBIGUA"
-              : "SIN_ASIGNAR",
+            : esUsuarioSicarCompartido(venta.usuario)
+              ? "USUARIO_SICAR_COMPARTIDO"
+              : coincidencias.length > 1
+                ? "ASIGNACION_AMBIGUA"
+                : "SIN_ASIGNAR",
         tickets: 0,
         ventas: 0,
       };
