@@ -813,6 +813,7 @@ const analisisRH =
       {directorAbierto ===
         "financiero" && (
        <DirectorFinanciero
+  onAbrirImportador={onAbrirImportador}
   datosDashboard={
     datosDashboard
   }

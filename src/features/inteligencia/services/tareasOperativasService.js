@@ -1,3 +1,4 @@
+import { titulosSeguimientoCampana, tituloSeguimientoCanonico } from "../utils/titulosSeguimientoCampana";
 import { supabase } from "../../../supabase";
 
 import {
@@ -2425,7 +2426,7 @@ async function buscarTareaAutomaticaExistente({
 
   const tituloNormalizado =
     normalizarTextoAutomatizacion(
-      titulo
+      tituloSeguimientoCanonico(titulo)
     );
 
   const familiaNueva =
@@ -2440,7 +2441,7 @@ async function buscarTareaAutomaticaExistente({
   ) {
     const tituloExistente =
       normalizarTextoAutomatizacion(
-        tarea.titulo
+        tituloSeguimientoCanonico(tarea.titulo)
       );
 
     // Título exactamente igual
@@ -3070,8 +3071,7 @@ export async function cancelarSeguimientosCampanaPausada({
     return [];
   }
 
-  const tituloSeguimiento =
-    `Dar seguimiento a campaña sin avances: ${nombreLimpio}`;
+  const titulosSeguimiento = titulosSeguimientoCampana(nombreLimpio);
 
   const {
     data,
@@ -3094,9 +3094,9 @@ export async function cancelarSeguimientosCampanaPausada({
       "branch_id",
       branchId
     )
-    .eq(
+    .in(
       "titulo",
-      tituloSeguimiento
+      titulosSeguimiento
     )
     .in(
       "estado",

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useUser } from '../../../../context/UserContext';
 import { claveBorradorCierre, leerBorradorCierre, guardarBorradorCierre } from '../../utils/borradorCierreFinanciero';
 
-export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo, revisionFuentes = "" }) {
+export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo, revisionFuentes = "", onAbrirImportador }) {
   const { usuario } = useUser();
   const [borradores, setBorradores] = useState({});
   const inicio = metricas.fechaInicial;
@@ -54,6 +54,17 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
   };
   return <section style={{ padding: 22, background: '#fff4f8', border: '1px solid #e9bed0', borderRadius: 18, marginBottom: 24 }}>
     <h2>Cierre semanal · completar reportes</h2>
+    <details style={{ background: '#fff', padding: 14, borderRadius: 12, marginBottom: 14 }}>
+      <summary><strong>Qué subir y dónde · guía para completar el cierre</strong></summary>
+      <ol>
+        <li><strong>Utilidad de ventas SICAR:</strong> un archivo por sucursal, ambos con exactamente la misma fecha inicial y final. Aporta ventas, costo y utilidad bruta.</li>
+        <li><strong>Movimientos de caja SICAR:</strong> ambas sucursales y el mismo corte; después revisa préstamos, retiros, aportaciones y gastos en Tesorería.</li>
+        <li><strong>Estados o movimientos bancarios:</strong> cubre todo el corte. Si cruza de mes, usa los dos periodos; para el mes en curso sirve la consulta de movimientos. El Importador SICAR no procesa estados bancarios: se revisan por separado para conciliar Tesorería.</li>
+        <li><strong>Gastos y nómina:</strong> completa renta, servicios, pagos de personal y comprobantes del periodo. Una salida de caja o banco puede corresponder al mismo gasto; vincula las evidencias.</li>
+      </ol>
+      <p>Importa primero, revisa los pendientes y luego confirma la lista del cierre. Conserva los archivos originales para revisar diferencias.</p>
+      {typeof onAbrirImportador === 'function' && <button type="button" onClick={onAbrirImportador}>Abrir Importador de reportes SICAR</button>}
+    </details>
     <p><strong>{periodo}</strong> · {listo ? 'Base confirmada para revisión final' : `${pendientes.length} comprobaciones pendientes`}</p>
     <p>{consolidacionValida ? "Las sucursales tienen un corte comparable." : (motivo || "Falta confirmar el mismo corte de las dos sucursales.")}</p>
     <p>Confirma cada punto después de revisar los reportes. El avance se conserva en este dispositivo por usuario y periodo. No se sincroniza entre dispositivos ni sustituye un cierre contable definitivo.</p>

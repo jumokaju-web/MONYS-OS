@@ -626,9 +626,8 @@ for (
     }
 
     const nombreCampana =
-      campana.nombre ||
-      campana.producto ||
-      "campaña seleccionada";
+      campana.nombre || campana.producto || "campaña seleccionada";
+    const pendienteActual = pendientesResultadosMarketing([campana])[0];
 
     const confirmarCreacion =
       window.confirm(
@@ -650,9 +649,9 @@ for (
         await crearTareaAutomaticaDesdePrioridad({
           prioridad: {
             titulo:
-              `Dar seguimiento a campaña sin avances: ${nombreCampana}`,
+              `Revisar resultados de campaña: ${nombreCampana}`,
             descripcion:
-              "La campaña activa llegó a 24 horas desde la última actualización del registro y continúa con 0 avances reales. Verificar ejecución y registrar únicamente gasto, pedidos y venta nuevos reales.",
+              `${pendienteActual ? `${pendienteActual.motivo}. ${pendienteActual.accion}` : "Revisar la ejecución y el registro actual de resultados."} Campaña: ${nombreCampana}. Registrar únicamente gasto, pedidos y ventas nuevos reales, con evidencia; evitar repetir importes ya registrados.`,
             prioridad: "ALTA",
             area: "marketing",
           },
@@ -1491,6 +1490,14 @@ for (
       "orquestador_growth";
 
   const prioridadesCampanas = pendientesResultadosMarketing(campanasMarketing);
+  const descargarPrioridades = () => {
+    const filas = [['Orden', 'Campaña', 'Motivo', 'Acción', 'Datos pendientes', 'Gasto registrado', 'Responsable por confirmar'], ...prioridadesCampanas.map((p, indice) => [indice + 1, p.campana.nombre || p.campana.producto || 'Campaña', p.motivo, p.accion, p.faltantes.join(', '), p.gasto ?? 'Sin confirmar', p.prioridad === 0 ? 'Mónica' : 'Equipo de Marketing'])];
+    const escapar = (valor) => { const texto = String(valor); const seguro = /^[=+@\-\t\r]/.test(texto) ? "'" + texto : texto; return `"${seguro.replaceAll('"', '""')}"`; };
+    const csv = '\uFEFF' + filas.map((fila) => fila.map(escapar).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const enlace = document.createElement('a'); enlace.href = url; enlace.download = 'MONYS-prioridades-marketing.csv'; enlace.click(); URL.revokeObjectURL(url);
+  };
+
 
   return (
     <section
@@ -1507,6 +1514,8 @@ for (
     >
       <section style={{ background: "#ffffff", border: "1px solid #efbfd3", borderRadius: 16, padding: 18, marginBottom: 20 }}>
         <h3>Qué atender primero en Marketing</h3>
+        <button type="button" disabled={cargandoCampanas || Boolean(errorCampanas) || prioridadesCampanas.length === 0} onClick={descargarPrioridades}>Descargar prioridades para la junta</button>
+        <p>El archivo propone quién debe revisar cada punto; no asigna tareas ni confirma su ejecución.</p>
         <p>Primero revisa presupuesto y campañas con gasto; después completa los resultados pendientes. Un cero confirmado sí cuenta como resultado.</p>
         {cargandoCampanas ? <p>Consultando campañas…</p> : errorCampanas ? <p>No se pudo confirmar la lista. Revisa el aviso de campañas.</p> : prioridadesCampanas.length === 0 ? <p>Las campañas activas cargadas no presentan estos pendientes. La utilidad y atribución a SICAR requieren su propia revisión.</p> : prioridadesCampanas.map(({ campana, faltantes, motivo, accion, gasto, horasSinResultados }, indice) => (
           <div key={campana.id} style={{ padding: "12px 0", borderTop: "1px solid #efbfd3" }}>
