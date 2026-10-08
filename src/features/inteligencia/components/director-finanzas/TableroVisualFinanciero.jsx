@@ -72,6 +72,8 @@ export default function TableroVisualFinanciero({
   sucursales = [],
   baseVigente = false,
   fechaCorte = null,
+  diasAnalizados = 0,
+  fechaInicial = null,
 }) {
   const hayVentas = numero(ventas) > 0;
   const gastosOperativos = numero(gastosFijos) + numero(gastosVariables) + numero(gastosSinClasificar);
@@ -97,7 +99,9 @@ export default function TableroVisualFinanciero({
     ? "Sube ventas y costos para iniciar el diagnóstico."
     : numero(movimientosPendientes) > 0
       ? `Clasifica ${movimientosPendientes} movimientos antes de decidir cuánto dinero está disponible.`
-      : punto > 0 && avanceEquilibrio < 100
+      : punto <= 0
+        ? "Completa y clasifica los gastos del periodo para estimar el punto de equilibrio."
+        : punto > 0 && avanceEquilibrio < 100
         ? `Faltan ${dinero(faltanteEquilibrio)} en ventas para cubrir el punto de equilibrio del periodo.`
         : numero(utilidadNeta) < 0
           ? "Hay venta, pero los gastos consumen el margen. Revisa primero las salidas controlables."
@@ -146,6 +150,12 @@ export default function TableroVisualFinanciero({
               <div style={{ height: 22, marginTop: 18, borderRadius: 999, overflow: "hidden", background: "#f0e4ea", position: "relative" }}>
                 <div style={{ width: `${Math.min(100, Math.max(0, avanceEquilibrio))}%`, height: "100%", background: avanceEquilibrio >= 100 ? PALETA.verde : `linear-gradient(90deg, ${PALETA.rosa}, ${PALETA.rosaClaro})` }} />
               </div>
+              {numero(diasAnalizados) > 0 && <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#fff7fb" }}>
+                <small style={{ color: "#735d68" }}>META DIARIA ESTIMADA DEL CORTE</small>
+                <strong style={{ display: "block", fontSize: 25, color: PALETA.vino }}>{dinero(punto / numero(diasAnalizados))} / día</strong>
+                <p style={{ margin: "8px 0", lineHeight: 1.5 }}>Venta promedio registrada: {dinero(numero(ventas) / numero(diasAnalizados))} / día. Brecha diaria: {dinero(Math.max(0, punto - numero(ventas)) / numero(diasAnalizados))}.</p>
+                <small>{fechaInicial} al {fechaCorte} · {diasAnalizados} días calendario. Equilibrio del periodo ÷ días; depende de que los gastos fijos y variables del corte estén completos. No es la venta de hoy.</small>
+              </div>}
               <strong style={{ display: "block", marginTop: 10, textAlign: "center", color: avanceEquilibrio >= 100 ? PALETA.verde : PALETA.vino }}>{porcentaje(avanceEquilibrio)} cubierto</strong>
               <p style={{ margin: "12px 0 0", color: "#75616b", lineHeight: 1.45 }}>{avanceEquilibrio >= 100 ? `Superávit sobre equilibrio: ${dinero(numero(ventas) - punto)}.` : `Faltante para no perder: ${dinero(faltanteEquilibrio)}.`}</p>
             </>

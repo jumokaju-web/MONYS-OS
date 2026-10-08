@@ -66,3 +66,20 @@ export function compararRangosSucursales(sucursales = []) {
 
   return { comparable: true, estado: "MISMO_RANGO", mensaje: `Mismo rango de fechas detectado en los tickets importados: ${lista[0].periodoEtiqueta}. Valida también las horas del filtro SICAR.` };
 }
+
+export function consolidarFinanzasSucursales(sucursales = []) {
+  const filas = construirComparativoSucursales(sucursales);
+  if (!filas.length) return { disponible: false, motivo: "No hay sucursales registradas." };
+  if (filas.some(f => f.ventas === null || f.utilidadBruta === null || f.costoInconsistente))
+    return { disponible: false, motivo: "Faltan importes SICAR o la utilidad supera las ventas. Revisa los reportes antes de consolidar." };
+  if (filas.some(f => !f.periodoInicio || !f.periodoFin || f.periodoInicio > f.periodoFin))
+    return { disponible: false, motivo: "Falta un periodo válido para consolidar ventas y gastos." };
+  if (filas.length > 1 && !compararRangosSucursales(filas).comparable)
+    return { disponible: false, motivo: "Los periodos de las sucursales son distintos. Importa el mismo corte para calcular el resultado del negocio." };
+  const fechaInicial = filas[0].periodoInicio;
+  const fechaFinal = filas[0].periodoFin;
+  const diasAnalizados = (Date.parse(fechaFinal) - Date.parse(fechaInicial)) / 86400000 + 1;
+  const ventas = filas.reduce((s, f) => s + f.ventas, 0);
+  const utilidad = filas.reduce((s, f) => s + f.utilidadBruta, 0);
+  return { disponible: true, ventas, utilidad, costo: ventas - utilidad, margen: ventas > 0 ? utilidad / ventas * 100 : 0, fechaInicial, fechaFinal, diasAnalizados };
+}

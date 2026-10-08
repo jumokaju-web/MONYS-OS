@@ -10,6 +10,7 @@ import {
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import CentroRescateFinanciero from "./CentroRescateFinanciero";
 import PlanRescate30Dias from "./PlanRescate30Dias";
+import { consolidarFinanzasSucursales } from "../../shared/resumenSucursalesFinanciero.js";
 import TableroVisualFinanciero from "./TableroVisualFinanciero";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
@@ -85,49 +86,15 @@ const [
   setResultadosEjecucion,
 ] = useState({});
 
-  const metricas =
-    datosDashboard?.metricas || {};
-
-  const hayDatosConsolidados =
-  Array.isArray(
-    sucursalesDashboard
-  ) &&
-  sucursalesDashboard.length > 0;
-
-const ventasConsolidadas =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.ventasTotales
-      ) || 0),
-    0
-  );
-
-const utilidadConsolidada =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.utilidadTotal
-      ) || 0),
-    0
-  );
-
-const costoConsolidado =
-  Math.max(
-    ventasConsolidadas -
-      utilidadConsolidada,
-    0
-  );
-
-const margenConsolidado =
-  ventasConsolidadas > 0
-    ? (
-        utilidadConsolidada /
-        ventasConsolidadas
-      ) * 100
-    : 0;
+  const consolidado = consolidarFinanzasSucursales(sucursalesDashboard);
+  const hayDatosConsolidados = consolidado.disponible;
+  const ventasConsolidadas = consolidado.ventas;
+  const utilidadConsolidada = consolidado.utilidad;
+  const costoConsolidado = consolidado.costo;
+  const margenConsolidado = consolidado.margen;
+  const metricas = hayDatosConsolidados
+    ? { ...datosDashboard?.metricas, fechaInicial: consolidado.fechaInicial, fechaFinal: consolidado.fechaFinal, diasAnalizados: consolidado.diasAnalizados }
+    : datosDashboard?.metricas || {};
 
 const branchId =
   datosDashboard?.branch_id || null;
@@ -605,6 +572,16 @@ const historial =
       }
     };
 
+  if (sucursalesDashboard.length > 0 && !consolidado.disponible) {
+    return <section style={{ padding: 24, background: "#fff7fb", borderRadius: 20, marginTop: 24 }}>
+      <h3>Finanzas · Revisa la base del negocio</h3>
+      <p role="alert">{consolidado.motivo}</p>
+      <p>El resultado consolidado, el equilibrio y las proyecciones quedan pendientes hasta tener cortes compatibles.</p>
+      {onAbrirImportador && <button onClick={onAbrirImportador}>Actualizar reportes SICAR</button>}
+      <TableroVisualFinanciero sucursales={sucursalesDashboard} />
+    </section>;
+  }
+
          return (
     <section
       style={{
@@ -790,6 +767,8 @@ const historial =
         margenBruto={margenUtilidad}
         margenNeto={margenConGastos}
         puntoEquilibrio={puntoEquilibrioVentas}
+        diasAnalizados={metricas.diasAnalizados}
+        fechaInicial={metricas.fechaInicial}
         entradas={entradasTesoreria}
         salidas={salidasTesoreria}
         disponible={dineroDisponible}

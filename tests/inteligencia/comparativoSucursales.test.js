@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { construirComparativoSucursales, compararRangosSucursales } from "../../src/features/inteligencia/shared/resumenSucursalesFinanciero.js";
+import { construirComparativoSucursales, compararRangosSucursales, consolidarFinanzasSucursales } from "../../src/features/inteligencia/shared/resumenSucursalesFinanciero.js";
 
 test("calcula costo, utilidad bruta y margen con datos registrados", () => {
   const [centro] = construirComparativoSucursales([
@@ -56,4 +56,18 @@ test("bloquea líderes cuando hay cortes distintos o fechas faltantes", () => {
   ]);
   assert.equal(compararRangosSucursales(faltante).estado, "FECHA_FALTANTE");
   assert.equal(compararRangosSucursales(faltante).comparable, false);
+});
+
+const fila = (venta, utilidad, inicio = "2026-09-28") => ({ ventasTotales: venta, utilidadTotal: utilidad, periodo: { fechaInicial: inicio, fechaFinal: "2026-10-04" } });
+test("consolidación conserva cero y calcula siete días sin depender del dashboard activo", () => {
+  const resultado = consolidarFinanzasSucursales([fila(1000, 400), fila(0, 0)]);
+  assert.equal(resultado.disponible, true);
+  assert.equal(resultado.ventas, 1000);
+  assert.equal(resultado.costo, 600);
+  assert.equal(resultado.diasAnalizados, 7);
+});
+test("consolidación bloquea cortes diferentes, importes faltantes e inconsistencias", () => {
+  for (const filas of [[fila(1000, 400), fila(500, 200, "2026-09-29")], [fila(1000, 400), fila(null, null)], [fila(100, 120)]]) {
+    assert.equal(consolidarFinanzasSucursales(filas).disponible, false);
+  }
 });
