@@ -166,19 +166,23 @@ export default function ResumenReporte({ resumen }) {
             <TarjetaMetrica
               icono="💰"
               titulo="Venta total"
-              valor={formatoDinero(
-                resumen.ventaTotal
-              )}
-              detalle="Importe total del reporte"
+              valor={resumen.ventaDisponible === false
+                ? "No incluido"
+                : formatoDinero(resumen.ventaTotal)}
+              detalle={resumen.ventaDisponible === false
+                ? "El reporte SICAR solo incluye cantidades"
+                : "Importe total del reporte"}
             />
 
             <TarjetaMetrica
               icono="📈"
               titulo="Utilidad"
-              valor={formatoDinero(
-                resumen.utilidadTotal
-              )}
-              detalle="Utilidad calculada"
+              valor={resumen.utilidadDisponible === false
+                ? "No incluida"
+                : formatoDinero(resumen.utilidadTotal)}
+              detalle={resumen.utilidadDisponible === false
+                ? "Este corte no trae costos ni utilidad"
+                : "Utilidad calculada"}
             />
 
             <TarjetaMetrica
