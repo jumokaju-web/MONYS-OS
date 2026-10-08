@@ -62,6 +62,11 @@ export function reconciliarUtilidadVentas(filasReporte = [], datosNormalizados =
     for (let indiceFila = filasReporte.length - 1; indiceFila >= 0; indiceFila -= 1) {
       const fila = filasReporte[indiceFila];
       if (!Array.isArray(fila)) continue;
+      const indiceMarca = filasReporte.slice(Math.max(0, indiceFila - 3), indiceFila).findIndex((filaAnterior) =>
+        Array.isArray(filaAnterior) && filaAnterior.some((valor) => limpiar(valor) === "totales")
+      );
+      if (indiceMarca < 0) continue;
+
       const indices = {};
       fila.forEach((valor, indiceColumna) => {
         const etiqueta = limpiar(valor);
