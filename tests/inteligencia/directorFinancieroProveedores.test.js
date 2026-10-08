@@ -89,3 +89,32 @@ test("eleva a prioridad financiera el saldo de proveedores vencido", () => {
     /ya tiene vencimiento anterior a hoy/i,
   );
 });
+
+test("no inventa una reserva monetaria usando solo el flujo neto del periodo", () => {
+  const analisis = generarAnalisisFinanciero({
+    movimientos: [
+      {
+        movement_type: "ENTRADA",
+        amount: 10000,
+        status: "Revisado",
+        occurred_at: "2026-10-07",
+      },
+      {
+        movement_type: "SALIDA",
+        amount: 8500,
+        status: "Revisado",
+        expense_category: "operacion",
+        expense_behavior: "variable",
+        occurred_at: "2026-10-07",
+      },
+    ],
+  });
+
+  assert.equal(analisis.flujoNetoTesoreria, 1500);
+  assert.equal(analisis.reservaRecomendada, null);
+  assert(
+    !analisis.accionesPrioritarias.some(
+      (accion) => accion.titulo === "Proteger reserva de efectivo",
+    ),
+  );
+});
