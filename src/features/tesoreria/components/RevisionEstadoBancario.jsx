@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
+import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
 import { useUser } from '../../../context/UserContext';
 import { claveRevisionBancaria, guardarRevisionBancaria, recuperarRevisionBancaria } from '../utils/borradorEstadoBancario';
 const categorias = ['Cobro de flotilla', 'Cobro de tienda: conciliar SICAR', 'Transferencia interna', 'Combustible', 'Proveedor', 'Nómina', 'Gasto operativo', 'Pago de crédito', 'Pago de tarjeta', 'Préstamo por recuperar', 'Personal', 'Comisión bancaria / IVA', 'Crédito recibido', 'Recuperación de préstamo', 'Aportación de capital', 'Otro'];
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-export default function RevisionEstadoBancario() {
+export default function RevisionEstadoBancario({ movimientos = [] }) {
   const { usuario } = useUser();
   const clave = claveRevisionBancaria(usuario);
-  return <RevisionBancariaSesion key={clave || 'sin-alcance'} clave={clave} />;
+  return <RevisionBancariaSesion key={clave || 'sin-alcance'} clave={clave} movimientos={movimientos} />;
 }
-function RevisionBancariaSesion({ clave }) {
+function RevisionBancariaSesion({ clave, movimientos }) {
   const [paquete, setPaquete] = useState(null);
   const [error, setError] = useState('');
   const [guardado, setGuardado] = useState('');
@@ -63,6 +64,7 @@ function RevisionBancariaSesion({ clave }) {
       <div className="banco-resumen"><article><small>Saldo al cierre del estado</small><strong>{dinero(resumen.saldo)}</strong><small>No equivale a dinero disponible hoy</small></article><article><small>Control bancario</small><strong>{resumen.movimientos} movimientos</strong><small>{resumen.cuentas.length} cuentas cuadran</small></article><article><small>Por clasificar</small><strong>{paquete.movimientos.filter(m => m.revision?.estado !== 'Confirmado').length}</strong><small>Las pistas del banco requieren revisión</small></article></div>
       <div className="banco-cuentas">{resumen.cuentas.map(c => <article key={c.terminacion}><b>Cuenta ·{c.terminacion}</b><p>{c.desde} a {c.hasta}</p><p>Abonos {dinero(c.abonos)} · Cargos {dinero(c.cargos)}</p><strong>{dinero(c.final)} al cierre</strong></article>)}</div>
       <div className="banco-filtros"><input aria-label="Buscar movimiento bancario" placeholder="Nombre, concepto o referencia" value={filtro} onChange={e => { setFiltro(e.target.value); setPagina(0); }} /><select aria-label="Cuenta bancaria" value={cuenta} onChange={e => { setCuenta(e.target.value); setPagina(0); }}><option value="">Todas las cuentas</option>{resumen.cuentas.map(c => <option key={c.terminacion} value={c.terminacion}>·{c.terminacion}</option>)}</select><label><input type="checkbox" checked={pendientes} onChange={e => { setPendientes(e.target.checked); setPagina(0); }} /> Solo pendientes</label><button onClick={descargar}>Descargar mi revisión</button></div>
+      <CruceBancoCaja paquete={paquete} movimientos={movimientos} />
       <DiagnosticoEstadoBancario paquete={paquete} cuenta={cuenta} onRevisar={m => {
         setCuenta(m.cuenta); setFiltro(m.descripcion); setPendientes(true);
         const candidatos = paquete.movimientos.filter(x => x.cuenta === m.cuenta && x.revision?.estado !== 'Confirmado' && [x.descripcion, x.referencia_visible, x.categoria, x.revision?.clasificacion, x.revision?.nota].join(' ').toLowerCase().includes(m.descripcion.toLowerCase()));

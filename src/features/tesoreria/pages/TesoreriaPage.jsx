@@ -287,7 +287,7 @@ function TesoreriaPage({
         formatoDinero={formatoDinero}
       />
 
-      {!ocultarRevisionBancaria && <RevisionEstadoBancario />}
+      {!ocultarRevisionBancaria && <RevisionEstadoBancario movimientos={movimientos} />}
 
       <section className="acciones">
         {!formularioVisible && (
