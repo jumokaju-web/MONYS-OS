@@ -28,7 +28,7 @@ export async function obtenerUnidadPorPlacas(
       observaciones
     `)
     .eq("placas", placas)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error(

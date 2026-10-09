@@ -29,3 +29,5 @@
 .monys-owner .owner-branch-card summary>div:first-child{min-width:0!important;flex:1 1 130px!important;}
 .monys-owner .owner-branch-card summary>div:nth-child(2){flex:1 1 180px!important;gap:12px!important;}
 @media(max-width:600px){.monys-owner .owner-module-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.monys-owner .owner-module-grid button:last-child{grid-column:1/-1;}.monys-owner .owner-branch-card summary{padding:12px!important;}}
+
+.owner-modules{background:#fff;border:1px solid #dec8d5;border-radius:18px;padding:18px;margin:18px 0}.owner-modules header span{font-size:11px;letter-spacing:1.4px;color:#8a4167;font-weight:800}.owner-modules h2{font-size:21px;margin:8px 0 16px;color:#432c3b}.owner-modules>div{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.owner-modules button{padding:18px 14px;border:1px solid #ddc4d2;border-radius:12px;text-align:left;background:#fbf5f8;color:#502f43;cursor:pointer}.owner-modules button b{display:block;font-size:16px}.owner-modules button small{display:block;line-height:1.5;color:#776472;margin-top:8px}@media(max-width:650px){.owner-modules>div{grid-template-columns:repeat(2,1fr)}}

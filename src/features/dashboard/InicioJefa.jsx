@@ -16,6 +16,8 @@ fechaInicial = null,
 fechaFinal = null,
 movimientos = [],
   formatoDinero,
+  abrirMarketing,
+  abrirEmpleados,
   abrirFinanzas,
   abrirJuntaDirectiva,
   abrirCentroValor,
@@ -322,6 +324,8 @@ const utilidadConsolidada =
 />
 
         </div>
+
+        <section className="owner-modules" aria-label="Áreas del negocio"><header><span>TU CENTRO DE TRABAJO</span><h2>Dirige las cuatro áreas</h2></header><div><button onClick={abrirFinanzas}><b>Finanzas →</b><small>Bancos, gastos y planeación</small></button><button onClick={abrirMarketing}><b>Marketing →</b><small>Campañas, tareas y resultados</small></button><button onClick={abrirFlotilla}><b>Flotilla →</b><small>Unidad y ruta registrada</small></button><button onClick={abrirEmpleados}><b>Empleados →</b><small>Equipo y gestión de personal</small></button></div></section>
 
         <section className="owner-financial-hub"><div><span>FINANZAS · CENTRO DE TRABAJO</span><h2>Controla tu dinero y tu siguiente paso</h2><p>Bancos y aclaraciones · Entradas y salidas · Punto de equilibrio · Proveedores · Planeación de flujo</p></div><button onClick={abrirFinanzas}>Abrir Finanzas →</button></section>
 

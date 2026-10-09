@@ -185,6 +185,7 @@ function construirActualizacionDatosMarketing(datosDashboard, metricas) {
 }
 
 function CentroInteligencia({
+  directorInicial = null,
   datosDashboard,
   sucursalesDashboard = [],
   cargandoSucursales = false,
@@ -200,7 +201,12 @@ function CentroInteligencia({
   const [
     directorAbierto,
     setDirectorAbierto,
-  ] = useState(null);
+  ] = useState(directorInicial);
+  useEffect(() => {
+    if (!directorInicial) return;
+    const frame = requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ block: 'start' }));
+    return () => cancelAnimationFrame(frame);
+  }, [directorInicial]);
 
   const [
     creditosProveedores,

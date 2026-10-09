@@ -102,6 +102,7 @@ function App() {
     pantallaActual,
     setPantallaActual,
   ] = useState("dashboard");
+  const [directorInicial, setDirectorInicial] = useState(null);
 
   const {
     datosDashboard,
@@ -1018,7 +1019,7 @@ if (
   }
 
   return (
-    <FlotillaChofer />
+    <FlotillaChofer volverAlDashboard={() => setPantallaActual("dashboard")} />
   );
 }
 
@@ -1128,7 +1129,7 @@ if (
     }
 
     return (
-      <CentroInteligencia onAbrirValor={() => setPantallaActual("valor")}
+      <CentroInteligencia directorInicial={directorInicial} onAbrirValor={() => setPantallaActual("valor")}
         datosDashboard={
           datosDashboard
         }
@@ -1178,7 +1179,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
+    <InicioJefa abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
 
       sucursalesDashboard={
   sucursalesDashboard
@@ -1216,11 +1217,7 @@ fechaFinal={
         formatoDinero
       }
 
-      abrirJuntaDirectiva={() =>
-        setPantallaActual(
-          "inteligencia"
-        )
-      }
+      abrirJuntaDirectiva={() => { setDirectorInicial(null); setPantallaActual("inteligencia"); }}
 
       abrirTesoreria={() =>
         setPantallaActual(

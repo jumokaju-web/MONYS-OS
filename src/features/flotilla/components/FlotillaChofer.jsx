@@ -8,7 +8,10 @@ import {
   obtenerRutaDeUnidadEnFecha,
 } from "./services/flotillaService";
 
-export default function FlotillaChofer() {
+export default function FlotillaChofer({ volverAlDashboard }) {
+  const [placasBuscadas, setPlacasBuscadas] = useState('');
+  const [placasConsulta, setPlacasConsulta] = useState('');
+  const [actualizacion, setActualizacion] = useState(0);
 
       const [
     unidad,
@@ -26,7 +29,9 @@ export default function FlotillaChofer() {
   ] = useState("");
 
   useEffect(() => {
+    if (!placasConsulta) { setUnidad(null); setCargandoUnidad(false); return; }
     let activo = true;
+    setUnidad(null);
 
     const cargarUnidad = async () => {
       try {
@@ -35,11 +40,12 @@ export default function FlotillaChofer() {
 
         const resultado =
           await obtenerUnidadPorPlacas(
-            "JY21009"
+            placasConsulta
           );
 
         if (activo) {
           setUnidad(resultado);
+          if (!resultado) setErrorUnidad("No se encontró una unidad accesible con esas placas.");
         }
       } catch (error) {
         console.error(
@@ -65,14 +71,15 @@ export default function FlotillaChofer() {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [placasConsulta, actualizacion]);
 
       const [rutaHoy, setRutaHoy] = useState(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState("");
 
   useEffect(() => {
-    if (!unidad?.id) return;
+    setRutaHoy(null); setErrorRuta("");
+    if (!unidad?.id) { setCargandoRuta(false); return; }
 
     let activo = true;
 
@@ -96,7 +103,7 @@ export default function FlotillaChofer() {
 
         if (activo) {
           setRutaHoy(resultado);
-          console.log("RUTA REAL DE HOY:", resultado);
+
         }
       } catch (error) {
         console.error("Error cargando ruta:", error);
@@ -117,12 +124,9 @@ export default function FlotillaChofer() {
     return () => {
       activo = false;
     };
-  }, [unidad?.id]);
+  }, [unidad?.id, actualizacion]);
 
-     console.log(
-    "UNIDAD FLOTILLA REAL:",
-    unidad
-  );
+
 
     const choferReal =
     unidad?.chofer_nombre || "—";
@@ -168,6 +172,12 @@ export default function FlotillaChofer() {
           margin: "0 auto",
         }}
       >
+        <section style={{ background: "white", border: "1px solid #d5e2ef", borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <button type="button" onClick={volverAlDashboard}>Volver al inicio</button>
+          <h2>Consulta tu unidad</h2><p>Escribe las placas de la unidad registrada. Se consultan los datos permitidos por tu sesión.</p>
+          <form onSubmit={e => { e.preventDefault(); const placas = placasBuscadas.trim().toUpperCase(); if (!placas) return; setPlacasConsulta(placas); setActualizacion(v => v + 1); }}><label>Placas<input value={placasBuscadas} onChange={e => setPlacasBuscadas(e.target.value)} placeholder="Placas de la unidad" required maxLength={20} style={{ width: "100%", padding: 12, boxSizing: "border-box", margin: "8px 0" }} /></label><button type="submit">Consultar unidad y ruta</button></form>
+          <p style={{ fontSize: 12 }}>Esta consulta no integra automáticamente la aplicación externa de Chory ni registra rutas nuevas.</p>
+        </section>
         {/* ENCABEZADO */}
         <div
           style={{
@@ -234,7 +244,7 @@ export default function FlotillaChofer() {
                 marginTop: "2px",
               }}
             >
-              Chofer · MLP
+              Chofer · {tipoReal}
             </div>
           </div>
 
