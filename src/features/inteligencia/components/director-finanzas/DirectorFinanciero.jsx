@@ -592,6 +592,7 @@ const historial =
           "0 12px 35px rgba(180, 120, 40, 0.12)",
       }}
     >
+      <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <FlujoCaja13Semanas metricas={metricas} />
       <CierreSemanalFinanciero onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
       {mensajeDecision && (
@@ -892,7 +893,7 @@ const historial =
   icono="📊"
 />
 
-<TarjetaIndicador
+<details><summary>Ver equilibrio histórico del corte {metricas.fechaInicial} al {metricas.fechaFinal}</summary><p>Este importe corresponde al corte cargado. Tu meta por día abierto está al inicio de Planeación financiera.</p><TarjetaIndicador
   titulo="Equilibrio del corte · estimado"
   valor={
     Number.isFinite(
@@ -904,9 +905,8 @@ const historial =
       : "Sin base suficiente"
   }
   icono="⚖️"
-/>
+/></details>
       <ObligacionesProveedores reporte={creditosProveedores} />
-      <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <h3
         style={{
           marginTop: "32px",

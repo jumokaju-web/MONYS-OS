@@ -32,7 +32,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error('El archivo supera 10 MB.');
       const nuevo = JSON.parse(await file.text()); validarEstadoBancario(nuevo);
-      setPaquete(nuevo); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setEditando(null);
+      setPaquete(nuevo); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setPendientes(false); setEditando(null);
     } catch (e) { setError(e.message || 'No fue posible leer el archivo.'); }
   };
   const guardarNube = async () => {
@@ -42,7 +42,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   };
   const recuperarNube = async () => {
     setSincronizando(true); setError('');
-    try { const registro = await recuperarRevisionBanco(usuario); if (!registro) { setError('No hay una versión bancaria guardada para este contexto.'); return; } setPaquete(registro.paquete); setGuardado('Última versión recuperada de MONYS.'); setPagina(0); setFiltro(''); setCuenta(''); setEditando(null); }
+    try { const registro = await recuperarRevisionBanco(usuario); if (!registro) { setError('No hay una versión bancaria guardada para este contexto.'); return; } setPaquete(registro.paquete); setGuardado('Última versión recuperada de MONYS.'); setPagina(0); setFiltro(''); setCuenta(''); setPendientes(false); setEditando(null); }
     catch (e) { setError(e.message); } finally { setSincronizando(false); }
   };
   const guardarAqui = () => {
@@ -53,7 +53,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
     try {
       const borrador = recuperarRevisionBancaria(window.localStorage, clave);
       if (!borrador) { setError('No hay una revisión guardada para este usuario, negocio y sucursal.'); return; }
-      setPaquete(borrador.paquete); setGuardado('Borrador recuperado de este dispositivo.'); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setEditando(null);
+      setPaquete(borrador.paquete); setGuardado('Borrador recuperado de este dispositivo.'); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setPendientes(false); setEditando(null);
     } catch { setError('No se pudo recuperar un borrador válido. Abre tu archivo descargado.'); }
   };
   const descargar = () => {
@@ -65,12 +65,13 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
     if (!categoria || !nota.trim()) { setError('Selecciona una categoría y explica cómo confirmaste el destino.'); return; }
     setPaquete(actual => ({ ...actual, movimientos: actual.movimientos.map(m => m.id === editando ? { ...m, revision: { estado: 'Confirmado', clasificacion: categoria, nota: nota.trim(), fecha: new Date().toISOString() } } : m) })); setEditando(null); setGuardado('Cambios pendientes: guarda en este dispositivo o descarga tu revisión.'); setError('');
   };
-  return <section className="banco-revision">
+  return <section className="banco-revision"><fieldset className="banco-controles" disabled={sincronizando} aria-busy={sincronizando}>
     <div className="banco-revision-head"><div><span>CONCILIACIÓN BANCARIA</span><h2>Revisa el destino de tu dinero</h2></div><label className="banco-carga">Abrir paquete bancario<input type="file" accept=".json,application/json" onChange={cargar} /></label></div>
     <p>Abre el archivo bancario MONYS preparado a partir del estado de cuenta. Se comprobarán movimientos, sumas y saldos antes de mostrarlo. Este paso admite JSON; los PDF se preparan primero.</p>
     <p className="banco-aviso">Esta revisión no cambia los saldos de Tesorería ni registra ingresos o gastos. Puedes guardarla en este dispositivo con tu usuario, negocio y sucursal, o descargarla para abrirla en otro equipo. No se sincroniza automáticamente. Guarda los cambios antes de salir, actualizar o abrir otro paquete.</p>
     <div className="banco-filtros"><button disabled={!clave} onClick={recuperarAqui}>Recuperar revisión guardada aquí</button>{paquete && <button disabled={!clave} onClick={guardarAqui}>Guardar en este dispositivo</button>}</div>
-    {usuario?.role === 'owner' && <details><summary>Versiones en MONYS · requiere habilitar almacenamiento bancario</summary><p>Guarda versiones completas sin reemplazar las anteriores. Si la base aún no está habilitada, se mostrará el error y podrás conservar tu archivo.</p><button disabled={sincronizando} onClick={recuperarNube}>Recuperar de MONYS</button>{paquete && <button disabled={sincronizando} onClick={guardarNube}>{sincronizando ? 'Consultando…' : 'Guardar versión en MONYS'}</button>}</details>}
+    {usuario?.role === 'owner' && <div className="banco-nube"><h3>Guardar y continuar en otro equipo</h3><p>Conserva una versión con tu usuario, negocio y sucursal. Guardar no registra otra salida ni reemplaza las versiones anteriores.</p><div className="banco-filtros"><button disabled={sincronizando} onClick={recuperarNube}>Recuperar de MONYS</button><button disabled={sincronizando || !paquete} onClick={guardarNube}>Guardar versión en MONYS</button></div>{!paquete && <small>Abre un paquete o recupera una versión para habilitar el guardado.</small>}</div>}
+    {sincronizando && <p role="status">Consultando MONYS. Espera a que termine antes de editar.</p>}
     {guardado && <p role="status">{guardado}</p>}
     {error && <p role="alert" className="banco-error">{error}</p>}
     {resumen && <>
@@ -81,7 +82,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
       <DiagnosticoEstadoBancario paquete={paquete} cuenta={cuenta} onRevisar={m => {
         setCuenta(m.cuenta); setFiltro(m.descripcion); setPendientes(true);
         const candidatos = paquete.movimientos.filter(x => x.cuenta === m.cuenta && x.revision?.estado !== 'Confirmado' && [x.descripcion, x.referencia_visible, x.categoria, x.revision?.clasificacion, x.revision?.nota].join(' ').toLowerCase().includes(m.descripcion.toLowerCase()));
-        setPagina(Math.floor(candidatos.findIndex(x => x.id === m.id) / 20));
+        setPagina(Math.max(0, Math.floor(candidatos.findIndex(x => x.id === m.id) / 20)));
         setEditando(m.id); setCategoria(''); setNota(''); setError('');
         requestAnimationFrame(() => document.getElementById(`banco-mov-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
       }} />
@@ -89,5 +90,5 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
       <div className="banco-lista">{filtrados.slice(pagina * 20, (pagina + 1) * 20).map(m => <article key={m.id} id={`banco-mov-${m.id}`}><div><small>{m.fecha_operacion} · Cuenta ·{m.cuenta}</small><h3>{m.descripcion}</h3><p>{m.revision?.estado === 'Confirmado' ? m.revision.clasificacion : `Pista: ${m.categoria || 'Por aclarar'}`}</p><details><summary>Referencia y evidencia</summary><p>{m.referencia_visible}</p><p>{m.fuente} · página PDF {m.pagina_pdf} · liquida {m.fecha_liquidacion}</p>{m.revision?.nota && <p>Tu aclaración: {m.revision.nota}</p>}</details></div><div><strong>{Number(m.cargo) > 0 ? 'Salida ' + dinero(m.cargo) : 'Entrada ' + dinero(m.abono)}</strong><p>{m.revision?.estado || 'Por revisar'}</p><button onClick={() => { setEditando(m.id); setCategoria(m.revision?.clasificacion || ''); setNota(m.revision?.nota || ''); setError(''); }}>Aclarar destino</button></div>{editando === m.id && <div className="banco-editor"><label>Clasificación<select value={categoria} onChange={e => setCategoria(e.target.value)}><option value="">Seleccionar</option>{categorias.map(c => <option key={c}>{c}</option>)}</select></label><label>Evidencia y destino<textarea value={nota} onChange={e => setNota(e.target.value)} placeholder="Ejemplo: préstamo a Oscar para uso personal, por recuperar; comprobante revisado." /></label><button onClick={confirmar}>Confirmar clasificación</button><button onClick={() => setEditando(null)}>Cancelar</button></div>}</article>)}</div>
       <div className="banco-filtros"><button disabled={pagina === 0} onClick={() => setPagina(p => p - 1)}>Anterior</button><span>Página {pagina + 1} de {Math.max(1, Math.ceil(filtrados.length / 20))}</span><button disabled={(pagina + 1) * 20 >= filtrados.length} onClick={() => setPagina(p => p + 1)}>Siguiente</button></div>
     </>}
-  </section>;
+  </fieldset></section>;
 }

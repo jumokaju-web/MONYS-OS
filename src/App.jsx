@@ -1110,7 +1110,7 @@ if (
 
   if (pantallaActual === "valor") {
     if (!esOwner) return mostrarAccesoDenegado("Centro de Valor");
-    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirCapturaDemanda={() => setPantallaActual("captura-demanda")} onAbrirInteligencia={() => setPantallaActual("inteligencia")} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("operacion-equipo")?.scrollIntoView({ behavior: "smooth", block: "start" }))); }} />;
+    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirCapturaDemanda={() => setPantallaActual("captura-demanda")} onAbrirInteligencia={() => { setDirectorInicial(null); setPantallaActual("inteligencia"); }} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => { const panel = document.getElementById("operacion-equipo"); const bloque = panel?.closest("details"); if (bloque) bloque.open = true; panel?.scrollIntoView({ behavior: "smooth", block: "start" }); })); }} />;
   }
 
   /*

@@ -10,5 +10,5 @@ export function calcularEquilibrioDiario(datos={}) {
  const operacion=n.gastosFijos/contribucion;
  const caja=(n.gastosFijos+n.deuda)/contribucion;
  const contribucionPrevista=n.ventaPrevista*contribucion;
- return {calculable:true,faltantes:[],contribucion,operacion,caja,operacionDiaria:operacion/n.diasAbiertos,cajaDiaria:caja/n.diasAbiertos,brechaOperacion:Math.max(0,operacion-n.ventaPrevista),brechaCaja:Math.max(0,caja-n.ventaPrevista),excedenteOperacion:contribucionPrevista-n.gastosFijos,excedenteDespuesDeuda:contribucionPrevista-n.gastosFijos-n.deuda};
+ return {calculable:true,faltantes:[],contribucion,operacion,caja,operacionDiaria:operacion/n.diasAbiertos,cajaDiaria:caja/n.diasAbiertos,ventaPrevistaDiaria:n.ventaPrevista/n.diasAbiertos,brechaOperacionDiaria:Math.max(0,operacion-n.ventaPrevista)/n.diasAbiertos,brechaCajaDiaria:Math.max(0,caja-n.ventaPrevista)/n.diasAbiertos,brechaOperacion:Math.max(0,operacion-n.ventaPrevista),brechaCaja:Math.max(0,caja-n.ventaPrevista),excedenteOperacion:contribucionPrevista-n.gastosFijos,excedenteDespuesDeuda:contribucionPrevista-n.gastosFijos-n.deuda};
 }
