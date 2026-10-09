@@ -147,3 +147,4 @@
     font-size: 17px;
   }
 }
+.tesoreria-page{font-family:Inter,Arial,sans-serif;text-align:left}.tesoreria-encabezado{text-align:left;max-width:1000px;margin-bottom:20px}.tesoreria-encabezado h1{font-size:30px}.tesoreria-encabezado p{margin-left:0;font-size:14px}.tesoreria-page .boton-entrada,.tesoreria-page .boton-salida{min-height:52px;padding:12px 18px;border-radius:12px;font-size:15px}.tesoreria-page .acciones-principales{max-width:1000px;gap:12px}

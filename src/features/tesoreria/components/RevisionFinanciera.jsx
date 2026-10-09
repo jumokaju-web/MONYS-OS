@@ -1,36 +1,16 @@
 import { useState } from 'react';
 import { prepararRevisionFinanciera } from '../utils/conciliacionMovimientos';
-
+import './RevisionFinanciera.css';
 export default function RevisionFinanciera({ movimientos = [], formatoDinero }) {
-  const [filtro, setFiltro] = useState('Todos');
-  const revision = prepararRevisionFinanciera(movimientos);
-  const motivos = [...new Set(revision.map((item) => item.motivo))];
-  const visibles = revision.filter((item) => filtro === 'Todos' || item.motivo === filtro);
-  const dinero = formatoDinero || ((valor) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(valor));
-  return (
-    <section style={{ background: '#fff5f8', border: '1px solid #efc8d8', borderRadius: 18, padding: 20, margin: '20px auto', maxWidth: 1100 }}>
-      <h2>Conciliar antes de cerrar</h2>
-      <p>{revision.length} movimientos requieren comprobar su tratamiento. Esta revisión usa los movimientos cargados en Tesorería; no calcula un saldo de préstamos ni modifica registros.</p>
-      <label>Ver movimientos{' '}<select value={filtro} onChange={(evento) => setFiltro(evento.target.value)}>
-        <option>Todos</option>{motivos.map((motivo) => <option key={motivo}>{motivo}</option>)}
-      </select></label>
-      <p>Un comprobante, un mensaje y un descuento de nómina pueden referirse a la misma entrega. Vincúlalos antes de registrar otra salida.</p>
-      {visibles.length === 0 ? <p>No hay movimientos de este tipo entre los registros cargados. Esto no confirma que el cierre esté completo.</p> : (
-        <div style={{ overflowX: 'auto', maxHeight: 420 }}><table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-          <thead><tr><th>Fecha</th><th>Movimiento</th><th>Importe</th><th>Revisión necesaria</th></tr></thead>
-          <tbody>{visibles.map(({ movimiento: m, motivo, accion }, indice) => {
-            const valor = m.monto ?? m.amount;
-            const monto = valor === null || valor === undefined || valor === '' ? NaN : Number(valor);
-            return <tr key={m.id ?? indice} style={{ borderTop: '1px solid #efc8d8' }}>
-              <td style={{ padding: 12 }}>{m.fecha ?? m.occurred_at ?? 'Sin fecha'}</td>
-              <td>{m.concepto ?? m.concept ?? 'Sin concepto'}<br /><small>{m.tipo ?? m.movement_type ?? 'Tipo pendiente'} · {m.estado ?? m.status ?? 'Estado pendiente'}</small></td>
-              <td>{Number.isFinite(monto) ? dinero(monto) : 'Importe pendiente'}</td>
-              <td><strong>{motivo}</strong><br />{accion}</td>
-            </tr>;
-          })}</tbody>
-        </table></div>
-      )}
-      <button type="button" onClick={() => document.getElementById('historial-tesoreria')?.scrollIntoView({ behavior: 'smooth' })}>Revisar y corregir en el historial</button>
-    </section>
-  );
+ const [filtro,setFiltro]=useState('Todos');const [verTodo,setVerTodo]=useState(false);
+ const revision=prepararRevisionFinanciera(movimientos);
+ const motivos=[...new Set(revision.map(i=>i.motivo))];
+ const filtrados=revision.filter(i=>filtro==='Todos'||i.motivo===filtro);
+ const visibles=verTodo?filtrados:filtrados.slice(0,5);
+ const dinero=formatoDinero||((n)=>Number(n).toLocaleString('es-MX',{style:'currency',currency:'MXN'}));
+ return <section className="revision-dinero"><header><div><span>REVISIÓN DE MOVIMIENTOS</span><h2>Explica para qué se usó el dinero</h2><p>{revision.length} registros requieren comprobar su tratamiento.</p></div><button onClick={()=>document.getElementById('historial-tesoreria')?.scrollIntoView({behavior:'smooth'})}>Abrir historial →</button></header><div className="revision-filtros">{['Todos',...motivos].map(m=><button key={m} aria-pressed={filtro===m} onClick={()=>{setFiltro(m);setVerTodo(false);}}>{m} <small>{m==='Todos'?revision.length:revision.filter(i=>i.motivo===m).length}</small></button>)}</div><div className="revision-registros">{visibles.map(({movimiento:m,motivo,accion},i)=>{
+ const bruto=m.monto??m.amount;const monto=bruto===null||bruto===undefined||bruto===''?NaN:Number(bruto);
+ const fecha=String(m.fecha??m.occurred_at??'').split(',')[0];
+ return <article key={m.id??i}><div className="revision-registro-main"><div><small>{fecha||'Fecha pendiente'} · {m.tipo??m.movement_type??'Tipo pendiente'}</small><h3>{m.concepto??m.concept??'Sin concepto'}</h3><span>{motivo}</span></div><strong>{Number.isFinite(monto)?dinero(monto):'Importe pendiente'}</strong></div><details><summary>Qué falta comprobar</summary><p>{accion}</p><small>Estado del registro: {m.estado??m.status??'Pendiente'}. Esta revisión no cambia su clasificación.</small></details></article>;
+ })}</div>{!filtrados.length&&<p>No hay registros de este tipo en las fuentes cargadas.</p>}{filtrados.length>5&&<button className="revision-ver" onClick={()=>setVerTodo(v=>!v)}>{verTodo?'Mostrar cinco registros':`Ver los ${filtrados.length} registros`}</button>}<details className="revision-alcance"><summary>Cómo se usan estos datos</summary><p>Un mensaje, un comprobante y un descuento pueden corresponder al mismo pago. Comprueba sus vínculos antes de añadir otra salida. Esta vista usa los movimientos registrados; no calcula saldo de préstamos ni confirma que el cierre esté completo.</p></details></section>;
 }
