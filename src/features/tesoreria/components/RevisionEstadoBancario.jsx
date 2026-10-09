@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
+import { guardarRevisionBanco, recuperarRevisionBanco } from '../services/revisionBancariaService';
 import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
 import { useUser } from '../../../context/UserContext';
@@ -10,12 +11,13 @@ const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', curre
 export default function RevisionEstadoBancario({ movimientos = [] }) {
   const { usuario } = useUser();
   const clave = claveRevisionBancaria(usuario);
-  return <RevisionBancariaSesion key={clave || 'sin-alcance'} clave={clave} movimientos={movimientos} />;
+  return <RevisionBancariaSesion key={clave || 'sin-alcance'} clave={clave} usuario={usuario} movimientos={movimientos} />;
 }
-function RevisionBancariaSesion({ clave, movimientos }) {
+function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   const [paquete, setPaquete] = useState(null);
   const [error, setError] = useState('');
   const [guardado, setGuardado] = useState('');
+  const [sincronizando, setSincronizando] = useState(false);
   const [filtro, setFiltro] = useState('');
   const [cuenta, setCuenta] = useState('');
   const [pendientes, setPendientes] = useState(false);
@@ -32,6 +34,16 @@ function RevisionBancariaSesion({ clave, movimientos }) {
       const nuevo = JSON.parse(await file.text()); validarEstadoBancario(nuevo);
       setPaquete(nuevo); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setEditando(null);
     } catch (e) { setError(e.message || 'No fue posible leer el archivo.'); }
+  };
+  const guardarNube = async () => {
+    setSincronizando(true); setError('');
+    try { const registro = await guardarRevisionBanco(usuario, paquete); setGuardado(`Versión guardada en MONYS: ${registro.id}. Puedes recuperarla con tu usuario, negocio y sucursal.`); }
+    catch (e) { setError(e.message); } finally { setSincronizando(false); }
+  };
+  const recuperarNube = async () => {
+    setSincronizando(true); setError('');
+    try { const registro = await recuperarRevisionBanco(usuario); if (!registro) { setError('No hay una versión bancaria guardada para este contexto.'); return; } setPaquete(registro.paquete); setGuardado('Última versión recuperada de MONYS.'); setPagina(0); setFiltro(''); setCuenta(''); setEditando(null); }
+    catch (e) { setError(e.message); } finally { setSincronizando(false); }
   };
   const guardarAqui = () => {
     try { guardarRevisionBancaria(window.localStorage, clave, paquete); setGuardado('Revisión guardada en este dispositivo.'); setError(''); }
@@ -58,6 +70,7 @@ function RevisionBancariaSesion({ clave, movimientos }) {
     <p>Abre el archivo bancario MONYS preparado a partir del estado de cuenta. Se comprobarán movimientos, sumas y saldos antes de mostrarlo. Este paso admite JSON; los PDF se preparan primero.</p>
     <p className="banco-aviso">Esta revisión no cambia los saldos de Tesorería ni registra ingresos o gastos. Puedes guardarla en este dispositivo con tu usuario, negocio y sucursal, o descargarla para abrirla en otro equipo. No se sincroniza automáticamente. Guarda los cambios antes de salir, actualizar o abrir otro paquete.</p>
     <div className="banco-filtros"><button disabled={!clave} onClick={recuperarAqui}>Recuperar revisión guardada aquí</button>{paquete && <button disabled={!clave} onClick={guardarAqui}>Guardar en este dispositivo</button>}</div>
+    {usuario?.role === 'owner' && <details><summary>Versiones en MONYS · requiere habilitar almacenamiento bancario</summary><p>Guarda versiones completas sin reemplazar las anteriores. Si la base aún no está habilitada, se mostrará el error y podrás conservar tu archivo.</p><button disabled={sincronizando} onClick={recuperarNube}>Recuperar de MONYS</button>{paquete && <button disabled={sincronizando} onClick={guardarNube}>{sincronizando ? 'Consultando…' : 'Guardar versión en MONYS'}</button>}</details>}
     {guardado && <p role="status">{guardado}</p>}
     {error && <p role="alert" className="banco-error">{error}</p>}
     {resumen && <>
