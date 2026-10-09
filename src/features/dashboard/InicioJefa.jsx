@@ -25,6 +25,7 @@ export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
+  movimientosFlujo = [],
 fechaInicial = null,
 fechaFinal = null,
 movimientos = [],
@@ -56,24 +57,8 @@ movimientos = [],
       return "";
     }
 
-    const fechaTexto =
-      String(valor).slice(0, 10);
-
-    const [
-      anio,
-      mes,
-      dia,
-    ] = fechaTexto.split("-");
-
-    if (
-      !anio ||
-      !mes ||
-      !dia
-    ) {
-      return fechaTexto;
-    }
-
-    return `${dia}/${mes}/${anio}`;
+    const fecha = valor instanceof Date ? valor : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(valor)) ? `${valor}T12:00:00` : valor);
+    return Number.isNaN(fecha.getTime()) ? 'Fecha pendiente' : fecha.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'});
   };
 
   const detallePeriodo =
@@ -442,6 +427,7 @@ const utilidadConsolidada =
       }}
     >
       <Header />
+      <aside className="owner-sidebar" aria-label="Navegación del negocio"><span>ESPACIO DE DIRECCIÓN</span><button aria-current="page" onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>◈ Resumen ejecutivo</button><button onClick={abrirJuntaDirectiva}>◉ Junta Directiva IA</button><button onClick={abrirFinanzas}>$ Finanzas</button><button onClick={abrirMarketing}>↗ Crecimiento</button><button onClick={abrirFlotilla}>◇ Flotilla</button><button onClick={abrirEmpleados}>◎ Equipo</button><button onClick={abrirInventario}>▦ Inventario</button><button onClick={abrirCentroValor}>✧ Valor generado</button><button onClick={abrirImportador}>＋ Reportes</button><small>MONYS OS<br/>Tu centro de decisión y ejecución</small></aside>
 
       <section
         style={{
@@ -452,7 +438,7 @@ const utilidadConsolidada =
         }}
       >
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
-        <div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button></div>
+        <div className="owner-decision-strip"><span>PRIORIDAD DE DIRECCIÓN</span><h2>{movimientosPendientes ? `Aclara ${movimientosPendientes} movimiento${movimientosPendientes===1?'':'s'} antes de decidir con la caja` : 'Revisa la Junta y actualiza el corte del negocio'}</h2><p>{movimientosPendientes ? 'La evidencia y el destino del dinero necesitan revisión.' : 'El siguiente paso depende de las fuentes cargadas y su vigencia.'}</p><button onClick={movimientosPendientes ? abrirTesoreria : abrirJuntaDirectiva}>Trabajar esta prioridad →</button></div><div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button></div>
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         {/* MÉTRICAS */}
 
@@ -475,9 +461,9 @@ const utilidadConsolidada =
 
          <MetricaJefa
   icono="◎"
-  titulo="Flujo de movimientos cargados"
-  valor={movimientos.length ? formatoDinero(disponible) : "Por completar"}
-  detalle="No equivale al saldo bancario disponible"
+  titulo="Flujo registrado del corte"
+  valor={movimientosFlujo.length ? formatoDinero(disponible) : "Sin movimientos del corte"}
+  detalle={`${movimientosFlujo.length} registros en este periodo · no es saldo bancario`}
 />
 
         </div>

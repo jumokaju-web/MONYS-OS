@@ -109,3 +109,6 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* MONYS application baseline */
+:root{font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:15px;color-scheme:light;background:#f6f5f7;color:#342c36;--heading:Inter,"Segoe UI",Arial,sans-serif;--text-h:#342c36}body{background:#f6f5f7}#root{width:1440px;border:0;text-align:left}button,input,select,textarea{font-family:inherit}h1,h2,h3{font-family:Inter,"Segoe UI",Arial,sans-serif;font-weight:700}button:focus-visible{outline:3px solid #bf8aac;outline-offset:3px}

@@ -1,3 +1,4 @@
+import LimiteErrorVista from './components/system/LimiteErrorVista';
 import ActualizacionApp from './components/system/ActualizacionApp';
 import {
   StrictMode,
@@ -30,6 +31,7 @@ import RecuperarPassword from "./features/auth/components/RecuperarPassword.jsx"
 const LOGIN_OBLIGATORIO = true;
 
 function Root() {
+  const [revisionVista,setRevisionVista]=useState(0);
   const [
     session,
     setSession,
@@ -193,7 +195,7 @@ function Root() {
   return (
     <UserProvider>
       <ActualizacionApp />
-      <App />
+      <LimiteErrorVista key={revisionVista} onVolver={()=>setRevisionVista(v=>v+1)}><App /></LimiteErrorVista>
     </UserProvider>
   );
 }

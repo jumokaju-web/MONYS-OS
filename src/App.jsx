@@ -1187,7 +1187,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
+    <InicioJefa movimientosFlujo={movimientosDelPeriodo} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
 
       datosDashboard={
         datosDashboard
