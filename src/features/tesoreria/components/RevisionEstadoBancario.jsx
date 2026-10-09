@@ -3,6 +3,7 @@ import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
 import { guardarRevisionBanco, recuperarRevisionBanco } from '../services/revisionBancariaService';
 import { sugerirMovimientoBancario, agruparSugerenciasBancarias } from '../utils/sugerenciasBancarias';
+import { prepararComisiones, clasificarComisiones, prepararTerminales, clasificarTerminales } from '../utils/clasificacionComisiones';
 import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
 import { useUser } from '../../../context/UserContext';
@@ -22,6 +23,8 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   const [filtro, setFiltro] = useState('');
   const [direccion, setDireccion] = useState('');
   const [grupo, setGrupo] = useState('');
+  const [revisarComisiones, setRevisarComisiones] = useState(false);
+  const [revisarTerminales, setRevisarTerminales] = useState(false);
   useEffect(() => {
     if (!clave || usuario?.role !== 'owner') return undefined;
     let vigente = true;
@@ -46,6 +49,32 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   const [nota, setNota] = useState('');
   const resumen = useMemo(() => paquete ? validarEstadoBancario(paquete) : null, [paquete]);
   const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo]);
+  const planComisiones = useMemo(() => paquete ? prepararComisiones(paquete, cuenta) : null, [paquete, cuenta]);
+  const planTerminales = useMemo(() => paquete ? prepararTerminales(paquete, cuenta) : null, [paquete, cuenta]);
+  const guardarComisiones = async () => {
+    if (!planComisiones?.movimientos.length) return;
+    setSincronizando(true); setError('');
+    try {
+      const cantidad = planComisiones.movimientos.length;
+      const nuevo = clasificarComisiones(paquete, cuenta);
+      const registro = await guardarRevisionBanco(usuario, nuevo);
+      setPaquete(nuevo); setRevisarComisiones(false); setPagina(0); setEditando(null);
+      setGuardado(`${cantidad} comisiones clasificadas y guardadas en MONYS. Versión ${registro.id}.`);
+    } catch (e) { setError(e.message || 'No se pudo guardar. La revisión anterior sigue abierta.'); }
+    finally { setSincronizando(false); }
+  };
+  const guardarTerminales = async () => {
+    if (!planTerminales?.movimientos.length) return;
+    setSincronizando(true); setError('');
+    try {
+      const cantidad = planTerminales.movimientos.length;
+      const nuevo = clasificarTerminales(paquete, cuenta);
+      const registro = await guardarRevisionBanco(usuario, nuevo);
+      setPaquete(nuevo); setRevisarTerminales(false); setPagina(0); setEditando(null);
+      setGuardado(`${cantidad} cobros de terminal identificados y guardados en MONYS. Conciliación SICAR pendiente. Versión ${registro.id}.`);
+    } catch (e) { setError(e.message || 'No se pudo guardar. La revisión anterior sigue abierta.'); }
+    finally { setSincronizando(false); }
+  };
   const cargar = async event => {
     const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
     try {
@@ -97,6 +126,8 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
       <div className="banco-resumen"><article><small>Saldo al cierre del estado</small><strong>{dinero(resumen.saldo)}</strong><small>No equivale a dinero disponible hoy</small></article><article><small>Control bancario</small><strong>{resumen.movimientos} movimientos</strong><small>{resumen.cuentas.length} cuentas cuadran</small></article><article><small>Por clasificar</small><strong>{paquete.movimientos.filter(m => m.revision?.estado !== 'Confirmado').length}</strong><small>Las pistas del banco requieren revisión</small></article></div>
       <div className="banco-cuentas">{resumen.cuentas.map(c => <article key={c.terminacion}><b>Cuenta ·{c.terminacion}</b><p>{c.desde} a {c.hasta}</p><p>Abonos {dinero(c.abonos)} · Cargos {dinero(c.cargos)}</p><strong>{dinero(c.final)} al cierre</strong></article>)}</div>
       <div className="banco-filtros"><input aria-label="Buscar movimiento bancario" placeholder="Nombre, concepto o referencia" value={filtro} onChange={e => { setFiltro(e.target.value); setPagina(0); }} /><select aria-label="Cuenta bancaria" value={cuenta} onChange={e => { setCuenta(e.target.value); setPagina(0); }}><option value="">Todas las cuentas</option>{resumen.cuentas.map(c => <option key={c.terminacion} value={c.terminacion}>·{c.terminacion}</option>)}</select><select aria-label="Tipo de movimiento bancario" value={direccion} onChange={e => { setDireccion(e.target.value); setPagina(0); }}><option value="">Entradas y salidas</option><option value="entrada">Solo entradas</option><option value="salida">Solo salidas</option></select><label><input type="checkbox" checked={pendientes} onChange={e => { setPendientes(e.target.checked); setPagina(0); }} /> Solo pendientes</label><button onClick={descargar}>Descargar mi revisión</button></div>
+      {usuario?.role === 'owner' && planComisiones?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · comisiones identificadas</h3><p>{planComisiones.movimientos.length} cargos por {dinero(planComisiones.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Conceptos explícitos del banco; los otros pagos quedan fuera de este bloque.</p><button onClick={() => setRevisarComisiones(v => !v)}>{revisarComisiones ? 'Cerrar revisión del bloque' : 'Revisar comisiones juntas'}</button>{revisarComisiones && <div><p>Se clasificarán como Comisión bancaria / IVA y se guardará una nueva versión en MONYS. La asignación a negocio, sucursal o uso personal sigue pendiente. Los saldos bancarios se conservan y los movimientos de caja no cambian.</p><details><summary>Ver los {planComisiones.movimientos.length} cargos del bloque</summary><div className="banco-lista">{planComisiones.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.cargo)}</strong></article>)}</div></details><button onClick={guardarComisiones}>Clasificar {planComisiones.movimientos.length} comisiones y guardar en MONYS</button></div>}</section>}
+      {usuario?.role === 'owner' && planTerminales?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · cobros de terminal</h3><p>{planTerminales.movimientos.length} abonos por {dinero(planTerminales.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Identificados por el banco; falta conciliarlos con SICAR.</p><button onClick={() => setRevisarTerminales(v => !v)}>{revisarTerminales ? 'Cerrar revisión de terminales' : 'Revisar cobros de terminal juntos'}</button>{revisarTerminales && <div><p>Se clasificarán como Cobro de tienda: conciliar SICAR y se guardará una nueva versión. Esta acción no agrega ventas ni confirma que coinciden con caja.</p><details><summary>Ver los {planTerminales.movimientos.length} abonos del bloque</summary><div className="banco-lista">{planTerminales.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.abono)}</strong></article>)}</div></details><button onClick={guardarTerminales}>Identificar {planTerminales.movimientos.length} cobros y guardar en MONYS</button></div>}</section>}
       <section className="banco-sugerencias"><h3>Revisión asistida · destinos sugeridos</h3><p>MONYS agrupa las pistas para que revises más rápido. Cada destino requiere tu confirmación.</p><div className="banco-cuentas">{agruparSugerenciasBancarias(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta)).map(g => <article key={g.nombre}><b>{g.nombre}</b><p>{g.cantidad} pendientes</p><p>Salidas {dinero(g.cargos)} · Entradas {dinero(g.abonos)}</p><button onClick={() => { setGrupo(g.nombre); setFiltro(''); setDireccion(''); setPendientes(true); setPagina(0); setEditando(null); requestAnimationFrame(() => document.getElementById('banco-resultados')?.scrollIntoView({ behavior: 'smooth' })); }}>Revisar este grupo</button></article>)}</div>{grupo && <p>Grupo: <b>{grupo}</b> <button onClick={() => { setGrupo(''); setPagina(0); }}>Mostrar todos los destinos</button></p>}</section>
       <CruceBancoCaja paquete={paquete} movimientos={movimientos} />
       <DiagnosticoEstadoBancario paquete={paquete} cuenta={cuenta} onRevisar={m => {
