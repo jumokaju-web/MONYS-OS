@@ -3,3 +3,5 @@
 .banco-diagnostico{margin:22px 0;padding:18px;background:#fbf8fa;border:1px solid #e6d3df;border-radius:14px}.banco-diagnostico h3{font-size:20px;margin:0 0 10px}.banco-diagnostico h4{margin:22px 0 10px}.banco-diagnostico .banco-lista p{overflow-wrap:anywhere}
 
 .banco-controles{border:0;padding:0;margin:0;min-width:0}.banco-nube{padding:16px;border:1px solid #e6d3df;border-radius:12px;background:#faf5f8}.banco-nube h3{margin:0;font-size:17px}.banco-nube p{font-size:13px}.banco-controles:disabled .banco-carga{opacity:.5;cursor:wait}
+
+.banco-sugerencias{margin:22px 0;padding:18px;border:1px solid #e6d3df;border-radius:14px;background:#fff}.banco-sugerencias h3{margin:0;color:#713657}.banco-sugerencias button{font-size:13px}.banco-whatsapp{margin:12px 0;padding:14px;border-left:3px solid #39745b;background:#f1f8f4;border-radius:8px}.banco-whatsapp b{color:#285f45;font-size:13px}.banco-pista{color:#713657}

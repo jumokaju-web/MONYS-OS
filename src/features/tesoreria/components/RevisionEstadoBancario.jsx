@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
 import { guardarRevisionBanco, recuperarRevisionBanco } from '../services/revisionBancariaService';
+import { sugerirMovimientoBancario, agruparSugerenciasBancarias } from '../utils/sugerenciasBancarias';
 import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
 import { useUser } from '../../../context/UserContext';
@@ -20,11 +21,16 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   const [sincronizando, setSincronizando] = useState(false);
   const [filtro, setFiltro] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [grupo, setGrupo] = useState('');
   useEffect(() => {
     if (!clave || usuario?.role !== 'owner') return undefined;
     let vigente = true;
     setSincronizando(true);
-    recuperarRevisionBanco(usuario).then(registro => {
+    recuperarRevisionBanco({
+      role: usuario?.role, auth_user_id: usuario?.auth_user_id,
+      organization_id: usuario?.organization_id, business_id: usuario?.business_id,
+      branch_id: usuario?.branch_id,
+    }).then(registro => {
       if (!vigente || !registro) return;
       setPaquete(registro.paquete);
       setGuardado('Tus movimientos guardados se cargaron de MONYS.');
@@ -39,13 +45,13 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   const [categoria, setCategoria] = useState('');
   const [nota, setNota] = useState('');
   const resumen = useMemo(() => paquete ? validarEstadoBancario(paquete) : null, [paquete]);
-  const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion]);
+  const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo]);
   const cargar = async event => {
     const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error('El archivo supera 10 MB.');
       const nuevo = JSON.parse(await file.text()); validarEstadoBancario(nuevo);
-      setPaquete(nuevo); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setPendientes(false); setEditando(null);
+      setPaquete(nuevo); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null);
     } catch (e) { setError(e.message || 'No fue posible leer el archivo.'); }
   };
   const guardarNube = async () => {
@@ -55,7 +61,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   };
   const recuperarNube = async () => {
     setSincronizando(true); setError('');
-    try { const registro = await recuperarRevisionBanco(usuario); if (!registro) { setError('No hay una versión bancaria guardada para este contexto.'); return; } setPaquete(registro.paquete); setGuardado('Última versión recuperada de MONYS.'); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setPendientes(false); setEditando(null); }
+    try { const registro = await recuperarRevisionBanco(usuario); if (!registro) { setError('No hay una versión bancaria guardada para este contexto.'); return; } setPaquete(registro.paquete); setGuardado('Última versión recuperada de MONYS.'); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null); }
     catch (e) { setError(e.message); } finally { setSincronizando(false); }
   };
   const guardarAqui = () => {
@@ -66,7 +72,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
     try {
       const borrador = recuperarRevisionBancaria(window.localStorage, clave);
       if (!borrador) { setError('No hay una revisión guardada para este usuario, negocio y sucursal.'); return; }
-      setPaquete(borrador.paquete); setGuardado('Borrador recuperado de este dispositivo.'); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setPendientes(false); setEditando(null);
+      setPaquete(borrador.paquete); setGuardado('Borrador recuperado de este dispositivo.'); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null);
     } catch { setError('No se pudo recuperar un borrador válido. Abre tu archivo descargado.'); }
   };
   const descargar = () => {
@@ -76,7 +82,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
   };
   const confirmar = () => {
     if (!categoria || !nota.trim()) { setError('Selecciona una categoría y explica cómo confirmaste el destino.'); return; }
-    setPaquete(actual => ({ ...actual, movimientos: actual.movimientos.map(m => m.id === editando ? { ...m, revision: { estado: 'Confirmado', clasificacion: categoria, nota: nota.trim(), fecha: new Date().toISOString() } } : m) })); setEditando(null); setGuardado('Cambios pendientes: guarda en este dispositivo o descarga tu revisión.'); setError('');
+    setPaquete(actual => ({ ...actual, movimientos: actual.movimientos.map(m => m.id === editando ? { ...m, revision: { estado: 'Confirmado', clasificacion: categoria, nota: nota.trim(), fecha: new Date().toISOString() } } : m) })); setEditando(null); setGuardado('Clasificación confirmada en esta revisión. Pulsa Guardar versión en MONYS para conservar el cambio en otros equipos.'); setError('');
   };
   return <section className="banco-revision"><fieldset className="banco-controles" disabled={sincronizando} aria-busy={sincronizando}>
     <div className="banco-revision-head"><div><span>CONCILIACIÓN BANCARIA</span><h2>Revisa el destino de tu dinero</h2></div><label className="banco-carga">Abrir paquete bancario<input type="file" accept=".json,application/json" onChange={cargar} /></label></div>
@@ -91,16 +97,17 @@ function RevisionBancariaSesion({ clave, usuario, movimientos }) {
       <div className="banco-resumen"><article><small>Saldo al cierre del estado</small><strong>{dinero(resumen.saldo)}</strong><small>No equivale a dinero disponible hoy</small></article><article><small>Control bancario</small><strong>{resumen.movimientos} movimientos</strong><small>{resumen.cuentas.length} cuentas cuadran</small></article><article><small>Por clasificar</small><strong>{paquete.movimientos.filter(m => m.revision?.estado !== 'Confirmado').length}</strong><small>Las pistas del banco requieren revisión</small></article></div>
       <div className="banco-cuentas">{resumen.cuentas.map(c => <article key={c.terminacion}><b>Cuenta ·{c.terminacion}</b><p>{c.desde} a {c.hasta}</p><p>Abonos {dinero(c.abonos)} · Cargos {dinero(c.cargos)}</p><strong>{dinero(c.final)} al cierre</strong></article>)}</div>
       <div className="banco-filtros"><input aria-label="Buscar movimiento bancario" placeholder="Nombre, concepto o referencia" value={filtro} onChange={e => { setFiltro(e.target.value); setPagina(0); }} /><select aria-label="Cuenta bancaria" value={cuenta} onChange={e => { setCuenta(e.target.value); setPagina(0); }}><option value="">Todas las cuentas</option>{resumen.cuentas.map(c => <option key={c.terminacion} value={c.terminacion}>·{c.terminacion}</option>)}</select><select aria-label="Tipo de movimiento bancario" value={direccion} onChange={e => { setDireccion(e.target.value); setPagina(0); }}><option value="">Entradas y salidas</option><option value="entrada">Solo entradas</option><option value="salida">Solo salidas</option></select><label><input type="checkbox" checked={pendientes} onChange={e => { setPendientes(e.target.checked); setPagina(0); }} /> Solo pendientes</label><button onClick={descargar}>Descargar mi revisión</button></div>
+      <section className="banco-sugerencias"><h3>Revisión asistida · destinos sugeridos</h3><p>MONYS agrupa las pistas para que revises más rápido. Cada destino requiere tu confirmación.</p><div className="banco-cuentas">{agruparSugerenciasBancarias(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta)).map(g => <article key={g.nombre}><b>{g.nombre}</b><p>{g.cantidad} pendientes</p><p>Salidas {dinero(g.cargos)} · Entradas {dinero(g.abonos)}</p><button onClick={() => { setGrupo(g.nombre); setFiltro(''); setDireccion(''); setPendientes(true); setPagina(0); setEditando(null); requestAnimationFrame(() => document.getElementById('banco-resultados')?.scrollIntoView({ behavior: 'smooth' })); }}>Revisar este grupo</button></article>)}</div>{grupo && <p>Grupo: <b>{grupo}</b> <button onClick={() => { setGrupo(''); setPagina(0); }}>Mostrar todos los destinos</button></p>}</section>
       <CruceBancoCaja paquete={paquete} movimientos={movimientos} />
       <DiagnosticoEstadoBancario paquete={paquete} cuenta={cuenta} onRevisar={m => {
-        setCuenta(m.cuenta); setDireccion(''); setFiltro(m.descripcion); setPendientes(true);
+        setGrupo(''); setCuenta(m.cuenta); setDireccion(''); setFiltro(m.descripcion); setPendientes(true);
         const candidatos = paquete.movimientos.filter(x => x.cuenta === m.cuenta && x.revision?.estado !== 'Confirmado' && [x.descripcion, x.referencia_visible, x.categoria, x.revision?.clasificacion, x.revision?.nota].join(' ').toLowerCase().includes(m.descripcion.toLowerCase()));
         setPagina(Math.max(0, Math.floor(candidatos.findIndex(x => x.id === m.id) / 20)));
-        setEditando(m.id); setCategoria(''); setNota(''); setError('');
+        setEditando(m.id); setCategoria(sugerirMovimientoBancario(m).categoria); setNota(''); setError('');
         requestAnimationFrame(() => document.getElementById(`banco-mov-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
       }} />
-      <p>{filtrados.length} movimientos encontrados. Las ventas de terminal se concilian con SICAR; las transferencias entre cuentas no son ventas.</p>
-      <div className="banco-lista">{filtrados.slice(pagina * 20, (pagina + 1) * 20).map(m => <article key={m.id} id={`banco-mov-${m.id}`}><div><small>{m.fecha_operacion} · Cuenta ·{m.cuenta}</small><h3>{m.descripcion}</h3><p>{m.revision?.estado === 'Confirmado' ? m.revision.clasificacion : `Pista: ${m.categoria || 'Por aclarar'}`}</p><details><summary>Referencia y evidencia</summary><p>{m.referencia_visible}</p><p>{m.fuente} · página PDF {m.pagina_pdf} · liquida {m.fecha_liquidacion}</p>{m.revision?.nota && <p>Tu aclaración: {m.revision.nota}</p>}</details></div><div><strong>{Number(m.cargo) > 0 ? 'Salida ' + dinero(m.cargo) : 'Entrada ' + dinero(m.abono)}</strong><p>{m.revision?.estado || 'Por revisar'}</p><button onClick={() => { setEditando(m.id); setCategoria(m.revision?.clasificacion || ''); setNota(m.revision?.nota || ''); setError(''); }}>Aclarar destino</button></div>{editando === m.id && <div className="banco-editor"><label>Clasificación<select value={categoria} onChange={e => setCategoria(e.target.value)}><option value="">Seleccionar</option>{categorias.map(c => <option key={c}>{c}</option>)}</select></label><label>Evidencia y destino<textarea value={nota} onChange={e => setNota(e.target.value)} placeholder="Ejemplo: préstamo a Oscar para uso personal, por recuperar; comprobante revisado." /></label><button onClick={confirmar}>Confirmar clasificación</button><button onClick={() => setEditando(null)}>Cancelar</button></div>}</article>)}</div>
+      <p id="banco-resultados">{filtrados.length} movimientos encontrados. Las ventas de terminal se concilian con SICAR; las transferencias entre cuentas no son ventas.</p>
+      <div className="banco-lista">{filtrados.slice(pagina * 20, (pagina + 1) * 20).map(m => <article key={m.id} id={`banco-mov-${m.id}`}><div><small>{m.fecha_operacion} · Cuenta ·{m.cuenta}</small><h3>{m.descripcion}</h3><p>{m.revision?.estado === 'Confirmado' ? m.revision.clasificacion : `Pista: ${m.categoria || 'Por aclarar'}`}</p>{m.revision?.estado !== 'Confirmado' && <p className="banco-pista">{sugerirMovimientoBancario(m).motivo}</p>}<details><summary>Referencia y evidencia</summary><p>{m.referencia_visible}</p><p>{m.fuente} · página PDF {m.pagina_pdf} · liquida {m.fecha_liquidacion}</p>{sugerirMovimientoBancario(m).coincidencias.map((e, i) => <blockquote className="banco-whatsapp" key={i}><b>Mensaje candidato de WhatsApp · {e.fecha}</b><p>{e.texto}</p><small>Línea {e.linea} · {sugerirMovimientoBancario(m).ambigua ? 'Hay varias coincidencias; confirma cuál corresponde.' : 'Coincide fecha e importe; el destino necesita confirmación.'}</small></blockquote>)}{m.revision?.nota && <p>Tu aclaración: {m.revision.nota}</p>}</details></div><div><strong>{Number(m.cargo) > 0 ? 'Salida ' + dinero(m.cargo) : 'Entrada ' + dinero(m.abono)}</strong><p>{m.revision?.estado || 'Por revisar'}</p><button onClick={() => { setEditando(m.id); setCategoria(m.revision?.clasificacion || sugerirMovimientoBancario(m).categoria); setNota(m.revision?.nota || ''); setError(''); }}>Aclarar destino</button></div>{editando === m.id && <div className="banco-editor"><label>Clasificación<select value={categoria} onChange={e => setCategoria(e.target.value)}><option value="">Seleccionar</option>{categorias.map(c => <option key={c}>{c}</option>)}</select></label><label>Evidencia y destino<textarea value={nota} onChange={e => setNota(e.target.value)} placeholder="Ejemplo: préstamo a Oscar para uso personal, por recuperar; comprobante revisado." /></label><button onClick={confirmar}>Confirmar clasificación</button><button onClick={() => setEditando(null)}>Cancelar</button></div>}</article>)}</div>
       <div className="banco-filtros"><button disabled={pagina === 0} onClick={() => setPagina(p => p - 1)}>Anterior</button><span>Página {pagina + 1} de {Math.max(1, Math.ceil(filtrados.length / 20))}</span><button disabled={(pagina + 1) * 20 >= filtrados.length} onClick={() => setPagina(p => p + 1)}>Siguiente</button></div>
     </>}
   </fieldset></section>;
