@@ -22,6 +22,7 @@ import InicioEmpleado from "./features/inteligencia/components/InicioEmpleado";
 import InicioJefa from "./features/dashboard/InicioJefa";
 import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
+import CentroFinanciero from "./features/finanzas/CentroFinanciero";
 import TesoreriaPage from "./features/tesoreria/pages/TesoreriaPage";
 import InventarioPage from "./features/inventario/pages/InventarioPage";
 import CompraMaestraPage from "./features/inventario/pages/CompraMaestraPage";
@@ -899,6 +900,11 @@ const disponible =
     );
   }
 
+  if (pantallaActual === "finanzas") {
+    if (!puedeVerFinanzas) return mostrarAccesoDenegado("Finanzas");
+    return <CentroFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos.filter(m => m.organization_id === usuario?.organization_id && m.business_id === usuario?.business_id)} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
+  }
+
   /*
     TESORERÍA
   */
@@ -1172,7 +1178,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa abrirCentroValor={() => setPantallaActual("valor")}
+    <InicioJefa abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
 
       sucursalesDashboard={
   sucursalesDashboard

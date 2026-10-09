@@ -155,15 +155,15 @@ export const obtenerRecordatoriosJefa =
             tipo:
               "importador",
             titulo:
-                           `Subir SICAR de ${
+                           `Actualizar base SICAR · ${
                 sucursal.branch_name ||
                 sucursal.name ||
                 "sucursal"
               }`,
             detalle:
               ultimaImportacion
-                ? `Han pasado ${diasSinImportar} días desde la última carga.`
-                : "Esta sucursal todavía no tiene una carga de ventas.",
+                ? `Última carga de Ventas por artículo registrada en MONYS: ${String(ultimaImportacion.created_at).slice(0,10)}. Los archivos enviados al chat no se cargan automáticamente aquí.`
+                : "No hay una carga de Ventas por artículo registrada en MONYS para esta sucursal.",
             boton:
               "Subir reporte",
           });

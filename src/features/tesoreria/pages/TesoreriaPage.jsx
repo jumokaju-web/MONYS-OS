@@ -19,6 +19,7 @@ import {
 } from "../services/cuentasFinancierasService";
 
 function TesoreriaPage({
+  ocultarRevisionBancaria = false,
   volverAlDashboard,
   onMovimientoGuardado,
   movimientos = [],
@@ -286,7 +287,7 @@ function TesoreriaPage({
         formatoDinero={formatoDinero}
       />
 
-      <RevisionEstadoBancario />
+      {!ocultarRevisionBancaria && <RevisionEstadoBancario />}
 
       <section className="acciones">
         {!formularioVisible && (

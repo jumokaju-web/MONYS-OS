@@ -16,6 +16,7 @@ fechaInicial = null,
 fechaFinal = null,
 movimientos = [],
   formatoDinero,
+  abrirFinanzas,
   abrirJuntaDirectiva,
   abrirCentroValor,
   abrirTesoreria,
@@ -322,6 +323,8 @@ const utilidadConsolidada =
 
         </div>
 
+        <section className="owner-financial-hub"><div><span>FINANZAS · CENTRO DE TRABAJO</span><h2>Controla tu dinero y tu siguiente paso</h2><p>Bancos y aclaraciones · Entradas y salidas · Punto de equilibrio · Proveedores · Planeación de flujo</p></div><button onClick={abrirFinanzas}>Abrir Finanzas →</button></section>
+
         <section style={{ background: "#49293e", borderRadius: 18, padding: 20, color: "white", marginBottom: 18 }}>
           <div style={{ fontSize: 10, letterSpacing: 1.4, color: "#e9bed3", fontWeight: 800 }}>DIRECCIÓN · INTELIGENCIA · RESULTADOS</div>
           <h2 style={{ fontSize: 21, margin: "8px 0", color: "#fff8fc", lineHeight: 1.25 }}>Decide con evidencia</h2>
@@ -333,7 +336,7 @@ const utilidadConsolidada =
         </section>
 
         <nav className="owner-shortcuts" aria-label="Accesos de dirección">
-          <button type="button" onClick={abrirTesoreria}>Dinero y movimientos →</button>
+          <button type="button" onClick={abrirTesoreria}>Movimientos registrados →</button>
           <button type="button" onClick={abrirImportador}>Subir reportes →</button>
           <button type="button" onClick={abrirInventario}>Inventario →</button>
           <button type="button" onClick={() => { const panel=document.getElementById('operacion-equipo'); const bloque=panel?.closest('details'); if(bloque)bloque.open=true; panel?.scrollIntoView({behavior:'smooth'}); }}>Operación del equipo ↓</button>
