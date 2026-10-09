@@ -1,22 +1,43 @@
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
 
 import {
-  obtenerUnidadPorPlacas,
+  obtenerUnidadesFlotilla,
   obtenerRutaDeUnidadEnFecha,
+  suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
+import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
 
-export default function FlotillaChofer({ volverAlDashboard }) {
-  const [placasBuscadas, setPlacasBuscadas] = useState('');
-  const [placasConsulta, setPlacasConsulta] = useState('');
-  const [actualizacion, setActualizacion] = useState(0);
+function normalizarNombre(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
-      const [
-    unidad,
-    setUnidad,
-  ] = useState(null);
+function obtenerFechaLocal() {
+  const hoy = new Date();
+  return [
+    hoy.getFullYear(),
+    String(hoy.getMonth() + 1).padStart(2, "0"),
+    String(hoy.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+export default function FlotillaChofer({
+  usuario = null,
+  volverAlDashboard,
+}) {
+
+  const [unidades, setUnidades] = useState([]);
+  const [unidadId, setUnidadId] = useState("");
+
+  const unidad =
+    unidades.find((item) => item.id === unidadId) || null;
 
   const [
     cargandoUnidad,
@@ -29,23 +50,42 @@ export default function FlotillaChofer({ volverAlDashboard }) {
   ] = useState("");
 
   useEffect(() => {
-    if (!placasConsulta) { setUnidad(null); setCargandoUnidad(false); return; }
     let activo = true;
-    setUnidad(null);
 
     const cargarUnidad = async () => {
       try {
         setCargandoUnidad(true);
         setErrorUnidad("");
 
-        const resultado =
-          await obtenerUnidadPorPlacas(
-            placasConsulta
-          );
+        const resultado = await obtenerUnidadesFlotilla();
 
         if (activo) {
-          setUnidad(resultado);
-          if (!resultado) setErrorUnidad("No se encontró una unidad accesible con esas placas.");
+          const nombreUsuario = normalizarNombre(usuario?.nombre);
+          const asignada = resultado.find((item) => {
+            const chofer = normalizarNombre(item?.chofer_nombre);
+            return (
+              nombreUsuario &&
+              chofer &&
+              (chofer.includes(nombreUsuario) || nombreUsuario.includes(chofer))
+            );
+          });
+
+          const rol = String(usuario?.role || "").toLowerCase();
+          const puedeRevisarTodaLaFlotilla =
+            rol === "owner" || rol === "admin";
+          const unidadesPermitidas = puedeRevisarTodaLaFlotilla
+            ? resultado
+            : asignada
+              ? [asignada]
+              : [];
+
+          setUnidades(unidadesPermitidas);
+
+          setUnidadId((actual) =>
+            unidadesPermitidas.some((item) => item.id === actual)
+              ? actual
+              : asignada?.id || unidadesPermitidas[0]?.id || ""
+          );
         }
       } catch (error) {
         console.error(
@@ -71,65 +111,77 @@ export default function FlotillaChofer({ volverAlDashboard }) {
     return () => {
       activo = false;
     };
-  }, [placasConsulta, actualizacion]);
+  }, [usuario?.nombre, usuario?.role]);
 
-      const [rutaHoy, setRutaHoy] = useState(null);
+  const [rutaHoy, setRutaHoy] = useState(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState("");
+  const [estadoSincronizacion, setEstadoSincronizacion] =
+    useState("CONECTANDO");
 
-  useEffect(() => {
-    setRutaHoy(null); setErrorRuta("");
-    if (!unidad?.id) { setCargandoRuta(false); return; }
+  const cargarRutaActual = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!unidad?.id) {
+        setRutaHoy(null);
+        return;
+      }
 
-    let activo = true;
-
-    const cargarRuta = async () => {
       try {
-        setCargandoRuta(true);
+        if (!silencioso) {
+          setCargandoRuta(true);
+          setRutaHoy(null);
+        }
         setErrorRuta("");
 
-        const hoy = new Date();
-        const fechaLocal = [
-          hoy.getFullYear(),
-          String(hoy.getMonth() + 1).padStart(2, "0"),
-          String(hoy.getDate()).padStart(2, "0"),
-        ].join("-");
+        const resultado = await obtenerRutaDeUnidadEnFecha(
+          unidad.id,
+          obtenerFechaLocal()
+        );
 
-        const resultado =
-          await obtenerRutaDeUnidadEnFecha(
-            unidad.id,
-            fechaLocal
-          );
-
-        if (activo) {
-          setRutaHoy(resultado);
-
-        }
+        setRutaHoy(resultado);
       } catch (error) {
         console.error("Error cargando ruta:", error);
-
-        if (activo) {
-          setErrorRuta(
-            error?.message ||
-              "No fue posible cargar la ruta."
-          );
-        }
+        setErrorRuta(
+          error?.message || "No fue posible cargar la ruta."
+        );
       } finally {
-        if (activo) setCargandoRuta(false);
+        if (!silencioso) {
+          setCargandoRuta(false);
+        }
       }
-    };
+    },
+    [unidad?.id]
+  );
 
-    cargarRuta();
+  useEffect(() => {
+    if (!unidad?.id) {
+      setRutaHoy(null);
+      setEstadoSincronizacion("SIN_UNIDAD");
+      return;
+    }
+
+    cargarRutaActual();
+
+    const detenerSuscripcion = suscribirseARutasDeUnidad({
+      unidadId: unidad.id,
+      onCambio: () => cargarRutaActual({ silencioso: true }),
+      onEstado: (estado) => setEstadoSincronizacion(estado),
+    });
+
+    // Respaldo para proyectos donde Realtime aún no esté habilitado.
+    const intervalo = window.setInterval(
+      () => cargarRutaActual({ silencioso: true }),
+      60000
+    );
 
     return () => {
-      activo = false;
+      detenerSuscripcion();
+      window.clearInterval(intervalo);
     };
-  }, [unidad?.id, actualizacion]);
-
-
+  }, [cargarRutaActual, unidad?.id]);
 
     const choferReal =
-    unidad?.chofer_nombre || "—";
+    unidad?.chofer_nombre || usuario?.nombre || "Sin asignar";
 
   const placasReales =
     unidad?.placas || "—";
@@ -172,12 +224,6 @@ export default function FlotillaChofer({ volverAlDashboard }) {
           margin: "0 auto",
         }}
       >
-        <section style={{ background: "white", border: "1px solid #d5e2ef", borderRadius: 14, padding: 16, marginBottom: 16 }}>
-          <button type="button" onClick={volverAlDashboard}>Volver al inicio</button>
-          <h2>Consulta tu unidad</h2><p>Escribe las placas de la unidad registrada. Se consultan los datos permitidos por tu sesión.</p>
-          <form onSubmit={e => { e.preventDefault(); const placas = placasBuscadas.trim().toUpperCase(); if (!placas) return; setPlacasConsulta(placas); setActualizacion(v => v + 1); }}><label>Placas<input value={placasBuscadas} onChange={e => setPlacasBuscadas(e.target.value)} placeholder="Placas de la unidad" required maxLength={20} style={{ width: "100%", padding: 12, boxSizing: "border-box", margin: "8px 0" }} /></label><button type="submit">Consultar unidad y ruta</button></form>
-          <p style={{ fontSize: 12 }}>Esta consulta no integra automáticamente la aplicación externa de Chory ni registra rutas nuevas.</p>
-        </section>
         {/* ENCABEZADO */}
         <div
           style={{
@@ -211,11 +257,156 @@ export default function FlotillaChofer({ volverAlDashboard }) {
           <div
             style={{
               fontSize: "23px",
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
             }}
           >
-            🔔
+            <span aria-label="Notificaciones">🔔</span>
+            {typeof volverAlDashboard === "function" && (
+              <button
+                type="button"
+                onClick={volverAlDashboard}
+                style={{
+                  border: "1px solid #c9ddeb",
+                  borderRadius: "10px",
+                  background: "#fff",
+                  color: "#174b7a",
+                  padding: "8px 10px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                Salir
+              </button>
+            )}
           </div>
         </div>
+
+        {cargandoUnidad && (
+          <p role="status">Consultando unidades autorizadas…</p>
+        )}
+
+        {errorUnidad && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: "14px",
+              padding: "12px",
+              borderRadius: "12px",
+              background: "#fff1f1",
+              border: "1px solid #e7aaaa",
+              color: "#9b2929",
+              fontWeight: 750,
+            }}
+          >
+            {errorUnidad}
+          </div>
+        )}
+
+        {!cargandoUnidad && !errorUnidad && unidades.length === 0 && (
+          <div
+            role="status"
+            style={{
+              marginBottom: "14px",
+              padding: "14px",
+              borderRadius: "12px",
+              background: "#fff8e8",
+              border: "1px solid #e8cc86",
+              color: "#705016",
+            }}
+          >
+            No hay una unidad autorizada para esta cuenta. Administración debe
+            registrar o asignar la unidad antes de crear rutas o gastos.
+          </div>
+        )}
+
+        {unidades.length > 1 && (
+          <label
+            style={{
+              display: "block",
+              marginBottom: "14px",
+              fontSize: "13px",
+              fontWeight: 850,
+            }}
+          >
+            Unidad a revisar
+            <select
+              value={unidadId}
+              onChange={(evento) => setUnidadId(evento.target.value)}
+              style={{
+                width: "100%",
+                marginTop: "6px",
+                padding: "11px",
+                borderRadius: "11px",
+                border: "1px solid #c9ddeb",
+                background: "#fff",
+                color: "#14365a",
+                font: "inherit",
+              }}
+            >
+              {unidades.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.placas || "Sin placas"} · {item.chofer_nombre || "Sin chofer"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {unidad?.id && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "14px",
+              padding: "10px 12px",
+              borderRadius: "11px",
+              background:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "#eaf9f0"
+                  : "#fff8e8",
+              border:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "1px solid #b8ddc5"
+                  : "1px solid #e8cc86",
+              color:
+                estadoSincronizacion === "SUBSCRIBED"
+                  ? "#247044"
+                  : "#705016",
+              fontSize: "12px",
+              fontWeight: 800,
+            }}
+          >
+            <span>
+              {estadoSincronizacion === "SUBSCRIBED"
+                ? "● Sincronización automática activa"
+                : "● Comprobando sincronización"}
+            </span>
+            <button
+              type="button"
+              onClick={() => cargarRutaActual()}
+              disabled={cargandoRuta}
+              style={{
+                border: "1px solid currentColor",
+                borderRadius: "9px",
+                background: "#fff",
+                color: "inherit",
+                padding: "6px 9px",
+                fontWeight: 850,
+                cursor: cargandoRuta ? "wait" : "pointer",
+              }}
+            >
+              {cargandoRuta ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
+        )}
+
+        {["owner", "admin"].includes(
+          String(usuario?.role || "").toLowerCase()
+        ) && <ResumenFlotillaSocios unidades={unidades} />}
 
         {/* SALUDO */}
         <div
@@ -244,7 +435,7 @@ export default function FlotillaChofer({ volverAlDashboard }) {
                 marginTop: "2px",
               }}
             >
-              Chofer · {tipoReal}
+              Chofer · MLP
             </div>
           </div>
 
@@ -332,6 +523,15 @@ export default function FlotillaChofer({ volverAlDashboard }) {
               }}
             >
               Dueño: {propietarioReal}
+            </div>
+
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#647d94",
+              }}
+            >
+              Estado: {estadoReal}
             </div>
           </div>
         </div>

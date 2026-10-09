@@ -1,4 +1,4 @@
-import { saldoProveedor, fechaProveedor } from './datosProveedor';
+import { saldoProveedor, fechaProveedor } from './datosProveedor.js';
 function limpiarEncabezado(valor) {
   return String(valor ?? "")
     .trim()
@@ -250,6 +250,8 @@ export function normalizarVentasPorArticulo(filas) {
           )
         ),
 
+        importeDisponible: columnas.importe >= 0,
+        utilidadDisponible: columnas.utilidad >= 0,
         tipoDato: "ventas_articulo",
       };
     })
@@ -580,6 +582,23 @@ export function normalizarUtilidadVentas(filas) {
         ]
       ),
   };
+
+  const columnasObligatorias = [
+    ["documento", "Documento"],
+    ["folio", "Folio"],
+    ["totalVenta", "Total de venta"],
+    ["totalCompra", "Costo de venta"],
+    ["utilidad", "Utilidad"],
+  ];
+  const faltantes = columnasObligatorias
+    .filter(([clave]) => columnas[clave] < 0)
+    .map(([, etiqueta]) => etiqueta);
+
+  if (faltantes.length > 0) {
+    throw new Error(
+      `Al reporte SICAR de utilidad de ventas le faltan columnas financieras obligatorias: ${faltantes.join(", ")}. Vuelve a exportarlo con el detalle completo.`
+    );
+  }
 
   const datos =
     filas.slice(1);

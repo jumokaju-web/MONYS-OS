@@ -5,10 +5,23 @@ import {
 } from "react";
 import Header from "../../components/layout/Header";
 import AgendaJefa from "./components/AgendaJefa";
+import SalaRescateJefa from "./components/SalaRescateJefa";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
+import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinancieroIA";
+
+function antiguedadEnDias(fecha) {
+  if (!fecha) return null;
+
+  const valor = new Date(`${String(fecha).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(valor.getTime())) return null;
+
+  return Math.max(0, Math.floor((Date.now() - valor.getTime()) / 86400000));
+}
+
 export default function InicioJefa({
+  datosDashboard = null,
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
@@ -21,6 +34,7 @@ movimientos = [],
   abrirFinanzas,
   abrirJuntaDirectiva,
   abrirCentroValor,
+  abrirDirectorFinanciero,
   abrirTesoreria,
   abrirInventario,
   abrirCompraMaestra,
@@ -152,6 +166,51 @@ movimientos = [],
   const hayPendientes =
     movimientosPendientes > 0;
 
+  const antiguedadDatos = antiguedadEnDias(fechaFinal);
+  const datosFinancierosVigentes =
+    antiguedadDatos !== null && antiguedadDatos <= 7;
+  const flujoPositivo = Number(disponible) > 0;
+  const salidaNuevaBloqueada =
+    !datosFinancierosVigentes || hayPendientes || !flujoPositivo;
+
+  const controlesDinero = [
+    {
+      titulo: "Base para decidir",
+      valor: datosFinancierosVigentes ? "Vigente" : "Actualizar",
+      detalle:
+        antiguedadDatos === null
+          ? "No hay fecha confirmada"
+          : `Corte de hace ${antiguedadDatos} día${antiguedadDatos === 1 ? "" : "s"}`,
+      estado: datosFinancierosVigentes ? "bien" : "alerta",
+    },
+    {
+      titulo: "Flujo comprobable",
+      valor: datosFinancierosVigentes
+        ? formatoDinero(disponible)
+        : "Sin autorizar",
+      detalle: datosFinancierosVigentes
+        ? detallePeriodo
+        : "No usar datos antiguos para gastar",
+      estado: datosFinancierosVigentes && flujoPositivo ? "bien" : "alerta",
+    },
+    {
+      titulo: "Movimientos por aclarar",
+      valor: movimientosPendientes,
+      detalle: hayPendientes
+        ? "Primero conciliar en Tesorería"
+        : "Sin pendientes detectados",
+      estado: hayPendientes ? "alerta" : "bien",
+    },
+    {
+      titulo: "Nuevas salidas",
+      valor: salidaNuevaBloqueada ? "Detenidas" : "Con autorización",
+      detalle: salidaNuevaBloqueada
+        ? "No comprar ni pagar desde MONYS"
+        : "Mónica conserva la decisión final",
+      estado: salidaNuevaBloqueada ? "bloqueado" : "bien",
+    },
+  ];
+
     const ventasConsolidadas =
   sucursalesDashboard.reduce(
     (total, sucursal) =>
@@ -170,6 +229,149 @@ const utilidadConsolidada =
         sucursal?.utilidadTotal
       ) || 0),
     0
+  );
+
+  const metricasFinancieras = datosDashboard?.metricas || {};
+  const costoConsolidado = Math.max(
+    ventasConsolidadas - utilidadConsolidada,
+    0,
+  );
+  const diasAnalizados = Number(metricasFinancieras.diasAnalizados) || 0;
+  const analisisFinanciero = generarAnalisisFinanciero({
+    movimientos,
+    ventasTotales: ventasConsolidadas || ventasTotales,
+    costoTotal:
+      ventasConsolidadas > 0
+        ? costoConsolidado
+        : Number(metricasFinancieras.costoTotal) || 0,
+    utilidadTotal: utilidadConsolidada || utilidadTotal,
+    margenUtilidad:
+      ventasConsolidadas > 0
+        ? (utilidadConsolidada / ventasConsolidadas) * 100
+        : Number(metricasFinancieras.margenUtilidad) || 0,
+    fechaInicial,
+    fechaFinal,
+    diasAnalizados,
+    ventaPromedioDiaria:
+      diasAnalizados > 0
+        ? (ventasConsolidadas || ventasTotales) / diasAnalizados
+        : 0,
+    utilidadPromedioDiaria:
+      diasAnalizados > 0
+        ? (utilidadConsolidada || utilidadTotal) / diasAnalizados
+        : 0,
+  });
+
+  const estadoResultados = [
+    ["Ventas", analisisFinanciero.ventasTotales],
+    ["Costo de mercancía", analisisFinanciero.costoTotal],
+    ["Utilidad bruta", analisisFinanciero.utilidadTotal],
+    ["Gastos operativos", analisisFinanciero.gastosOperativos],
+    ["Utilidad después de gastos", analisisFinanciero.utilidadNetaEstimada],
+  ];
+
+  const movimientosFlotilla = movimientos.filter((movimiento) => {
+    const referencia = [
+      movimiento?.negocio,
+      movimiento?.categoria,
+      movimiento?.expense_category,
+      movimiento?.concepto,
+      movimiento?.concept,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return referencia.includes("flotilla") || referencia.includes("ruta");
+  });
+
+  const flujoFlotilla = movimientosFlotilla.reduce((total, movimiento) => {
+    const tipo = String(
+      movimiento?.tipo || movimiento?.movement_type || "",
+    ).toLowerCase();
+    const monto = Number(movimiento?.monto ?? movimiento?.amount ?? 0) || 0;
+
+    if (tipo.includes("entrada")) return total + monto;
+    if (tipo.includes("salida")) return total - monto;
+    return total;
+  }, 0);
+
+  const puntoEquilibrioDisponible = Number.isFinite(
+    Number(analisisFinanciero.puntoEquilibrioVentas),
+  );
+
+  const planFinanciero7Dias = [
+    {
+      id: "datos",
+      completada: datosFinancierosVigentes,
+      prioridad: datosFinancierosVigentes ? "LISTO" : "CRÍTICO",
+      titulo: datosFinancierosVigentes
+        ? "Reportes financieros vigentes"
+        : "Actualizar ventas e inventario",
+      detalle: datosFinancierosVigentes
+        ? "La base tiene menos de 8 días de antigüedad."
+        : "Sin reportes actuales MONYS no autorizará distribución ni compras.",
+      responsable: "Administración",
+      boton: datosFinancierosVigentes ? "Ver reportes" : "Actualizar ahora",
+      accion: abrirImportador,
+    },
+    {
+      id: "tesoreria",
+      completada: movimientosPendientes === 0,
+      prioridad: movimientosPendientes === 0 ? "LISTO" : "ALTO",
+      titulo:
+        movimientosPendientes === 0
+          ? "Tesorería sin movimientos pendientes"
+          : `Aclarar ${movimientosPendientes} movimiento${movimientosPendientes === 1 ? "" : "s"}`,
+      detalle:
+        movimientosPendientes === 0
+          ? "No se detectan movimientos esperando revisión."
+          : "Cada movimiento pendiente reduce la confianza del flujo.",
+      responsable: "Administración",
+      boton: "Abrir Tesorería",
+      accion: abrirTesoreria,
+    },
+    {
+      id: "pagos",
+      completada:
+        datosFinancierosVigentes &&
+        movimientosPendientes === 0 &&
+        Number(analisisFinanciero.vencimientos7Dias || 0) === 0,
+      prioridad:
+        Number(analisisFinanciero.vencimientos7Dias || 0) > 0 ? "ALTO" : "REVISAR",
+      titulo:
+        Number(analisisFinanciero.vencimientos7Dias || 0) > 0
+          ? `Revisar ${formatoDinero(analisisFinanciero.vencimientos7Dias)} por vencer`
+          : "Completar calendario de pagos",
+      detalle:
+        "MONYS ordena fechas y montos; Mónica decide qué se paga y cuándo.",
+      responsable: "Jefa + Finanzas",
+      boton: "Revisar programación",
+      accion: abrirDirectorFinanciero,
+    },
+    {
+      id: "flotilla",
+      completada: movimientosFlotilla.length > 0,
+      prioridad: movimientosFlotilla.length > 0 ? "LISTO" : "MEDIO",
+      titulo:
+        movimientosFlotilla.length > 0
+          ? "Flotilla identificada por separado"
+          : "Separar el dinero de Flotilla",
+      detalle:
+        movimientosFlotilla.length > 0
+          ? `${movimientosFlotilla.length} movimientos ya se reconocen como ruta o flotilla.`
+          : "Etiquetar ingresos, combustible, mantenimiento y pago por unidad.",
+      responsable: "Flotilla + Administración",
+      boton: "Abrir Flotilla",
+      accion: abrirFlotilla,
+    },
+  ];
+
+  const pasosPlanCompletos = planFinanciero7Dias.filter(
+    (paso) => paso.completada,
+  ).length;
+  const avancePlanFinanciero = Math.round(
+    (pasosPlanCompletos / planFinanciero7Dias.length) * 100,
   );
 
   const recordatorioPrioritario =
@@ -249,54 +451,9 @@ const utilidadConsolidada =
           textAlign: "left",
         }}
       >
-        {/* SALUDO */}
-
-        <div
-          style={{
-            marginBottom: "14px",
-            padding: "16px",
-            border: "1px solid #efdce6",
-            borderRadius: "22px",
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,.98), rgba(255,241,247,.96))",
-            boxShadow:
-              "0 14px 38px rgba(105, 37, 72, 0.08)",
-          }}
-        >
-          <div
-            style={{
-              color: "#a92e67",
-              fontSize: "12px",
-              fontWeight: "900",
-              letterSpacing: "1px",
-            }}
-          >
-            MONYS OS · DIRECCIÓN · INICIO 08 OCT / 3
-          </div>
-
-          <h1
-            style={{
-              margin: "4px 0 3px",
-              fontSize: "clamp(26px, 4vw, 38px)",
-              letterSpacing: "-0.8px",
-              color: "#291d23",
-            }}
-          >
-            Hola, Mónica
-          </h1>
-
-          <div
-            style={{
-              color: "#7d6e75",
-              fontSize: "14px",
-            }}
-          >
-            Esto es lo que requiere tu
-            atención hoy.
-          </div>
-          <p className="owner-period">Cifras del corte: {detallePeriodo}. No representan ventas de hoy.</p>
-        </div>
-
+        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
+        <div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button></div>
+        <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         {/* MÉTRICAS */}
 
         <div className="owner-metrics">
@@ -325,7 +482,13 @@ const utilidadConsolidada =
 
         </div>
 
-        <section className="owner-modules" aria-label="Áreas del negocio"><header><span>TU CENTRO DE TRABAJO</span><h2>Dirige las cuatro áreas</h2></header><div><button onClick={abrirFinanzas}><b>Finanzas →</b><small>Bancos, gastos y planeación</small></button><button onClick={abrirMarketing}><b>Marketing →</b><small>Campañas, tareas y resultados</small></button><button onClick={abrirFlotilla}><b>Flotilla →</b><small>Unidad y ruta registrada</small></button><button onClick={abrirEmpleados}><b>Empleados →</b><small>Equipo y gestión de personal</small></button></div></section>
+        <section className="owner-workspaces"><header><span>AVANCES REUNIDOS</span><h2>Entra a tu centro de trabajo</h2></header><div>
+          <article><span className="owner-workspace-icon">$</span><h3>Finanzas</h3><p>Bancos y aclaraciones · Meta diaria · Deudas y rescate</p><button onClick={abrirFinanzas}>Control del dinero →</button><button className="owner-link" onClick={abrirDirectorFinanciero}>Plan de rescate y deudas →</button></article>
+          <article><span className="owner-workspace-icon">↗</span><h3>Marketing</h3><p>Campañas · Trabajo diario · Resultados y aprendizaje</p><button onClick={abrirMarketing}>Centro de crecimiento →</button></article>
+          <article><span className="owner-workspace-icon">◇</span><h3>Flotilla</h3><p>Unidades y rutas · Resumen de socios · Seguimiento</p><button onClick={abrirFlotilla}>Revisar flotilla →</button></article>
+          <article><span className="owner-workspace-icon">◎</span><h3>Empleados</h3><p>Equipo · Accesos · Comisiones y operación</p><button onClick={abrirEmpleados}>Gestionar equipo →</button><button className="owner-link" onClick={()=>{const panel=document.getElementById('operacion-equipo');const bloque=panel?.closest('details');if(bloque)bloque.open=true;panel?.scrollIntoView({behavior:'smooth'});}}>Operación de hoy ↓</button></article>
+        </div></section>
+        <details id="rescate-integrado" className="owner-rescate"><summary>Plan de rescate · tareas, avance y evidencias</summary><SalaRescateJefa branchId={datosDashboard?.branch_id || null} abrirDirectorFinanciero={abrirDirectorFinanciero}/></details>
 
         <section className="owner-financial-hub"><div><span>FINANZAS · CENTRO DE TRABAJO</span><h2>Controla tu dinero y tu siguiente paso</h2><p>Bancos y aclaraciones · Entradas y salidas · Punto de equilibrio · Proveedores · Planeación de flujo</p></div><button onClick={abrirFinanzas}>Abrir Finanzas →</button></section>
 
@@ -345,6 +508,503 @@ const utilidadConsolidada =
           <button type="button" onClick={abrirInventario}>Inventario →</button>
           <button type="button" onClick={() => { const panel=document.getElementById('operacion-equipo'); const bloque=panel?.closest('details'); if(bloque)bloque.open=true; panel?.scrollIntoView({behavior:'smooth'}); }}>Operación del equipo ↓</button>
         </nav>
+        <details className="owner-expanded"><summary>Detalle financiero · fuentes, compromisos y decisiones</summary>
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background:
+              "linear-gradient(145deg, #281b22 0%, #5f2445 100%)",
+            color: "#fff",
+            boxShadow: "0 14px 34px rgba(70, 28, 51, 0.18)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "#f2b9d3",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  letterSpacing: "0.8px",
+                }}
+              >
+                CONTROL DE DINERO · HOY
+              </div>
+              <h2 style={{ margin: "5px 0 4px", fontSize: "23px" }}>
+                Qué puedes decidir y qué debe esperar
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  maxWidth: "680px",
+                  color: "rgba(255,255,255,.78)",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                }}
+              >
+                MONYS ordena la información y protege el efectivo. No mueve dinero,
+                no realiza pagos y no autoriza compras por sí solo.
+              </p>
+            </div>
+            <span
+              style={{
+                padding: "8px 11px",
+                borderRadius: "999px",
+                background: salidaNuevaBloqueada ? "#ffe7b2" : "#dff6e7",
+                color: salidaNuevaBloqueada ? "#744d00" : "#17663a",
+                fontWeight: 900,
+                fontSize: "12px",
+              }}
+            >
+              {salidaNuevaBloqueada ? "⚠ Proteger efectivo" : "✓ Base revisable"}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "16px",
+            }}
+          >
+            {controlesDinero.map((control) => (
+              <article
+                key={control.titulo}
+                style={{
+                  minWidth: 0,
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background:
+                    control.estado === "bien"
+                      ? "rgba(222,247,231,.12)"
+                      : "rgba(255,229,177,.12)",
+                  border:
+                    control.estado === "bien"
+                      ? "1px solid rgba(181,231,199,.28)"
+                      : "1px solid rgba(255,221,153,.32)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "rgba(255,255,255,.68)",
+                    fontSize: "10px",
+                    fontWeight: 850,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.45px",
+                  }}
+                >
+                  {control.titulo}
+                </div>
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: "5px",
+                    color: control.estado === "bien" ? "#dff6e7" : "#ffe7b2",
+                    fontSize: "18px",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {control.valor}
+                </strong>
+                <div
+                  style={{
+                    marginTop: "5px",
+                    color: "rgba(255,255,255,.72)",
+                    fontSize: "11px",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {control.detalle}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: "8px",
+              marginTop: "14px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={abrirImportador}
+              style={estiloBotonControlDinero}
+            >
+              Actualizar reportes
+            </button>
+            <button
+              type="button"
+              onClick={abrirTesoreria}
+              style={estiloBotonControlDinero}
+            >
+              Revisar Tesorería
+            </button>
+            <button
+              type="button"
+              onClick={abrirDirectorFinanciero}
+              style={estiloBotonControlDinero}
+            >
+              Abrir Director Financiero
+            </button>
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "#fff",
+            border: "1px solid #eadde4",
+            boxShadow: "0 10px 30px rgba(83,39,62,.06)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={estiloEyebrowJefa}>MAPA FINANCIERO DEL NEGOCIO</div>
+              <h2 style={{ margin: "5px 0", fontSize: "22px", color: "#291d23" }}>
+                Lo que ganas, lo que debes cubrir y lo que puedes decidir
+              </h2>
+            </div>
+            <span style={estiloEtiquetaPrivada}>🔒 Solo dirección</span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "10px",
+              marginTop: "15px",
+            }}
+          >
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>📑 Estado de resultados</div>
+              <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                {estadoResultados.map(([etiqueta, valor], indice) => (
+                  <div
+                    key={etiqueta}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      paddingTop: indice === estadoResultados.length - 1 ? "9px" : 0,
+                      borderTop:
+                        indice === estadoResultados.length - 1
+                          ? "1px solid #eadde4"
+                          : "none",
+                      color:
+                        indice === estadoResultados.length - 1 ? "#7c2653" : "#67565f",
+                      fontWeight: indice === estadoResultados.length - 1 ? 900 : 700,
+                      fontSize: "12px",
+                    }}
+                  >
+                    <span>{etiqueta}</span>
+                    <strong>{formatoDinero(valor)}</strong>
+                  </div>
+                ))}
+              </div>
+              {!datosFinancierosVigentes && (
+                <div style={estiloAvisoDato}>
+                  Histórico: actualiza reportes antes de decidir.
+                </div>
+              )}
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
+              <strong style={estiloCifraFinanciera}>
+                {puntoEquilibrioDisponible
+                  ? formatoDinero(analisisFinanciero.puntoEquilibrioVentas)
+                  : "Falta base suficiente"}
+              </strong>
+              <p style={estiloTextoPanel}>
+                Ventas mínimas estimadas para cubrir costos y gastos registrados.
+              </p>
+              <div style={estiloAvisoDato}>
+                Margen después de gastos: {Number(analisisFinanciero.margenConGastos || 0).toFixed(1)}%
+              </div>
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>🗓️ Pagos programables</div>
+              <strong style={estiloCifraFinanciera}>
+                {formatoDinero(analisisFinanciero.vencimientos7Dias || 0)}
+              </strong>
+              <p style={estiloTextoPanel}>Compromisos registrados para los próximos 7 días.</p>
+              <div style={estiloAvisoDato}>
+                Próximos 30 días: {formatoDinero(analisisFinanciero.vencimientos30Dias || 0)}
+              </div>
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>🚚 Dinero de Flotilla</div>
+              <strong style={estiloCifraFinanciera}>
+                {movimientosFlotilla.length > 0
+                  ? formatoDinero(flujoFlotilla)
+                  : "Pendiente de separar"}
+              </strong>
+              <p style={estiloTextoPanel}>
+                {movimientosFlotilla.length > 0
+                  ? `${movimientosFlotilla.length} movimientos identificados por ruta o flotilla.`
+                  : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
+              </p>
+              <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
+                Abrir Flotilla →
+              </button>
+            </article>
+          </div>
+
+          <button
+            type="button"
+            onClick={abrirDirectorFinanciero}
+            style={{ ...estiloBotonPanel, width: "100%", marginTop: "12px" }}
+          >
+            Ver análisis financiero completo →
+          </button>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "linear-gradient(135deg, #fff6e8, #fff 52%, #fff1f7)",
+            border: "1px solid #ead5b5",
+          }}
+        >
+          <div style={estiloEyebrowJefa}>RUTA DE CRECIMIENTO MONYS</div>
+          <h2 style={{ margin: "5px 0 4px", fontSize: "22px" }}>
+            Del rescate a un negocio franquiciable
+          </h2>
+          <p style={{ margin: 0, color: "#735f69", fontSize: "13px", lineHeight: 1.5 }}>
+            No saltaremos etapas: cada nivel necesita evidencia real antes de avanzar.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "14px",
+            }}
+          >
+            {[
+              ["1", "Rescatar", "Caja, deudas y pagos bajo control", "EN CURSO"],
+              ["2", "Estabilizar", "Punto de equilibrio y utilidad repetible", "SIGUE"],
+              ["3", "Escalar", "Sucursal que funciona sin depender de ti", "DESPUÉS"],
+              ["4", "Franquiciar", "Manual, números por unidad y controles", "META"],
+            ].map(([numero, titulo, detalle, estado], indice) => (
+              <article
+                key={numero}
+                style={{
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background: indice === 0 ? "#6f2750" : "rgba(255,255,255,.82)",
+                  color: indice === 0 ? "#fff" : "#392a31",
+                  border: indice === 0 ? "1px solid #6f2750" : "1px solid #eadde4",
+                }}
+              >
+                <div style={{ fontSize: "10px", fontWeight: 900, opacity: 0.7 }}>
+                  ETAPA {numero} · {estado}
+                </div>
+                <strong style={{ display: "block", marginTop: "5px", fontSize: "16px" }}>
+                  {titulo}
+                </strong>
+                <div style={{ marginTop: "5px", fontSize: "11px", lineHeight: 1.4, opacity: 0.8 }}>
+                  {detalle}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginBottom: "16px",
+            padding: "18px",
+            borderRadius: "20px",
+            background: "#fff",
+            border: "1px solid #eadde4",
+            boxShadow: "0 12px 34px rgba(83,39,62,.07)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={estiloEyebrowJefa}>PLAN EJECUTIVO · PRÓXIMOS 7 DÍAS</div>
+              <h2 style={{ margin: "5px 0 4px", fontSize: "22px" }}>
+                MONYS te quita pendientes, tú conservas decisiones
+              </h2>
+              <p style={{ margin: 0, color: "#76656d", fontSize: "12px", lineHeight: 1.45 }}>
+                Avance operativo confirmado; no representa ventas futuras.
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong style={{ display: "block", color: "#8b315d", fontSize: "26px" }}>
+                {avancePlanFinanciero}%
+              </strong>
+              <small style={{ color: "#8b7982", fontWeight: 750 }}>
+                {pasosPlanCompletos} de {planFinanciero7Dias.length} controles
+              </small>
+            </div>
+          </div>
+
+          <div
+            role="progressbar"
+            aria-label="Avance del plan financiero de siete días"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={avancePlanFinanciero}
+            style={{
+              height: "9px",
+              marginTop: "14px",
+              borderRadius: "999px",
+              background: "#f2e5eb",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                width: `${avancePlanFinanciero}%`,
+                height: "100%",
+                borderRadius: "inherit",
+                background: "linear-gradient(90deg, #b51f67, #ee5b9c)",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: "9px", marginTop: "15px" }}>
+            {planFinanciero7Dias.map((paso, indice) => (
+              <article
+                key={paso.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "36px minmax(0, 1fr)",
+                  gap: "11px",
+                  padding: "13px",
+                  borderRadius: "14px",
+                  background: paso.completada ? "#f1faf4" : "#fff8fb",
+                  border: paso.completada ? "1px solid #bfdfc9" : "1px solid #ead5df",
+                }}
+              >
+                <div
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: "11px",
+                    background: paso.completada ? "#d8f0e0" : "#f8dfeb",
+                    color: paso.completada ? "#1e6a3d" : "#8b315d",
+                    fontWeight: 900,
+                  }}
+                >
+                  {paso.completada ? "✓" : indice + 1}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <strong style={{ color: "#35262d", fontSize: "14px" }}>
+                      {paso.titulo}
+                    </strong>
+                    <span
+                      style={{
+                        padding: "4px 7px",
+                        borderRadius: "999px",
+                        background: paso.completada ? "#dff4e6" : "#fff0c9",
+                        color: paso.completada ? "#24683e" : "#765200",
+                        fontSize: "9px",
+                        fontWeight: 900,
+                      }}
+                    >
+                      {paso.prioridad}
+                    </span>
+                  </div>
+                  <p style={{ margin: "5px 0 0", color: "#77666e", fontSize: "11px", lineHeight: 1.4 }}>
+                    {paso.detalle}
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "9px",
+                    }}
+                  >
+                    <small style={{ color: "#927f88", fontWeight: 750 }}>
+                      Responsable: {paso.responsable}
+                    </small>
+                    <button
+                      type="button"
+                      onClick={paso.accion}
+                      style={{ ...estiloBotonPanel, marginTop: 0, minHeight: "34px", padding: "6px 9px" }}
+                    >
+                      {paso.boton} →
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "9px",
+              marginTop: "13px",
+            }}
+          >
+            <div style={estiloResponsabilidadMonys}>
+              <strong>🤖 MONYS prepara</strong>
+              <span>Datos, alertas, prioridades, calendario y seguimiento.</span>
+            </div>
+            <div style={estiloResponsabilidadMonica}>
+              <strong>👑 Mónica decide</strong>
+              <span>Pagos, compras, deuda, inversión y crecimiento.</span>
+            </div>
+          </div>
+        </section>
+
+        </details>
         {/* ATENCIÓN */}
 
                 <AgendaJefa
@@ -1156,4 +1816,108 @@ const estiloBotonSecundario = {
   fontWeight: "800",
   cursor: "pointer",
   fontSize: "13px",
+};
+
+const estiloBotonControlDinero = {
+  minHeight: "44px",
+  border: "1px solid rgba(255,255,255,.3)",
+  background: "rgba(255,255,255,.96)",
+  color: "#642448",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontWeight: 900,
+  cursor: "pointer",
+  fontSize: "12px",
+};
+
+const estiloEyebrowJefa = {
+  color: "#a92e67",
+  fontSize: "11px",
+  fontWeight: 900,
+  letterSpacing: "0.75px",
+};
+
+const estiloEtiquetaPrivada = {
+  padding: "7px 10px",
+  borderRadius: "999px",
+  background: "#f7eef2",
+  color: "#7b2c52",
+  fontSize: "11px",
+  fontWeight: 850,
+};
+
+const estiloPanelFinanciero = {
+  minWidth: 0,
+  padding: "15px",
+  borderRadius: "15px",
+  background: "linear-gradient(145deg, #fff, #fff9fc)",
+  border: "1px solid #eadde4",
+};
+
+const estiloTituloPanel = {
+  color: "#432f39",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
+const estiloCifraFinanciera = {
+  display: "block",
+  marginTop: "11px",
+  color: "#7c2653",
+  fontSize: "clamp(19px, 4vw, 26px)",
+  lineHeight: 1.15,
+  wordBreak: "break-word",
+};
+
+const estiloTextoPanel = {
+  margin: "7px 0 0",
+  color: "#76656d",
+  fontSize: "12px",
+  lineHeight: 1.45,
+};
+
+const estiloAvisoDato = {
+  marginTop: "10px",
+  padding: "8px 9px",
+  borderRadius: "9px",
+  background: "#fbf3f7",
+  color: "#785366",
+  fontSize: "10px",
+  fontWeight: 750,
+  lineHeight: 1.4,
+};
+
+const estiloBotonPanel = {
+  marginTop: "10px",
+  minHeight: "40px",
+  border: "1px solid #dfc8d3",
+  background: "#fff",
+  color: "#7c2653",
+  borderRadius: "11px",
+  padding: "9px 11px",
+  fontWeight: 900,
+  cursor: "pointer",
+  fontSize: "12px",
+};
+
+const estiloResponsabilidadMonys = {
+  display: "grid",
+  gap: "5px",
+  padding: "12px",
+  borderRadius: "13px",
+  background: "#f7edf2",
+  color: "#6e2a4b",
+  fontSize: "11px",
+  lineHeight: 1.4,
+};
+
+const estiloResponsabilidadMonica = {
+  display: "grid",
+  gap: "5px",
+  padding: "12px",
+  borderRadius: "13px",
+  background: "#fff5d9",
+  color: "#6c5200",
+  fontSize: "11px",
+  lineHeight: 1.4,
 };

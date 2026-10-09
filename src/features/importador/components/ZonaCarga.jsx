@@ -23,6 +23,12 @@ import {
   generarResumenReporte,
   generarResumenInventario,
 } from "../utils/resumenReporte";
+import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
+import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
+import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
+import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
+import { extraerPeriodoSicar } from "../utils/periodoSicar";
+import { reconciliarUtilidadVentas } from "../utils/reconciliarUtilidadVentas";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
 import AnalisisEjecutivo from "./AnalisisEjecutivo";
@@ -99,6 +105,10 @@ if (tipoReporte === "Movimientos de caja") {
 function generarResumen(tipoReporte, datosNormalizados) {
   if (tipoReporte === "Ventas por artículo") {
     return generarResumenReporte(datosNormalizados);
+  }
+
+  if (tipoReporte === "Utilidad de ventas") {
+    return generarResumenUtilidadVentas(datosNormalizados);
   }
 
   if (
@@ -323,70 +333,15 @@ useEffect(() => {
 
       if (indiceEncabezados === -1) {
         throw new Error(
-          "No se encontró una fila válida de encabezados."
+          "No encontramos la tabla del reporte SICAR: faltan sus encabezados y filas de datos. El archivo puede contener solo el título o el formato. Vuelve a exportarlo desde SICAR como Excel o CSV incluyendo la tabla completa."
         );
       }
 
     const filasAntesEncabezados =
   filas.slice(0, indiceEncabezados);
 
-let periodoInicio = null;
-let periodoFin = null;
-
-for (const filaCabecera of filasAntesEncabezados) {
-  const indicePeriodo =
-    filaCabecera.findIndex(
-      (valor) =>
-        String(valor ?? "")
-          .trim()
-          .toLowerCase()
-          .replace(":", "") ===
-        "periodo"
-    );
-
-  if (indicePeriodo === -1) {
-    continue;
-  }
-
-  const fechasNumericas =
-    filaCabecera
-      .slice(indicePeriodo + 1)
-      .map((valor) => Number(valor))
-      .filter(
-        (valor) =>
-          Number.isFinite(valor) &&
-          valor > 10000
-      );
-
-  if (fechasNumericas.length >= 2) {
-    const convertirFechaExcel = (
-      numeroExcel
-    ) => {
-      const milisegundos =
-        Math.round(
-          (numeroExcel - 25569) *
-            86400 *
-            1000
-        );
-
-      return new Date(milisegundos)
-        .toISOString()
-        .slice(0, 10);
-    };
-
-    periodoInicio =
-      convertirFechaExcel(
-        fechasNumericas[0]
-      );
-
-    periodoFin =
-      convertirFechaExcel(
-        fechasNumericas[1]
-      );
-
-    break;
-  }
-}
+const { periodoInicio, periodoFin } =
+  extraerPeriodoSicar(filasAntesEncabezados);
 
 const filasDelReporte =
   filas.slice(indiceEncabezados);
@@ -413,26 +368,20 @@ let datosNormalizados =
   );
 
 if (
-  tipoReporte ===
-  "Ventas por artículo"
+  tipoReporte === "Ventas por artículo" ||
+  tipoReporte === "Utilidad de ventas"
 ) {
-  if (
-    !periodoInicio ||
-    !periodoFin
-  ) {
+  if (!periodoInicio || !periodoFin) {
     throw new Error(
-      "MONYS OS no pudo detectar el periodo del reporte de Ventas por artículo."
+      `MONYS OS no pudo detectar el periodo del reporte de ${tipoReporte}.`
     );
   }
 
-  datosNormalizados =
-    datosNormalizados.map(
-      (fila) => ({
-        ...fila,
-        periodoInicio,
-        periodoFin,
-      })
-    );
+  datosNormalizados = datosNormalizados.map((fila) => ({
+    ...fila,
+    periodoInicio,
+    periodoFin,
+  }));
 }
 
       const vistaPrevia =
@@ -445,17 +394,22 @@ if (
           vistaPrevia,
           resultadoMotor: resultadoIA,
           error:
-            `El reporte "${tipoReporte}" fue reconocido, ` +
-            "pero su normalizador todavía no está conectado.",
+            `El reporte "${tipoReporte}" tiene encabezados, pero no produjo filas de datos válidas. Revisa que la exportación de SICAR incluya los registros del periodo y no solo el título o los totales.`,
         });
 
         return;
       }
 
-      const resumen = generarResumen(
+      const resumenBase = generarResumen(
         tipoReporte,
         datosNormalizados
       );
+      const controlSicar = tipoReporte === "Utilidad de ventas"
+        ? reconciliarUtilidadVentas(filasDelReporte, datosNormalizados)
+        : null;
+      const resumen = resumenBase && controlSicar
+        ? { ...resumenBase, controlSicar }
+        : resumenBase;
 
       const analisis = resumen
         ? generarAnalisisEjecutivo(resumen)
@@ -647,6 +601,40 @@ if (
       return;
     }
 
+    const reporteConDiferencias = pendientesDeImportar.find(
+      (item) =>
+        item.tipoReporte === "Utilidad de ventas" &&
+        item.resumen?.controlSicar?.estado === "diferencia"
+    );
+    if (reporteConDiferencias) {
+      setMensajeGeneral(
+        `❌ No se importó “${reporteConDiferencias.nombre}”: sus importes no coinciden con los totales de SICAR. Revisa el archivo antes de volver a cargarlo.`
+      );
+      return;
+    }
+
+    const sucursal = sucursales.find(
+      (item) => item.id === branchIdSeleccionado
+    );
+    const errorSucursal = validarSucursalImportacion(
+      pendientesDeImportar,
+      sucursal
+    );
+
+    if (errorSucursal) {
+      setMensajeGeneral(`❌ ${errorSucursal}`);
+      return;
+    }
+
+    const errorPeriodo = validarPeriodosSuperpuestos(
+      pendientesDeImportar
+    );
+
+    if (errorPeriodo) {
+      setMensajeGeneral(`⚠️ ${errorPeriodo}`);
+      return;
+    }
+
     try {
       setGuardando(true);
       setMensajeGeneral(
@@ -670,8 +658,57 @@ if (
  branchId:
   branchIdSeleccionado || null,
 });
+
+          try {
+            if (item.resumen) {
+              registrarConocimientoReporte({
+                tipoReporte: item.tipoReporte,
+                resumen: item.resumen,
+                nombreArchivo: item.nombre,
+              });
+            }
+
+            if (item.tipoReporte === "Ventas por artículo" && item.resumen) {
+              const actualizacionVentas = {
+                productosVendidos: item.datosNormalizados,
+              };
+
+              if (item.resumen.ventaDisponible !== false && Number.isFinite(item.resumen.ventaTotal)) {
+                actualizacionVentas.total = item.resumen.ventaTotal;
+              }
+              if (item.resumen.utilidadDisponible !== false && Number.isFinite(item.resumen.utilidadTotal)) {
+                actualizacionVentas.utilidad = item.resumen.utilidadTotal;
+              }
+              if (item.resumen.ventaDisponible !== false && item.resumen.utilidadDisponible !== false && item.resumen.ventaTotal > 0) {
+                actualizacionVentas.margen = (item.resumen.utilidadTotal / item.resumen.ventaTotal) * 100;
+              }
+
+              actualizarEmpresa("ventas", actualizacionVentas);
+            }
+
+            if (
+              (item.tipoReporte === "Inventario" ||
+                item.tipoReporte === "Inventario / Utilidad") &&
+              item.resumen
+            ) {
+              actualizarEmpresa("inventario", {
+                valor: item.resumen.valorInventario ?? 0,
+                productos: item.datosNormalizados,
+                agotados: item.resumen.productosAgotados ?? [],
+                sobreInventario:
+                  item.resumen.productosSobreInventario ?? [],
+              });
+            }
+          } catch (errorMemoria) {
+            console.error(
+              "El reporte se guardó, pero no se pudo actualizar la memoria local:",
+              errorMemoria
+            );
+          }
+
           actualizarArchivo(item.id, {
             estado: "importado",
+            importacionId: importacionGuardada?.id || null,
           });
 
           importadosCorrectamente += 1;
@@ -1336,9 +1373,11 @@ if (
           )}
 
           {archivoActivo.resumen && (
-            <ResumenReporte
-              resumen={archivoActivo.resumen}
-            />
+            archivoActivo.tipoReporte === "Utilidad de ventas" ? (
+              <ResumenUtilidadVentas resumen={archivoActivo.resumen} />
+            ) : (
+              <ResumenReporte resumen={archivoActivo.resumen} />
+            )
           )}
 
           {archivoActivo.analisis && (
@@ -1374,12 +1413,14 @@ if (
               cursor:
                 guardando ||
                 analizando ||
+                !branchIdSeleccionado ||
                 archivosListos.length === 0
                   ? "not-allowed"
                   : "pointer",
               background:
                 guardando ||
                 analizando ||
+                !branchIdSeleccionado ||
                 archivosListos.length === 0
                   ? "#b8a5b1"
                   : "#7a315f",
@@ -1390,6 +1431,8 @@ if (
           >
             {guardando
               ? "Guardando reportes..."
+              : !branchIdSeleccionado
+              ? "Selecciona sucursal para importar"
               : `🚀 Importar ${archivosListos.length} reportes a MONYS OS`}
           </button>
 

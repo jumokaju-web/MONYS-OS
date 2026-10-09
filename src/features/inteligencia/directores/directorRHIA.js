@@ -386,10 +386,8 @@ export function directorRHIA({
         ?.vencimientos30Dias
     );
 
-  const liquidezLibreEstimada =
-    dineroDisponible -
-    reservaRecomendada -
-    vencimientos30Dias;
+  // El flujo neto del periodo no confirma caja ni saldo bancario disponible.
+  const liquidezLibreEstimada = null;
 
   /*
     ==========================================
@@ -583,8 +581,7 @@ export function directorRHIA({
 
   if (
     vacantesConectadas &&
-    vacantesAbiertas.length > 0 &&
-    liquidezLibreEstimada <= 0
+      vacantesAbiertas.length > 0
   ) {
     alertas.push({
       prioridad:
@@ -594,10 +591,10 @@ export function directorRHIA({
         "CONTRATACION",
 
       titulo:
-        "Vacantes abiertas con liquidez comprometida",
+        "Confirmar caja antes de nuevas contrataciones",
 
       descripcion:
-        "Antes de autorizar nuevas contrataciones, RH debe validar el costo laboral con Finanzas.",
+        "El flujo neto del periodo no confirma dinero disponible. Finanzas debe validar saldos actuales, nómina y pagos próximos antes de autorizar.",
     });
   }
 
@@ -751,14 +748,9 @@ export function directorRHIA({
     ) {
       estadoContratacion =
         "SIN_VACANTES";
-    } else if (
-      liquidezLibreEstimada > 0
-    ) {
-      estadoContratacion =
-        "EVALUAR_CON_FINANZAS";
     } else {
       estadoContratacion =
-        "NO_AUTORIZADA_FINANCIERAMENTE";
+        "PENDIENTE_VALIDAR_CON_FINANZAS";
     }
   }
 

@@ -31,6 +31,9 @@ import {
   obtenerOportunidadesGrowthOS,
 } from "../services/campanasMarketingService";
 
+import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
+import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
+
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
 
@@ -238,68 +241,6 @@ function normalizarTexto(valor) {
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
-}
-
-function coincideResponsableUsuario(
-  responsable,
-  nombreUsuario
-) {
-  const responsableNormalizado =
-    normalizarTexto(responsable);
-
-  const usuarioNormalizado =
-    normalizarTexto(nombreUsuario);
-
-  if (
-    !responsableNormalizado ||
-    !usuarioNormalizado
-  ) {
-    return false;
-  }
-
-  if (
-    responsableNormalizado ===
-    usuarioNormalizado
-  ) {
-    return true;
-  }
-
-  const partesResponsable =
-    responsableNormalizado.split(" ");
-
-  const partesUsuario =
-    usuarioNormalizado.split(" ");
-
-  const coincidencias =
-    partesUsuario.filter(
-      (parteUsuario) =>
-        parteUsuario.length >= 4 &&
-        partesResponsable.some(
-          (parteResponsable) =>
-            parteResponsable.length >= 4 &&
-            (
-              parteResponsable ===
-                parteUsuario ||
-              parteResponsable.startsWith(
-                parteUsuario
-              ) ||
-              parteUsuario.startsWith(
-                parteResponsable
-              )
-            )
-        )
-    );
-
-  /*
-   * La sesión puede usar un nombre corto
-   * ("Kari Jiménez") mientras RH conserva
-   * el nombre completo
-   * ("Ana Karina Jiménez Meza").
-   * Dos partes compatibles evitan ocultar
-   * tareas reales sin confundir personas
-   * que solo comparten un nombre.
-   */
-  return coincidencias.length >= 2;
 }
 
 function etiquetaEstado(estado) {
@@ -549,26 +490,18 @@ export default function OperacionEmpleado({
       );
 
       /*
-       * IMPORTANTE:
-       * Esta pantalla NO muestra todas
-       * las tareas de la sucursal.
-       *
-       * Solo muestra las tareas cuyo
-       * responsable coincide con el
-       * usuario autenticado.
-       *
-       * Más adelante esto se cambiará
-       * por usuario_id / empleado_id.
+       * Las tareas nuevas se filtran por el ID del usuario autenticado.
+       * Las tareas históricas sin vínculo conservan el filtro por nombre.
        */
       const propias =
         (registros || []).filter(
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
-            coincideResponsableUsuario(
-              tarea.responsable,
-              usuario?.nombre
-            )
+            tareaPerteneceAlUsuario(tarea, {
+              authUserId: usuario?.auth_user_id,
+              nombreUsuario: usuario?.nombre,
+            })
         );
 
       const registrosCalendarioCompletos = [
@@ -595,10 +528,10 @@ export default function OperacionEmpleado({
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
-            coincideResponsableUsuario(
-              tarea.responsable,
-              usuario?.nombre
-            )
+            tareaPerteneceAlUsuario(tarea, {
+              authUserId: usuario?.auth_user_id,
+              nombreUsuario: usuario?.nombre,
+            })
         );
 
                   const tareasParaHoy = [
@@ -812,19 +745,39 @@ export default function OperacionEmpleado({
 
   async function cambiarEstado(
     tarea,
-    nuevoEstado
+    nuevoEstado,
+    resultadoCapturado = null
   ) {
     try {
       setError("");
       setMensaje("");
 
-      await cambiarEstadoTareaOperativa({
+      let resultadoSeguimiento = null;
+      const esSeguimientoCRM = normalizarTexto(
+        tarea?.titulo
+      ).startsWith("SEGUIMIENTO CRM:");
+
+      if (nuevoEstado === "terminada" && esSeguimientoCRM) {
+        resultadoSeguimiento = String(
+          resultadoCapturado || ""
+        ).trim();
+
+        if (!resultadoSeguimiento) {
+          setError(
+            "Escribe el resultado del contacto antes de terminar esta tarea."
+          );
+          return;
+        }
+      }
+
+      const tareaActualizada = await cambiarEstadoTareaOperativa({
         tareaId: tarea.id,
         estado: nuevoEstado,
         completadaPor:
           usuario?.nombre ||
           tarea.responsable ||
           null,
+        resultado: resultadoSeguimiento,
       });
 
       if (
@@ -847,12 +800,18 @@ export default function OperacionEmpleado({
 
       await cargarTareas();
 
-      setMensaje(
-        nuevoEstado ===
-          "en_proceso"
-          ? "Tarea iniciada."
-          : "Tarea terminada. ¡Buen trabajo!"
-      );
+      if (tareaActualizada?.sincronizacionCRM?.sincronizada === false) {
+        setMensaje("La tarea terminó, pero el CRM no se pudo actualizar. Avisa a administración para revisar el seguimiento.");
+      } else {
+        setMensaje(
+          nuevoEstado ===
+            "en_proceso"
+            ? "Tarea iniciada."
+            : tareaActualizada?.sincronizacionCRM?.sincronizada
+              ? "Seguimiento registrado. El CRM quedó actualizado y sin fecha pendiente."
+              : "Tarea terminada. ¡Buen trabajo!"
+        );
+      }
     } catch (
       errorEstado
     ) {
@@ -1053,7 +1012,61 @@ export default function OperacionEmpleado({
     };
   }, [branchIdActivo, esCentroGrowth]);
 
-  function abrirTareaPrioritaria() {
+  async function actualizarCentroGrowthCompleto() {
+    await cargarTareas();
+
+    if (!esCentroGrowth || !branchIdActivo) {
+      setOportunidadesCentroGrowth([]);
+      return;
+    }
+
+    setCargandoOportunidadesCentroGrowth(true);
+
+    try {
+      const resultado =
+        await obtenerOportunidadesGrowthOS({
+          branchId: branchIdActivo,
+        });
+
+      setOportunidadesCentroGrowth(
+        Array.isArray(resultado?.oportunidades)
+          ? resultado.oportunidades
+          : []
+      );
+    } catch (errorOportunidades) {
+      console.error(
+        "Error actualizando el Centro de Crecimiento:",
+        errorOportunidades
+      );
+    } finally {
+      setCargandoOportunidadesCentroGrowth(false);
+    }
+  }
+
+  function mostrarDetalleTarea(tareaId) {
+    window.setTimeout(() => {
+      const tarjeta = document.getElementById(
+        `tarea-${tareaId}`
+      );
+      const detalle = tarjeta?.querySelector("details");
+
+      if (detalle) {
+        detalle.open = true;
+      }
+
+      tarjeta?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }
+
+  async function iniciarTareaYMostrarDetalle(tarea) {
+    await cambiarEstado(tarea, "en_proceso");
+    mostrarDetalleTarea(tarea.id);
+  }
+
+  async function abrirTareaPrioritaria() {
     if (!tareaPrioritaria) {
       return;
     }
@@ -1063,27 +1076,11 @@ export default function OperacionEmpleado({
         tareaPrioritaria.estado
       ) === "PENDIENTE"
     ) {
-      cambiarEstado(
-        tareaPrioritaria,
-        "en_proceso"
-      );
-
+      await iniciarTareaYMostrarDetalle(tareaPrioritaria);
       return;
     }
 
-    const tarjeta =
-      document.getElementById(
-        `tarea-${tareaPrioritaria.id}`
-      );
-
-    tarjeta
-      ?.querySelector("details")
-      ?.setAttribute("open", "");
-
-    tarjeta?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    mostrarDetalleTarea(tareaPrioritaria.id);
   }
 
   if (cargando) {
@@ -1131,7 +1128,7 @@ export default function OperacionEmpleado({
           cargandoOportunidades={
             cargandoOportunidadesCentroGrowth
           }
-          onActualizar={cargarTareas}
+          onActualizar={actualizarCentroGrowthCompleto}
           onEmpezarPrioridad={
             abrirTareaPrioritaria
           }
@@ -2268,6 +2265,10 @@ export default function OperacionEmpleado({
                     evidencia.tipo ===
                     "final"
                 );
+              const esSeguimientoCRM = normalizarTexto(
+                tarea.titulo
+              ).startsWith("SEGUIMIENTO CRM:");
+
 
               const esUrgente =
                 tarea.prioridad ===
@@ -2280,6 +2281,7 @@ export default function OperacionEmpleado({
                   key={tarea.id}
                   id={`tarea-${tarea.id}`}
                   style={{
+                    scrollMarginTop: "96px",
                     background:
                       "#ffffff",
                     border:
@@ -2363,10 +2365,7 @@ export default function OperacionEmpleado({
                     <button
                       type="button"
                       onClick={() =>
-                        cambiarEstado(
-                          tarea,
-                          "en_proceso"
-                        )
+                        iniciarTareaYMostrarDetalle(tarea)
                       }
                       style={{
                         width: "100%",
@@ -2459,6 +2458,7 @@ export default function OperacionEmpleado({
   )}
 
 
+                      {!esSeguimientoCRM && (
                       <div
                         style={{
                           display:
@@ -2540,6 +2540,7 @@ export default function OperacionEmpleado({
                           />
                         </label>
                       </div>
+                      )}
 
                       {evidencias.length >
                         0 && (
@@ -2570,8 +2571,22 @@ export default function OperacionEmpleado({
                         </div>
                       )}
 
+                      {tarea.estado === "en_proceso" &&
+                        esSeguimientoCRM && (
+                          <FormularioResultadoCRM
+                            onGuardar={(resultado) =>
+                              cambiarEstado(
+                                tarea,
+                                "terminada",
+                                resultado
+                              )
+                            }
+                          />
+                        )}
+
                       {tarea.estado ===
-                        "en_proceso" && (
+                        "en_proceso" &&
+                        !esSeguimientoCRM && (
                         <button
                           type="button"
                           disabled={
@@ -2614,6 +2629,7 @@ export default function OperacionEmpleado({
 
                       {tarea.estado ===
                         "en_proceso" &&
+                        !esSeguimientoCRM &&
                         !tieneFinal && (
                           <div
                             style={{
@@ -2662,6 +2678,92 @@ export default function OperacionEmpleado({
         </details>
       )}
     </section>
+  );
+}
+
+function FormularioResultadoCRM({ onGuardar }) {
+  const [resultado, setResultado] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  async function enviarResultado(evento) {
+    evento.preventDefault();
+    const texto = resultado.trim();
+
+    if (!texto || guardando) {
+      return;
+    }
+
+    setGuardando(true);
+    try {
+      await onGuardar(texto);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={enviarResultado}
+      style={{
+        display: "grid",
+        gap: "9px",
+        marginTop: "12px",
+        padding: "12px",
+        border: "1px solid #efd3e0",
+        borderRadius: "13px",
+        background: "#fff8fb",
+      }}
+    >
+      <label
+        style={{
+          color: "#6f2549",
+          fontSize: "13px",
+          fontWeight: "900",
+        }}
+      >
+        Resultado del contacto
+        <textarea
+          aria-label="Resultado del contacto con el cliente"
+          value={resultado}
+          onChange={(evento) => setResultado(evento.target.value)}
+          placeholder="Ejemplo: respondió, pidió precio, quiere que le escribamos el viernes o realizó compra."
+          rows={3}
+          maxLength={500}
+          required
+          style={{
+            display: "block",
+            width: "100%",
+            boxSizing: "border-box",
+            marginTop: "7px",
+            padding: "10px",
+            border: "1px solid #dec0cf",
+            borderRadius: "10px",
+            background: "#ffffff",
+            color: "#2a1e24",
+            font: "inherit",
+            resize: "vertical",
+          }}
+        />
+      </label>
+      <small style={{ color: "#806d76", lineHeight: 1.4 }}>
+        Se guardará en el seguimiento CRM. No incluyas datos sensibles del cliente.
+      </small>
+      <button
+        type="submit"
+        disabled={!resultado.trim() || guardando}
+        style={{
+          minHeight: "44px",
+          border: "none",
+          borderRadius: "11px",
+          background: resultado.trim() && !guardando ? "#2f8a5d" : "#d9dfdc",
+          color: "#ffffff",
+          fontWeight: "900",
+          cursor: resultado.trim() && !guardando ? "pointer" : "not-allowed",
+        }}
+      >
+        {guardando ? "Guardando resultado..." : "Guardar resultado y terminar"}
+      </button>
+    </form>
   );
 }
 
@@ -3713,7 +3815,9 @@ function ResultadoMarketingTarea({
       alert(
         guardado?.sincronizacionCampana?.sincronizada
           ? "Resultado guardado y campaña actualizada. La Agencia IA ya puede avanzar a la siguiente etapa."
-          : "Resultado guardado en la tarea. MONYS no encontró una campaña activa única para sincronizarlo automáticamente."
+          : guardado?.sincronizacionCampana?.motivo === "SIN_COINCIDENCIA_UNICA"
+            ? "Resultado guardado en la tarea, pero no atribuido a una campaña para evitar mezclar resultados. Confirma que haya una sola campaña activa coincidente y que la tarea mencione el producto."
+            : "Resultado guardado en la tarea, pero MONYS no pudo confirmar su sincronización con una campaña. Revisa la conexión e inténtalo de nuevo."
       );
     } catch (error) {
       console.error(
@@ -3778,6 +3882,20 @@ const [
   errorOportunidadesGrowth,
   setErrorOportunidadesGrowth,
 ] = useState("");
+
+const [
+  mensajePreparacionGrowth,
+  setMensajePreparacionGrowth,
+] = useState("");
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(
+        "monys-growth-seccion-activa",
+        { detail: seccionGrowthActiva }
+      )
+    );
+  }, [seccionGrowthActiva]);
 
   const cargarOportunidadesGrowthRef =
     useRef(null);
@@ -4187,8 +4305,57 @@ function prepararOportunidadGrowth(oportunidad) {
   setErrorCampana("");
   setProductosSeleccionadosGrowth([]);
   setProducto(nombreOportunidad);
+  setExistenciaProducto(
+    oportunidad?.existencia == null
+      ? ""
+      : String(Number(oportunidad.existencia || 0))
+  );
+
+  const precioPromedioReal =
+    Number(oportunidad?.piezasVendidas || 0) > 0 &&
+    Number(oportunidad?.importe || 0) > 0
+      ? Number(oportunidad.importe) /
+        Number(oportunidad.piezasVendidas)
+      : null;
+
+  setPrecioProducto(
+    precioPromedioReal == null
+      ? ""
+      : precioPromedioReal.toFixed(2)
+  );
+  setAudienciaProducto("");
+  setOfertaProducto("");
+  setCanalPreferido(
+    oportunidad?.requierePruebaOrganica
+      ? "TikTok"
+      : ""
+  );
+  setPresupuestoMaximo(
+    oportunidad?.requierePruebaOrganica
+      ? "0"
+      : ""
+  );
   setObjetivoUsuario(
     `Quiero mover inventario y aumentar ventas de ${nombreOportunidad} cuidando la utilidad.`
+  );
+  setMensajePreparacionGrowth(
+    `Datos SICAR precargados: ${Number(
+      oportunidad?.existencia || 0
+    ).toLocaleString("es-MX")} piezas disponibles${
+      precioPromedioReal == null
+        ? ""
+        : ` · precio promedio vendido $${precioPromedioReal.toLocaleString(
+            "es-MX",
+            {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }
+          )}`
+    }${
+      oportunidad?.requierePruebaOrganica
+        ? " · prueba orgánica con gasto $0"
+        : " · MONYS decidirá el canal y la prueba"
+    }.`
   );
   setSeccionGrowthActiva("CAMPANAS");
 
@@ -4255,6 +4422,9 @@ function prepararCampanaMultipleGrowth() {
   setKitMarketing(null);
   setCampanaGuardada(null);
   setErrorCampana("");
+  setMensajePreparacionGrowth(
+    `${productosSeleccionadosGrowth.length} productos seleccionados con métricas SICAR separadas. MONYS validará si comparten audiencia y objetivo antes de agruparlos.`
+  );
   setProducto(nombres.join(", "));
   setPrecioProducto("");
   setExistenciaProducto("");
@@ -4385,19 +4555,9 @@ const ofertaFinal =
      estrategia: {
   objetivo: objetivoUsuario.trim(),
 
-  audiencia:
-    String(
-      audienciaProducto ||
-      estrategia?.audiencia ||
-      ""
-    ).trim(),
+  audiencia: audienciaFinal,
 
-  oferta:
-    String(
-      ofertaProducto ||
-      estrategia?.oferta ||
-      ""
-    ).trim(),
+  oferta: ofertaFinal,
 },
 
       campana: {
@@ -4836,6 +4996,8 @@ businessId:
           nombre: item.nombre,
           codigo: item.codigo,
           margenReal: item.margenReal,
+          importeBase: item.importe,
+          utilidadBase: item.utilidad,
           piezasVendidasPeriodo: item.piezasVendidas,
           existencia: item.existencia,
           diasCobertura: item.diasCobertura,
@@ -5174,11 +5336,9 @@ async function guardarSeguimientoCampana() {
       gastoAcumulado,
       pedidosAcumulados,
       ventaAcumulada,
-      margenRealBase:
-        campanaGuardada
-          ?.estrategia_ia
-          ?.datosRentabilidadBase
-          ?.margenReal,
+      margenRealBase: obtenerMargenRealBaseCampana(
+        campanaGuardada?.estrategia_ia
+      ),
       publicacion: publicacionCampana,
       gastoConfirmado: camposConfirmados.gasto,
       pedidosConfirmados: camposConfirmados.pedidos,
@@ -5654,6 +5814,64 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
 </button>
 
 </div>
+    {seccionGrowthActiva !== "HOY" && (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          marginBottom: "12px",
+          padding: "12px",
+          border: "1px solid #ead4df",
+          borderRadius: "13px",
+          background: "#ffffff",
+        }}
+      >
+        <div>
+          <span
+            style={{
+              display: "block",
+              color: "#a52a62",
+              fontSize: "10px",
+              fontWeight: "900",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Centro de Crecimiento
+          </span>
+          <strong style={{ color: "#3f2632", fontSize: "16px" }}>
+            {{
+              OPORTUNIDADES: "Oportunidades reales",
+              CONTENIDO: "Crear contenido",
+              CAMPANAS: "Campañas",
+              RESULTADOS: "Resultados y embudo",
+              APRENDIZAJES: "Aprendizajes",
+            }[seccionGrowthActiva] || "Trabajo de Marketing"}
+          </strong>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSeccionGrowthActiva("HOY");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          style={{
+            flex: "0 0 auto",
+            padding: "8px 10px",
+            border: "1px solid #e5c8d6",
+            borderRadius: "10px",
+            background: "#fff7fb",
+            color: "#8a2453",
+            fontWeight: "850",
+            cursor: "pointer",
+          }}
+        >
+          ← Inicio
+        </button>
+      </div>
+    )}
     {seccionGrowthActiva === "HOY" && (
   <div
     style={{
@@ -6178,6 +6396,75 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   </div>
 )}
 
+      {["CAMPANAS", "CONTENIDO"].includes(seccionGrowthActiva) && (
+        <div
+          style={{
+            marginBottom: "12px",
+            padding: "14px",
+            borderRadius: "14px",
+            border: "1px solid #e7cfdb",
+            background: "#ffffff",
+            boxShadow: "0 8px 22px rgba(112, 36, 73, 0.07)",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              color: "#b12c69",
+              fontSize: "10px",
+              fontWeight: "900",
+              letterSpacing: ".09em",
+              textTransform: "uppercase",
+            }}
+          >
+            {seccionGrowthActiva === "CONTENIDO"
+              ? "Brief para contenido"
+              : "Diseñador de campaña"}
+          </span>
+          <strong
+            style={{
+              display: "block",
+              margin: "4px 0 5px",
+              color: "#4d2639",
+              fontSize: "17px",
+            }}
+          >
+            {seccionGrowthActiva === "CONTENIDO"
+              ? "Prepara una pieza lista para revisión"
+              : "Crea una prueba medible y protegida"}
+          </strong>
+          <p
+            style={{
+              margin: "0 0 12px",
+              color: "#75636c",
+              fontSize: "12px",
+              lineHeight: "1.45",
+            }}
+          >
+            MONYS puede analizar, proponer y preparar. Publicar en una cuenta
+            externa o gastar dinero siempre requiere la conexión oficial y la
+            autorización de Mónica.
+          </p>
+
+          {mensajePreparacionGrowth && (
+            <div
+              role="status"
+              style={{
+                marginBottom: "12px",
+                padding: "10px 11px",
+                border: "1px solid #bfe2cf",
+                borderRadius: "11px",
+                background: "#eefaf3",
+                color: "#246343",
+                fontSize: "12px",
+                fontWeight: "750",
+                lineHeight: "1.45",
+              }}
+            >
+              ✓ {mensajePreparacionGrowth}
+            </div>
+          )}
+
       <textarea
         id="growth-campana-form"
         value={objetivoUsuario}
@@ -6380,6 +6667,8 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
           ? "🧠 MONYS preparando publicaciones..."
           : "📣 Generar kit listo para publicar"}
       </button>
+        </div>
+      )}
         </>
       )}
 
@@ -7310,17 +7599,11 @@ Number.isFinite(
         .resultado
         .utilidadEstimadaCampana
     ).toFixed(2)}`
-    : Number(
-      campanaGuardada
-        ?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal ?? 0
-    ) > 0
-  ? `Lista para calcular · margen base ${Number(
-      campanaGuardada
-        ?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal ?? 0
+    : obtenerMargenRealBaseCampana(
+        campanaGuardada?.estrategia_ia
+      ) !== null
+  ? `Lista para calcular · margen base ${obtenerMargenRealBaseCampana(
+      campanaGuardada?.estrategia_ia
     ).toFixed(1)}%`
   : "Pendiente de margen real"}
 

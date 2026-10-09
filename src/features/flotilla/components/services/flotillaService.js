@@ -1,5 +1,33 @@
 import { supabase } from "../../../../supabase";
 
+const CAMPOS_UNIDAD = `
+  id,
+  placas,
+  tipo_operacion,
+  tipo_propiedad,
+  propietarios,
+  da_nombre,
+  chofer_nombre,
+  quien_saca_nombre,
+  estado,
+  aplica_admin_chory,
+  observaciones
+`;
+
+export async function obtenerUnidadesFlotilla() {
+  const { data, error } = await supabase
+    .from("flotilla_unidades")
+    .select(CAMPOS_UNIDAD)
+    .order("placas", { ascending: true });
+
+  if (error) {
+    console.error("Error al obtener unidades de Flotilla:", error);
+    throw new Error("No fue posible cargar las unidades de Flotilla.");
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function obtenerUnidadPorPlacas(
   placas
 ) {
@@ -14,19 +42,7 @@ export async function obtenerUnidadPorPlacas(
     error,
   } = await supabase
     .from("flotilla_unidades")
-    .select(`
-      id,
-      placas,
-      tipo_operacion,
-      tipo_propiedad,
-      propietarios,
-      da_nombre,
-      chofer_nombre,
-      quien_saca_nombre,
-      estado,
-      aplica_admin_chory,
-      observaciones
-    `)
+    .select(CAMPOS_UNIDAD)
     .eq("placas", placas)
     .maybeSingle();
 
@@ -87,4 +103,73 @@ export async function obtenerRutaDeUnidadEnFecha(
   }
 
   return data;
+}
+
+export async function obtenerRutasFlotillaPeriodo({ desde, hasta }) {
+  if (!desde || !hasta) {
+    throw new Error("Selecciona el periodo de rutas.");
+  }
+
+  const { data, error } = await supabase
+    .from("flotilla_rutas")
+    .select(`
+      id,
+      unidad_id,
+      fecha,
+      codigo_ruta,
+      tipo_ruta,
+      chofer_nombre,
+      estado,
+      paquetes_total,
+      paros_total,
+      kilometros_ruta
+    `)
+    .gte("fecha", desde)
+    .lte("fecha", hasta)
+    .order("fecha", { ascending: false });
+
+  if (error) {
+    console.error("Error al obtener el periodo de Flotilla:", error);
+    throw new Error("No fue posible consultar las rutas del periodo.");
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export { construirResumenSocios } from "./resumenSocios.js";
+
+export function suscribirseARutasDeUnidad({
+  unidadId,
+  onCambio,
+  onEstado,
+}) {
+  if (!unidadId) {
+    return () => {};
+  }
+
+  const canal = supabase
+    .channel(`flotilla-rutas-${unidadId}-${Date.now()}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "flotilla_rutas",
+        filter: `unidad_id=eq.${unidadId}`,
+      },
+      (cambio) => {
+        if (typeof onCambio === "function") {
+          onCambio(cambio);
+        }
+      }
+    )
+    .subscribe((estado) => {
+      if (typeof onEstado === "function") {
+        onEstado(estado);
+      }
+    });
+
+  return () => {
+    supabase.removeChannel(canal);
+  };
 }

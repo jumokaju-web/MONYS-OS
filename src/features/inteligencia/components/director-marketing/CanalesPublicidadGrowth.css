@@ -46,6 +46,23 @@
   font-weight: 800;
 }
 
+.growth-paid-channels__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 13px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 11px;
+}
+
+.growth-paid-channels__summary span {
+  color: #f8dfea;
+}
+
 .growth-paid-channels__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -132,6 +149,55 @@
   background: #e6a329;
 }
 
+.growth-paid-channel__status--parcial {
+  color: #176b4b;
+}
+
+.growth-paid-channel__status--parcial span {
+  background: #2ca678;
+}
+
+.growth-paid-channel__progress {
+  grid-column: 1 / -1;
+  padding: 10px;
+  border: 1px solid #ccebdc;
+  border-radius: 10px;
+  background: #f1fbf6;
+  color: #285b48;
+  font-size: 10px;
+}
+
+.growth-paid-channel__progress > strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+
+.growth-paid-channel__milestones {
+  display: grid;
+  gap: 5px;
+}
+
+.growth-paid-channel__milestone {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.growth-paid-channel__milestone b {
+  min-width: 14px;
+  color: #9a6a0a;
+}
+
+.growth-paid-channel__milestone--listo b {
+  color: #138657;
+}
+
+.growth-paid-channel__milestone--bloqueado {
+  color: #7a6470;
+}
+
 .growth-paid-channel__capability {
   grid-column: 1 / -1;
   padding: 7px 9px;
@@ -171,6 +237,12 @@
   text-decoration: none;
 }
 
+.growth-paid-channel__links .growth-paid-channel__internal-action {
+  border-color: #922456;
+  background: #922456;
+  color: #ffffff;
+}
+
 .growth-paid-channel a:focus-visible {
   outline: 3px solid #bd4280;
   outline-offset: 2px;
@@ -190,6 +262,10 @@
 
   .growth-paid-channels__guard {
     justify-self: start;
+  }
+
+  .growth-paid-channels__summary {
+    display: grid;
   }
 
   .growth-paid-channels__grid {

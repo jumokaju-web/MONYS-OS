@@ -104,6 +104,8 @@ function App() {
   ] = useState("dashboard");
   const [directorInicial, setDirectorInicial] = useState(null);
 
+
+
   const {
     datosDashboard,
     cargandoDashboard,
@@ -1019,7 +1021,12 @@ if (
   }
 
   return (
-    <FlotillaChofer volverAlDashboard={() => setPantallaActual("dashboard")} />
+    <FlotillaChofer
+      usuario={usuario}
+      volverAlDashboard={() =>
+        setPantallaActual("dashboard")
+      }
+    />
   );
 }
 
@@ -1155,9 +1162,10 @@ if (
           errorDashboard
         }
         volverAlDashboard={() =>
-          setPantallaActual(
-            "dashboard"
-          )
+          {
+            setDirectorInicial(null);
+            setPantallaActual("dashboard");
+          }
         }
         onAbrirImportador={() =>
           setPantallaActual(
@@ -1180,6 +1188,10 @@ if (
 if (esOwner) {
   return (
     <InicioJefa abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
+
+      datosDashboard={
+        datosDashboard
+      }
 
       sucursalesDashboard={
   sucursalesDashboard
@@ -1218,6 +1230,8 @@ fechaFinal={
       }
 
       abrirJuntaDirectiva={() => { setDirectorInicial(null); setPantallaActual("inteligencia"); }}
+
+      abrirDirectorFinanciero={() => { setDirectorInicial("financiero"); setPantallaActual("inteligencia"); }}
 
       abrirTesoreria={() =>
         setPantallaActual(

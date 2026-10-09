@@ -147,7 +147,7 @@ export function generarDecisionCEO({
   // ======================================================
 
   let estadoLiquidez =
-    "ESTABLE";
+    "PENDIENTE_VALIDAR_SALDOS";
 
   if (
     dineroDisponible < 0 ||
@@ -446,6 +446,14 @@ export function generarDecisionCEO({
 
     mensajeCEO =
       `La operación genera utilidad, pero el efectivo está comprometido. Autoriza únicamente ${comprasAutorizadas.length} compras prioritarias y pospón el resto.`;
+  } else if (
+    estadoLiquidez === "PENDIENTE_VALIDAR_SALDOS"
+  ) {
+    estadoGeneral =
+      "Saldos de caja y bancos pendientes de validar";
+
+    mensajeCEO =
+      "El flujo neto del periodo muestra entradas menos salidas, pero no confirma el saldo actual de caja y bancos. Valida las cuentas y los pagos próximos antes de comprometer dinero.";
   } else if (
     comprasAutorizadas.length > 0
   ) {

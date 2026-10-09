@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { hayAprendizajeGrowth } from "../shared/aprendizajeGrowth";
 
 export async function obtenerEspaciosGrowth({
   organizationId,
@@ -125,9 +126,13 @@ export function evaluarResultadoCampanaGrowth({
   const gasto = Math.max(0, Number(gastoAcumulado) || 0);
   const pedidos = Math.max(0, Number(pedidosAcumulados) || 0);
   const venta = Math.max(0, Number(ventaAcumulada) || 0);
+  const tieneMargenReal =
+    margenRealBase !== null &&
+    margenRealBase !== undefined &&
+    margenRealBase !== "";
   const margenCandidato = Number(margenRealBase);
   const margen =
-    Number.isFinite(margenCandidato) && margenCandidato > 0
+    tieneMargenReal && Number.isFinite(margenCandidato)
       ? margenCandidato
       : null;
   const costoPorPedido =
@@ -385,9 +390,10 @@ export function orquestarAgenciaGrowth({
       agente: "Memoria",
       etiqueta: "Aprendizaje",
       detalle: "Qué funcionó, qué falló y qué no repetir",
-      completado:
-        tieneContenido(aprendizaje) ||
-        campanasFinalizadas.length > 0,
+      completado: hayAprendizajeGrowth({
+        aprendizaje,
+        campanasFinalizadas,
+      }),
       destino: "historial-aprendizaje-campanas",
       accion: "Finalizar y documentar aprendizaje",
     },

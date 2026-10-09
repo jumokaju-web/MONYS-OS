@@ -94,11 +94,15 @@ const semaforoFinanzas =
       }
     : textoEstadoGeneral.includes("limitada") ||
       textoEstadoGeneral.includes("ajustada") ||
-      textoEstadoGeneral.includes("atención")
+      textoEstadoGeneral.includes("atención") ||
+      textoEstadoGeneral.includes("pendiente") ||
+      textoEstadoGeneral.includes("validar_saldos")
     ? {
         nivel: "Amarillo",
         icono: "🟡",
-        mensaje: "Liquidez bajo vigilancia",
+        mensaje: textoEstadoGeneral.includes("pendiente") || textoEstadoGeneral.includes("validar_saldos")
+          ? "Confirma caja y bancos"
+          : "Liquidez bajo vigilancia",
       }
     : {
         nivel: "Verde",
@@ -508,7 +512,8 @@ const semaforoComercial =
         ? "1px solid #f0a5a5"
         : textoEstadoGeneral.includes("limitada") ||
           textoEstadoGeneral.includes("ajustada") ||
-          textoEstadoGeneral.includes("atención")
+          textoEstadoGeneral.includes("atención") ||
+          textoEstadoGeneral.includes("pendiente")
         ? "1px solid #e5c75d"
         : "1px solid #9fd2ae",
 
@@ -520,7 +525,8 @@ const semaforoComercial =
         ? "#9e2c2c"
         : textoEstadoGeneral.includes("limitada") ||
           textoEstadoGeneral.includes("ajustada") ||
-          textoEstadoGeneral.includes("atención")
+          textoEstadoGeneral.includes("atención") ||
+          textoEstadoGeneral.includes("pendiente")
         ? "#8a6800"
         : "#207a4a",
 
@@ -573,7 +579,7 @@ const semaforoComercial =
               "1px solid rgba(255,255,255,0.18)",
           }}
         >
-          <div>💵 Dinero disponible</div>
+          <div>💵 Flujo neto del período</div>
 
           <strong
             style={{
@@ -586,6 +592,9 @@ const semaforoComercial =
               decisionCEO.dineroDisponible
             )}
           </strong>
+          <small style={{ display: "block", marginTop: 6, opacity: 0.82, lineHeight: 1.35 }}>
+            Entradas menos salidas registradas; no es el saldo actual de caja y bancos.
+          </small>
         </div>
 
         <div

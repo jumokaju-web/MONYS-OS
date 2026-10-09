@@ -63,6 +63,11 @@ const convertirFechaExcel = (valor) => {
     return valor;
   }
 
+  if (typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+    const [anio, mes, dia] = valor.split('-').map(Number);
+    const civil = new Date(anio, mes - 1, dia, 12);
+    return civil.getFullYear() === anio && civil.getMonth() === mes - 1 && civil.getDate() === dia ? civil : null;
+  }
   const numero = Number(valor);
 
   if (Number.isFinite(numero) && numero > 20000) {
@@ -77,7 +82,7 @@ const convertirFechaExcel = (valor) => {
 
     return Number.isNaN(fecha.getTime())
       ? null
-      : fecha;
+      : new Date(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate(), 12);
   }
 
   const fecha = new Date(valor);
@@ -150,8 +155,6 @@ export function calcularMetricasDashboard(
   let costoTotal = 0;
   let utilidadTotal = 0;
 
-  const fechasValidas = [];
-
   const calcularTotalesFinancieros = (
     lista = []
   ) => {
@@ -159,6 +162,7 @@ export function calcularMetricasDashboard(
     let costosCalculados = 0;
     let utilidadCalculada = 0;
     let registrosConImporte = 0;
+    const fechasValidas = [];
 
     for (const detalle of lista) {
       const datosOriginales =
@@ -222,6 +226,7 @@ export function calcularMetricasDashboard(
       costosCalculados,
       utilidadCalculada,
       registrosConImporte,
+      fechasValidas,
     };
   };
 
@@ -230,39 +235,33 @@ export function calcularMetricasDashboard(
       utilidadVentas
     );
 
+  let fuenteFinanciera = null;
+  let totalesFinancieros = totalesUtilidad;
+
   if (
-    totalesUtilidad
-      .registrosConImporte > 0
+    totalesUtilidad.registrosConImporte > 0
   ) {
-    ventasTotales =
-      totalesUtilidad
-        .ventasCalculadas;
-
-    costoTotal =
-      totalesUtilidad
-        .costosCalculados;
-
-    utilidadTotal =
-      totalesUtilidad
-        .utilidadCalculada;
+    fuenteFinanciera = "utilidad";
   } else {
-    const totalesVentas =
-      calcularTotalesFinancieros(
-        ventas
-      );
+    totalesFinancieros =
+      calcularTotalesFinancieros(ventas);
 
-    ventasTotales =
-      totalesVentas
-        .ventasCalculadas;
-
-    costoTotal =
-      totalesVentas
-        .costosCalculados;
-
-    utilidadTotal =
-      totalesVentas
-        .utilidadCalculada;
+    if (totalesFinancieros.registrosConImporte > 0) {
+      fuenteFinanciera = "ventas";
+    }
   }
+
+  ventasTotales =
+    totalesFinancieros.ventasCalculadas;
+
+  costoTotal =
+    totalesFinancieros.costosCalculados;
+
+  utilidadTotal =
+    totalesFinancieros.utilidadCalculada;
+
+  const fechasValidas =
+    totalesFinancieros.fechasValidas;
 
   const margenUtilidad =
     ventasTotales > 0
@@ -282,7 +281,8 @@ export function calcularMetricasDashboard(
           new Date(
             fecha.getFullYear(),
             fecha.getMonth(),
-            fecha.getDate()
+            fecha.getDate(),
+            12
           ).getTime()
       );
 
@@ -329,6 +329,11 @@ export function calcularMetricasDashboard(
     costoTotal,
 
     utilidadTotal,
+
+    fuenteFinanciera,
+
+    tieneDatosFinancieros:
+      fuenteFinanciera !== null,
 
     margenUtilidad,
 

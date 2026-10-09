@@ -4,6 +4,8 @@
 // directorFinancieroIA.js
 // ======================================================
 
+import { calcularResumenVencimientosProveedores } from "../shared/resumenVencimientosProveedores.js";
+
 const convertirNumero = (valor) => {
   const numero = Number(valor);
 
@@ -145,88 +147,29 @@ const obtenerClaveFecha = (valor) => {
         claveFinPeriodo
     );
 
-    const hoy =
-  new Date();
-
-hoy.setHours(
-  0,
-  0,
-  0,
-  0
-);
-
-const creditosValidos =
+    const creditosValidos =
   Array.isArray(
     creditosProveedores
   )
     ? creditosProveedores
     : [];
 
-const calcularMontoPorHorizonte =
-  (diasHorizonte) => {
-    const fechaLimite =
-      new Date(hoy);
+const resumenVencimientos =
+  calcularResumenVencimientosProveedores(
+    creditosValidos
+  );
 
-    fechaLimite.setDate(
-      fechaLimite.getDate() +
-        diasHorizonte
-    );
-
-    return creditosValidos.reduce(
-      (
-        total,
-        credito
-      ) => {
-        const fechaCredito =
-          credito?.fecha_vencimiento_estimada
-            ? new Date(
-                `${credito.fecha_vencimiento_estimada}T00:00:00`
-              )
-            : null;
-
-        if (
-          !fechaCredito ||
-          Number.isNaN(
-            fechaCredito.getTime()
-          )
-        ) {
-          return total;
-        }
-
-        if (
-          fechaCredito <=
-          fechaLimite
-        ) {
-          return (
-            total +
-            (
-              Number(
-                credito?.saldo
-              ) || 0
-            )
-          );
-        }
-
-        return total;
-      },
-      0
-    );
-  };
-
-const vencimientos7Dias =
-  calcularMontoPorHorizonte(7);
-
-const vencimientos15Dias =
-  calcularMontoPorHorizonte(15);
-
-const vencimientos30Dias =
-  calcularMontoPorHorizonte(30);
-
-const vencimientos60Dias =
-  calcularMontoPorHorizonte(60);
-
-const vencimientos90Dias =
-  calcularMontoPorHorizonte(90);
+const {
+  vencimientos7Dias,
+  vencimientos15Dias,
+  vencimientos30Dias,
+  vencimientos60Dias,
+  vencimientos90Dias,
+  saldoVencido: saldoProveedoresVencidos,
+  cantidadVencidos: proveedoresVencidos,
+  saldoSinFecha: saldoProveedoresSinFecha,
+  cantidadSinFecha: proveedoresSinFecha,
+} = resumenVencimientos;
 
    const normalizarValor = (
     valor = ""
@@ -704,9 +647,13 @@ recomendacion =
       ? `La operación genera utilidad, pero existen ${formatoDinero(
           vencimientos30Dias
         )} en compromisos con proveedores dentro de los próximos 30 días. Conviene proteger liquidez y evitar nuevas compras que comprometan ese pago.`
-      : `La operación genera utilidad y existen ${formatoDinero(
-          saldoProveedores
-        )} pendientes con proveedores, pero no vencen dentro de los próximos 30 días. Mantén vigilancia sobre los próximos vencimientos.`
+      : saldoProveedoresSinFecha > 0
+        ? `La operación genera utilidad, pero ${formatoDinero(
+            saldoProveedoresSinFecha
+          )} con proveedores no tiene vencimiento exacto reportado. Confirma las fechas antes de comprometer más efectivo.`
+        : `La operación genera utilidad y existen ${formatoDinero(
+            saldoProveedores
+          )} pendientes con proveedores; con las fechas reportadas, ninguno vence dentro de los próximos 30 días. Mantén vigilancia.`
     : "La operación genera utilidad, pero conviene cuidar el efectivo y revisar pagos próximos antes de comprometer más dinero.";
 
     } else if (
@@ -861,10 +808,10 @@ recomendacion =
   // RESERVA Y CAPACIDAD DE COMPRA
   // ======================================================
 
-  const reservaRecomendada =
-    flujoNetoTesoreria > 0
-      ? flujoNetoTesoreria * 0.20
-      : 0;
+  // El flujo del periodo no incluye el saldo inicial real de caja/bancos
+  // ni el calendario completo de obligaciones. Por eso no sustenta una
+  // reserva monetaria y MONYS debe mostrarla como pendiente de calcular.
+  const reservaRecomendada = null;
 
   /*
     No se autoriza una capacidad de compra
@@ -920,6 +867,20 @@ recomendacion =
   );
 }
 
+  if (saldoProveedoresVencidos > 0) {
+    alertasFinancieras.push(
+      `${formatoDinero(saldoProveedoresVencidos)} con ${proveedoresVencidos} proveedor(es) ya tiene vencimiento anterior a hoy según SICAR; confirma el saldo y acuerda el pago.`
+    );
+  }
+
+  if (saldoProveedoresSinFecha > 0) {
+    alertasFinancieras.push(
+      `${formatoDinero(
+        saldoProveedoresSinFecha
+      )} en saldo de proveedores no tiene vencimiento exacto reportado; queda fuera de los horizontes de pago.`
+    );
+  }
+
   if (!periodoValido && ventas > 0) {
     alertasFinancieras.push(
       "No fue posible determinar con seguridad el periodo del reporte; la proyección mensual permanece desactivada."
@@ -936,6 +897,9 @@ recomendacion =
 if (dineroDisponible < 0) {
   decisionPrioritaria =
     "Prioridad máxima: recuperar liquidez y revisar salidas antes de autorizar nuevas compras.";
+} else if (saldoProveedoresVencidos > 0) {
+  decisionPrioritaria =
+    `Confirmar y calendarizar ${formatoDinero(saldoProveedoresVencidos)} con vencimiento anterior a hoy antes de comprometer efectivo.`;
 } else if (
   vencimientos30Dias > 0
 ) {
@@ -943,6 +907,11 @@ if (dineroDisponible < 0) {
     `Proteger liquidez para cubrir ${formatoDinero(
       vencimientos30Dias
     )} en compromisos con proveedores dentro de los próximos 30 días antes de autorizar nuevas compras.`;
+} else if (saldoProveedoresSinFecha > 0) {
+  decisionPrioritaria =
+    `Confirmar el vencimiento de ${formatoDinero(
+      saldoProveedoresSinFecha
+    )} en saldos de proveedores sin fecha exacta antes de comprometer efectivo.`;
 } else if (
   porcentajeGastos >= 90
 ) {
@@ -996,6 +965,30 @@ if (dineroDisponible < 0) {
           dineroDisponible
         )}. Revisa cobros pendientes y detén salidas no indispensables.`,
       impacto: "ALTO",
+    });
+  }
+
+  if (saldoProveedoresVencidos > 0) {
+    agregarAccion({
+      prioridad: "ALTA",
+      titulo: "Revisar saldos de proveedores vencidos",
+      descripcion:
+        `${formatoDinero(saldoProveedoresVencidos)} con ${proveedoresVencidos} proveedor(es) ya venció según las fechas exactas de SICAR. Confirma que el saldo siga pendiente y acuerda una fecha de pago antes de asumir nuevos compromisos.`,
+      impacto: "ALTO",
+      responsable: "Administración",
+    });
+  }
+
+  if (saldoProveedoresSinFecha > 0) {
+    agregarAccion({
+      prioridad: "ALTA",
+      titulo: "Confirmar vencimientos de proveedores",
+      descripcion:
+        `${formatoDinero(
+          saldoProveedoresSinFecha
+        )} en saldos de proveedores no tiene fecha exacta en el reporte. Solicita las fechas de factura y pago antes de autorizar nuevas salidas.`,
+      impacto: "ALTO",
+      responsable: "Administración",
     });
   }
 
@@ -1146,11 +1139,15 @@ ventasSobrePuntoEquilibrio,
     reservaRecomendada,
     capacidadCompra,
 
+    saldoProveedoresVencidos,
+    proveedoresVencidos,
     vencimientos7Dias,
     vencimientos15Dias,
     vencimientos30Dias,
     vencimientos60Dias,
     vencimientos90Dias,
+    saldoProveedoresSinFecha,
+    proveedoresSinFecha,
 
     alertasFinancieras,
     decisionPrioritaria,

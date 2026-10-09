@@ -19,6 +19,18 @@ const formatoNumero = new Intl.NumberFormat(
 const formatoPorcentaje = (valor) =>
   `${formatoNumero.format(Number(valor) || 0)}%`;
 
+function formatoFechaCorte(valor) {
+  if (!valor) return "Fecha no disponible";
+  const fecha = new Date(`${String(valor).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(fecha.getTime())) return "Fecha no disponible";
+  return fecha.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 const estilos = {
   pagina: {
     minHeight: "100vh",
@@ -212,11 +224,33 @@ const DashboardPage = () => {
   const metricas =
     datosDashboard.metricas || {};
 
-  const importacion =
-    datosDashboard.importacion || {};
-
   const productoMasVendido =
     metricas.productoMasVendido;
+
+  const usaReporteUtilidad =
+    metricas.fuenteFinanciera === "utilidad";
+
+  const importacionFinanciera =
+    usaReporteUtilidad
+      ? datosDashboard.utilidadVentas?.importacion || {}
+      : datosDashboard.ventasOriginales?.importacion || {};
+
+  const importacionProductos =
+    datosDashboard.ventasOriginales?.importacion ||
+    {};
+
+  const periodoFinanciero =
+    usaReporteUtilidad
+      ? datosDashboard.utilidadVentas?.periodo
+      : datosDashboard.ventasOriginales?.periodo;
+
+  const inicioCorte = formatoFechaCorte(
+    periodoFinanciero?.fechaInicial
+  );
+
+  const finCorte = formatoFechaCorte(
+    periodoFinanciero?.fechaFinal
+  );
 
   return (
     <main style={estilos.pagina}>
@@ -226,52 +260,75 @@ const DashboardPage = () => {
         </h1>
 
         <p style={estilos.subtitulo}>
-          Este es el resumen real de la última
-          importación de ventas.
+          Este es el resumen real de la última importación de SICAR.
         </p>
       </header>
+
+      <section
+        aria-label="Periodo financiero SICAR"
+        style={{
+          marginBottom: "22px",
+          padding: "16px 20px",
+          borderRadius: "14px",
+          background: "#fdf4f8",
+          border: "1px solid #edcfdd",
+          color: "#5b3c4d",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>Corte financiero: {inicioCorte} – {finCorte}</strong>
+        <div>Utilidad y margen son brutos según SICAR, antes de gastos operativos.</div>
+      </section>
 
       <section style={estilos.cuadricula}>
         <TarjetaMetrica
           etiqueta="Ventas totales"
-          valor={formatoDinero.format(
-            Number(metricas.ventasTotales) || 0
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.ventasTotales) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
-          etiqueta="Utilidad total"
-          valor={formatoDinero.format(
-            Number(metricas.utilidadTotal) || 0
-          )}
+          etiqueta="Utilidad bruta"
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.utilidadTotal) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
           etiqueta="Costo total"
-          valor={formatoDinero.format(
-            Number(metricas.costoTotal) || 0
-          )}
+          valor={metricas.tieneDatosFinancieros
+            ? formatoDinero.format(Number(metricas.costoTotal) || 0)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
-          etiqueta="Margen de utilidad"
-          valor={formatoPorcentaje(
-            metricas.margenUtilidad
-          )}
+          etiqueta="Margen bruto"
+          valor={metricas.tieneDatosFinancieros
+            ? formatoPorcentaje(metricas.margenUtilidad)
+            : "Sin dato SICAR"}
         />
 
         <TarjetaMetrica
           etiqueta="Piezas vendidas"
-          valor={formatoNumero.format(
-            Number(metricas.totalPiezas) || 0
-          )}
+          valor={
+            metricas.periodosComparables === false
+              ? "Sin corte comparable"
+              : formatoNumero.format(
+                  Number(metricas.totalPiezas) || 0
+                )
+          }
         />
 
         <TarjetaMetrica
           etiqueta="Registros analizados"
-          valor={formatoNumero.format(
-            Number(metricas.totalProductos) || 0
-          )}
+          valor={
+            metricas.periodosComparables === false
+              ? "Sin corte comparable"
+              : formatoNumero.format(
+                  Number(metricas.totalProductos) || 0
+                )
+          }
         />
       </section>
 
@@ -280,7 +337,9 @@ const DashboardPage = () => {
           Producto más vendido
         </h2>
 
-        {productoMasVendido ? (
+        {datosDashboard.comparabilidadProductos?.comparable === false ? (
+          <p role="status">{datosDashboard.comparabilidadProductos.mensaje}</p>
+        ) : productoMasVendido ? (
           <div
             style={
               estilos.productoDestacado
@@ -340,58 +399,64 @@ const DashboardPage = () => {
 
       <section style={estilos.seccion}>
         <h2 style={estilos.tituloSeccion}>
-          Información de la importación
+          Fuentes de este tablero
         </h2>
 
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Reporte
-          </span>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: "16px",
+        }}>
+          <article style={estilos.productoDestacado}>
+            <h3 style={estilos.nombreProducto}>
+              Finanzas · {metricas.tieneDatosFinancieros
+                ? importacionFinanciera.tipo_reporte || (usaReporteUtilidad ? "Utilidad de ventas" : "Ventas por artículo")
+                : "sin importes disponibles"}
+            </h3>
+            <p style={estilos.detalleProducto}>
+              Archivo: {metricas.tieneDatosFinancieros
+                ? importacionFinanciera.archivo_original || "Sin nombre de archivo"
+                : "No se encontraron importes financieros válidos"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Periodo: {metricas.tieneDatosFinancieros && periodoFinanciero
+                ? `${formatoFechaCorte(periodoFinanciero.fechaInicial)} – ${formatoFechaCorte(periodoFinanciero.fechaFinal)}`
+                : "Sin corte financiero válido"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Filas: {metricas.tieneDatosFinancieros
+                ? formatoNumero.format(Number(importacionFinanciera.total_filas) || 0)
+                : "Sin fuente válida"}
+              {" · "}Importado: {metricas.tieneDatosFinancieros && importacionFinanciera.created_at
+                ? new Date(importacionFinanciera.created_at).toLocaleString("es-MX")
+                : "Sin fecha válida"}
+            </p>
+          </article>
 
-          <span style={estilos.valorDato}>
-            {importacion.tipo_reporte ||
-              "Sin información"}
-          </span>
+          <article style={estilos.productoDestacado}>
+            <h3 style={estilos.nombreProducto}>
+              Productos · {importacionProductos.tipo_reporte || "Ventas por artículo"}
+            </h3>
+            <p style={estilos.detalleProducto}>
+              Archivo: {importacionProductos.archivo_original || "Sin información"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Periodo: {datosDashboard.ventasOriginales?.periodo
+                ? `${formatoFechaCorte(datosDashboard.ventasOriginales.periodo.fechaInicial)} – ${formatoFechaCorte(datosDashboard.ventasOriginales.periodo.fechaFinal)}`
+                : "Sin periodo registrado"}
+            </p>
+            <p style={estilos.detalleProducto}>
+              Filas: {formatoNumero.format(Number(importacionProductos.total_filas) || 0)}
+              {" · "}Importado: {importacionProductos.created_at
+                ? new Date(importacionProductos.created_at).toLocaleString("es-MX")
+                : "Sin fecha"}
+            </p>
+          </article>
         </div>
 
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Archivo
-          </span>
-
-          <span style={estilos.valorDato}>
-            {importacion.archivo_original ||
-              "Sin información"}
-          </span>
-        </div>
-
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Filas importadas
-          </span>
-
-          <span style={estilos.valorDato}>
-            {formatoNumero.format(
-              Number(
-                importacion.total_filas
-              ) || 0
-            )}
-          </span>
-        </div>
-
-        <div style={estilos.filaDato}>
-          <span style={estilos.nombreDato}>
-            Fecha de importación
-          </span>
-
-          <span style={estilos.valorDato}>
-            {importacion.created_at
-              ? new Date(
-                  importacion.created_at
-                ).toLocaleString("es-MX")
-              : "Sin información"}
-          </span>
-        </div>
+        <p style={estilos.detalleProducto}>
+          Cada cifra conserva el corte de su propio reporte SICAR; los reportes de finanzas y productos no se suman entre sí.
+        </p>
       </section>
     </main>
   );

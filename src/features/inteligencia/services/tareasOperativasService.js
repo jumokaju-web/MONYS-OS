@@ -1,5 +1,7 @@
 import { titulosSeguimientoCampana, tituloSeguimientoCanonico } from "../utils/titulosSeguimientoCampana";
 import { supabase } from "../../../supabase";
+import { obtenerFechaLocalISO } from "../shared/fechaLocal";
+import { construirActualizacionCRMDesdeSeguimiento } from "../shared/actualizacionCRM";
 
 import {
   asignarResponsableAutomatico,
@@ -9,6 +11,7 @@ import {
 import {
   evaluarResultadoCampanaGrowth,
 } from "./growthAgencyService";
+import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 
 
 // ======================================================
@@ -21,34 +24,7 @@ export async function obtenerTareasOperativas({
 } = {}) {
   let consulta = supabase
     .from("tareas_operativas")
-    .select(`
-      id,
-      organization_id,
-      business_id,
-      branch_id,
-      titulo,
-      descripcion,
-      area,
-      responsable,
-      prioridad,
-      estado,
-      fecha,
-      hora_limite,
-      instrucciones,
-      resultado,
-      creada_por,
-      completada_por,
-      completada_at,
-      requiere_evidencia,
-      criterio_exito,
-      calificacion_final,
-      evaluacion_estado,
-      evaluacion_resumen,
-      requiere_revision,
-      checklist,
-      created_at,
-      updated_at
-    `)
+    .select("*")
     .order("prioridad", {
       ascending: false,
     })
@@ -109,27 +85,7 @@ export async function obtenerCalendarioTareasOperativas({
 
   let consulta = supabase
     .from("tareas_operativas")
-    .select(`
-      id,
-      organization_id,
-      business_id,
-      branch_id,
-      titulo,
-      descripcion,
-      area,
-      responsable,
-      prioridad,
-      estado,
-      fecha,
-      hora_limite,
-      instrucciones,
-      resultado,
-      requiere_evidencia,
-      criterio_exito,
-      checklist,
-      created_at,
-      updated_at
-    `)
+    .select("*")
     .gte(
       "fecha",
       fechaInicio
@@ -191,6 +147,51 @@ export async function obtenerCalendarioTareasOperativas({
 // CREAR TAREA
 // ======================================================
 
+function normalizarNombreResponsable(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+async function resolverUsuarioResponsableTarea({
+  branchId,
+  responsable,
+  usuarioId = null,
+} = {}) {
+  if (usuarioId) {
+    return usuarioId;
+  }
+
+  if (!branchId || !responsable) {
+    return null;
+  }
+
+  try {
+    const empleados =
+      await obtenerEmpleadosActivosParaAsignacion(branchId);
+    const nombreBuscado = normalizarNombreResponsable(responsable);
+    const coincidencias = empleados.filter(
+      (empleado) =>
+        normalizarNombreResponsable(empleado?.nombre) === nombreBuscado,
+    );
+
+    if (coincidencias.length !== 1) {
+      return null;
+    }
+
+    return coincidencias[0]?.usuario_id || null;
+  } catch (error) {
+    console.warn(
+      "No se pudo vincular la tarea con el usuario del empleado:",
+      error,
+    );
+    return null;
+  }
+}
+
 export async function crearTareaOperativa({
   organizationId = null,
   businessId = null,
@@ -199,6 +200,7 @@ export async function crearTareaOperativa({
   descripcion = null,
   area = "general",
   responsable = null,
+  responsableUsuarioId = null,
   prioridad = "normal",
   fecha = null,
   horaLimite = null,
@@ -218,9 +220,7 @@ export async function crearTareaOperativa({
 
   const fechaTarea =
     fecha ||
-    new Date()
-      .toISOString()
-      .slice(0, 10);
+    obtenerFechaLocalISO();
 
   // Evita duplicar la misma tarea dentro del mismo día.
   // Una tarea recurrente con el mismo título sí debe poder
@@ -359,16 +359,38 @@ export async function crearTareaOperativa({
       new Date().toISOString(),
   };
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const usuarioResponsableId =
+    await resolverUsuarioResponsableTarea({
+      branchId,
+      responsable,
+      usuarioId: responsableUsuarioId,
+    });
+
+  if (usuarioResponsableId) {
+    nuevaTarea.responsable_usuario_id = usuarioResponsableId;
+  }
+
+  let { data, error } = await supabase
     .from("tareas_operativas")
-    .insert(
-      nuevaTarea
-    )
+    .insert(nuevaTarea)
     .select()
     .single();
+
+  if (
+    error &&
+    nuevaTarea.responsable_usuario_id &&
+    ["PGRST204", "42703"].includes(String(error.code || ""))
+  ) {
+    // El campo aparece al aplicar la migración; conserva la creación de tareas antes de aplicarla.
+    const tareaCompatible = { ...nuevaTarea };
+    delete tareaCompatible.responsable_usuario_id;
+
+    ({ data, error } = await supabase
+      .from("tareas_operativas")
+      .insert(tareaCompatible)
+      .select()
+      .single());
+  }
 
   if (error) {
     console.error(
@@ -395,7 +417,20 @@ async function resolverResponsableMarketing({
     String(responsable || "").trim();
 
   if (responsableIndicado) {
-    return responsableIndicado;
+    const empleadosActivos =
+      await obtenerEmpleadosActivosParaAsignacion(
+        branchId
+      );
+    const coincidencias = empleadosActivos.filter(
+      (empleado) =>
+        normalizar(empleado.nombre) ===
+        normalizar(responsableIndicado)
+    );
+
+    return coincidencias.length === 1 &&
+      coincidencias[0]?.usuario_id
+      ? String(coincidencias[0].nombre).trim()
+      : "";
   }
 
   const normalizar = (valor) =>
@@ -471,16 +506,17 @@ async function resolverResponsableMarketing({
         branchId
       );
 
-    const empleadoActivoAnterior =
-      empleadosActivos.find(
+    const empleadosAnteriores =
+      empleadosActivos.filter(
         (empleado) =>
           normalizar(empleado.nombre) ===
-          normalizar(responsableAnterior)
+            normalizar(responsableAnterior) &&
+          empleado?.usuario_id
       );
 
-    if (empleadoActivoAnterior) {
+    if (empleadosAnteriores.length === 1) {
       return String(
-        empleadoActivoAnterior.nombre
+        empleadosAnteriores[0].nombre
       ).trim();
     }
   }
@@ -497,6 +533,7 @@ async function resolverResponsableMarketing({
         fecha: new Date()
           .toISOString()
           .slice(0, 10),
+        requiereUsuarioVinculado: true,
       });
 
     return String(
@@ -556,7 +593,7 @@ export async function crearPlanSemanalMarketing({
 
   if (!responsableFinal) {
     throw new Error(
-      "No encontramos una persona responsable de Marketing en esta sucursal."
+      "No encontramos una persona activa de Marketing con cuenta vinculada a MONYS OS en esta sucursal."
     );
   }
 
@@ -1372,10 +1409,9 @@ async function sincronizarResultadoTareaConCampana({
     gastoAcumulado,
     pedidosAcumulados,
     ventaAcumulada,
-    margenRealBase:
+    margenRealBase: obtenerMargenRealBaseCampana(
       campana?.estrategia_ia
-        ?.datosRentabilidadBase
-        ?.margenReal,
+    ),
     publicacion: resultadoMarketing.publicacion,
     gastoConfirmado: camposConfirmados.gasto,
     pedidosConfirmados: camposConfirmados.pedidos,
@@ -1384,7 +1420,7 @@ async function sincronizarResultadoTareaConCampana({
   const registroNuevo = {
     tareaId: tarea.id,
     fuente: "TAREA_MARKETING",
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: obtenerFechaLocalISO(),
     registradoEn: new Date().toISOString(),
     registradoPor: tarea.responsable || "Marketing",
     canal: resultadoMarketing.canal,
@@ -1547,7 +1583,22 @@ export async function cambiarEstadoTareaOperativa({
     throw error;
   }
 
-  return data;
+  let sincronizacionCRM = null;
+  const identificadorCRM = String(data?.descripcion || "").match(/Oportunidad CRM ([0-9a-f-]{36})/i)?.[1];
+  if (estado === "terminada" && resultado && identificadorCRM) {
+    const ahora = new Date().toISOString();
+    const { data: oportunidadActualizada, error: errorCRM } = await supabase
+      .from("crm_oportunidades")
+      .update(construirActualizacionCRMDesdeSeguimiento(resultado, ahora))
+      .eq("id", identificadorCRM)
+      .select("id")
+      .maybeSingle();
+    sincronizacionCRM = errorCRM || !oportunidadActualizada
+      ? { sincronizada: false, error: errorCRM?.message || "MONYS no confirmó la actualización del CRM." }
+      : { sincronizada: true };
+  }
+
+  return { ...data, sincronizacionCRM };
 }
 
 
@@ -2796,6 +2847,7 @@ export async function crearTareaAutomaticaDesdePrioridad({
        area:
   areaTarea,
         fecha,
+        requiereUsuarioVinculado: true,
       });
   } catch (
     errorAsignacion
@@ -2831,10 +2883,33 @@ export async function crearTareaAutomaticaDesdePrioridad({
   }
 
 
+  if (!asignacion && prioridad.responsable) {
+    const usuarioResponsableId =
+      await resolverUsuarioResponsableTarea({
+        branchId,
+        responsable: prioridad.responsable,
+      });
+
+    if (usuarioResponsableId) {
+      asignacion = {
+        nombre: String(prioridad.responsable).trim(),
+        usuarioId: usuarioResponsableId,
+        metodo: "RESPONSABLE_VINCULADO",
+      };
+    }
+  }
+
+  if (!asignacion?.nombre || !asignacion?.usuarioId) {
+    return {
+      creada: false,
+      motivo: "SIN_EMPLEADO_CON_CUENTA_VINCULADA",
+      tarea: null,
+      asignacion: null,
+    };
+  }
+
   const responsableAutomatico =
-    asignacion?.nombre ||
-    prioridad.responsable ||
-    "Operación";
+    asignacion.nombre;
 
 
   const instruccionesAutomaticas =
@@ -2858,6 +2933,9 @@ area:
 
       responsable:
         responsableAutomatico,
+
+      responsableUsuarioId:
+        asignacion.usuarioId,
 
       prioridad:
         prioridadTarea,

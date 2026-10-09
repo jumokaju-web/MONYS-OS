@@ -13,6 +13,9 @@ import {
 import { consolidarFinanzasSucursales } from "../../shared/resumenSucursalesFinanciero";
 import CierreSemanalFinanciero from "./CierreSemanalFinanciero";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
+import CentroRescateFinanciero from "./CentroRescateFinanciero";
+import PlanRescate30Dias from "./PlanRescate30Dias";
+import TableroVisualFinanciero from "./TableroVisualFinanciero";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
   actualizarEjecucionDecision,
@@ -46,10 +49,15 @@ function obtenerAntiguedadDias(fecha) {
 }
 
    function DirectorFinanciero({
-  onAbrirImportador,
   datosDashboard,
   sucursalesDashboard = [],
   movimientos = [],
+  creditosProveedores = {
+    importacion: null,
+    creditos: [],
+    saldoTotal: 0,
+  },
+  onAbrirImportador,
 }) {
 
     const [
@@ -82,31 +90,24 @@ const [
   setResultadosEjecucion,
 ] = useState({});
 
-const [
-  creditosProveedores,
-  setCreditosProveedores,
-] = useState({
-  importacion: null,
-  creditos: [],
-  saldoTotal: 0,
-});
-
-  const metricasOrigen = datosDashboard?.metricas || {};
   const consolidacion = consolidarFinanzasSucursales(sucursalesDashboard);
   const hayDatosConsolidados = consolidacion.disponible;
-  const metricas = hayDatosConsolidados ? {
-    ...metricasOrigen,
-    fechaInicial: consolidacion.fechaInicial,
-    fechaFinal: consolidacion.fechaFinal,
-    diasAnalizados: consolidacion.diasAnalizados,
-  } : metricasOrigen;
   const ventasConsolidadas = consolidacion.ventas;
   const utilidadConsolidada = consolidacion.utilidad;
   const costoConsolidado = consolidacion.costo;
   const margenConsolidado = consolidacion.margen;
+  const metricas = hayDatosConsolidados
+    ? { ...datosDashboard?.metricas, fechaInicial: consolidacion.fechaInicial, fechaFinal: consolidacion.fechaFinal, diasAnalizados: consolidacion.diasAnalizados }
+    : datosDashboard?.metricas || {};
 
 const branchId =
   datosDashboard?.branch_id || null;
+
+const organizationId =
+  datosDashboard?.organization_id || null;
+
+const businessId =
+  datosDashboard?.business_id || null;
 
 const antiguedadVentasDias =
   obtenerAntiguedadDias(
@@ -249,11 +250,15 @@ ventasSobrePuntoEquilibrio,
     reservaRecomendada,
     capacidadCompra,
 
+    saldoProveedoresVencidos,
+    proveedoresVencidos,
     vencimientos7Dias,
     vencimientos15Dias,
     vencimientos30Dias,
     vencimientos60Dias,
     vencimientos90Dias,
+    saldoProveedoresSinFecha,
+    proveedoresSinFecha,
 
     alertasFinancieras = [],
     decisionPrioritaria,
@@ -270,14 +275,6 @@ ventasSobrePuntoEquilibrio,
     proyeccionListaParaDecision
       ? accionesPrioritarias
       : accionesActualizacionFinanciera;
-
-    useEffect(() => {
-  setCreditosProveedores({
-    importacion: null,
-    creditos: [],
-    saldoTotal: 0,
-  });
-}, [branchId]);
 
      // Las acciones se recalculan con la importación actual;
      // no se recarga el historial por cambios visuales del análisis.
@@ -579,6 +576,16 @@ const historial =
       }
     };
 
+  if (sucursalesDashboard.length > 0 && !consolidacion.disponible) {
+    return <section style={{ padding: 24, background: "#fff7fb", borderRadius: 20, marginTop: 24 }}>
+      <EquilibrioDiario alcance={branchId} /><h3>Finanzas · Revisa la base del negocio</h3>
+      <p role="alert">{consolidacion.motivo}</p>
+      <p>El resultado consolidado, el equilibrio y las proyecciones quedan pendientes hasta tener cortes compatibles.</p>
+      {onAbrirImportador && <button onClick={onAbrirImportador}>Actualizar reportes SICAR</button>}
+      <TableroVisualFinanciero sucursales={sucursalesDashboard} />
+    </section>;
+  }
+
          return (
     <section
       style={{
@@ -756,6 +763,97 @@ const historial =
         </div>
       )}
 
+      <TableroVisualFinanciero
+        ventas={ventasTotales}
+        costos={costoTotal}
+        utilidadBruta={utilidadTotal}
+        gastosFijos={gastosFijos}
+        gastosVariables={gastosVariables}
+        gastosSinClasificar={gastosSinClasificar}
+        utilidadNeta={utilidadNetaEstimada}
+        margenBruto={margenUtilidad}
+        margenNeto={margenConGastos}
+        puntoEquilibrio={puntoEquilibrioVentas}
+        diasAnalizados={metricas.diasAnalizados}
+        fechaInicial={metricas.fechaInicial}
+        entradas={entradasTesoreria}
+        salidas={salidasTesoreria}
+        disponible={dineroDisponible}
+        reserva={reservaRecomendada}
+        movimientosPendientes={movimientosPendientes}
+        vencimientos={[
+          { etiqueta: "7 días", valor: vencimientos7Dias },
+          { etiqueta: "15 días", valor: vencimientos15Dias },
+          { etiqueta: "30 días", valor: vencimientos30Dias },
+          { etiqueta: "60 días", valor: vencimientos60Dias },
+          { etiqueta: "90 días", valor: vencimientos90Dias },
+        ]}
+        sucursales={sucursalesDashboard}
+        baseVigente={ventasVigentes}
+        fechaCorte={metricas.fechaFinal || null}
+      />
+
+      <CentroRescateFinanciero
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+        flujoNetoPeriodo={dineroDisponible}
+        reservaRecomendada={reservaRecomendada}
+        baseFinancieraVigente={ventasVigentes}
+        movimientosPendientes={movimientosPendientes}
+      />
+
+      <PlanRescate30Dias
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+      />
+
+      {!creditosProveedores?.importacion && (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "18px",
+            borderRadius: "15px",
+            background: "#fff9ed",
+            border: "1px solid #e5c47d",
+          }}
+        >
+          <strong style={{ fontSize: "17px" }}>
+            📄 Falta el reporte de créditos de proveedores
+          </strong>
+          <p
+            style={{
+              margin: "7px 0 14px",
+              color: "#6f604d",
+              lineHeight: 1.55,
+            }}
+          >
+            Sube el reporte de SICAR para que MONYS muestre el saldo real por
+            proveedor y los compromisos de 7, 15, 30, 60 y 90 días. Sin ese
+            archivo no se autorizarán compras basadas en una deuda estimada.
+          </p>
+          {typeof onAbrirImportador === "function" && (
+            <button
+              type="button"
+              onClick={onAbrirImportador}
+              style={{
+                width: "100%",
+                minHeight: "46px",
+                border: 0,
+                borderRadius: "11px",
+                background: "#8a5410",
+                color: "#fff",
+                fontWeight: 850,
+                cursor: "pointer",
+              }}
+            >
+              Subir créditos de proveedores →
+            </button>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
@@ -772,8 +870,14 @@ const historial =
         />
 
        <TarjetaIndicador
-  titulo="Reporte de proveedores"
-  valor="Sin reporte confirmado"
+  titulo="Saldo con proveedores"
+  valor={
+    creditosProveedores?.importacion
+      ? formatoDinero(
+          creditosProveedores?.saldoTotal || 0
+        )
+      : "Pendiente de cargar"
+  }
   icono="💳"
 />
 
@@ -1000,14 +1104,8 @@ const historial =
         />
 
         <TarjetaIndicador
-          titulo={
-            ventasVigentes
-              ? "Reserva recomendada"
-              : "Reserva de referencia anterior"
-          }
-          valor={formatoDinero(
-            reservaRecomendada
-          )}
+          titulo="Reserva por calcular"
+          valor="Faltan saldos iniciales de caja y bancos"
           icono="🏦"
         />
       </div>
@@ -1099,7 +1197,30 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>7 días</strong>
+    <strong>Ya vencido</strong>
+    <div
+      style={{
+        marginTop: "5px",
+        fontWeight: "800",
+        color: saldoProveedoresVencidos > 0 ? "#a12c45" : "#3b7050",
+      }}
+    >
+      {formatoDinero(saldoProveedoresVencidos || 0)}
+    </div>
+    <small style={{ display: "block", marginTop: "4px", color: "#756d62" }}>
+      {proveedoresVencidos || 0} créditos con fecha anterior a hoy
+    </small>
+  </div>
+
+  <div
+    style={{
+      padding: "12px",
+      borderRadius: "12px",
+      backgroundColor: "#ffffff",
+      border: "1px solid #eadfd3",
+    }}
+  >
+    <strong>Vencidos + 7 días</strong>
 
     <div
       style={{
@@ -1121,7 +1242,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>15 días</strong>
+    <strong>Vencidos + 15 días</strong>
 
     <div
       style={{
@@ -1143,7 +1264,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>30 días</strong>
+    <strong>Vencidos + 30 días</strong>
 
     <div
       style={{
@@ -1165,7 +1286,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>60 días</strong>
+    <strong>Vencidos + 60 días</strong>
 
     <div
       style={{
@@ -1187,7 +1308,7 @@ const historial =
       border: "1px solid #eadfd3",
     }}
   >
-    <strong>90 días</strong>
+    <strong>Vencidos + 90 días</strong>
 
     <div
       style={{
@@ -1200,7 +1321,27 @@ const historial =
       )}
     </div>
   </div>
+
+  <div
+    style={{
+      padding: "12px",
+      borderRadius: "12px",
+      backgroundColor: "#fff8e8",
+      border: "1px solid #ecd392",
+    }}
+  >
+    <strong>Sin vencimiento exacto</strong>
+    <div style={{ marginTop: "5px", fontWeight: "800" }}>
+      {formatoDinero(saldoProveedoresSinFecha || 0)}
+    </div>
+    <small style={{ display: "block", marginTop: "4px", color: "#756d62" }}>
+      {proveedoresSinFecha || 0} créditos; confirmar fecha con el proveedor
+    </small>
+  </div>
 </div>
+<p style={{ margin: "10px 0 0", color: "#756d62", fontSize: "12px", lineHeight: 1.5 }}>
+  Los horizontes usan fechas exactas del reporte. Los días de crédito no bastan para calcular un vencimiento.
+</p>
     <div
   style={{
     display: "grid",
@@ -1253,16 +1394,10 @@ const historial =
           {" · "}
 
           {credito.fecha_vencimiento
-            ? "Vence: "
-            : "Vencimiento estimado: "}
-
-          {credito.fecha_vencimiento_estimada
-            ? new Date(
-                `${credito.fecha_vencimiento_estimada}T00:00:00`
-              ).toLocaleDateString(
-                "es-MX"
-              )
-            : "Sin fecha"}
+            ? `Vence según reporte: ${new Date(
+                `${credito.fecha_vencimiento}T00:00:00`
+              ).toLocaleDateString("es-MX")}`
+            : "Sin vencimiento exacto en el reporte"}
         </div>
       </div>
     )

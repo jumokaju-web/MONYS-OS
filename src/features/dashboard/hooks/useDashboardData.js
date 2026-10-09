@@ -19,6 +19,8 @@ import {
   calcularMetricasDashboard,
 } from "../utils/dashboardMetrics";
 
+import { evaluarComparabilidadPeriodos } from "../utils/evaluarComparabilidadPeriodos";
+
 function convertirFechaValida(valor) {
   if (!valor) {
     return null;
@@ -176,16 +178,36 @@ export function useDashboardData() {
         const detallesInventario =
           resultadoInventario?.detalles || [];
 
+        const periodoVentas =
+          obtenerPeriodoDesdeDetalles(
+            detallesVentasOriginales
+          );
+
+        const periodoUtilidad =
+          obtenerPeriodoDesdeDetalles(
+            detallesUtilidad
+          );
+
+        const comparabilidadProductos =
+          evaluarComparabilidadPeriodos(
+            periodoVentas,
+            periodoUtilidad,
+            datosVentas.length > 0 &&
+              detallesUtilidad.length > 0
+          );
+
         const metricasBase =
           calcularMetricasDashboard(
-            datosVentas,
+            comparabilidadProductos.comparable
+              ? datosVentas
+              : [],
             detallesUtilidad
           );
 
         const periodoReal =
-          obtenerPeriodoDesdeDetalles(
-            detallesVentasOriginales
-          );
+          metricasBase?.fuenteFinanciera === "utilidad"
+            ? periodoUtilidad
+            : periodoVentas;
 
         const diasAnalizados =
           periodoReal?.diasAnalizados ||
@@ -204,6 +226,9 @@ export function useDashboardData() {
 
         const metricas = {
           ...metricasBase,
+
+          periodosComparables:
+            comparabilidadProductos.comparable,
 
           fechaInicial:
             periodoReal?.fechaInicial ||
@@ -236,7 +261,10 @@ export function useDashboardData() {
           branch_id:
             branchId,
 
+          comparabilidadProductos,
+
           importacion:
+            resultadoUtilidad?.importacion ||
             resultadoVentas.importacion,
 
           metricas,
@@ -254,7 +282,7 @@ export function useDashboardData() {
               detallesVentasOriginales,
 
             periodo:
-              periodoReal,
+              periodoVentas,
           },
 
           utilidadVentas: {
@@ -264,6 +292,9 @@ export function useDashboardData() {
 
             detalles:
               detallesUtilidad,
+
+            periodo:
+              periodoUtilidad,
           },
 
           inventario: {

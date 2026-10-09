@@ -123,6 +123,18 @@ function generarAnalisisVentas(resumen) {
     resumen.cantidadProductoMasVendido || 0
   );
 
+  if (resumen.ventaDisponible === false || resumen.utilidadDisponible === false) {
+    return {
+      titulo: "Demanda de productos analizada",
+      mensaje:
+        `Se analizaron ${formatoNumero(resumen.totalRegistros)} registros de ${formatoNumero(resumen.articulosDiferentes)} productos y ${formatoNumero(cantidadTotal)} piezas vendidas. El producto líder fue "${resumen.productoMasVendido || "Sin información"}", con ${formatoNumero(cantidadProductoLider)} piezas. Este reporte no incluye ${[
+          resumen.ventaDisponible === false ? "importes de venta" : "",
+          resumen.utilidadDisponible === false ? "costos ni utilidad" : "",
+        ].filter(Boolean).join(" ni ")}; MONYS no calcula ni sustituye esos valores.`,
+      nivel: "neutral",
+    };
+  }
+
   const margenUtilidad =
     ventaTotal > 0
       ? (utilidadTotal / ventaTotal) * 100
@@ -189,6 +201,20 @@ function generarAnalisisVentas(resumen) {
   };
 }
 
+function generarAnalisisUtilidadVentas(resumen) {
+  const ventaTotal = Number(resumen.ventaTotal || 0);
+  const utilidadTotal = Number(resumen.utilidadTotal || 0);
+  const margen = Number(resumen.margenUtilidad || 0);
+
+  return {
+    titulo: "Corte financiero de SICAR listo para revisar",
+    mensaje:
+      `El reporte contiene ${formatoNumero(resumen.totalRegistros)} tickets. Las ventas suman ${formatoDinero(ventaTotal)}, el costo de venta ${formatoDinero(resumen.costoTotal)} y la utilidad bruta ${formatoDinero(utilidadTotal)} (${margen.toFixed(1)}% de margen). ` +
+      `${resumen.foliosDuplicados ? `Hay ${formatoNumero(resumen.foliosDuplicados)} folios repetidos para revisar antes de importar.` : "No se detectaron folios repetidos dentro del archivo."} La utilidad es antes de gastos operativos.`,
+    nivel: resumen.foliosDuplicados ? "advertencia" : "neutral",
+  };
+}
+
 export function generarAnalisisEjecutivo(resumen) {
   if (!resumen) {
     return {
@@ -197,6 +223,10 @@ export function generarAnalisisEjecutivo(resumen) {
         "Todavía no hay datos suficientes para generar un análisis ejecutivo.",
       nivel: "neutral",
     };
+  }
+
+  if (resumen.tipoResumen === "utilidad_ventas") {
+    return generarAnalisisUtilidadVentas(resumen);
   }
 
   const esInventario =

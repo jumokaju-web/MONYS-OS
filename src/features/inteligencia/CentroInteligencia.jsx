@@ -570,6 +570,37 @@ const analisisRH =
         ← Volver al Dashboard
       </button>
 
+      {directorAbierto ? (
+        <div
+          style={{
+            margin: "20px 0 18px",
+            padding: "18px",
+            borderRadius: "18px",
+            background: "linear-gradient(135deg, #fff1f7, #fff)",
+            border: "1px solid #e8bfd2",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <small style={{ color: "#a52b65", fontWeight: 900, letterSpacing: ".08em" }}>ACCESO DIRECTO</small>
+            <h1 style={{ margin: "5px 0 0", fontSize: "clamp(25px, 5vw, 36px)" }}>
+              {directores.find((director) => director.id === directorAbierto)?.icono} {directores.find((director) => director.id === directorAbierto)?.nombre}
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDirectorAbierto(null)}
+            style={{ padding: "10px 14px", borderRadius: "11px", border: "1px solid #d8b8c8", background: "#fff", color: "#7d2853", fontWeight: 850, cursor: "pointer" }}
+          >
+            Ver todos los Directores IA
+          </button>
+        </div>
+      ) : (
+      <>
       <div
         style={{
           textAlign: "center",
@@ -794,6 +825,8 @@ const analisisRH =
           )}
         </div>
       </section>
+      </>
+      )}
 
       <div id="panel-director-activo" />
       {directorAbierto ===
@@ -811,6 +844,10 @@ const analisisRH =
           errorSucursales={
             errorSucursales
           }
+          organizationId={organizationId}
+          businessId={businessId}
+          branchId={branchId}
+          empleados={usuariosRH}
         />
       )}
 
@@ -829,7 +866,6 @@ const analisisRH =
       {directorAbierto ===
         "financiero" && (
        <DirectorFinanciero
-  onAbrirImportador={onAbrirImportador}
   datosDashboard={
     datosDashboard
   }
@@ -838,6 +874,12 @@ const analisisRH =
   }
   movimientos={
     movimientos
+  }
+  creditosProveedores={
+    creditosProveedores
+  }
+  onAbrirImportador={
+    onAbrirImportador
   }
 />
       )}

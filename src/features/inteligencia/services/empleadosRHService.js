@@ -423,6 +423,7 @@ export async function asignarResponsableAutomatico({
   descripcion = "",
   area = "general",
   fecha = null,
+  requiereUsuarioVinculado = false,
 } = {}) {
   if (!branchId) {
     return null;
@@ -472,6 +473,11 @@ export async function asignarResponsableAutomatico({
 
   const candidatos =
     empleados
+      .filter(
+        (empleado) =>
+          !requiereUsuarioVinculado ||
+          Boolean(empleado?.usuario_id)
+      )
       .map((empleado) => {
         const compatibilidad =
           calcularCompatibilidadEmpleado({
