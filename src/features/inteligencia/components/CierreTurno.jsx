@@ -19,6 +19,12 @@ import {
 import {
   crearTareasAutomaticasDesdePatrones,
 } from "../services/tareasOperativasService";
+import {
+  calcularCorteCaja,
+  crearObservacionesCorte,
+  leerCorteCaja,
+  leerLiquidacionFlotilla,
+} from "../utils/capturasFinancierasEquipo";
 
 const formularioInicial = {
   responsable: "",
@@ -29,11 +35,21 @@ const formularioInicial = {
   objecionesClientes: "",
   aprendizajes: "",
   observaciones: "",
+  ventaSicar: "",
+  efectivoVentas: "",
+  tarjeta: "",
+  transferencias: "",
+  otrosCobros: "",
+  fondoInicial: "",
+  gastosCaja: "",
+  efectivoEntregado: "",
+  efectivoFinal: "",
 };
 
 
 export default function CierreTurno({
   branchId = null,
+  usuario = null,
 }) {
   const [
     formulario,
@@ -105,6 +121,19 @@ export default function CierreTurno({
           }
         );
     }, []);
+
+  useEffect(() => {
+    const nombre = String(usuario?.nombre || "").trim();
+    if (!nombre) return;
+    setFormulario((actual) =>
+      actual.responsable ? actual : { ...actual, responsable: nombre }
+    );
+  }, [usuario?.nombre]);
+
+  const corteCalculado = useMemo(
+    () => calcularCorteCaja(formulario),
+    [formulario]
+  );
 
 
   async function cargarCierres() {
@@ -287,6 +316,32 @@ export default function CierreTurno({
       return;
     }
 
+    const camposDinero = [
+      "ventaSicar",
+      "efectivoVentas",
+      "tarjeta",
+      "transferencias",
+      "otrosCobros",
+      "fondoInicial",
+      "gastosCaja",
+      "efectivoEntregado",
+      "efectivoFinal",
+    ];
+    const capturaDineroIniciada = camposDinero.some(
+      (campo) => String(formulario[campo] ?? "").trim() !== ""
+    );
+
+    if (
+      capturaDineroIniciada &&
+      (String(formulario.ventaSicar).trim() === "" ||
+        String(formulario.efectivoFinal).trim() === "")
+    ) {
+      setError(
+        "Para terminar el corte escribe la venta total de SICAR y el efectivo contado al cierre."
+      );
+      return;
+    }
+
 
     try {
       setGuardando(true);
@@ -318,8 +373,9 @@ export default function CierreTurno({
           aprendizajes:
             formulario.aprendizajes,
 
-          observaciones:
-            formulario.observaciones,
+          observaciones: capturaDineroIniciada
+            ? crearObservacionesCorte(formulario, formulario.observaciones)
+            : formulario.observaciones,
         });
 
 
@@ -328,9 +384,10 @@ export default function CierreTurno({
       );
 
 
-      setFormulario(
-        formularioInicial
-      );
+      setFormulario({
+        ...formularioInicial,
+        responsable: formulario.responsable,
+      });
 
 
       await cargarCierres();
@@ -447,6 +504,32 @@ export default function CierreTurno({
 
     return texto ||
       "Sin información";
+  }
+
+  function formatearDinero(valor) {
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN",
+      maximumFractionDigits: 2,
+    }).format(Number(valor) || 0);
+  }
+
+  function mostrarObservacionesCierre(cierre) {
+    const corte = leerCorteCaja(cierre?.observaciones);
+    if (corte) {
+      return `Corte enviado a Dirección · diferencia de venta ${formatearDinero(
+        corte.diferenciaVenta
+      )} · diferencia de caja ${formatearDinero(corte.diferenciaCaja)}`;
+    }
+
+    const flotilla = leerLiquidacionFlotilla(cierre?.observaciones);
+    if (flotilla) {
+      return `Liquidación enviada a Dirección · resultado estimado ${formatearDinero(
+        flotilla.resultadoEstimado
+      )}`;
+    }
+
+    return mostrarDato(cierre?.observaciones);
   }
 
 
@@ -721,6 +804,7 @@ export default function CierreTurno({
       )}
 
 
+      {["owner", "admin"].includes(String(usuario?.role || "").toLowerCase()) && (
       <section
         style={{
           padding: "20px",
@@ -1067,6 +1151,7 @@ export default function CierreTurno({
           </div>
         )}
       </section>
+      )}
 
 
       <form
@@ -1149,6 +1234,118 @@ export default function CierreTurno({
             </select>
           </div>
         </div>
+
+
+        <section
+          style={{
+            padding: "18px",
+            borderRadius: "16px",
+            background: "linear-gradient(145deg, #fff7fb, #ffffff)",
+            border: "1px solid #e4c9d7",
+          }}
+        >
+          <div style={{ marginBottom: "14px" }}>
+            <div
+              style={{
+                color: "#9b1d5c",
+                fontSize: "12px",
+                fontWeight: 900,
+                letterSpacing: ".08em",
+              }}
+            >
+              CORTE DE CAJA · DATOS DEL DÍA
+            </div>
+            <h3 style={{ margin: "5px 0" }}>Cuadra venta, cobros y efectivo</h3>
+            <p style={{ margin: 0, color: "#725d68", lineHeight: 1.5 }}>
+              Captura los importes del corte. MONYS calcula las diferencias y lo
+              envía a Dirección como pendiente de revisión; no modifica la
+              utilidad automáticamente.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {[
+              ["ventaSicar", "Venta total SICAR", "Total del corte"],
+              ["efectivoVentas", "Ventas en efectivo", "Solo cobros en efectivo"],
+              ["tarjeta", "Cobros con tarjeta", "Total de terminales"],
+              ["transferencias", "Transferencias", "Cobros recibidos por banco"],
+              ["otrosCobros", "Otros cobros", "Vales u otra forma de pago"],
+              ["fondoInicial", "Fondo inicial", "Efectivo al abrir"],
+              ["gastosCaja", "Gastos pagados de caja", "Salidas con comprobante"],
+              ["efectivoEntregado", "Efectivo retirado/entregado", "Lo que salió de la caja"],
+              ["efectivoFinal", "Efectivo contado al cierre", "Dinero físico restante"],
+            ].map(([name, label, ayuda]) => (
+              <label key={name} style={{ fontWeight: 800, fontSize: "13px" }}>
+                {label}
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  name={name}
+                  value={formulario[name]}
+                  onChange={manejarCambio}
+                  placeholder="$0.00"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    marginTop: "6px",
+                    padding: "11px",
+                    borderRadius: "10px",
+                    border: "1px solid #d9bdcc",
+                  }}
+                />
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: "4px",
+                    color: "#806e77",
+                    fontWeight: 500,
+                  }}
+                >
+                  {ayuda}
+                </small>
+              </label>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: "10px",
+              marginTop: "16px",
+            }}
+          >
+            {[
+              ["Cobrado por métodos", corteCalculado.cobrado],
+              ["Diferencia contra SICAR", corteCalculado.diferenciaVenta],
+              ["Efectivo esperado", corteCalculado.efectivoEsperado],
+              ["Diferencia de caja", corteCalculado.diferenciaCaja],
+            ].map(([etiqueta, valor]) => (
+              <div
+                key={etiqueta}
+                style={{
+                  padding: "12px",
+                  borderRadius: "12px",
+                  background: Number(valor) === 0 ? "#f5f8f6" : "#fff2e6",
+                  border: "1px solid #eadde4",
+                }}
+              >
+                <small style={{ color: "#725d68" }}>{etiqueta}</small>
+                <strong style={{ display: "block", marginTop: "4px" }}>
+                  {formatearDinero(valor)}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </section>
 
 
         <div>
@@ -1539,9 +1736,7 @@ export default function CierreTurno({
                       </strong>
 
                       <p>
-                        {mostrarDato(
-                          cierre.observaciones
-                        )}
+                        {mostrarObservacionesCierre(cierre)}
                       </p>
                     </div>
                   </div>

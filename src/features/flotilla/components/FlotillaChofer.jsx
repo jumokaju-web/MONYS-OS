@@ -1,15 +1,19 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
   obtenerUnidadesFlotilla,
   obtenerRutaDeUnidadEnFecha,
+  guardarLiquidacionFlotilla,
+  obtenerLiquidacionFlotillaHoy,
   suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
 import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
+import { calcularLiquidacionFlotilla } from "../../inteligencia/utils/capturasFinancierasEquipo";
 
 function normalizarNombre(valor) {
   return String(valor || "")
@@ -35,6 +39,21 @@ export default function FlotillaChofer({
 
   const [unidades, setUnidades] = useState([]);
   const [unidadId, setUnidadId] = useState("");
+  const [liquidacion, setLiquidacion] = useState({
+    ingresoRuta: "",
+    pagoChofer: "",
+    sacarCamioneta: "",
+    gasolina: "",
+    casetas: "",
+    mantenimiento: "",
+    prestamos: "",
+    otrosGastos: "",
+    nota: "",
+  });
+  const [liquidacionGuardada, setLiquidacionGuardada] = useState(null);
+  const [guardandoLiquidacion, setGuardandoLiquidacion] = useState(false);
+  const [mensajeLiquidacion, setMensajeLiquidacion] = useState("");
+  const [errorLiquidacion, setErrorLiquidacion] = useState("");
 
   const unidad =
     unidades.find((item) => item.id === unidadId) || null;
@@ -119,6 +138,11 @@ export default function FlotillaChofer({
   const [estadoSincronizacion, setEstadoSincronizacion] =
     useState("CONECTANDO");
 
+  const resumenLiquidacion = useMemo(
+    () => calcularLiquidacionFlotilla(liquidacion),
+    [liquidacion]
+  );
+
   const cargarRutaActual = useCallback(
     async ({ silencioso = false } = {}) => {
       if (!unidad?.id) {
@@ -179,6 +203,55 @@ export default function FlotillaChofer({
       window.clearInterval(intervalo);
     };
   }, [cargarRutaActual, unidad?.id]);
+
+  useEffect(() => {
+    let activo = true;
+    setLiquidacionGuardada(null);
+    if (!unidad?.id) return () => { activo = false; };
+
+    obtenerLiquidacionFlotillaHoy({
+      unidadId: unidad.id,
+      fecha: obtenerFechaLocal(),
+    })
+      .then((resultado) => {
+        if (activo) setLiquidacionGuardada(resultado);
+      })
+      .catch(() => {
+        if (activo) setLiquidacionGuardada(null);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [unidad?.id]);
+
+  async function enviarLiquidacion(evento) {
+    evento.preventDefault();
+    setMensajeLiquidacion("");
+    setErrorLiquidacion("");
+
+    try {
+      setGuardandoLiquidacion(true);
+      const cierre = await guardarLiquidacionFlotilla({
+        branchId: usuario?.branch_id || null,
+        responsable: usuario?.nombre || unidad?.chofer_nombre,
+        unidad,
+        ruta: rutaHoy,
+        valores: liquidacion,
+        nota: liquidacion.nota,
+      });
+      setLiquidacionGuardada({ cierre, datos: { ...liquidacion, ...resumenLiquidacion } });
+      setMensajeLiquidacion(
+        "Liquidación enviada a Dirección. Quedó pendiente de revisión financiera."
+      );
+    } catch (error) {
+      setErrorLiquidacion(
+        error?.message || "No fue posible guardar la liquidación."
+      );
+    } finally {
+      setGuardandoLiquidacion(false);
+    }
+  }
 
     const choferReal =
     unidad?.chofer_nombre || usuario?.nombre || "Sin asignar";
@@ -798,6 +871,156 @@ export default function FlotillaChofer({
 </div>
           </div>
         </section>
+
+        <form
+          onSubmit={enviarLiquidacion}
+          style={{
+            marginBottom: "12px",
+            padding: "16px",
+            borderRadius: "18px",
+            background: "linear-gradient(145deg, #123d63, #1c6794)",
+            color: "#fff",
+            boxShadow: "0 12px 30px rgba(20, 54, 90, .16)",
+          }}
+        >
+          <div style={{ fontSize: "11px", fontWeight: 900, letterSpacing: ".1em", opacity: .82 }}>
+            LIQUIDACIÓN DIARIA · CONECTADA A DIRECCIÓN
+          </div>
+          <h2 style={{ margin: "6px 0", fontSize: "21px" }}>
+            Entrega los números de la ruta
+          </h2>
+          <p style={{ margin: "0 0 14px", fontSize: "13px", lineHeight: 1.5, opacity: .86 }}>
+            Registra lo cobrado y cada salida. MONYS calcula el resultado y lo
+            manda a Finanzas para revisión; no lo mezcla automáticamente con el banco.
+          </p>
+
+          {liquidacionGuardada && (
+            <div
+              role="status"
+              style={{
+                marginBottom: "12px",
+                padding: "11px",
+                borderRadius: "11px",
+                background: "rgba(220,255,235,.15)",
+                border: "1px solid rgba(220,255,235,.35)",
+                fontWeight: 800,
+              }}
+            >
+              ✓ Esta unidad ya tiene una liquidación guardada hoy. Puedes enviar
+              una corrección; Dirección verá ambos registros.
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {[
+              ["ingresoRuta", "Ingreso de la ruta"],
+              ["pagoChofer", "Pago al chofer"],
+              ["sacarCamioneta", "Pago por sacar camioneta"],
+              ["gasolina", "Gasolina"],
+              ["casetas", "Casetas"],
+              ["mantenimiento", "Mantenimiento"],
+              ["prestamos", "Préstamo o adelanto"],
+              ["otrosGastos", "Otros gastos"],
+            ].map(([campo, etiqueta]) => (
+              <label key={campo} style={{ fontSize: "12px", fontWeight: 800 }}>
+                {etiqueta}
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={liquidacion[campo]}
+                  onChange={(evento) =>
+                    setLiquidacion((actual) => ({
+                      ...actual,
+                      [campo]: evento.target.value,
+                    }))
+                  }
+                  placeholder="$0.00"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    marginTop: "5px",
+                    padding: "10px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(255,255,255,.38)",
+                    background: "rgba(255,255,255,.96)",
+                    color: "#14365a",
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+
+          <label style={{ display: "block", marginTop: "10px", fontSize: "12px", fontWeight: 800 }}>
+            Nota o explicación
+            <textarea
+              rows={2}
+              value={liquidacion.nota}
+              onChange={(evento) =>
+                setLiquidacion((actual) => ({ ...actual, nota: evento.target.value }))
+              }
+              placeholder="Ej. se pagó ponchadura, depósito incompleto…"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                marginTop: "5px",
+                padding: "10px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,.38)",
+              }}
+            />
+          </label>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "9px",
+              marginTop: "12px",
+            }}
+          >
+            <div style={{ padding: "11px", borderRadius: "11px", background: "rgba(255,255,255,.12)" }}>
+              <small>Gastos reportados</small>
+              <strong style={{ display: "block", fontSize: "19px", marginTop: "3px" }}>
+                {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(resumenLiquidacion.gastos)}
+              </strong>
+            </div>
+            <div style={{ padding: "11px", borderRadius: "11px", background: "rgba(255,255,255,.12)" }}>
+              <small>Resultado estimado</small>
+              <strong style={{ display: "block", fontSize: "19px", marginTop: "3px" }}>
+                {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(resumenLiquidacion.resultadoEstimado)}
+              </strong>
+            </div>
+          </div>
+
+          {errorLiquidacion && <p role="alert" style={{ color: "#ffd6d6", fontWeight: 800 }}>{errorLiquidacion}</p>}
+          {mensajeLiquidacion && <p role="status" style={{ color: "#d9ffe7", fontWeight: 800 }}>{mensajeLiquidacion}</p>}
+
+          <button
+            type="submit"
+            disabled={guardandoLiquidacion || !unidad?.id}
+            style={{
+              width: "100%",
+              marginTop: "13px",
+              padding: "12px",
+              border: 0,
+              borderRadius: "11px",
+              background: "#fff",
+              color: "#174b7a",
+              fontWeight: 900,
+              cursor: guardandoLiquidacion ? "wait" : "pointer",
+            }}
+          >
+            {guardandoLiquidacion ? "Enviando a Dirección…" : "Guardar y enviar a Dirección →"}
+          </button>
+        </form>
 
         {/* ECONOMÍA + GASTO */}
         <div

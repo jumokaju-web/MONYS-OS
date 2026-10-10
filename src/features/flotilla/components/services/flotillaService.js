@@ -1,4 +1,9 @@
 import { supabase } from "../../../../supabase";
+import { guardarCierreTurno } from "../../../inteligencia/services/cierresTurnoService";
+import {
+  crearObservacionesFlotilla,
+  leerLiquidacionFlotilla,
+} from "../../../inteligencia/utils/capturasFinancierasEquipo";
 
 const CAMPOS_UNIDAD = `
   id,
@@ -134,6 +139,68 @@ export async function obtenerRutasFlotillaPeriodo({ desde, hasta }) {
   }
 
   return Array.isArray(data) ? data : [];
+}
+
+export async function guardarLiquidacionFlotilla({
+  branchId,
+  responsable,
+  unidad,
+  ruta,
+  valores,
+  nota,
+}) {
+  if (!unidad?.id) throw new Error("Selecciona una unidad para liquidar.");
+  if (!String(responsable || "").trim()) {
+    throw new Error("Falta el nombre de quien entrega la liquidación.");
+  }
+  if (String(valores?.ingresoRuta ?? "").trim() === "") {
+    throw new Error("Escribe el ingreso cobrado por la ruta, aunque sea $0.");
+  }
+
+  return guardarCierreTurno({
+    branchId,
+    responsable,
+    turno: "flotilla",
+    pendientes: "Liquidación de flotilla pendiente de revisión por Dirección.",
+    incidencias: nota || null,
+    observaciones: crearObservacionesFlotilla(
+      {
+        ...valores,
+        unidadId: unidad.id,
+        placas: unidad.placas || "Sin placas",
+        chofer: unidad.chofer_nombre || responsable,
+        propietario: Array.isArray(unidad.propietarios)
+          ? unidad.propietarios[0]?.nombre || unidad.propietarios[0] || ""
+          : "",
+        rutaId: ruta?.id || null,
+        codigoRuta: ruta?.codigo_ruta || "Sin ruta registrada",
+        paquetes: ruta?.paquetes_total ?? null,
+        paros: ruta?.paros_total ?? null,
+        kilometros: ruta?.kilometros_ruta ?? null,
+      },
+      nota
+    ),
+  });
+}
+
+export async function obtenerLiquidacionFlotillaHoy({ unidadId, fecha }) {
+  if (!unidadId || !fecha) return null;
+
+  const { data, error } = await supabase
+    .from("cierres_turno")
+    .select("id,branch_id,responsable,turno,observaciones,fecha,created_at")
+    .eq("turno", "flotilla")
+    .eq("fecha", fecha)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) throw new Error("No fue posible consultar la liquidación de hoy.");
+
+  return (
+    (data || [])
+      .map((cierre) => ({ cierre, datos: leerLiquidacionFlotilla(cierre.observaciones) }))
+      .find((item) => item.datos?.unidadId === unidadId) || null
+  );
 }
 
 export { construirResumenSocios } from "./resumenSocios.js";

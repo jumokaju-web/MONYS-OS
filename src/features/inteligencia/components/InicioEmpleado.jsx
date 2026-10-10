@@ -5,7 +5,7 @@ import CierreTurno from "./CierreTurno";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import "./InicioEmpleado.css";
 
-export default function InicioEmpleado({ usuario, datosDashboard }) {
+export default function InicioEmpleado({ usuario, datosDashboard, onAbrirFlotilla }) {
   const branchId = datosDashboard?.branch_id || null;
 
   const nombre = usuario?.nombre || "Equipo MONYS";
@@ -299,7 +299,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
               padding: "0 10px 16px",
             }}
           >
-            <CierreTurno branchId={branchId} />
+            <CierreTurno branchId={branchId} usuario={usuario} />
           </div>
         </details>
       </section>
@@ -374,6 +374,9 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
               ["HOY", "📋", "Hoy"],
               ["INCIDENCIAS", "⚠️", "Incidencias"],
               ["TURNO", "📝", "Turno"],
+              ...(typeof onAbrirFlotilla === "function"
+                ? [["FLOTILLA", "🚚", "Flotilla"]]
+                : []),
             ].map(([seccion, icono, etiqueta]) => (
               <button
                 key={seccion}
@@ -382,7 +385,11 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
                 aria-current={
                   seccionOperacionActiva === seccion ? "page" : undefined
                 }
-                onClick={() => navegarOperacion(seccion)}
+                onClick={() =>
+                  seccion === "FLOTILLA"
+                    ? onAbrirFlotilla()
+                    : navegarOperacion(seccion)
+                }
                 style={{
                   flex: 1,
                   minHeight: "64px",
