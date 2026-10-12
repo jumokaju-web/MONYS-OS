@@ -53,9 +53,7 @@ export async function obtenerEmpleadosRH(
     throw error;
   }
 
-  return Array.isArray(data)
-    ? data
-    : [];
+  return anexarAuthUserIds(Array.isArray(data) ? data : []);
 }
 
 
@@ -114,6 +112,29 @@ export async function obtenerEmpleadosActivosParaAsignacion(
   return Array.isArray(data)
     ? data
     : [];
+}
+
+
+async function anexarAuthUserIds(empleados) {
+  const referencias = [...new Set(empleados.map((empleado) => empleado.usuario_id).filter(Boolean).map(String))];
+  if (!referencias.length) return empleados.map((empleado) => ({ ...empleado, auth_user_id: null }));
+
+  const [porId, porAuthId] = await Promise.all([
+    supabase.from("usuarios").select("id, auth_user_id").in("id", referencias),
+    supabase.from("usuarios").select("id, auth_user_id").in("auth_user_id", referencias),
+  ]);
+  if (porId.error) throw porId.error;
+  if (porAuthId.error) throw porAuthId.error;
+
+  const authPorReferencia = new Map();
+  for (const usuario of [...(porId.data || []), ...(porAuthId.data || [])]) {
+    if (usuario.id && usuario.auth_user_id) authPorReferencia.set(String(usuario.id), usuario.auth_user_id);
+    if (usuario.auth_user_id) authPorReferencia.set(String(usuario.auth_user_id), usuario.auth_user_id);
+  }
+  return empleados.map((empleado) => ({
+    ...empleado,
+    auth_user_id: authPorReferencia.get(String(empleado.usuario_id)) || null,
+  }));
 }
 
 

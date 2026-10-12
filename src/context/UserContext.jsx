@@ -115,7 +115,7 @@ export function UserProvider({
       } = await supabase
         .from("empleados")
         .select("id, puesto, responsabilidades, branch_id, business_id, organization_id, active")
-        .eq("usuario_id", authUserId)
+        .in("usuario_id", [...new Set([usuarioDB.id, usuarioDB.auth_user_id].filter(Boolean))])
         .eq("active", true)
         .order("updated_at", { ascending: false })
         .limit(1)

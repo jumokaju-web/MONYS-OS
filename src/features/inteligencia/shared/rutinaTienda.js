@@ -50,7 +50,7 @@ function crearTarea({ fecha, empleado, titulo, descripcion, instrucciones, crite
     prioridad,
     // tareas_operativas se filtra por el nombre de la ficha de empleada.
     responsable: empleado.nombre || "Equipo de tienda",
-    responsableUsuarioId: empleado.usuario_id || null,
+    responsableUsuarioId: empleado.auth_user_id || empleado.usuario_id || null,
     requiereEvidencia: false,
   };
 }
