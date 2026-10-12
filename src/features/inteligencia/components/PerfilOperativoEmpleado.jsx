@@ -5,6 +5,7 @@ import {
   guardarConfiguracionOperativa,
   obtenerConfiguracionOperativa,
 } from "../services/empleadoConfiguracionOperativaService";
+import { resolverAreasPerfilEmpleado } from "../shared/responsabilidadesEmpleado";
 
 const TURNOS = [
   { id: "PRIMERO", nombre: "Primer turno" },
@@ -14,6 +15,9 @@ const TURNOS = [
 
 export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
   const usuarioId = usuario?.auth_user_id || usuario?.id || null;
+  const responsabilidadesKey = Array.isArray(usuario?.responsabilidades)
+    ? usuario.responsabilidades.join("|")
+    : "";
   const [formulario, setFormulario] = useState({
     nombrePreferido: usuario?.nombre || "",
     diaDescanso: "",
@@ -28,7 +32,8 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
 
   useEffect(() => {
     let vigente = true;
-    async function cargar() {
+    const areasDesdeRH = resolverAreasPerfilEmpleado(usuario);
+  async function cargar() {
       if (!usuarioId) {
         setCargando(false);
         setError("Esta cuenta aún no está vinculada a una ficha de empleada.");
@@ -38,16 +43,19 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
         const configuracion = await obtenerConfiguracionOperativa(usuarioId);
         if (!vigente) return;
         if (configuracion) {
+          const areasGuardadas = Array.isArray(configuracion.areas_asignadas) && configuracion.areas_asignadas.length
+            ? configuracion.areas_asignadas
+            : [configuracion.area_asignada].filter(Boolean);
           setFormulario({
             nombrePreferido: configuracion.nombre_preferido || usuario?.nombre || "",
             diaDescanso: String(configuracion.dia_descanso),
-            areasAsignadas: Array.isArray(configuracion.areas_asignadas) && configuracion.areas_asignadas.length
-              ? configuracion.areas_asignadas
-              : [configuracion.area_asignada].filter(Boolean),
+            areasAsignadas: areasGuardadas.length ? areasGuardadas : areasDesdeRH,
             turnoAsignado: configuracion.turno_asignado || "",
           });
           setGuardado(true);
           onActualizado?.(configuracion);
+        } else {
+          setFormulario((actual) => ({ ...actual, areasAsignadas: areasDesdeRH }));
         }
       } catch (errorCarga) {
         if (vigente) setError(errorCarga?.message || "No pudimos abrir tu perfil operativo.");
@@ -57,7 +65,7 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
     }
     cargar();
     return () => { vigente = false; };
-  }, [usuarioId, usuario?.nombre, onActualizado]);
+  }, [usuarioId, usuario?.nombre, usuario?.puesto, usuario?.role, responsabilidadesKey, onActualizado]);
 
   function cambiar(campo, valor) {
     setFormulario((actual) => ({ ...actual, [campo]: valor }));
@@ -130,7 +138,10 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
           </select>
         </label>
         <fieldset style={{ display: "grid", gap: "8px", padding: 0, border: 0, margin: 0 }}>
-          <legend style={labelStyle}>¿Qué áreas te asignaron? Elige hasta tres.</legend>
+          <legend style={labelStyle}>Áreas de trabajo · hasta tres</legend>
+          <span style={{ color: "#71636b", fontSize: "12px" }}>
+            MONYS precargó las áreas que Dirección te asignó. Puedes ajustarlas para organizar tus tareas.
+          </span>
           {AREAS_OPERATIVAS.map((area) => {
             const seleccionada = (formulario.areasAsignadas || []).includes(area.id);
             const maximoAlcanzado = (formulario.areasAsignadas || []).length >= 3;

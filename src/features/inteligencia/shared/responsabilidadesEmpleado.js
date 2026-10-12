@@ -62,6 +62,13 @@ export function resolverResponsabilidadesEmpleado(usuario = {}) {
   return [];
 }
 
+export function resolverAreasPerfilEmpleado(usuario = {}) {
+  // El perfil operativo usa los mismos identificadores que las
+  // responsabilidades de RH. Precargamos hasta tres para que la empleada
+  // no tenga que volver a capturar lo que Dirección ya asignó.
+  return resolverResponsabilidadesEmpleado(usuario).slice(0, 3);
+}
+
 export function detalleResponsabilidadesEmpleado(usuario = {}) {
   const seleccionadas = new Set(resolverResponsabilidadesEmpleado(usuario));
   return RESPONSABILIDADES_EMPLEADO.filter((item) => seleccionadas.has(item.id));
