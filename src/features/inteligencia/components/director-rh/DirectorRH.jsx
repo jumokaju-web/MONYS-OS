@@ -16,6 +16,10 @@ import {
 import {
   obtenerPuestosRH,
 } from "../../services/puestosRHService";
+import {
+  RESPONSABILIDADES_EMPLEADO,
+  detalleResponsabilidadesEmpleado,
+} from "../../shared/responsabilidadesEmpleado";
 
 import {
   obtenerNegociosActivos,
@@ -119,6 +123,7 @@ const formularioInicial = {
   sueldoBase: "",
   periodicidadPago: "",
   tipoContrato: "",
+  responsabilidades: ["VENTA_TIENDA"],
 };
 
 export default function DirectorRH({
@@ -245,6 +250,21 @@ const [
     );
   }
 
+  function alternarResponsabilidad(responsabilidadId) {
+    setFormularioEmpleado((actual) => {
+      const seleccionadas = new Set(actual.responsabilidades || []);
+      if (seleccionadas.has(responsabilidadId)) {
+        seleccionadas.delete(responsabilidadId);
+      } else {
+        seleccionadas.add(responsabilidadId);
+      }
+      return {
+        ...actual,
+        responsabilidades: [...seleccionadas],
+      };
+    });
+  }
+
   function cerrarFormulario() {
     if (guardandoEmpleado) {
       return;
@@ -284,6 +304,11 @@ const [
 
     tipoContrato:
       empleado?.tipo_contrato || "",
+
+    responsabilidades:
+      Array.isArray(empleado?.responsabilidades) && empleado.responsabilidades.length
+        ? empleado.responsabilidades
+        : detalleResponsabilidadesEmpleado(empleado).map((item) => item.id),
   });
 
   setMostrarFormulario(
@@ -357,6 +382,14 @@ const [
       return;
     }
 
+    if (!formularioEmpleado.responsabilidades.length) {
+      setErrorEmpleado(
+        "Selecciona por lo menos una responsabilidad operativa."
+      );
+
+      return;
+    }
+
     let usuarioCreado =
       null;
 
@@ -386,6 +419,9 @@ const [
 
           tipoContrato:
             formularioEmpleado.tipoContrato,
+
+          responsabilidades:
+            formularioEmpleado.responsabilidades,
         });
 
         setMensajeEmpleado(
@@ -495,6 +531,9 @@ const [
 
             usuarioId:
               usuarioCreado.id,
+
+            responsabilidades:
+              formularioEmpleado.responsabilidades,
           });
         } catch (
           errorEmpleadoRH
@@ -1103,6 +1142,57 @@ async function manejarEliminarEmpleado(
               </>
             )}
 
+            <fieldset
+              style={{
+                gridColumn: "1 / -1",
+                margin: 0,
+                padding: "16px",
+                borderRadius: "14px",
+                border: "1px solid #e2ced9",
+                background: "#fff8fb",
+              }}
+            >
+              <legend style={{ padding: "0 8px", fontWeight: "900", color: "#7c3158" }}>
+                Responsabilidades en MONYS *
+              </legend>
+              <p style={{ margin: "0 0 12px", color: "#746b71", fontSize: "13px" }}>
+                Puede tener varias. Esto define las herramientas que verá y el trabajo que podrá recibir.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
+                {RESPONSABILIDADES_EMPLEADO.map((responsabilidad) => {
+                  const seleccionada = formularioEmpleado.responsabilidades.includes(responsabilidad.id);
+                  return (
+                    <label
+                      key={responsabilidad.id}
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        alignItems: "flex-start",
+                        padding: "12px",
+                        borderRadius: "12px",
+                        border: seleccionada ? "2px solid #bc2d70" : "1px solid #e5d9df",
+                        background: seleccionada ? "#fff" : "#faf7f9",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={seleccionada}
+                        onChange={() => alternarResponsabilidad(responsabilidad.id)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <span>
+                        <strong style={{ display: "block" }}>{responsabilidad.icono} {responsabilidad.nombre}</strong>
+                        <small style={{ display: "block", marginTop: "3px", color: "#746b71", lineHeight: 1.35 }}>
+                          {responsabilidad.descripcion}
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
             <label>
               <strong>
                 Fecha de ingreso
@@ -1516,6 +1606,28 @@ async function manejarEliminarEmpleado(
               >
                 {empleado.puesto ||
                   "Puesto pendiente"}
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "8px" }}>
+                {detalleResponsabilidadesEmpleado(empleado).length ? (
+                  detalleResponsabilidadesEmpleado(empleado).map((responsabilidad) => (
+                    <span
+                      key={responsabilidad.id}
+                      style={{
+                        padding: "4px 7px",
+                        borderRadius: "999px",
+                        background: "#f7e7ef",
+                        color: "#7d3157",
+                        fontSize: "10px",
+                        fontWeight: "800",
+                      }}
+                    >
+                      {responsabilidad.icono} {responsabilidad.nombre}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ color: "#a36b32", fontSize: "11px" }}>Responsabilidades pendientes</span>
+                )}
               </div>
             </div>
 
