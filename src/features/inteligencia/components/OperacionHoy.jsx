@@ -8,7 +8,6 @@ import {
   obtenerTareasOperativas,
   crearTareaOperativa,
   cambiarEstadoTareaOperativa,
-  eliminarTareaOperativa,
   subirEvidenciaTarea,
   obtenerEvidenciasTarea,
   marcarTareaParaEvaluacion,
@@ -18,6 +17,7 @@ import {
 import {
   limpiarYBalancearOperacion,
 } from "../services/limpiezaOperacionService";
+import RutinaTienda from "./RutinaTienda";
 
 const formularioInicial = {
   titulo: "",
@@ -92,6 +92,7 @@ export default function OperacionHoy({
   organizationId = null,
   businessId = null,
   branchId = null,
+  datosDashboard = null,
 }) {
   const [
     tareas,
@@ -735,6 +736,13 @@ export default function OperacionHoy({
         </div>
       </div>
 
+      <RutinaTienda
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+        datosDashboard={datosDashboard}
+        onGuardada={cargarTareas}
+      />
 
       <form
         onSubmit={
@@ -1655,6 +1663,13 @@ export default function OperacionHoy({
                       {
                         tarea.evaluacion_resumen
                       }
+                    </div>
+                  )}
+
+                  {tarea.resultado && /CONTAR PRODUCTOS CRITICOS DE BODEGA/i.test(tarea.titulo || "") && (
+                    <div style={{ marginTop: "8px", padding: "10px 12px", borderRadius: "10px", background: "#fff9e9", border: "1px solid #efe0b8", color: "#55452a", fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                      <strong>📦 Conteo físico reportado</strong>
+                      <div style={{ marginTop: "5px" }}>{tarea.resultado}</div>
                     </div>
                   )}
                 </div>

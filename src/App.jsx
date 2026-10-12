@@ -1302,6 +1302,7 @@ fechaFinal={
             datosDashboard?.branch_id ||
             null
           }
+          datosDashboard={datosDashboard}
         /></div>
       }
 
@@ -1473,6 +1474,7 @@ fechaFinal={
     datosDashboard?.branch_id ||
     null
   }
+  datosDashboard={datosDashboard}
 />
 
    <CierreTurno

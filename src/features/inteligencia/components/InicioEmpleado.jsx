@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
 import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
+import PerfilOperativoEmpleado from "./PerfilOperativoEmpleado";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import {
   detalleResponsabilidadesEmpleado,
@@ -26,6 +27,10 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
   const puedeCaja = responsabilidades.includes("CAJA_CORTE");
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
   const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
+  const [nombrePreferido, setNombrePreferido] = useState("");
+  const actualizarNombrePreferido = useCallback((perfil) => {
+    setNombrePreferido(perfil?.nombre_preferido || "");
+  }, []);
 
   useEffect(() => {
     function reflejarSeccionGrowth(event) {
@@ -173,7 +178,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
               lineHeight: 1.15,
             }}
           >
-            Hola, {esMarketing ? String(nombre).trim().split(/\s+/)[0] : nombre}{" "}
+            Hola, {esMarketing ? String(nombre).trim().split(/\s+/)[0] : (nombrePreferido || nombre)}{" "}
             {esMarketing ? "💗" : "👋"}
           </h1>
 
@@ -227,6 +232,13 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           padding: "18px 12px",
         }}
       >
+        {!esMarketing && (
+          <PerfilOperativoEmpleado
+            usuario={usuario}
+            onActualizado={actualizarNombrePreferido}
+          />
+        )}
+
         {/* MENSAJE PRINCIPAL */}
 
         {!esMarketing && (

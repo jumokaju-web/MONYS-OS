@@ -336,6 +336,9 @@ export default function OperacionEmpleado({
   const [mensaje, setMensaje] =
     useState("");
 
+  const [resultadosConteoInventario, setResultadosConteoInventario] =
+    useState({});
+
   const fechaHoy =
     obtenerFechaHoy();
 
@@ -771,6 +774,9 @@ export default function OperacionEmpleado({
       const esSeguimientoCRM = normalizarTexto(
         tarea?.titulo
       ).startsWith("SEGUIMIENTO CRM:");
+      const esConteoInventario = normalizarTexto(
+        tarea?.titulo
+      ).includes("CONTAR PRODUCTOS CRITICOS DE BODEGA");
 
       if (nuevoEstado === "terminada" && esSeguimientoCRM) {
         resultadoSeguimiento = String(
@@ -781,6 +787,14 @@ export default function OperacionEmpleado({
           setError(
             "Escribe el resultado del contacto antes de terminar esta tarea."
           );
+          return;
+        }
+      }
+
+      if (nuevoEstado === "terminada" && esConteoInventario) {
+        resultadoSeguimiento = String(resultadoCapturado || "").trim();
+        if (!resultadoSeguimiento) {
+          setError("Registra la existencia física de los productos antes de terminar el conteo.");
           return;
         }
       }
@@ -2218,6 +2232,15 @@ export default function OperacionEmpleado({
               const esSeguimientoCRM = normalizarTexto(
                 tarea.titulo
               ).startsWith("SEGUIMIENTO CRM:");
+              const esConteoInventario = normalizarTexto(
+                tarea.titulo
+              ).includes("CONTAR PRODUCTOS CRITICOS DE BODEGA");
+              const resultadoConteo = String(
+                resultadosConteoInventario[tarea.id] ?? tarea.resultado ?? ""
+              );
+              const requiereFotoFinal = tarea.requiere_evidencia === true;
+              const puedeTerminarTarea = (!requiereFotoFinal || tieneFinal) &&
+                (!esConteoInventario || resultadoConteo.trim().length > 0);
 
 
               const esUrgente =
@@ -2383,6 +2406,21 @@ export default function OperacionEmpleado({
 />
 )}
 
+{esConteoInventario && tarea.estado === "en_proceso" && (
+  <label style={{ display: "grid", gap: "7px", marginTop: "13px", color: "#4c3944", fontWeight: 800 }}>
+    Existencia física por producto
+    <textarea
+      required
+      rows={5}
+      value={resultadoConteo}
+      onChange={(event) => setResultadosConteoInventario((actual) => ({ ...actual, [tarea.id]: event.target.value }))}
+      placeholder={"Ejemplo:\nProducto A: 4 piezas\nProducto B: 0 piezas; revisar anaquel"}
+      style={{ width: "100%", boxSizing: "border-box", padding: "11px", border: "1px solid #dfc8d4", borderRadius: "10px", font: "inherit", lineHeight: 1.45 }}
+    />
+    <small style={{ color: "#76666e", fontWeight: 500 }}>Anota el conteo físico. MONYS lo guarda como resultado de la tarea para que Dirección revise diferencias contra SICAR.</small>
+  </label>
+)}
+
  {esCentroGrowth &&
   normalizarTexto(tarea.area) ===
   "MARKETING" &&
@@ -2542,12 +2580,13 @@ export default function OperacionEmpleado({
                         <button
                           type="button"
                           disabled={
-                            !tieneFinal
+                            !puedeTerminarTarea
                           }
                           onClick={() =>
                             cambiarEstado(
                               tarea,
-                              "terminada"
+                              "terminada",
+                              esConteoInventario ? resultadoConteo : null
                             )
                           }
                           style={{
@@ -2562,7 +2601,7 @@ export default function OperacionEmpleado({
                             padding:
                               "12px",
                             background:
-                              tieneFinal
+                              puedeTerminarTarea
                                 ? "#2f8a5d"
                                 : "#d9dfdc",
                             color:
@@ -2570,19 +2609,19 @@ export default function OperacionEmpleado({
                             fontWeight:
                               "900",
                             cursor:
-                              tieneFinal
+                              puedeTerminarTarea
                                 ? "pointer"
                                 : "not-allowed",
                           }}
                         >
-                          ✅ Terminar tarea
+                          {esConteoInventario ? "✅ Guardar conteo y terminar" : "✅ Terminar tarea"}
                         </button>
                       )}
 
                       {tarea.estado ===
                         "en_proceso" &&
                         !esSeguimientoCRM &&
-                        !tieneFinal && (
+                        requiereFotoFinal && !tieneFinal && (
                           <div
                             style={{
                               marginTop:
