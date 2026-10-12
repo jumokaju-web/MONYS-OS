@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   limpiarResponsabilidadesEmpleado,
+  resolverAreasPerfilEmpleado,
   resolverResponsabilidadesEmpleado,
 } from "../../src/features/inteligencia/shared/responsabilidadesEmpleado.js";
 
@@ -39,5 +40,29 @@ test("respeta la selección explícita de WhatsApp sin agregar tienda", () => {
       responsabilidades: ["VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP"],
     }),
     ["VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP"],
+  );
+});
+
+test("precarga en el perfil operativo las áreas ya asignadas desde RH", () => {
+  assert.deepEqual(
+    resolverAreasPerfilEmpleado({
+      puesto: "Ventas",
+      responsabilidades: ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO"],
+    }),
+    ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO"],
+  );
+});
+
+test("limita las áreas iniciales a tres y conserva el orden definido en RH", () => {
+  assert.deepEqual(
+    resolverAreasPerfilEmpleado({
+      responsabilidades: [
+        "VENTA_TIENDA",
+        "VENTA_WHATSAPP",
+        "PUBLICAR_GRUPOS_WHATSAPP",
+        "CAJA_CORTE",
+      ],
+    }),
+    ["VENTA_TIENDA", "VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP"],
   );
 });
