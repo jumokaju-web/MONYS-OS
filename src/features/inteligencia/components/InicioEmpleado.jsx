@@ -6,7 +6,7 @@ import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import "./InicioEmpleado.css";
 
 export default function InicioEmpleado({ usuario, datosDashboard }) {
-  const branchId = datosDashboard?.branch_id || null;
+  const branchId = usuario?.branch_id || datosDashboard?.branch_id || null;
 
   const nombre = usuario?.nombre || "Equipo MONYS";
 
