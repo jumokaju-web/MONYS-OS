@@ -51,8 +51,18 @@ function crearTarea({ fecha, empleado, configuracion, titulo, descripcion, instr
 }
 
 function esVendedoraTienda(empleado, configuracion) {
-  return configuracion?.area_asignada === "VENTA_TIENDA" &&
+  const areas = Array.isArray(configuracion?.areas_asignadas) && configuracion.areas_asignadas.length
+    ? configuracion.areas_asignadas
+    : [configuracion?.area_asignada];
+  return areas.includes("VENTA_TIENDA") &&
     resolverResponsabilidadesEmpleado(empleado).includes("VENTA_TIENDA");
+}
+
+function tieneArea(configuracion, area) {
+  const areas = Array.isArray(configuracion?.areas_asignadas) && configuracion.areas_asignadas.length
+    ? configuracion.areas_asignadas
+    : [configuracion?.area_asignada];
+  return areas.includes(area);
 }
 
 function coincideTurno(configuracion, turno) {
@@ -161,7 +171,7 @@ export function construirRutinaInteligente({
     avisos.push("El último reporte SICAR no detectó productos críticos o bajos; no se generó conteo de bodega.");
   } else {
     const candidatosBodega = disponibles.filter((empleado) =>
-      perfiles.get(String(empleado.id))?.area_asignada === "INVENTARIO_APOYO" ||
+      tieneArea(perfiles.get(String(empleado.id)), "INVENTARIO_APOYO") ||
       resolverResponsabilidadesEmpleado(empleado).includes("INVENTARIO_APOYO"),
     );
     const responsable = elegirConMenorCarga(candidatosBodega, [...trabajoPrevio, ...asignacionesHoy], fecha, perfiles);
