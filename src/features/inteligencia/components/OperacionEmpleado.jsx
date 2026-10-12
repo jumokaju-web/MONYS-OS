@@ -33,6 +33,7 @@ import {
 
 import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
 import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
+import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
@@ -275,6 +276,8 @@ export default function OperacionEmpleado({
   branchId = null,
   usuario = null,
 }) {
+  const esCentroGrowth = esPerfilGrowth(usuario || {});
+
   const [
     espaciosGrowth,
     setEspaciosGrowth,
@@ -338,7 +341,9 @@ export default function OperacionEmpleado({
     let activo = true;
 
     async function cargarEspaciosGrowth() {
-      if (!usuario?.organization_id) {
+      if (!esCentroGrowth || !usuario?.organization_id) {
+        setEspaciosGrowth([]);
+        setClaveEspacioGrowthActivo("");
         return;
       }
 
@@ -383,6 +388,7 @@ export default function OperacionEmpleado({
     };
   }, [
     branchId,
+    esCentroGrowth,
     usuario?.branch_id,
     usuario?.business_id,
     usuario?.organization_id,
@@ -462,19 +468,21 @@ export default function OperacionEmpleado({
             ].fecha,
         }),
 
-        obtenerCampanasMarketing({
-          organizationId:
-            organizationIdActivo,
-          businessId: businessIdActivo,
-          branchId: branchIdActivo,
-        }).catch((errorCampanas) => {
-          console.error(
-            "Error cargando resumen Growth:",
-            errorCampanas
-          );
+        esCentroGrowth
+          ? obtenerCampanasMarketing({
+              organizationId:
+                organizationIdActivo,
+              businessId: businessIdActivo,
+              branchId: branchIdActivo,
+            }).catch((errorCampanas) => {
+              console.error(
+                "Error cargando resumen Growth:",
+                errorCampanas
+              );
 
-          return [];
-        }),
+              return [];
+            })
+          : Promise.resolve([]),
       ]);
 
       setCampanasGrowth(
@@ -938,24 +946,6 @@ export default function OperacionEmpleado({
       )
     )[0] || null;
   }, [activas]);
-
-  const esCentroGrowth = useMemo(
-    () =>
-      normalizarTexto(
-        usuario?.role
-      ) === "MARKETING" ||
-      [...activas, ...tareasCalendario].some(
-        (tarea) =>
-          normalizarTexto(
-            tarea.area
-          ) === "MARKETING"
-      ),
-    [
-      activas,
-      tareasCalendario,
-      usuario?.role,
-    ]
-  );
 
   const borradorAgendaGrowth = useMemo(
     () =>
