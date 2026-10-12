@@ -1,4 +1,8 @@
 import { supabase } from "../../../supabase";
+import {
+  limpiarResponsabilidadesEmpleado,
+  resolverResponsabilidadesEmpleado,
+} from "../shared/responsabilidadesEmpleado";
 
 
 export async function obtenerEmpleadosRH(
@@ -18,6 +22,7 @@ export async function obtenerEmpleadosRH(
         branch_id,
         nombre,
         puesto,
+        responsabilidades,
         usuario_id,
         active,
         fecha_ingreso,
@@ -78,6 +83,7 @@ export async function obtenerEmpleadosActivosParaAsignacion(
       branch_id,
       nombre,
       puesto,
+      responsabilidades,
       usuario_id,
       active
     `)
@@ -145,6 +151,22 @@ function detectarPerfilTarea({
       `${titulo} ${descripcion} ${area}`
     );
 
+  if (
+    texto.includes("whatsapp") ||
+    texto.includes("grupo de whats") ||
+    texto.includes("grupos de whats")
+  ) {
+    return "whatsapp";
+  }
+
+  if (
+    texto.includes("caja") ||
+    texto.includes("corte") ||
+    texto.includes("fondo fijo")
+  ) {
+    return "caja";
+  }
+
 
   if (
     texto.includes("marketing") ||
@@ -169,7 +191,7 @@ function detectarPerfilTarea({
     texto.includes("probador") ||
     texto.includes("bodega")
   ) {
-    return "tienda";
+    return "inventario";
   }
 
 
@@ -244,6 +266,9 @@ function calcularCompatibilidadEmpleado({
     normalizarTexto(
       empleado?.puesto
     );
+  const responsabilidades = new Set(
+    resolverResponsabilidadesEmpleado(empleado)
+  );
 
   if (!puesto) {
     return 1;
@@ -251,6 +276,30 @@ function calcularCompatibilidadEmpleado({
 
 
   let puntos = 1;
+
+  if (
+    perfilTarea === "whatsapp" &&
+    (
+      responsabilidades.has("VENTA_WHATSAPP") ||
+      responsabilidades.has("PUBLICAR_GRUPOS_WHATSAPP")
+    )
+  ) {
+    puntos += 14;
+  }
+
+  if (
+    perfilTarea === "caja" &&
+    responsabilidades.has("CAJA_CORTE")
+  ) {
+    puntos += 14;
+  }
+
+  if (
+    perfilTarea === "inventario" &&
+    responsabilidades.has("INVENTARIO_APOYO")
+  ) {
+    puntos += 14;
+  }
 
 
   if (
@@ -268,7 +317,7 @@ function calcularCompatibilidadEmpleado({
 
   if (
     perfilTarea === "tienda" &&
-    (
+    (responsabilidades.has("VENTA_TIENDA") ||
       puesto.includes("tienda") ||
       puesto.includes("vendedora") ||
       puesto.includes("ventas") ||
@@ -282,7 +331,8 @@ function calcularCompatibilidadEmpleado({
 
   if (
     perfilTarea === "ventas" &&
-    (
+    (responsabilidades.has("VENTA_TIENDA") ||
+      responsabilidades.has("VENTA_WHATSAPP") ||
       puesto.includes("venta") ||
       puesto.includes("vendedora") ||
       puesto.includes("vendedor") ||
@@ -572,6 +622,7 @@ export async function crearEmpleadoRH({
   periodicidadPago = null,
   tipoContrato = null,
   usuarioId = null,
+  responsabilidades = [],
 }) {
   if (!branchId) {
     throw new Error(
@@ -697,6 +748,9 @@ export async function crearEmpleadoRH({
       puesto
         ? String(puesto).trim()
         : null,
+
+    responsabilidades:
+      limpiarResponsabilidadesEmpleado(responsabilidades),
 
     usuario_id:
       usuarioId || null,
@@ -865,6 +919,7 @@ export async function actualizarEmpleadoRH({
   sueldoBase = null,
   periodicidadPago = null,
   tipoContrato = null,
+  responsabilidades = [],
 }) {
   if (!empleadoId) {
     throw new Error(
@@ -887,6 +942,9 @@ export async function actualizarEmpleadoRH({
       puesto
         ? String(puesto).trim()
         : null,
+
+    responsabilidades:
+      limpiarResponsabilidadesEmpleado(responsabilidades),
 
     fecha_ingreso:
       fechaIngreso || null,
