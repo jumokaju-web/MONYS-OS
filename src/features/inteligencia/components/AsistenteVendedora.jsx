@@ -7,7 +7,11 @@ import {
   listarOportunidadesGanadasComision,
 } from "../services/comisionesSicarService";
 import { resumirComisionesSicar } from "../shared/resumenComisionesSicar";
-import { construirGuiaVenta, recomendarProductoVendedora } from "../shared/asistenteVendedora";
+import {
+  construirGuiaVenta,
+  construirLigaVendedoras,
+  recomendarProductoVendedora,
+} from "../shared/asistenteVendedora";
 
 const dinero = new Intl.NumberFormat("es-MX", {
   style: "currency", currency: "MXN", maximumFractionDigits: 2,
@@ -79,12 +83,18 @@ export default function AsistenteVendedora({
         const resumen = resumirComisionesSicar({ filas, empleados, desde, hasta, oportunidadesCRM });
         const empleadoActual = empleados.find((persona) => persona.usuario_id === usuario?.auth_user_id);
         const resultado = resumen.comisiones.find((fila) => fila.empleadoId === empleadoActual?.id);
+        const liga = construirLigaVendedoras({
+          comisiones: resumen.comisiones,
+          empleadoId: empleadoActual?.id,
+        });
         if (activo) {
           setComision({
             estado: resultado ? "lista" : "sin_asignacion",
             importe: resultado?.comision ?? null,
             ventas: resultado?.ventas ?? null,
             tickets: resultado?.tickets ?? null,
+            ticketPromedio: resultado?.tickets > 0 ? resultado.ventas / resultado.tickets : null,
+            liga,
             desde,
             hasta,
           });
@@ -153,6 +163,61 @@ export default function AsistenteVendedora({
           </small>
         </article>
       </div>
+
+      <section className="sales-league" aria-labelledby="sales-league-title">
+        <header className="sales-league__header">
+          <div>
+            <span>LIGA MONYS · MISMO CORTE Y SUCURSAL</span>
+            <h3 id="sales-league-title">Tu avance como vendedora</h3>
+          </div>
+          {comision.liga?.destacada && (
+            <strong>🏆 {comision.liga.destacada.nombreCorto}</strong>
+          )}
+        </header>
+
+        {comision.estado === "lista" ? (
+          <>
+            <div className="sales-league__personal">
+              <article>
+                <span>Clientes con compra*</span>
+                <strong>{comision.tickets}</strong>
+                <small>Medidos por tickets</small>
+              </article>
+              <article>
+                <span>Tu ticket promedio</span>
+                <strong>{dinero.format(comision.ticketPromedio || 0)}</strong>
+                <small>Venta ÷ tickets del corte</small>
+              </article>
+              <article>
+                <span>Tu posición</span>
+                <strong>{comision.liga?.actual && comision.liga.comparable
+                  ? `#${comision.liga.actual.posicion} de ${comision.liga.ranking.length}`
+                  : "En formación"}</strong>
+                <small>Mínimo {comision.liga?.minimoTickets || 3} tickets</small>
+              </article>
+            </div>
+
+            {comision.liga?.comparable ? (
+              <ol className="sales-league__ranking">
+                {comision.liga.ranking.slice(0, 3).map((fila) => (
+                  <li key={fila.empleadoId} className={fila.empleadoId === comision.liga.actual?.empleadoId ? "is-current" : ""}>
+                    <b>{fila.posicion}</b>
+                    <span><strong>{fila.nombreCorto}</strong><small>{fila.tickets} compras · ticket {dinero.format(fila.ticketPromedio)}</small></span>
+                    <em>{fila.puntaje} pts</em>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="sales-league__empty">La comparación aparecerá cuando al menos dos vendedoras tengan 3 tickets asignados correctamente.</p>
+            )}
+
+            <p className="sales-league__coach"><b>💡 Cómo subir:</b> {comision.liga?.recomendacion}</p>
+            <small className="sales-league__note">*SICAR cuenta tickets, no personas únicas. El puntaje combina ventas 40%, compras atendidas 35% y ticket promedio 25%.</small>
+          </>
+        ) : (
+          <p className="sales-league__empty">La liga se activará cuando Dirección vincule los usuarios SICAR y cargue el corte comparable.</p>
+        )}
+      </section>
 
       <footer className="sales-copilot__flow">
         <span><b>1</b> Escucha qué necesita</span>
