@@ -1181,11 +1181,6 @@ if (
     <InicioEmpleado
       usuario={usuario}
       datosDashboard={datosDashboard}
-      onAbrirFlotilla={
-        puedeAbrirModulo("Flotilla")
-          ? () => setPantallaActual("flotilla")
-          : null
-      }
     />
   );
 }

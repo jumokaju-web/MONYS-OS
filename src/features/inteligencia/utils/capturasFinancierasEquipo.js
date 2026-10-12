@@ -1,5 +1,8 @@
 const MARCADOR_CAJA = "MONYS_CAJA_V1";
+const MARCADOR_APERTURA_CAJA = "MONYS_APERTURA_CAJA_V1";
 const MARCADOR_FLOTILLA = "MONYS_FLOTILLA_V1";
+
+export const FONDO_FIJO_CAJA = 1000;
 
 function numero(valor) {
   const convertido = Number(valor);
@@ -8,6 +11,23 @@ function numero(valor) {
 
 function redondear(valor) {
   return Math.round((numero(valor) + Number.EPSILON) * 100) / 100;
+}
+
+export function resumirMovimientosCaja(movimientos = []) {
+  const lista = Array.isArray(movimientos) ? movimientos : [];
+  return lista.reduce(
+    (resumen, movimiento) => {
+      const monto = Math.max(0, numero(movimiento?.monto));
+      if (!monto) return resumen;
+      if (movimiento?.tipo === "entrada") resumen.entradas += monto;
+      else resumen.salidas += monto;
+      if (movimiento?.categoria === "deposito_traspaso") resumen.traspasos += monto;
+      if (movimiento?.categoria === "prestamo_anticipo") resumen.prestamos += monto;
+      resumen.cantidad += 1;
+      return resumen;
+    },
+    { entradas: 0, salidas: 0, traspasos: 0, prestamos: 0, cantidad: 0 }
+  );
 }
 
 function guardarBloque(marcador, datos, nota = "") {
@@ -44,15 +64,25 @@ export function calcularCorteCaja(datos = {}) {
   const gastosCaja = numero(datos.gastosCaja);
   const efectivoEntregado = numero(datos.efectivoEntregado);
   const efectivoFinal = numero(datos.efectivoFinal);
+  const movimientos = resumirMovimientosCaja(datos.movimientosCaja);
+  const usaDetalle = movimientos.cantidad > 0;
+  const entradasPosteriores = usaDetalle ? movimientos.entradas : 0;
+  const salidasPosteriores =
+    (usaDetalle ? movimientos.salidas : gastosCaja) + efectivoEntregado;
   const cobrado = efectivoVentas + tarjeta + transferencias + otrosCobros;
   const efectivoEsperado =
-    fondoInicial + efectivoVentas - gastosCaja - efectivoEntregado;
+    fondoInicial + efectivoVentas + entradasPosteriores - salidasPosteriores;
 
   return {
     cobrado: redondear(cobrado),
     diferenciaVenta: redondear(cobrado - ventaSicar),
     efectivoEsperado: redondear(efectivoEsperado),
     diferenciaCaja: redondear(efectivoFinal - efectivoEsperado),
+    entradasPosteriores: redondear(entradasPosteriores),
+    salidasPosteriores: redondear(salidasPosteriores),
+    traspasos: redondear(movimientos.traspasos),
+    prestamos: redondear(movimientos.prestamos),
+    movimientosRegistrados: movimientos.cantidad,
   };
 }
 
@@ -67,6 +97,34 @@ export function crearObservacionesCorte(datos, nota) {
     },
     nota
   );
+}
+
+export function crearObservacionesAperturaCaja(datos = {}) {
+  return guardarBloque(MARCADOR_APERTURA_CAJA, {
+    sesionCajaId: String(datos.sesionCajaId || "").trim(),
+    responsable: String(datos.responsable || "").trim(),
+    fondoInicial: FONDO_FIJO_CAJA,
+    abiertoEn: datos.abiertoEn || new Date().toISOString(),
+    estado: "abierta",
+  });
+}
+
+export function leerAperturaCaja(texto) {
+  return leerBloque(texto, MARCADOR_APERTURA_CAJA);
+}
+
+export function obtenerSesionCajaActiva(cierres = []) {
+  const ordenados = [...(Array.isArray(cierres) ? cierres : [])].sort(
+    (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0)
+  );
+
+  for (const cierre of ordenados) {
+    const apertura = leerAperturaCaja(cierre?.observaciones);
+    if (apertura) return { ...apertura, cierreAperturaId: cierre.id };
+    if (leerCorteCaja(cierre?.observaciones)) return null;
+  }
+
+  return null;
 }
 
 export function leerCorteCaja(texto) {
