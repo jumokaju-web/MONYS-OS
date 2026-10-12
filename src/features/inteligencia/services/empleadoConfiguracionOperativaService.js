@@ -30,7 +30,7 @@ export async function obtenerConfiguracionOperativa(usuarioId) {
   if (!usuarioId) return null;
   const { data, error } = await supabase
     .from("empleado_configuracion_operativa")
-    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, turno_asignado, updated_at")
+    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, areas_asignadas, turno_asignado, updated_at")
     .eq("usuario_id", usuarioId)
     .maybeSingle();
   revisarError(error, "No pudimos leer tu configuración");
@@ -44,6 +44,7 @@ export async function guardarConfiguracionOperativa({
   nombrePreferido,
   diaDescanso,
   areaAsignada,
+  areasAsignadas,
   turnoAsignado,
 } = {}) {
   const nombre = String(nombrePreferido || "").trim();
@@ -54,8 +55,9 @@ export async function guardarConfiguracionOperativa({
   if (!Number.isInteger(Number(diaDescanso)) || Number(diaDescanso) < 0 || Number(diaDescanso) > 6) {
     throw new Error("Selecciona tu día de descanso semanal.");
   }
-  if (!AREAS_OPERATIVAS.some((area) => area.id === areaAsignada)) {
-    throw new Error("Selecciona el área que te asignaron.");
+  const areas = [...new Set(Array.isArray(areasAsignadas) ? areasAsignadas : [areaAsignada].filter(Boolean))];
+  if (areas.length < 1 || areas.length > 3 || areas.some((id) => !AREAS_OPERATIVAS.some((area) => area.id === id))) {
+    throw new Error("Elige de una a tres áreas de trabajo.");
   }
   if (!["PRIMERO", "SEGUNDO", "AMBOS"].includes(turnoAsignado)) {
     throw new Error("Selecciona tu turno asignado.");
@@ -69,11 +71,12 @@ export async function guardarConfiguracionOperativa({
       branch_id: branchId,
       nombre_preferido: nombre,
       dia_descanso: Number(diaDescanso),
-      area_asignada: areaAsignada,
+      area_asignada: areas[0],
+      areas_asignadas: areas,
       turno_asignado: turnoAsignado,
       updated_at: new Date().toISOString(),
     }, { onConflict: "empleado_id" })
-    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, turno_asignado, updated_at")
+    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, areas_asignadas, turno_asignado, updated_at")
     .single();
   revisarError(error, "No pudimos guardar tu configuración");
   return data;
@@ -83,7 +86,7 @@ export async function obtenerConfiguracionesOperativasSucursal(branchId) {
   if (!branchId) return [];
   const { data, error } = await supabase
     .from("empleado_configuracion_operativa")
-    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, turno_asignado")
+    .select("empleado_id, usuario_id, branch_id, nombre_preferido, dia_descanso, area_asignada, areas_asignadas, turno_asignado")
     .eq("branch_id", branchId);
   revisarError(error, "No pudimos cargar los perfiles de la sucursal");
   return Array.isArray(data) ? data : [];

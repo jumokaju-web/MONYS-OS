@@ -67,6 +67,22 @@ test("rota el baño y no duplica tareas ya preparadas", () => {
   assert.equal(tareasPendientesDeRutina(resultado.tareas, [bano]).some((tarea) => tarea.titulo === bano.titulo && tarea.responsable === bano.responsable), false);
 });
 
+test("un perfil con varias áreas participa en tienda y en inventario", () => {
+  const perfilesMultiples = configuraciones.map((configuracion) => configuracion.empleado_id === "v2"
+    ? { ...configuracion, areas_asignadas: ["VENTA_TIENDA", "INVENTARIO_APOYO"] }
+    : configuracion);
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados: empleados.filter((empleado) => empleado.id !== "m1"),
+    configuraciones: perfilesMultiples,
+    productosCriticos: [{ codigo: "P-2", descripcion: "Producto urgente", existencia: 1, nivelInventario: "CRITICO" }],
+    fuenteInventario: { fecha: "2026-10-12" },
+  });
+
+  assert.ok(resultado.tareas.some((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor" && tarea.responsable === "Karla"));
+  assert.ok(resultado.tareas.some((tarea) => tarea.titulo.includes("bodega") && tarea.responsable === "Karla"));
+});
+
 test("rechaza fecha inválida", () => {
   assert.throws(() => construirRutinaInteligente({ fecha: "2026-02-30" }), /fecha válida/i);
 });

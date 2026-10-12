@@ -17,7 +17,7 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
   const [formulario, setFormulario] = useState({
     nombrePreferido: usuario?.nombre || "",
     diaDescanso: "",
-    areaAsignada: "",
+    areasAsignadas: [],
     turnoAsignado: "",
   });
   const [guardado, setGuardado] = useState(false);
@@ -41,7 +41,9 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
           setFormulario({
             nombrePreferido: configuracion.nombre_preferido || usuario?.nombre || "",
             diaDescanso: String(configuracion.dia_descanso),
-            areaAsignada: configuracion.area_asignada || "",
+            areasAsignadas: Array.isArray(configuracion.areas_asignadas) && configuracion.areas_asignadas.length
+              ? configuracion.areas_asignadas
+              : [configuracion.area_asignada].filter(Boolean),
             turnoAsignado: configuracion.turno_asignado || "",
           });
           setGuardado(true);
@@ -63,6 +65,18 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
     setMensaje("");
   }
 
+  function alternarArea(areaId) {
+    const seleccionadas = formulario.areasAsignadas || [];
+    if (!seleccionadas.includes(areaId) && seleccionadas.length >= 3) {
+      setError("Puedes elegir hasta tres áreas.");
+      return;
+    }
+    setError("");
+    cambiar("areasAsignadas", seleccionadas.includes(areaId)
+      ? seleccionadas.filter((id) => id !== areaId)
+      : [...seleccionadas, areaId]);
+  }
+
   async function guardar(event) {
     event.preventDefault();
     setError("");
@@ -75,7 +89,7 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
         branchId: usuario?.branch_id,
         nombrePreferido: formulario.nombrePreferido,
         diaDescanso: formulario.diaDescanso,
-        areaAsignada: formulario.areaAsignada,
+        areasAsignadas: formulario.areasAsignadas,
         turnoAsignado: formulario.turnoAsignado,
       });
       setGuardado(true);
@@ -88,7 +102,10 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
     }
   }
 
-  const areaNombre = AREAS_OPERATIVAS.find((item) => item.id === formulario.areaAsignada)?.nombre;
+  const areaNombre = (formulario.areasAsignadas || [])
+    .map((id) => AREAS_OPERATIVAS.find((item) => item.id === id)?.nombre)
+    .filter(Boolean)
+    .join(" · ");
   const turnoNombre = TURNOS.find((item) => item.id === formulario.turnoAsignado)?.nombre;
 
   return (
@@ -112,12 +129,18 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
             {DIAS_SEMANA.map((dia, index) => <option key={dia} value={index}>{dia}</option>)}
           </select>
         </label>
-        <label style={labelStyle}>¿Qué área te asignaron?
-          <select required value={formulario.areaAsignada} onChange={(event) => cambiar("areaAsignada", event.target.value)} style={inputStyle}>
-            <option value="">Elegir área</option>
-            {AREAS_OPERATIVAS.map((area) => <option key={area.id} value={area.id}>{area.nombre}</option>)}
-          </select>
-        </label>
+        <fieldset style={{ display: "grid", gap: "8px", padding: 0, border: 0, margin: 0 }}>
+          <legend style={labelStyle}>¿Qué áreas te asignaron? Elige hasta tres.</legend>
+          {AREAS_OPERATIVAS.map((area) => {
+            const seleccionada = (formulario.areasAsignadas || []).includes(area.id);
+            const maximoAlcanzado = (formulario.areasAsignadas || []).length >= 3;
+            return <label key={area.id} style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "42px", padding: "8px 10px", border: `1px solid ${seleccionada ? "#c12c70" : "#e2ccd7"}`, borderRadius: "10px", background: seleccionada ? "#fff5fa" : "#fff", color: "#4c3944", fontSize: "14px", fontWeight: 650, opacity: !seleccionada && maximoAlcanzado ? 0.58 : 1 }}>
+              <input type="checkbox" checked={seleccionada} disabled={guardando || (!seleccionada && maximoAlcanzado)} onChange={() => alternarArea(area.id)} style={{ width: "18px", height: "18px", accentColor: "#c12c70" }} />
+              {area.nombre}
+            </label>;
+          })}
+          <span style={{ color: "#71636b", fontSize: "12px" }}>{(formulario.areasAsignadas || []).length} de 3 áreas seleccionadas</span>
+        </fieldset>
         <label style={labelStyle}>¿En qué turno trabajas?
           <select required value={formulario.turnoAsignado} onChange={(event) => cambiar("turnoAsignado", event.target.value)} style={inputStyle}>
             <option value="">Elegir turno</option>
