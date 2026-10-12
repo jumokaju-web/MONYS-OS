@@ -82,3 +82,67 @@ export function construirGuiaVenta({ producto, tareaPrioritaria } = {}) {
     origen: "PROTOCOLO DE TIENDA",
   };
 }
+
+function nombreCorto(nombre) {
+  const partes = texto(nombre).split(/\s+/).filter(Boolean);
+  if (!partes.length) return "Vendedora";
+  return partes.length === 1 ? partes[0] : `${partes[0]} ${partes[1].charAt(0)}.`;
+}
+
+export function construirLigaVendedoras({
+  comisiones = [],
+  empleadoId,
+  minimoTickets = 3,
+} = {}) {
+  const filas = (Array.isArray(comisiones) ? comisiones : [])
+    .map((fila) => {
+      const ventas = Number(fila?.ventas) || 0;
+      const tickets = Number(fila?.tickets) || 0;
+      return {
+        ...fila,
+        ventas,
+        tickets,
+        ticketPromedio: tickets > 0 ? ventas / tickets : 0,
+      };
+    })
+    .filter((fila) => fila.tickets >= minimoTickets);
+
+  const maxVentas = Math.max(...filas.map((fila) => fila.ventas), 0);
+  const maxTickets = Math.max(...filas.map((fila) => fila.tickets), 0);
+  const maxTicketPromedio = Math.max(...filas.map((fila) => fila.ticketPromedio), 0);
+  const ranking = filas
+    .map((fila) => ({
+      ...fila,
+      nombreCorto: nombreCorto(fila.empleado),
+      puntaje: Math.round(100 * (
+        (maxVentas ? fila.ventas / maxVentas : 0) * 0.4
+        + (maxTickets ? fila.tickets / maxTickets : 0) * 0.35
+        + (maxTicketPromedio ? fila.ticketPromedio / maxTicketPromedio : 0) * 0.25
+      )),
+    }))
+    .sort((a, b) => b.puntaje - a.puntaje || b.ventas - a.ventas)
+    .map((fila, indice) => ({ ...fila, posicion: indice + 1 }));
+
+  const actual = ranking.find((fila) => fila.empleadoId === empleadoId) || null;
+  const siguiente = actual && actual.posicion > 1 ? ranking[actual.posicion - 2] : null;
+  let recomendacion = "Completa al menos 3 tickets para entrar a la liga de este corte.";
+  if (actual?.posicion === 1 && ranking.length > 1) {
+    recomendacion = "Vas en primer lugar. Mantén el servicio y registra cada venta a tu usuario.";
+  } else if (actual && siguiente) {
+    const diferenciaTickets = Math.max(0, siguiente.tickets - actual.tickets);
+    recomendacion = actual.ticketPromedio < siguiente.ticketPromedio
+      ? `Para subir, ofrece un complemento útil: tu siguiente referencia es un ticket de ${Math.ceil(siguiente.ticketPromedio)} pesos.`
+      : `Estás cerca: ${diferenciaTickets + 1} compras atendidas más pueden acercarte al siguiente lugar.`;
+  } else if (actual) {
+    recomendacion = "Tu resultado ya está medido. La liga se activa cuando haya otra vendedora comparable.";
+  }
+
+  return {
+    minimoTickets,
+    ranking,
+    actual,
+    destacada: ranking.length >= 2 ? ranking[0] : null,
+    comparable: ranking.length >= 2,
+    recomendacion,
+  };
+}

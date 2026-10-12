@@ -507,6 +507,142 @@
   color: #8e2858;
 }
 
+.sales-league {
+  margin: 0 16px 16px;
+  padding: 18px;
+  border: 1px solid rgba(90, 38, 73, 0.18);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #fff 0%, #fff7fb 100%);
+  color: #341c2d;
+}
+
+.sales-league__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sales-league__header span {
+  color: #9b3c70;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.sales-league__header h3 {
+  margin: 5px 0 0;
+  font-size: 19px;
+}
+
+.sales-league__header > strong {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #fff0b8;
+  color: #684a00;
+  font-size: 11px;
+}
+
+.sales-league__personal {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sales-league__personal article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #f0dbe7;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.sales-league__personal span,
+.sales-league__personal small {
+  display: block;
+  color: #806575;
+  font-size: 10px;
+}
+
+.sales-league__personal strong {
+  display: block;
+  margin: 4px 0 2px;
+  color: #641b49;
+  font-size: 18px;
+}
+
+.sales-league__ranking {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sales-league__ranking li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #f9edf4;
+}
+
+.sales-league__ranking li.is-current {
+  outline: 2px solid #c12875;
+  background: #fff;
+}
+
+.sales-league__ranking li > b {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5b213f;
+  color: #fff;
+}
+
+.sales-league__ranking span strong,
+.sales-league__ranking span small {
+  display: block;
+}
+
+.sales-league__ranking span small {
+  margin-top: 2px;
+  color: #7f6875;
+  font-size: 9px;
+}
+
+.sales-league__ranking em {
+  color: #a32667;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.sales-league__coach,
+.sales-league__empty {
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border-radius: 13px;
+  background: #f4e3ed;
+  color: #59384c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.sales-league__note {
+  display: block;
+  margin-top: 9px;
+  color: #89717f;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 @media (min-width: 620px) {
   .sales-copilot__metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -514,5 +650,9 @@
 
   .sales-copilot__flow {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sales-league__personal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

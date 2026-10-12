@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { construirGuiaVenta, recomendarProductoVendedora } from "../../src/features/inteligencia/shared/asistenteVendedora.js";
+import {
+  construirGuiaVenta,
+  construirLigaVendedoras,
+  recomendarProductoVendedora,
+} from "../../src/features/inteligencia/shared/asistenteVendedora.js";
 
 test("recomienda el producto líder y cruza su existencia", () => {
   const producto = recomendarProductoVendedora({
@@ -29,4 +33,42 @@ test("una tarea asignada tiene prioridad sobre la sugerencia comercial", () => {
   });
   assert.equal(guia.titulo, "Llamar a clienta");
   assert.equal(guia.origen, "TAREA ASIGNADA");
+});
+
+test("arma una liga equilibrada y calcula ticket promedio", () => {
+  const liga = construirLigaVendedoras({
+    empleadoId: "karla",
+    comisiones: [
+      { empleadoId: "karla", empleado: "Karla Yoselin", ventas: 5000, tickets: 10 },
+      { empleadoId: "ana", empleado: "Ana López", ventas: 6000, tickets: 6 },
+    ],
+  });
+  assert.equal(liga.comparable, true);
+  assert.equal(liga.ranking.length, 2);
+  assert.equal(liga.actual.ticketPromedio, 500);
+  assert.equal(liga.destacada.posicion, 1);
+  assert.match(liga.recomendacion, /compras atendidas|ticket/i);
+});
+
+test("no declara ganadora con una sola vendedora comparable", () => {
+  const liga = construirLigaVendedoras({
+    empleadoId: "karla",
+    comisiones: [{ empleadoId: "karla", empleado: "Karla", ventas: 1200, tickets: 3 }],
+  });
+  assert.equal(liga.comparable, false);
+  assert.equal(liga.destacada, null);
+  assert.equal(liga.actual.posicion, 1);
+});
+
+test("exige actividad mínima para evitar rankings engañosos", () => {
+  const liga = construirLigaVendedoras({
+    empleadoId: "ana",
+    comisiones: [
+      { empleadoId: "ana", empleado: "Ana", ventas: 5000, tickets: 1 },
+      { empleadoId: "karla", empleado: "Karla", ventas: 4500, tickets: 8 },
+    ],
+  });
+  assert.equal(liga.ranking.length, 1);
+  assert.equal(liga.actual, null);
+  assert.match(liga.recomendacion, /3 tickets/);
 });
