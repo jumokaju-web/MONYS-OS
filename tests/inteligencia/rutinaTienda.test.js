@@ -83,6 +83,16 @@ test("un perfil con varias áreas participa en tienda y en inventario", () => {
   assert.ok(resultado.tareas.some((tarea) => tarea.titulo.includes("lote") && tarea.responsable === "Karla Ruiz"));
 });
 
+test("las tareas se dirigen al ID de autenticación aunque RH guarde el ID del perfil", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados: [{ ...empleados[0], usuario_id: "perfil-monys-ana", auth_user_id: "auth-ana" }],
+    configuraciones: [configuraciones[0]],
+  });
+  const tareaMueble = resultado.tareas.find((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor");
+  assert.equal(tareaMueble.responsableUsuarioId, "auth-ana");
+});
+
 test("reparte lotes de 30 a todo el personal programado y prioriza negativos", () => {
   const productos = Array.from({ length: 75 }, (_, index) => ({
     codigo: `P-${index + 1}`,
@@ -145,6 +155,23 @@ test("para hoy asigna solo a quien registró entrada y sigue respetando descanso
   });
   assert.equal(sinEntrada.tareas.length, 0);
   assert.ok(sinEntrada.avisos.some((aviso) => aviso.includes("registró entrada")));
+});
+
+test("muestra Dirección quién está presente, quién no registró y quién descansa", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-12", // Lunes: Ana descansa.
+    empleados: [...empleados, { id: "sin-perfil", nombre: "Vale", responsabilidades: ["VENTA_TIENDA"] }],
+    configuraciones,
+    asistenciaRegistrada: [{ empleado_id: "v2", entrada_at: "2026-10-12T15:10:00.000Z" }],
+  });
+  const equipo = new Map(resultado.equipo.map((persona) => [persona.empleadoId, persona]));
+
+  assert.equal(equipo.get("v1").estado, "DESCANSA");
+  assert.equal(equipo.get("v2").estado, "PRESENTE");
+  assert.equal(equipo.get("v2").nombre, "Karla");
+  assert.equal(equipo.get("v2").turno, "SEGUNDO");
+  assert.equal(equipo.get("w1").estado, "SIN_ENTRADA");
+  assert.equal(equipo.get("sin-perfil").estado, "PERFIL_PENDIENTE");
 });
 
 test("rechaza fecha inválida", () => {
