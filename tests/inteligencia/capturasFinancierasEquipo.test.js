@@ -26,6 +26,40 @@ test("calcula conciliación de venta y efectivo del corte", () => {
       diferenciaVenta: 0,
       efectivoEsperado: 150,
       diferenciaCaja: 0,
+      entradasPosteriores: 0,
+      salidasPosteriores: 450,
+      traspasos: 0,
+      prestamos: 0,
+      movimientosRegistrados: 0,
+    }
+  );
+});
+
+test("separa movimientos detallados, traspasos y préstamos del corte", () => {
+  assert.deepEqual(
+    calcularCorteCaja({
+      ventaSicar: 1000,
+      efectivoVentas: 500,
+      tarjeta: 500,
+      fondoInicial: 100,
+      efectivoFinal: 50,
+      movimientosCaja: [
+        { tipo: "salida", categoria: "proveedor", monto: 100 },
+        { tipo: "salida", categoria: "deposito_traspaso", monto: 300 },
+        { tipo: "salida", categoria: "prestamo_anticipo", monto: 200 },
+        { tipo: "entrada", categoria: "otro", monto: 50 },
+      ],
+    }),
+    {
+      cobrado: 1000,
+      diferenciaVenta: 0,
+      efectivoEsperado: 50,
+      diferenciaCaja: 0,
+      entradasPosteriores: 50,
+      salidasPosteriores: 600,
+      traspasos: 300,
+      prestamos: 200,
+      movimientosRegistrados: 4,
     }
   );
 });

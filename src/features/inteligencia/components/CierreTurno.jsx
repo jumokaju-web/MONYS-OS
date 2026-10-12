@@ -41,10 +41,32 @@ const formularioInicial = {
   transferencias: "",
   otrosCobros: "",
   fondoInicial: "",
-  gastosCaja: "",
-  efectivoEntregado: "",
   efectivoFinal: "",
+  movimientosCaja: [],
 };
+
+const categoriasMovimientoCaja = [
+  ["retiro_caja", "Retiro de caja"],
+  ["proveedor", "Pago a proveedor / mercancía"],
+  ["nomina_comision", "Nómina o comisión"],
+  ["logistica", "Envío, ruta o paquetería"],
+  ["deposito_traspaso", "Depósito o traspaso"],
+  ["servicios", "Servicio del negocio"],
+  ["compra_emergencia", "Compra de emergencia"],
+  ["prestamo_anticipo", "Préstamo o anticipo"],
+  ["otro", "Otro movimiento"],
+];
+
+function movimientoCajaVacio() {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    tipo: "salida",
+    categoria: "proveedor",
+    concepto: "",
+    recibidoPor: "",
+    monto: "",
+  };
+}
 
 
 export default function CierreTurno({
@@ -294,6 +316,31 @@ export default function CierreTurno({
     );
   }
 
+  function agregarMovimientoCaja() {
+    setFormulario((actual) => ({
+      ...actual,
+      movimientosCaja: [...actual.movimientosCaja, movimientoCajaVacio()],
+    }));
+  }
+
+  function actualizarMovimientoCaja(id, campo, valor) {
+    setFormulario((actual) => ({
+      ...actual,
+      movimientosCaja: actual.movimientosCaja.map((movimiento) =>
+        movimiento.id === id ? { ...movimiento, [campo]: valor } : movimiento
+      ),
+    }));
+  }
+
+  function eliminarMovimientoCaja(id) {
+    setFormulario((actual) => ({
+      ...actual,
+      movimientosCaja: actual.movimientosCaja.filter(
+        (movimiento) => movimiento.id !== id
+      ),
+    }));
+  }
+
 
   async function manejarGuardar(
     event
@@ -323,13 +370,17 @@ export default function CierreTurno({
       "transferencias",
       "otrosCobros",
       "fondoInicial",
-      "gastosCaja",
-      "efectivoEntregado",
       "efectivoFinal",
     ];
-    const capturaDineroIniciada = camposDinero.some(
-      (campo) => String(formulario[campo] ?? "").trim() !== ""
+    const movimientosIniciados = formulario.movimientosCaja.filter((movimiento) =>
+      [movimiento.concepto, movimiento.recibidoPor, movimiento.monto].some(
+        (valor) => String(valor ?? "").trim() !== ""
+      )
     );
+    const capturaDineroIniciada =
+      camposDinero.some(
+        (campo) => String(formulario[campo] ?? "").trim() !== ""
+      ) || movimientosIniciados.length > 0;
 
     if (
       capturaDineroIniciada &&
@@ -342,6 +393,28 @@ export default function CierreTurno({
       return;
     }
 
+    const movimientoIncompleto = movimientosIniciados.find(
+      (movimiento) =>
+        !(Number(movimiento.monto) > 0) ||
+        !String(movimiento.concepto || "").trim() ||
+        (movimiento.tipo === "salida" &&
+          !String(movimiento.recibidoPor || "").trim())
+    );
+
+    if (movimientoIncompleto) {
+      setError(
+        "Completa el monto, concepto y quién recibió cada salida de caja. Así Dirección podrá comprobar el dinero."
+      );
+      return;
+    }
+
+    const formularioLimpio = {
+      ...formulario,
+      movimientosCaja: movimientosIniciados.map(({ id, ...movimiento }) => ({
+        ...movimiento,
+        monto: Number(movimiento.monto),
+      })),
+    };
 
     try {
       setGuardando(true);
@@ -374,7 +447,7 @@ export default function CierreTurno({
             formulario.aprendizajes,
 
           observaciones: capturaDineroIniciada
-            ? crearObservacionesCorte(formulario, formulario.observaciones)
+            ? crearObservacionesCorte(formularioLimpio, formulario.observaciones)
             : formulario.observaciones,
         });
 
@@ -1277,8 +1350,6 @@ export default function CierreTurno({
               ["transferencias", "Transferencias", "Cobros recibidos por banco"],
               ["otrosCobros", "Otros cobros", "Vales u otra forma de pago"],
               ["fondoInicial", "Fondo inicial", "Efectivo al abrir"],
-              ["gastosCaja", "Gastos pagados de caja", "Salidas con comprobante"],
-              ["efectivoEntregado", "Efectivo retirado/entregado", "Lo que salió de la caja"],
               ["efectivoFinal", "Efectivo contado al cierre", "Dinero físico restante"],
             ].map(([name, label, ayuda]) => (
               <label key={name} style={{ fontWeight: 800, fontSize: "13px" }}>
@@ -1317,6 +1388,185 @@ export default function CierreTurno({
 
           <div
             style={{
+              marginTop: "18px",
+              paddingTop: "17px",
+              borderTop: "1px solid #ead8e2",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h4 style={{ margin: 0 }}>Movimientos después de abrir la caja</h4>
+                <p style={{ margin: "5px 0 0", color: "#725d68", fontSize: "13px" }}>
+                  Registra cada salida o entrada por separado. Préstamos y depósitos
+                  quedarán identificados y no se confundirán con gastos del negocio.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={agregarMovimientoCaja}
+                style={{
+                  border: 0,
+                  borderRadius: "10px",
+                  padding: "10px 14px",
+                  background: "#7d2553",
+                  color: "#fff",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                + Agregar movimiento
+              </button>
+            </div>
+
+            {formulario.movimientosCaja.length === 0 ? (
+              <p
+                style={{
+                  margin: "12px 0 0",
+                  padding: "12px",
+                  borderRadius: "10px",
+                  background: "#fff",
+                  border: "1px dashed #d8bdcb",
+                  color: "#806e77",
+                  fontSize: "13px",
+                }}
+              >
+                Si no hubo retiros, pagos, depósitos, préstamos ni entradas extra,
+                déjalo vacío.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                {formulario.movimientosCaja.map((movimiento, index) => (
+                  <div
+                    key={movimiento.id}
+                    style={{
+                      padding: "13px",
+                      border: "1px solid #e2ced9",
+                      borderRadius: "12px",
+                      background: "#fff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+                        gap: "9px",
+                      }}
+                    >
+                      <label style={{ fontSize: "12px", fontWeight: 800 }}>
+                        Tipo
+                        <select
+                          value={movimiento.tipo}
+                          onChange={(event) =>
+                            actualizarMovimientoCaja(
+                              movimiento.id,
+                              "tipo",
+                              event.target.value
+                            )
+                          }
+                          style={{ width: "100%", marginTop: "5px", padding: "10px" }}
+                        >
+                          <option value="salida">Salida de dinero</option>
+                          <option value="entrada">Entrada adicional</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: "12px", fontWeight: 800 }}>
+                        Categoría
+                        <select
+                          value={movimiento.categoria}
+                          onChange={(event) =>
+                            actualizarMovimientoCaja(
+                              movimiento.id,
+                              "categoria",
+                              event.target.value
+                            )
+                          }
+                          style={{ width: "100%", marginTop: "5px", padding: "10px" }}
+                        >
+                          {categoriasMovimientoCaja.map(([valor, etiqueta]) => (
+                            <option key={valor} value={valor}>{etiqueta}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label style={{ fontSize: "12px", fontWeight: 800 }}>
+                        Concepto
+                        <input
+                          value={movimiento.concepto}
+                          onChange={(event) =>
+                            actualizarMovimientoCaja(
+                              movimiento.id,
+                              "concepto",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Ej. mercancía Pink Up"
+                          style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }}
+                        />
+                      </label>
+                      <label style={{ fontSize: "12px", fontWeight: 800 }}>
+                        {movimiento.tipo === "salida" ? "Quién recibió" : "De quién llegó"}
+                        <input
+                          value={movimiento.recibidoPor}
+                          onChange={(event) =>
+                            actualizarMovimientoCaja(
+                              movimiento.id,
+                              "recibidoPor",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Nombre o proveedor"
+                          style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }}
+                        />
+                      </label>
+                      <label style={{ fontSize: "12px", fontWeight: 800 }}>
+                        Monto
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={movimiento.monto}
+                          onChange={(event) =>
+                            actualizarMovimientoCaja(
+                              movimiento.id,
+                              "monto",
+                              event.target.value
+                            )
+                          }
+                          placeholder="$0.00"
+                          style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }}
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => eliminarMovimientoCaja(movimiento.id)}
+                      style={{
+                        marginTop: "10px",
+                        border: 0,
+                        background: "transparent",
+                        color: "#9b1d5c",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Quitar movimiento {index + 1}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
               gap: "10px",
@@ -1326,6 +1576,8 @@ export default function CierreTurno({
             {[
               ["Cobrado por métodos", corteCalculado.cobrado],
               ["Diferencia contra SICAR", corteCalculado.diferenciaVenta],
+              ["Entradas posteriores", corteCalculado.entradasPosteriores],
+              ["Salidas posteriores", corteCalculado.salidasPosteriores],
               ["Efectivo esperado", corteCalculado.efectivoEsperado],
               ["Diferencia de caja", corteCalculado.diferenciaCaja],
             ].map(([etiqueta, valor]) => (

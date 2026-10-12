@@ -14,11 +14,23 @@ function fechaLegible(fecha) {
   return dia && mes && anio ? `${dia}/${mes}/${anio}` : fecha;
 }
 
-function TarjetaDato({ titulo, valor, alerta = false }) {
+const etiquetasCategoria = {
+  retiro_caja: "Retiro de caja",
+  proveedor: "Proveedor / mercancía",
+  nomina_comision: "Nómina o comisión",
+  logistica: "Envío, ruta o paquetería",
+  deposito_traspaso: "Depósito o traspaso",
+  servicios: "Servicio del negocio",
+  compra_emergencia: "Compra de emergencia",
+  prestamo_anticipo: "Préstamo o anticipo",
+  otro: "Otro movimiento",
+};
+
+function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
   return (
     <div className={alerta ? "captura-dato captura-dato-alerta" : "captura-dato"}>
       <small>{titulo}</small>
-      <strong>{moneda.format(Number(valor) || 0)}</strong>
+      <strong>{esDinero ? moneda.format(Number(valor) || 0) : Number(valor) || 0}</strong>
     </div>
   );
 }
@@ -55,6 +67,18 @@ export default function BandejaCapturasEquipo({ branchId }) {
         (total, item) => total + (Number(item.datos.diferenciaCaja) || 0),
         0
       ),
+      entradasCaja: cajas.reduce(
+        (total, item) => total + (Number(item.datos.entradasPosteriores) || 0), 0
+      ),
+      salidasCaja: cajas.reduce(
+        (total, item) => total + (Number(item.datos.salidasPosteriores) || 0), 0
+      ),
+      traspasos: cajas.reduce(
+        (total, item) => total + (Number(item.datos.traspasos) || 0), 0
+      ),
+      prestamos: cajas.reduce(
+        (total, item) => total + (Number(item.datos.prestamos) || 0), 0
+      ),
       resultadoFlotilla: flotilla.reduce(
         (total, item) => total + (Number(item.datos.resultadoEstimado) || 0),
         0
@@ -79,14 +103,17 @@ export default function BandejaCapturasEquipo({ branchId }) {
       </div>
 
       <div className="capturas-resumen">
-        <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} />
-        <TarjetaDato titulo="Liquidaciones recibidas" valor={resumen.flotilla} />
+        <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} esDinero={false} />
+        <TarjetaDato titulo="Entradas posteriores" valor={resumen.entradasCaja} />
+        <TarjetaDato titulo="Salidas posteriores" valor={resumen.salidasCaja} />
         <TarjetaDato
           titulo="Diferencia acumulada de caja"
           valor={resumen.diferenciasCaja}
           alerta={Math.abs(resumen.diferenciasCaja) > 0.009}
         />
-        <TarjetaDato titulo="Resultado estimado flotilla" valor={resumen.resultadoFlotilla} />
+        {resumen.traspasos > 0 && <TarjetaDato titulo="Depósitos / traspasos" valor={resumen.traspasos} />}
+        {resumen.prestamos > 0 && <TarjetaDato titulo="Préstamos / anticipos" valor={resumen.prestamos} />}
+        {resumen.flotilla > 0 && <TarjetaDato titulo="Resultado estimado flotilla" valor={resumen.resultadoFlotilla} />}
       </div>
 
       <p className="capturas-aviso">
@@ -122,20 +149,35 @@ export default function BandejaCapturasEquipo({ branchId }) {
             </header>
 
             {tipo === "caja" ? (
-              <div className="captura-grid">
-                <TarjetaDato titulo="Venta SICAR" valor={datos.ventaSicar} />
-                <TarjetaDato titulo="Cobrado" valor={datos.cobrado} />
-                <TarjetaDato
-                  titulo="Diferencia contra SICAR"
-                  valor={datos.diferenciaVenta}
-                  alerta={Math.abs(Number(datos.diferenciaVenta) || 0) > 0.009}
-                />
-                <TarjetaDato
-                  titulo="Diferencia de caja"
-                  valor={datos.diferenciaCaja}
-                  alerta={Math.abs(Number(datos.diferenciaCaja) || 0) > 0.009}
-                />
-              </div>
+              <>
+                <div className="captura-grid">
+                  <TarjetaDato titulo="Venta SICAR" valor={datos.ventaSicar} />
+                  <TarjetaDato titulo="Cobrado" valor={datos.cobrado} />
+                  <TarjetaDato titulo="Salidas posteriores" valor={datos.salidasPosteriores} />
+                  <TarjetaDato titulo="Diferencia contra SICAR" valor={datos.diferenciaVenta} alerta={Math.abs(Number(datos.diferenciaVenta) || 0) > 0.009} />
+                  <TarjetaDato titulo="Diferencia de caja" valor={datos.diferenciaCaja} alerta={Math.abs(Number(datos.diferenciaCaja) || 0) > 0.009} />
+                </div>
+                {Array.isArray(datos.movimientosCaja) && datos.movimientosCaja.length > 0 && (
+                  <div className="captura-movimientos">
+                    <h4>Movimientos declarados por el equipo</h4>
+                    {datos.movimientosCaja.map((movimiento, index) => {
+                      const noEsGasto = ["deposito_traspaso", "prestamo_anticipo"].includes(movimiento.categoria);
+                      return (
+                        <div className="captura-movimiento" key={`${cierre.id}-${index}`}>
+                          <div>
+                            <b>{movimiento.concepto || "Sin concepto"}</b>
+                            <small>{etiquetasCategoria[movimiento.categoria] || "Otro movimiento"}{movimiento.recibidoPor ? ` · ${movimiento.recibidoPor}` : ""}</small>
+                            {noEsGasto && <em>No se considera gasto operativo</em>}
+                          </div>
+                          <strong className={movimiento.tipo === "entrada" ? "es-entrada" : "es-salida"}>
+                            {movimiento.tipo === "entrada" ? "+" : "−"}{moneda.format(Number(movimiento.monto) || 0)}
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="captura-grid">
                 <TarjetaDato titulo="Ingreso de ruta" valor={datos.ingresoRuta} />

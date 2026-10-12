@@ -10,6 +10,23 @@ function redondear(valor) {
   return Math.round((numero(valor) + Number.EPSILON) * 100) / 100;
 }
 
+export function resumirMovimientosCaja(movimientos = []) {
+  const lista = Array.isArray(movimientos) ? movimientos : [];
+  return lista.reduce(
+    (resumen, movimiento) => {
+      const monto = Math.max(0, numero(movimiento?.monto));
+      if (!monto) return resumen;
+      if (movimiento?.tipo === "entrada") resumen.entradas += monto;
+      else resumen.salidas += monto;
+      if (movimiento?.categoria === "deposito_traspaso") resumen.traspasos += monto;
+      if (movimiento?.categoria === "prestamo_anticipo") resumen.prestamos += monto;
+      resumen.cantidad += 1;
+      return resumen;
+    },
+    { entradas: 0, salidas: 0, traspasos: 0, prestamos: 0, cantidad: 0 }
+  );
+}
+
 function guardarBloque(marcador, datos, nota = "") {
   const textoNota = String(nota || "").trim();
   return [
@@ -44,15 +61,26 @@ export function calcularCorteCaja(datos = {}) {
   const gastosCaja = numero(datos.gastosCaja);
   const efectivoEntregado = numero(datos.efectivoEntregado);
   const efectivoFinal = numero(datos.efectivoFinal);
+  const movimientos = resumirMovimientosCaja(datos.movimientosCaja);
+  const usaDetalle = movimientos.cantidad > 0;
+  const entradasPosteriores = usaDetalle ? movimientos.entradas : 0;
+  const salidasPosteriores = usaDetalle
+    ? movimientos.salidas
+    : gastosCaja + efectivoEntregado;
   const cobrado = efectivoVentas + tarjeta + transferencias + otrosCobros;
   const efectivoEsperado =
-    fondoInicial + efectivoVentas - gastosCaja - efectivoEntregado;
+    fondoInicial + efectivoVentas + entradasPosteriores - salidasPosteriores;
 
   return {
     cobrado: redondear(cobrado),
     diferenciaVenta: redondear(cobrado - ventaSicar),
     efectivoEsperado: redondear(efectivoEsperado),
     diferenciaCaja: redondear(efectivoFinal - efectivoEsperado),
+    entradasPosteriores: redondear(entradasPosteriores),
+    salidasPosteriores: redondear(salidasPosteriores),
+    traspasos: redondear(movimientos.traspasos),
+    prestamos: redondear(movimientos.prestamos),
+    movimientosRegistrados: movimientos.cantidad,
   };
 }
 
