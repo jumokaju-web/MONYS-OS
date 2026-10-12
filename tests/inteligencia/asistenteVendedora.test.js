@@ -5,6 +5,7 @@ import {
   construirGuiaVenta,
   construirLigaVendedoras,
   recomendarProductoVendedora,
+  resolverEmpleadoVendedora,
 } from "../../src/features/inteligencia/shared/asistenteVendedora.js";
 
 test("recomienda el producto líder y cruza su existencia", () => {
@@ -71,4 +72,12 @@ test("exige actividad mínima para evitar rankings engañosos", () => {
   assert.equal(liga.ranking.length, 1);
   assert.equal(liga.actual, null);
   assert.match(liga.recomendacion, /3 tickets/);
+});
+
+test("resuelve ficha RH por ID de usuario aunque no coincida con auth.uid", () => {
+  const karla = { id: "empleada-1", usuario_id: "usuario-monys-1", usuario_sicar: "KARLA" };
+  assert.equal(
+    resolverEmpleadoVendedora([karla], { id: "usuario-monys-1", auth_user_id: "auth-1" }),
+    karla,
+  );
 });
