@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../supabase";
 import { analizarInventario } from "../analyzers/inventarioAnalyzer";
 import { obtenerEmpleadosActivosParaAsignacion } from "../services/empleadosRHService";
-import { obtenerConfiguracionesOperativasSucursal } from "../services/empleadoConfiguracionOperativaService";
+import { AREAS_OPERATIVAS, obtenerConfiguracionesOperativasSucursal } from "../services/empleadoConfiguracionOperativaService";
 import { fechaActualMexico, obtenerAsistenciaOperativa } from "../services/asistenciaOperativaService";
 import { crearTareaOperativa, obtenerTareasOperativas } from "../services/tareasOperativasService";
 import { construirRutinaInteligente, priorizarProductosParaConteo, tareasPendientesDeRutina } from "../shared/rutinaTienda";
+import { RESPONSABILIDADES_EMPLEADO } from "../shared/responsabilidadesEmpleado";
 
 const LISTA_VACIA = [];
 
@@ -131,11 +132,20 @@ export default function RutinaTienda({
         asistenciaRegistrada,
       });
     } catch (errorRutina) {
-      return { tareas: [], avisos: [errorRutina.message], empleadosDisponibles: 0, personasProgramadas: [], asistencias: [], personasPresentes: null, productosUrgentes: 0, productosAsignados: 0 };
+      return { tareas: [], avisos: [errorRutina.message], equipo: [], empleadosDisponibles: 0, personasProgramadas: [], asistencias: [], personasPresentes: null, productosUrgentes: 0, productosAsignados: 0 };
     }
   }, [fecha, empleados, configuraciones, historial, productosCriticos, fechaFuente, inventario?.importacion?.nombre, asistenciaRegistrada]);
 
   const edadReporte = edadEnDias(fechaFuente);
+  const etiquetasArea = new Map(AREAS_OPERATIVAS.map((area) => [area.id, area.nombre]));
+  const etiquetasResponsabilidad = new Map(RESPONSABILIDADES_EMPLEADO.map((item) => [item.id, item.nombre]));
+  const estadosEquipo = {
+    PRESENTE: { texto: "Entrada registrada", fondo: "#e9f7ef", color: "#246b45" },
+    SIN_ENTRADA: { texto: "Sin entrada", fondo: "#fff4df", color: "#815d14" },
+    DESCANSA: { texto: "Descansa hoy", fondo: "#f1edf2", color: "#665866" },
+    PROGRAMADA: { texto: "Programada", fondo: "#edf3ff", color: "#3c5e91" },
+    PERFIL_PENDIENTE: { texto: "Perfil pendiente", fondo: "#fff0ef", color: "#a0443c" },
+  };
 
   async function actualizarEntradas() {
     if (!branchId || fecha !== fechaActualMexico()) return;
@@ -200,15 +210,17 @@ export default function RutinaTienda({
   return (
     <details style={{ margin: "0 0 20px", border: "1px solid #e6cad8", borderRadius: "16px", background: "#fffafd", overflow: "hidden" }}>
       <summary style={{ padding: "16px", cursor: "pointer", color: "#76254f", fontSize: "17px", fontWeight: 900 }}>
-        🧹 Rutina inteligente de tienda
+        🧹 Reparto de trabajo del día
         <span style={{ display: "block", marginTop: "5px", color: "#77636d", fontSize: "13px", fontWeight: 500 }}>
-          MONYS reparte limpieza y lotes de inventario según personal programado, descansos, turnos y SICAR.
+          Revisa quién está, su turno y las tareas antes de asignarlas.
         </span>
       </summary>
       <form onSubmit={prepararRutina} style={{ display: "grid", gap: "13px", padding: "16px", borderTop: "1px solid #efdae5" }}>
-        <p style={{ margin: 0, color: "#66555e", lineHeight: 1.5 }}>
-          La rutina toma personal activo con perfil completo y que no descansa ese día. Baño y orden de bodega rotan por historial; el inventario se divide en lotes de hasta 30 por persona. El conteo usa SICAR solo como referencia: MONYS registra el conteo físico y las diferencias para Dirección, sin ajustar existencias ni comprar.
-        </p>
+        <div style={{ padding: "14px 15px", borderRadius: "13px", color: "#fff", background: "linear-gradient(120deg,#74234d,#a92c68)" }}>
+          <small style={{ display: "block", opacity: 0.82, fontWeight: 750, letterSpacing: ".08em" }}>DECISIÓN DE DIRECCIÓN · {fecha}</small>
+          <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>{configuracionRutina.empleadosDisponibles} {configuracionRutina.empleadosDisponibles === 1 ? "persona disponible" : "personas disponibles"} · {configuracionRutina.tareas.length} tareas sugeridas</strong>
+          <span style={{ display: "block", marginTop: "5px", fontSize: "13px", lineHeight: 1.45, opacity: 0.9 }}>MONYS respeta descansos y turnos; el reparto se revisa aquí antes de guardarse para el equipo.</span>
+        </div>
         <p style={{ margin: 0, padding: "10px 12px", borderRadius: "10px", background: "#fff7e8", color: "#765c27", fontSize: "13px", lineHeight: 1.45 }}>
           {fecha === fechaActualMexico()
             ? "Para hoy, las tareas solo se asignan a empleadas que registraron entrada en esta sucursal; se excluyen descansos y perfiles incompletos."
@@ -231,16 +243,33 @@ export default function RutinaTienda({
             </div>
           ))}
         </div>
+        <section aria-label="Equipo considerado para el reparto" style={{ display: "grid", gap: "9px", padding: "13px", borderRadius: "14px", border: "1px solid #eadbe3", background: "#fff" }}>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <strong style={{ color: "#3b2c35", fontSize: "15px" }}>Equipo y asistencia</strong>
+            <span style={{ color: "#77636d", fontSize: "12px" }}>{configuracionRutina.equipo.filter((persona) => persona.estado === "PRESENTE").length} presentes · {configuracionRutina.equipo.filter((persona) => persona.estado === "DESCANSA").length} descansan</span>
+          </header>
+          {configuracionRutina.equipo.length ? configuracionRutina.equipo.map((persona) => {
+            const estado = estadosEquipo[persona.estado] || estadosEquipo.PROGRAMADA;
+            const areas = persona.areas.map((id) => etiquetasArea.get(id) || id).join(" · ");
+            const roles = persona.responsabilidades.map((id) => etiquetasResponsabilidad.get(id) || id).join(" · ");
+            const horaEntrada = persona.entradaAt
+              ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit" }).format(new Date(persona.entradaAt))
+              : null;
+            return <article key={persona.empleadoId} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px 12px", padding: "10px 11px", borderRadius: "11px", border: "1px solid #f0e7ec", background: "#fffafd" }}>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", color: "#392c34", fontSize: "14px" }}>{persona.nombre}</strong>
+                <span style={{ display: "block", marginTop: "3px", color: "#71636b", fontSize: "12px", lineHeight: 1.4 }}>{[persona.puesto, persona.turno === "PRIMERO" ? "Primer turno" : persona.turno === "SEGUNDO" ? "Segundo turno" : persona.turno === "AMBOS" ? "Ambos turnos" : null, areas, roles].filter(Boolean).join(" · ") || "Completa su perfil operativo"}</span>
+              </div>
+              <span style={{ padding: "6px 9px", borderRadius: "999px", whiteSpace: "nowrap", background: estado.fondo, color: estado.color, fontSize: "11px", fontWeight: 800 }}>{estado.texto}{horaEntrada ? ` · ${horaEntrada}` : ""}</span>
+            </article>;
+          }) : <p style={{ margin: 0, color: "#77636d", fontSize: "13px" }}>No hay fichas de empleadas activas en esta sucursal.</p>}
+          {fecha === fechaActualMexico() && configuracionRutina.equipo.some((persona) => persona.estado === "SIN_ENTRADA") && <small style={{ color: "#815d14", lineHeight: 1.45 }}>Las personas sin entrada no reciben tareas hoy. Pídeles registrar su llegada desde su usuario y actualiza las entradas.</small>}
+        </section>
         {fechaFuente && <p style={{ margin: 0, color: edadReporte > 7 ? "#875d1c" : "#77636d", fontSize: "13px" }}>
           Inventario fuente: SICAR del {fechaCorta(fechaFuente)}{edadReporte > 7 ? ` · ${edadReporte} días de antigüedad; validar existencias antes de comprar.` : ""}
         </p>}
         {!inventarioDeEstaSucursal && <p style={{ margin: 0, color: "#a52d2d", fontSize: "13px" }}>La información visible de SICAR pertenece a otra sucursal; no se usará para repartir productos en esta.</p>}
         {inventarioDeEstaSucursal && !fechaFuente && <p style={{ margin: 0, color: "#875d1c", fontSize: "13px" }}>Aún no hay inventario SICAR cargado para esta sucursal; hoy no se asignará conteo de bodega.</p>}
-        {configuracionRutina.personasProgramadas?.length > 0 && <p style={{ margin: 0, color: "#4a3943", fontSize: "13px" }}>
-          {fecha === fechaActualMexico() ? <>
-            <strong>Registraron entrada:</strong> {configuracionRutina.asistencias.map((registro) => `${registro.nombre}${registro.entrada_at ? ` · ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit" }).format(new Date(registro.entrada_at))}` : ""}`).join(" · ")}.
-          </> : <><strong>Personal programado para esta sucursal:</strong> {configuracionRutina.personasProgramadas.join(", ")}.</>}
-        </p>}
         {fecha === fechaActualMexico() && <button type="button" onClick={actualizarEntradas} disabled={actualizandoEntradas || cargando} style={{ justifySelf: "start", minHeight: "38px", padding: "7px 12px", border: "1px solid #d9bdcc", borderRadius: "9px", background: "#fff", color: "#76254f", fontWeight: 750, cursor: "pointer" }}>
           {actualizandoEntradas ? "Actualizando entradas…" : "Actualizar entradas"}
         </button>}
