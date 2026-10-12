@@ -89,6 +89,14 @@ function nombreCorto(nombre) {
   return partes.length === 1 ? partes[0] : `${partes[0]} ${partes[1].charAt(0)}.`;
 }
 
+export function resolverEmpleadoVendedora(empleados = [], usuario = null) {
+  const referencias = new Set([usuario?.id, usuario?.auth_user_id].filter(Boolean).map(String));
+  if (!referencias.size) return null;
+  return (Array.isArray(empleados) ? empleados : []).find((persona) =>
+    [persona?.usuario_id, persona?.auth_user_id].filter(Boolean).some((id) => referencias.has(String(id))),
+  ) || null;
+}
+
 export function construirLigaVendedoras({
   comisiones = [],
   empleadoId,

@@ -11,6 +11,7 @@ import {
   construirGuiaVenta,
   construirLigaVendedoras,
   recomendarProductoVendedora,
+  resolverEmpleadoVendedora,
 } from "../shared/asistenteVendedora";
 
 const dinero = new Intl.NumberFormat("es-MX", {
@@ -81,7 +82,7 @@ export default function AsistenteVendedora({
           return;
         }
         const resumen = resumirComisionesSicar({ filas, empleados, desde, hasta, oportunidadesCRM });
-        const empleadoActual = empleados.find((persona) => persona.usuario_id === usuario?.auth_user_id);
+        const empleadoActual = resolverEmpleadoVendedora(empleados, usuario);
         const resultado = resumen.comisiones.find((fila) => fila.empleadoId === empleadoActual?.id);
         const liga = construirLigaVendedoras({
           comisiones: resumen.comisiones,
