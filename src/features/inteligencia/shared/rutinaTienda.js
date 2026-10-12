@@ -110,6 +110,38 @@ export function construirRutinaInteligente({
   const idsPresentes = Array.isArray(asistenciaRegistrada)
     ? new Set(asistenciaRegistrada.map((item) => String(item?.empleado_id || item)))
     : null;
+  const entradasPorEmpleado = new Map((Array.isArray(asistenciaRegistrada) ? asistenciaRegistrada : [])
+    .filter((item) => item && typeof item === "object" && item.empleado_id)
+    .map((item) => [String(item.empleado_id), item]));
+  const equipo = lista.map((empleado) => {
+    const config = perfiles.get(String(empleado.id));
+    const descansa = Boolean(config && Number(config.dia_descanso) === dia);
+    const entrada = entradasPorEmpleado.get(String(empleado.id)) || null;
+    const estaPresente = Boolean(idsPresentes?.has(String(empleado.id)));
+    const estado = !config
+      ? "PERFIL_PENDIENTE"
+      : descansa
+        ? "DESCANSA"
+        : idsPresentes === null
+          ? "PROGRAMADA"
+          : estaPresente
+            ? "PRESENTE"
+            : "SIN_ENTRADA";
+    const areas = Array.isArray(config?.areas_asignadas) && config.areas_asignadas.length
+      ? config.areas_asignadas
+      : [config?.area_asignada].filter(Boolean);
+    return {
+      empleadoId: empleado.id,
+      nombre: config?.nombre_preferido || empleado.nombre || "Empleada",
+      puesto: empleado.puesto || null,
+      responsabilidades: resolverResponsabilidadesEmpleado(empleado),
+      areas,
+      turno: config?.turno_asignado || null,
+      descanso: config ? Number(config.dia_descanso) : null,
+      estado,
+      entradaAt: entrada?.entrada_at || null,
+    };
+  });
   const disponibles = perfilesListos.filter((empleado) =>
     idsPresentes === null || idsPresentes.has(String(empleado.id)),
   );
@@ -258,6 +290,7 @@ export function construirRutinaInteligente({
   return {
     tareas,
     avisos,
+    equipo,
     empleadosDisponibles: disponibles.length,
     personasProgramadas: disponibles.map((empleado) => empleado.nombre),
     asistencias: idsPresentes === null ? [] : disponibles.map((empleado) => {
