@@ -182,7 +182,7 @@ async function resolverUsuarioResponsableTarea({
       return null;
     }
 
-    return coincidencias[0]?.usuario_id || null;
+    return coincidencias[0]?.auth_user_id || coincidencias[0]?.usuario_id || null;
   } catch (error) {
     console.warn(
       "No se pudo vincular la tarea con el usuario del empleado:",
@@ -428,7 +428,7 @@ async function resolverResponsableMarketing({
     );
 
     return coincidencias.length === 1 &&
-      coincidencias[0]?.usuario_id
+      (coincidencias[0]?.auth_user_id || coincidencias[0]?.usuario_id)
       ? String(coincidencias[0].nombre).trim()
       : "";
   }
@@ -511,7 +511,7 @@ async function resolverResponsableMarketing({
         (empleado) =>
           normalizar(empleado.nombre) ===
             normalizar(responsableAnterior) &&
-          empleado?.usuario_id
+          (empleado?.auth_user_id || empleado?.usuario_id)
       );
 
     if (empleadosAnteriores.length === 1) {
