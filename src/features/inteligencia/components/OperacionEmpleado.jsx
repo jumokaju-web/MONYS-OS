@@ -914,13 +914,19 @@ export default function OperacionEmpleado({
         )
       : 0;
 
-  // La prioridad sale de las tareas de marketing ya asignadas.
+  // Cada persona ve como prioridad únicamente el trabajo de su operación.
+  // Growth conserva su filtro de marketing; tienda usa todas sus tareas asignadas.
   const tareaPrioritaria = useMemo(() => {
-    const tareasMarketing = activas.filter(
-      (tarea) =>
-        normalizarTexto(tarea.area) === "MARKETING" &&
-        normalizarTexto(tarea.estado) !== "ANALIZANDO"
-    );
+    const tareasElegibles = activas.filter((tarea) => {
+      const noEstaAnalizando =
+        normalizarTexto(tarea.estado) !== "ANALIZANDO";
+
+      if (!noEstaAnalizando) return false;
+
+      return esCentroGrowth
+        ? normalizarTexto(tarea.area) === "MARKETING"
+        : true;
+    });
 
     const pesoEstado = (tarea) =>
       normalizarTexto(tarea.estado) === "EN_PROCESO"
@@ -938,14 +944,14 @@ export default function OperacionEmpleado({
             : 3;
     };
 
-    return [...tareasMarketing].sort((a, b) =>
+    return [...tareasElegibles].sort((a, b) =>
       pesoEstado(a) - pesoEstado(b) ||
       pesoPrioridad(a) - pesoPrioridad(b) ||
       String(a.hora_limite || "99:99").localeCompare(
         String(b.hora_limite || "99:99")
       )
     )[0] || null;
-  }, [activas]);
+  }, [activas, esCentroGrowth]);
 
   const borradorAgendaGrowth = useMemo(
     () =>
@@ -1380,7 +1386,7 @@ export default function OperacionEmpleado({
         )}
       </div>
 
-      {/* CALENDARIO SEMANAL DE MARKETING */}
+      {/* CALENDARIO SEMANAL DEL PERFIL ACTIVO */}
 
       <div
         style={{
@@ -1411,7 +1417,7 @@ export default function OperacionEmpleado({
                 fontSize: "18px",
               }}
             >
-              📅 Tu semana de marketing
+              📅 {esCentroGrowth ? "Tu semana de marketing" : "Tu semana en tienda"}
             </h3>
 
             <div
@@ -1421,9 +1427,11 @@ export default function OperacionEmpleado({
                 fontSize: "12px",
               }}
             >
-              {borradorAgendaGrowth.length > 0
-                ? "Agenda propuesta por la Agencia IA"
-                : "Tareas reales programadas para esta semana"}
+              {esCentroGrowth
+                ? borradorAgendaGrowth.length > 0
+                  ? "Agenda propuesta por la Agencia IA"
+                  : "Tareas reales programadas para esta semana"
+                : "Turnos y tareas de tienda programados para esta semana"}
             </div>
           </div>
 
