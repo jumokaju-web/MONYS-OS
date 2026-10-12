@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { construirRutinaInteligente, tareasPendientesDeRutina } from "../../src/features/inteligencia/shared/rutinaTienda.js";
+import { construirRutinaInteligente, priorizarProductosParaConteo, tareasPendientesDeRutina } from "../../src/features/inteligencia/shared/rutinaTienda.js";
 
 const empleados = [
   { id: "v1", nombre: "Ana López", usuario_id: "auth-ana", responsabilidades: ["VENTA_TIENDA"] },
@@ -30,11 +30,11 @@ test("respeta descansos y turno; reparte muebles, limpieza y conteo SICAR", () =
 
   assert.equal(resultado.empleadosDisponibles, 3);
   assert.equal(resultado.tareas.filter((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor").length, 1);
-  assert.equal(resultado.tareas.some((tarea) => tarea.responsable === "Ani"), false);
+  assert.equal(resultado.tareas.some((tarea) => tarea.responsable === "Ana López"), false);
   assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("primer turno")), undefined);
-  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("segundo turno")).responsable, "Karla");
-  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("bodega")).responsable, "Majo");
-  assert.ok(resultado.tareas.find((tarea) => tarea.titulo.includes("bodega")).instrucciones.includes("Crema rosa"));
+  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("segundo turno")).responsable, "Karla Ruiz");
+  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("lote 1 de 1")).responsable, "Luz");
+  assert.ok(resultado.tareas.find((tarea) => tarea.titulo.includes("lote 1 de 1")).instrucciones.includes("Crema rosa"));
   assert.ok(resultado.avisos.some((aviso) => aviso.includes("primer turno")));
 });
 
@@ -46,7 +46,7 @@ test("no inventa conteo de bodega sin SICAR y omite perfiles faltantes", () => {
     productosCriticos: [{ codigo: "P-1", existencia: 0, nivelInventario: "CRITICO" }],
   });
 
-  assert.equal(resultado.tareas.some((tarea) => tarea.titulo.includes("bodega")), false);
+  assert.equal(resultado.tareas.some((tarea) => tarea.titulo.includes("lote")), false);
   assert.ok(resultado.avisos.some((aviso) => aviso.includes("falta un reporte SICAR")));
   assert.ok(resultado.avisos.some((aviso) => aviso.includes("no completa su perfil")));
 });
@@ -63,7 +63,7 @@ test("rota el baño y no duplica tareas ya preparadas", () => {
     ],
   });
   const bano = resultado.tareas.find((tarea) => tarea.titulo.includes("baño"));
-  assert.equal(bano.responsable, "Ani");
+  assert.ok(["Ana López", "Luz"].includes(bano.responsable));
   assert.equal(tareasPendientesDeRutina(resultado.tareas, [bano]).some((tarea) => tarea.titulo === bano.titulo && tarea.responsable === bano.responsable), false);
 });
 
@@ -75,12 +75,76 @@ test("un perfil con varias áreas participa en tienda y en inventario", () => {
     fecha: "2026-10-13",
     empleados: empleados.filter((empleado) => empleado.id !== "m1"),
     configuraciones: perfilesMultiples,
-    productosCriticos: [{ codigo: "P-2", descripcion: "Producto urgente", existencia: 1, nivelInventario: "CRITICO" }],
+    productosCriticos: Array.from({ length: 31 }, (_, index) => ({ codigo: `P-${index + 2}`, descripcion: "Producto urgente", existencia: 1, nivelInventario: "CRITICO" })),
     fuenteInventario: { fecha: "2026-10-12" },
   });
 
-  assert.ok(resultado.tareas.some((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor" && tarea.responsable === "Karla"));
-  assert.ok(resultado.tareas.some((tarea) => tarea.titulo.includes("bodega") && tarea.responsable === "Karla"));
+  assert.ok(resultado.tareas.some((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor" && tarea.responsable === "Karla Ruiz"));
+  assert.ok(resultado.tareas.some((tarea) => tarea.titulo.includes("lote") && tarea.responsable === "Karla Ruiz"));
+});
+
+test("reparte lotes de 30 a todo el personal programado y prioriza negativos", () => {
+  const productos = Array.from({ length: 75 }, (_, index) => ({
+    codigo: `P-${index + 1}`,
+    descripcion: `Producto ${index + 1}`,
+    existencia: index === 45 ? -2 : 5,
+    piezasVendidas: 10,
+    ventaDiaria: 1,
+    diasCobertura: 5,
+    nivelInventario: index === 45 ? "NEGATIVO" : "CRITICO",
+  }));
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados,
+    configuraciones,
+    productosCriticos: priorizarProductosParaConteo(productos),
+    fuenteInventario: { fecha: "2026-10-12" },
+  });
+  const lotes = resultado.tareas.filter((tarea) => tarea.titulo.includes("lote"));
+  assert.deepEqual(lotes.map((tarea) => tarea.responsable), ["Karla Ruiz", "Majo", "Luz"]);
+  assert.deepEqual(lotes.map((tarea) => (tarea.instrucciones.match(/^• /gm) || []).length), [30, 30, 15]);
+  assert.ok(lotes[0].instrucciones.includes("P-46")); // existencia negativa sube al primer lote
+  assert.equal(resultado.productosAsignados, 75);
+  assert.equal(resultado.avisos.some((aviso) => aviso.includes("restantes")), false);
+});
+
+test("limita el conteo a 30 productos por persona y avisa lo que queda pendiente", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados,
+    configuraciones,
+    productosCriticos: Array.from({ length: 150 }, (_, index) => ({ codigo: `X${index}`, existencia: -1, nivelInventario: "NEGATIVO" })),
+    fuenteInventario: { fecha: "2026-10-12" },
+  });
+  const lotes = resultado.tareas.filter((tarea) => tarea.titulo.includes("lote"));
+  assert.equal(lotes.length, 4); // solo 4 personas tienen perfil completo y no descansan el martes
+  assert.ok(lotes.every((tarea) => (tarea.instrucciones.match(/^• /gm) || []).length <= 30));
+  assert.equal(resultado.productosAsignados, 120);
+  assert.ok(resultado.avisos.some((aviso) => aviso.includes("120 de 150")));
+});
+
+test("para hoy asigna solo a quien registró entrada y sigue respetando descanso", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados,
+    configuraciones,
+    asistenciaRegistrada: [{ empleado_id: "v2" }],
+    productosCriticos: [{ codigo: "PRESENTE", existencia: -1, nivelInventario: "NEGATIVO" }],
+    fuenteInventario: { fecha: "2026-10-12" },
+  });
+  assert.deepEqual(resultado.personasProgramadas, ["Karla Ruiz"]);
+  assert.equal(resultado.tareas.every((tarea) => tarea.responsable === "Karla Ruiz"), true);
+
+  const sinEntrada = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados,
+    configuraciones,
+    asistenciaRegistrada: [],
+    productosCriticos: [{ codigo: "PRESENTE", existencia: -1, nivelInventario: "NEGATIVO" }],
+    fuenteInventario: { fecha: "2026-10-12" },
+  });
+  assert.equal(sinEntrada.tareas.length, 0);
+  assert.ok(sinEntrada.avisos.some((aviso) => aviso.includes("registró entrada")));
 });
 
 test("rechaza fecha inválida", () => {

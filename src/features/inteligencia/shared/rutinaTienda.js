@@ -14,7 +14,7 @@ function llaveTarea(texto) {
   return String(texto || "").trim().toLocaleLowerCase("es-MX");
 }
 
-function elegirConMenorCarga(candidatos, historial, fecha, perfiles = new Map()) {
+function elegirConMenorCarga(candidatos, historial, fecha, perfiles = new Map(), { evitarRepetirHoy = false } = {}) {
   if (!candidatos.length) return null;
   const cargas = new Map(candidatos.map((empleado) => [String(empleado.id), 0]));
   for (const tarea of historial) {
@@ -29,22 +29,27 @@ function elegirConMenorCarga(candidatos, historial, fecha, perfiles = new Map())
       cargas.set(String(empleado.id), cargas.get(String(empleado.id)) + 1);
     }
   }
-  const minimo = Math.min(...cargas.values());
-  const empatados = candidatos.filter((empleado) => cargas.get(String(empleado.id)) === minimo);
+  const yaAsignadosHoy = new Set((evitarRepetirHoy ? historial.filter((tarea) => tarea?.fecha === fecha) : [])
+    .map((tarea) => llaveTarea(tarea?.responsable)));
+  const candidatosSinCargaHoy = candidatos.filter((empleado) => !yaAsignadosHoy.has(llaveTarea(empleado.nombre)));
+  const pool = candidatosSinCargaHoy.length ? candidatosSinCargaHoy : candidatos;
+  const minimo = Math.min(...pool.map((empleado) => cargas.get(String(empleado.id))));
+  const empatados = pool.filter((empleado) => cargas.get(String(empleado.id)) === minimo);
   const semilla = Number(fecha.replaceAll("-", "")) || 0;
   return empatados[semilla % empatados.length];
 }
 
-function crearTarea({ fecha, empleado, configuracion, titulo, descripcion, instrucciones, criterioExito, prioridad = "normal" }) {
+function crearTarea({ fecha, empleado, titulo, descripcion, instrucciones, criterioExito, prioridad = "normal", area = "tienda" }) {
   return {
     fecha,
-    area: "tienda",
+    area,
     titulo,
     descripcion,
     instrucciones,
     criterioExito,
     prioridad,
-    responsable: configuracion?.nombre_preferido || empleado.nombre || "Equipo de tienda",
+    // tareas_operativas se filtra por el nombre de la ficha de empleada.
+    responsable: empleado.nombre || "Equipo de tienda",
     responsableUsuarioId: empleado.usuario_id || null,
     requiereEvidencia: false,
   };
@@ -58,15 +63,24 @@ function esVendedoraTienda(empleado, configuracion) {
     resolverResponsabilidadesEmpleado(empleado).includes("VENTA_TIENDA");
 }
 
-function tieneArea(configuracion, area) {
-  const areas = Array.isArray(configuracion?.areas_asignadas) && configuracion.areas_asignadas.length
-    ? configuracion.areas_asignadas
-    : [configuracion?.area_asignada];
-  return areas.includes(area);
-}
-
 function coincideTurno(configuracion, turno) {
   return configuracion?.turno_asignado === turno || configuracion?.turno_asignado === "AMBOS";
+}
+
+function ordenarPorMenorCarga(candidatos, historial, fecha) {
+  if (!candidatos.length) return [];
+  const cargas = new Map(candidatos.map((empleado) => [String(empleado.id), 0]));
+  for (const tarea of historial) {
+    const responsable = llaveTarea(tarea?.responsable);
+    const empleado = candidatos.find((item) => llaveTarea(item.nombre) === responsable);
+    if (empleado) cargas.set(String(empleado.id), cargas.get(String(empleado.id)) + 1);
+  }
+  const inicioRotacion = (Number(fecha.replaceAll("-", "")) || 0) % candidatos.length;
+  const ordenRotacion = new Map(candidatos.map((empleado, index) => [String(empleado.id), (index - inicioRotacion + candidatos.length) % candidatos.length]));
+  return [...candidatos].sort((a, b) =>
+    cargas.get(String(a.id)) - cargas.get(String(b.id)) ||
+    ordenRotacion.get(String(a.id)) - ordenRotacion.get(String(b.id)),
+  );
 }
 
 export function construirRutinaInteligente({
@@ -76,6 +90,7 @@ export function construirRutinaInteligente({
   historial = [],
   productosCriticos = [],
   fuenteInventario = null,
+  asistenciaRegistrada = null,
 } = {}) {
   if (!fechaValida(fecha)) throw new Error("Selecciona una fecha válida para la rutina.");
 
@@ -87,11 +102,17 @@ export function construirRutinaInteligente({
   const asignacionesHoy = [];
   const dia = weekday(fecha);
   const avisos = [];
-  const disponibles = lista.filter((empleado) => {
+  const perfilesListos = lista.filter((empleado) => {
     const config = perfiles.get(String(empleado.id));
     if (!config) return false;
     return Number(config.dia_descanso) !== dia;
   });
+  const idsPresentes = Array.isArray(asistenciaRegistrada)
+    ? new Set(asistenciaRegistrada.map((item) => String(item?.empleado_id || item)))
+    : null;
+  const disponibles = perfilesListos.filter((empleado) =>
+    idsPresentes === null || idsPresentes.has(String(empleado.id)),
+  );
   const personalTienda = disponibles.filter((empleado) =>
     esVendedoraTienda(empleado, perfiles.get(String(empleado.id))),
   );
@@ -100,6 +121,9 @@ export function construirRutinaInteligente({
   const sinPerfil = lista.filter((empleado) => !perfiles.has(String(empleado.id)));
   if (sinPerfil.length) {
     avisos.push(`${sinPerfil.length} empleada${sinPerfil.length === 1 ? "" : "s"} aún no completa su perfil; no se le asignaron rutinas automáticamente.`);
+  }
+  if (idsPresentes && !disponibles.length) {
+    avisos.push("Nadie con perfil completo registró entrada en esta sucursal y fecha; no se asignaron tareas a personal solo programado.");
   }
   if (!personalTienda.length) {
     avisos.push("No hay vendedoras de tienda disponibles con perfil y responsabilidades configurados para esta fecha.");
@@ -140,15 +164,17 @@ export function construirRutinaInteligente({
       instrucciones: "Barre y trapea las áreas de venta al iniciar tu turno. Señaliza el piso mientras esté húmedo.",
       criterioExito: "Piso de las áreas de venta barrido y trapeado con seguridad.",
     }));
-    asignacionesHoy.push({ responsable: perfiles.get(String(responsable.id))?.nombre_preferido || responsable.nombre });
+    asignacionesHoy.push({ responsable: responsable.nombre, fecha });
   }
 
-  const responsablesComunes = personalTienda;
+  const responsablesComunes = disponibles;
+  const historialBano = trabajoPrevio.filter((tarea) => /baño/i.test(tarea.titulo || ""));
   const responsableBano = elegirConMenorCarga(
     responsablesComunes,
-    [...trabajoPrevio, ...asignacionesHoy],
+    [...historialBano, ...asignacionesHoy],
     fecha,
     perfiles,
+    { evitarRepetirHoy: true },
   );
   if (responsableBano) {
     tareas.push(crearTarea({
@@ -160,9 +186,31 @@ export function construirRutinaInteligente({
       instrucciones: "Lava y revisa el baño. Si falta jabón, papel u otro insumo, repórtalo en las observaciones antes de terminar.",
       criterioExito: "Baño limpio; faltantes o reparaciones reportados.",
     }));
-    asignacionesHoy.push({ responsable: perfiles.get(String(responsableBano.id))?.nombre_preferido || responsableBano.nombre });
+    asignacionesHoy.push({ responsable: responsableBano.nombre, fecha });
   } else {
-    avisos.push("El baño quedó sin responsable porque no hay personal de tienda disponible.");
+    avisos.push("El baño quedó sin responsable porque no hay personal programado disponible con perfil completo.");
+  }
+
+  const historialBodega = trabajoPrevio.filter((tarea) => /ordenar y revisar bodega/i.test(tarea.titulo || ""));
+  const responsableBodega = elegirConMenorCarga(
+    disponibles,
+    [...historialBodega, ...asignacionesHoy],
+    fecha,
+    perfiles,
+    { evitarRepetirHoy: true },
+  );
+  if (responsableBodega) {
+    tareas.push(crearTarea({
+      fecha,
+      empleado: responsableBodega,
+      titulo: "Ordenar y revisar bodega",
+      descripcion: "Dejar la bodega ordenada y reportar productos dañados, faltantes o sin etiqueta.",
+      instrucciones: "Revisa pasillos y anaqueles, acomoda productos en su lugar y reporta diferencias, daños o faltantes. No ajustes SICAR ni autorices compras.",
+      criterioExito: "Bodega ordenada y cualquier diferencia o daño reportado a Dirección.",
+    }));
+    asignacionesHoy.push({ responsable: responsableBodega.nombre, fecha });
+  } else {
+    avisos.push("La revisión de bodega quedó sin responsable porque no hay personal programado disponible con perfil completo.");
   }
 
   if (!fuenteInventario?.fecha) {
@@ -170,35 +218,56 @@ export function construirRutinaInteligente({
   } else if (inventarioCritico.length === 0) {
     avisos.push("El último reporte SICAR no detectó productos críticos o bajos; no se generó conteo de bodega.");
   } else {
-    const candidatosBodega = disponibles.filter((empleado) =>
-      tieneArea(perfiles.get(String(empleado.id)), "INVENTARIO_APOYO") ||
-      resolverResponsabilidadesEmpleado(empleado).includes("INVENTARIO_APOYO"),
-    );
-    const responsable = elegirConMenorCarga(candidatosBodega, [...trabajoPrevio, ...asignacionesHoy], fecha, perfiles);
-    if (!responsable) {
-      avisos.push("Hay productos SICAR que necesitan conteo, pero no hay una persona disponible con responsabilidad de inventario.");
+      const historialInventario = trabajoPrevio.filter((tarea) => /lote \d+ de \d+/i.test(tarea.titulo || ""));
+      const elegiblesInventario = ordenarPorMenorCarga(disponibles, historialInventario, fecha);
+    if (!elegiblesInventario.length) {
+      avisos.push("Hay productos SICAR que necesitan conteo, pero no hay personal programado con perfil completo.");
     } else {
-      const listaProductos = inventarioCritico.map((producto) =>
-        `• ${producto.codigo || "Sin código"} · ${producto.descripcion || "Producto"} · SICAR: ${producto.existencia} · ${producto.nivelInventario || "REVISAR"}`,
-      );
-      tareas.push(crearTarea({
-        fecha,
-        empleado: responsable,
-        configuracion: perfiles.get(String(responsable.id)),
-        titulo: "Contar productos críticos de bodega",
-        descripcion: `Validar físicamente ${inventarioCritico.length} producto${inventarioCritico.length === 1 ? "" : "s"} detectado${inventarioCritico.length === 1 ? "" : "s"} en el último reporte SICAR.`,
-        instrucciones: [
-          `Fuente SICAR: ${fuenteInventario.fecha}${fuenteInventario.nombre ? ` · ${fuenteInventario.nombre}` : ""}.`,
-          "Cuenta la existencia física de cada producto y registra el resultado en MONYS. No cambies el inventario en SICAR; reporta diferencias a Dirección.",
-          ...listaProductos,
-        ].join("\n"),
-        criterioExito: "Existencia física registrada para los productos de la lista; diferencias reportadas a Dirección.",
-        prioridad: "alta",
-      }));
+      const limitePorPersona = 30;
+      const productosAsignados = Math.min(inventarioCritico.length, elegiblesInventario.length * limitePorPersona);
+      const personasConLote = Math.ceil(productosAsignados / limitePorPersona);
+      for (let indice = 0; indice < personasConLote; indice += 1) {
+        const empleado = elegiblesInventario[indice];
+        const lote = inventarioCritico.slice(indice * limitePorPersona, (indice + 1) * limitePorPersona);
+        const listaProductos = lote.map((producto) => {
+          const motivo = producto.motivoRevision || producto.nivelInventario || "REVISAR";
+          const cobertura = Number.isFinite(Number(producto.diasCobertura)) ? ` · cobertura ${Math.round(Number(producto.diasCobertura))} días` : "";
+          return `• ${producto.codigo || "Sin código"} · ${producto.descripcion || "Producto"} · SICAR: ${producto.existencia} · ${motivo}${cobertura}`;
+        });
+        tareas.push(crearTarea({
+          fecha,
+          empleado,
+          area: "inventario",
+          titulo: `Contar productos críticos de bodega · lote ${indice + 1} de ${personasConLote}`,
+          descripcion: `Contar físicamente ${lote.length} ${lote.length === 1 ? "producto urgente" : "productos urgentes"} de esta sucursal, seleccionados del último reporte SICAR.`,
+          instrucciones: [
+            `Fuente SICAR de esta sucursal: ${fuenteInventario.fecha}${fuenteInventario.nombre ? ` · ${fuenteInventario.nombre}` : ""}.`,
+            "Cuenta cada producto y registra la existencia física en el campo de resultado de esta tarea. Verifica código y descripción. No cambies SICAR ni hagas compras; reporta diferencias a Dirección.",
+            ...listaProductos,
+          ].join("\n"),
+          criterioExito: `Existencia física registrada para los ${lote.length} ${lote.length === 1 ? "producto" : "productos"} del lote; diferencias reportadas a Dirección.`,
+          prioridad: "alta",
+        }));
+      }
+      if (inventarioCritico.length > productosAsignados) {
+        avisos.push(`Se asignaron ${productosAsignados} de ${inventarioCritico.length} productos urgentes: el equipo disponible puede contar hasta ${limitePorPersona} cada persona. Los restantes quedan para la siguiente ronda.`);
+      }
     }
   }
 
-  return { tareas, avisos, empleadosDisponibles: disponibles.length };
+  return {
+    tareas,
+    avisos,
+    empleadosDisponibles: disponibles.length,
+    personasProgramadas: disponibles.map((empleado) => empleado.nombre),
+    asistencias: idsPresentes === null ? [] : disponibles.map((empleado) => {
+      const registro = (asistenciaRegistrada || []).find((item) => String(item?.empleado_id) === String(empleado.id));
+      return { nombre: empleado.nombre, entrada_at: registro?.entrada_at || null };
+    }),
+    personasPresentes: idsPresentes ? disponibles.length : null,
+    productosUrgentes: inventarioCritico.length,
+    productosAsignados: Math.min(inventarioCritico.length, disponibles.length * 30),
+  };
 }
 
 export function tareasPendientesDeRutina(tareas, existentes = []) {
@@ -208,4 +277,30 @@ export function tareasPendientesDeRutina(tareas, existentes = []) {
     llaveTarea(actual.area) === llaveTarea(tarea.area) &&
     llaveTarea(actual.responsable) === llaveTarea(tarea.responsable),
   ));
+}
+
+export function priorizarProductosParaConteo(productos = []) {
+  const nivelPrioridad = { NEGATIVO: 0, AGOTADO: 1, CRITICO: 2, BAJO: 3 };
+  return (Array.isArray(productos) ? [...productos] : []).sort((a, b) => {
+    const nivelA = String(a?.nivelInventario || "").toUpperCase();
+    const nivelB = String(b?.nivelInventario || "").toUpperCase();
+    const prioridadA = Number(a?.existencia) < 0 ? 0 : (nivelPrioridad[nivelA] ?? 9);
+    const prioridadB = Number(b?.existencia) < 0 ? 0 : (nivelPrioridad[nivelB] ?? 9);
+    if (prioridadA !== prioridadB) return prioridadA - prioridadB;
+    const ventasA = Number(a?.ventaDiaria || a?.piezasVendidas || 0);
+    const ventasB = Number(b?.ventaDiaria || b?.piezasVendidas || 0);
+    if (ventasA !== ventasB) return ventasB - ventasA;
+    const coberturaA = Number.isFinite(Number(a?.diasCobertura)) ? Number(a.diasCobertura) : Infinity;
+    const coberturaB = Number.isFinite(Number(b?.diasCobertura)) ? Number(b.diasCobertura) : Infinity;
+    return coberturaA - coberturaB;
+  }).map((producto) => ({
+    ...producto,
+    motivoRevision: Number(producto?.existencia) < 0
+      ? "NEGATIVO · validar ajuste o captura en SICAR"
+      : String(producto?.nivelInventario || "").toUpperCase() === "AGOTADO"
+        ? "AGOTADO · tiene ventas y SICAR marca cero"
+        : String(producto?.nivelInventario || "").toUpperCase() === "CRITICO"
+          ? "CRÍTICO · cobertura de hasta 7 días"
+          : "BAJO · cobertura reducida",
+  }));
 }
