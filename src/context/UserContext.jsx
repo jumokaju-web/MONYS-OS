@@ -114,7 +114,7 @@ export function UserProvider({
         error: errorEmpleado,
       } = await supabase
         .from("empleados")
-        .select("id, puesto, branch_id, business_id, organization_id, active")
+        .select("id, puesto, responsabilidades, branch_id, business_id, organization_id, active")
         .eq("usuario_id", authUserId)
         .eq("active", true)
         .order("updated_at", { ascending: false })
@@ -210,6 +210,10 @@ export function UserProvider({
           empleadoDB?.id || null,
         puesto:
           empleadoDB?.puesto || null,
+        responsabilidades:
+          Array.isArray(empleadoDB?.responsabilidades)
+            ? empleadoDB.responsabilidades
+            : [],
         active:
           usuarioDB.active,
         negocio:
