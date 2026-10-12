@@ -98,6 +98,38 @@ export function UserProvider({
         );
       }
 
+      /*
+        El rol controla permisos del sistema, pero el puesto define la
+        experiencia operativa. Se consulta por el usuario autenticado para
+        evitar que una vendedora herede la pantalla de Marketing únicamente
+        porque su rol técnico quedó configurado de esa manera.
+
+        Esta consulta es complementaria: un perfil sin ficha de RH conserva
+        el acceso mediante su rol y no queda bloqueado al iniciar sesión.
+      */
+      let empleadoDB = null;
+
+      const {
+        data: empleadoRelacionado,
+        error: errorEmpleado,
+      } = await supabase
+        .from("empleados")
+        .select("id, puesto, branch_id, business_id, organization_id, active")
+        .eq("usuario_id", authUserId)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (errorEmpleado) {
+        console.warn(
+          "No fue posible cargar el puesto operativo del usuario:",
+          errorEmpleado
+        );
+      } else {
+        empleadoDB = empleadoRelacionado;
+      }
+
       let nombreNegocio =
         "Corporativo";
 
@@ -174,6 +206,10 @@ export function UserProvider({
           usuarioDB.telefono,
         role:
           usuarioDB.role,
+        empleado_id:
+          empleadoDB?.id || null,
+        puesto:
+          empleadoDB?.puesto || null,
         active:
           usuarioDB.active,
         negocio:
