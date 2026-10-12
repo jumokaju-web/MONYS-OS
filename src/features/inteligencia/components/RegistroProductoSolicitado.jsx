@@ -31,6 +31,11 @@ export default function RegistroProductoSolicitado({ branchId = null, usuario = 
     event.preventDefault();
     const responsable = String(usuario?.nombre || "").trim();
 
+    if (!branchId) {
+      setError("No pudimos identificar tu sucursal. Avisa a Dirección para corregir tu acceso antes de enviar la solicitud.");
+      return;
+    }
+
     if (!responsable) {
       setError("No pudimos identificar quién está registrando la solicitud.");
       return;
@@ -85,6 +90,7 @@ export default function RegistroProductoSolicitado({ branchId = null, usuario = 
           <input
             value={formulario.producto}
             maxLength={180}
+            required
             placeholder="Ej. Base Pink Up tono 03"
             onChange={(event) => actualizar("producto", event.target.value)}
           />
@@ -98,6 +104,7 @@ export default function RegistroProductoSolicitado({ branchId = null, usuario = 
             min="1"
             max="10000"
             step="1"
+            required
             value={formulario.unidades}
             onChange={(event) => actualizar("unidades", event.target.value)}
           />
