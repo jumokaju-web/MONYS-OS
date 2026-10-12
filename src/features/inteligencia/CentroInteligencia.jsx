@@ -965,6 +965,7 @@ const analisisRH =
       organizationId={organizationId}
       businessId={businessId}
       branchId={branchId}
+      datosDashboard={datosDashboard}
     />
   </div>
 </details>

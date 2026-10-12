@@ -1409,6 +1409,8 @@ export default function CierreTurno({
             </label>
             <div
               id="employee-shift-select"
+              tabIndex={-1}
+              aria-label="Fondo fijo de caja: mil pesos"
               style={{
                 marginTop: "6px",
                 padding: "11px",
