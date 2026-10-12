@@ -4,6 +4,7 @@ import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
 import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
 import PerfilOperativoEmpleado from "./PerfilOperativoEmpleado";
+import RegistroEntradaOperativa from "./RegistroEntradaOperativa";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import {
   detalleResponsabilidadesEmpleado,
@@ -232,6 +233,8 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           padding: "18px 12px",
         }}
       >
+        {!esMarketing && <RegistroEntradaOperativa usuario={usuario} />}
+
         {!esMarketing && (
           <PerfilOperativoEmpleado
             usuario={usuario}
