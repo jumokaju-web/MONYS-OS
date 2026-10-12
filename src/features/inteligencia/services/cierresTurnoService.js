@@ -132,6 +132,34 @@ export async function guardarCierreTurno({
   return data;
 }
 
+export async function subirFotoCorteCaja({ archivo, branchId = null }) {
+  if (!archivo) throw new Error("Toma o selecciona la foto del corte de SICAR.");
+  if (!String(archivo.type || "").startsWith("image/")) {
+    throw new Error("La evidencia del corte debe ser una imagen.");
+  }
+
+  const { data: authData } = await supabase.auth.getUser();
+  const usuarioId = authData?.user?.id || "equipo";
+  const extension = archivo.name?.split(".").pop()?.toLowerCase() || "jpg";
+  const alcance = String(branchId || "sin-sucursal").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const ruta = `${usuarioId}/cierres-caja/${alcance}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from("tareas-evidencias")
+    .upload(ruta, archivo, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: archivo.type || undefined,
+    });
+
+  if (error) throw new Error(`No fue posible subir la foto del corte: ${error.message}`);
+
+  const { data } = supabase.storage.from("tareas-evidencias").getPublicUrl(ruta);
+  return { archivoPath: ruta, archivoUrl: data?.publicUrl || null };
+}
+
 
 export async function obtenerCierresTurno({
   branchId = null,

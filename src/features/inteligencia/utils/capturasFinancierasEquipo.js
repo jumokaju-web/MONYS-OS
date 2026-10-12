@@ -1,5 +1,8 @@
 const MARCADOR_CAJA = "MONYS_CAJA_V1";
+const MARCADOR_APERTURA_CAJA = "MONYS_APERTURA_CAJA_V1";
 const MARCADOR_FLOTILLA = "MONYS_FLOTILLA_V1";
+
+export const FONDO_FIJO_CAJA = 1000;
 
 function numero(valor) {
   const convertido = Number(valor);
@@ -64,9 +67,8 @@ export function calcularCorteCaja(datos = {}) {
   const movimientos = resumirMovimientosCaja(datos.movimientosCaja);
   const usaDetalle = movimientos.cantidad > 0;
   const entradasPosteriores = usaDetalle ? movimientos.entradas : 0;
-  const salidasPosteriores = usaDetalle
-    ? movimientos.salidas
-    : gastosCaja + efectivoEntregado;
+  const salidasPosteriores =
+    (usaDetalle ? movimientos.salidas : gastosCaja) + efectivoEntregado;
   const cobrado = efectivoVentas + tarjeta + transferencias + otrosCobros;
   const efectivoEsperado =
     fondoInicial + efectivoVentas + entradasPosteriores - salidasPosteriores;
@@ -95,6 +97,34 @@ export function crearObservacionesCorte(datos, nota) {
     },
     nota
   );
+}
+
+export function crearObservacionesAperturaCaja(datos = {}) {
+  return guardarBloque(MARCADOR_APERTURA_CAJA, {
+    sesionCajaId: String(datos.sesionCajaId || "").trim(),
+    responsable: String(datos.responsable || "").trim(),
+    fondoInicial: FONDO_FIJO_CAJA,
+    abiertoEn: datos.abiertoEn || new Date().toISOString(),
+    estado: "abierta",
+  });
+}
+
+export function leerAperturaCaja(texto) {
+  return leerBloque(texto, MARCADOR_APERTURA_CAJA);
+}
+
+export function obtenerSesionCajaActiva(cierres = []) {
+  const ordenados = [...(Array.isArray(cierres) ? cierres : [])].sort(
+    (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0)
+  );
+
+  for (const cierre of ordenados) {
+    const apertura = leerAperturaCaja(cierre?.observaciones);
+    if (apertura) return { ...apertura, cierreAperturaId: cierre.id };
+    if (leerCorteCaja(cierre?.observaciones)) return null;
+  }
+
+  return null;
 }
 
 export function leerCorteCaja(texto) {

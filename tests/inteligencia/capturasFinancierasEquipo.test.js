@@ -7,6 +7,10 @@ import {
   crearObservacionesFlotilla,
   leerCorteCaja,
   leerLiquidacionFlotilla,
+  crearObservacionesAperturaCaja,
+  leerAperturaCaja,
+  obtenerSesionCajaActiva,
+  FONDO_FIJO_CAJA,
 } from "../../src/features/inteligencia/utils/capturasFinancierasEquipo.js";
 
 test("calcula conciliación de venta y efectivo del corte", () => {
@@ -80,4 +84,40 @@ test("calcula y recupera la liquidación de flotilla", () => {
     leerLiquidacionFlotilla(crearObservacionesFlotilla(datos)).resultadoEstimado,
     1000
   );
+});
+
+test("abre caja con fondo fijo de mil pesos y conserva a la responsable", () => {
+  const observaciones = crearObservacionesAperturaCaja({
+    sesionCajaId: "caja-1",
+    responsable: "Kary",
+    fondoInicial: 250,
+    abiertoEn: "2026-10-11T15:00:00.000Z",
+  });
+  const apertura = leerAperturaCaja(observaciones);
+  assert.equal(apertura.fondoInicial, FONDO_FIJO_CAJA);
+  assert.equal(apertura.responsable, "Kary");
+});
+
+test("la última apertura queda activa hasta que se registra un corte", () => {
+  const apertura = {
+    id: "a1",
+    created_at: "2026-10-11T15:00:00.000Z",
+    observaciones: crearObservacionesAperturaCaja({
+      sesionCajaId: "caja-1",
+      responsable: "Vale",
+    }),
+  };
+  assert.equal(obtenerSesionCajaActiva([apertura]).responsable, "Vale");
+
+  const cierre = {
+    id: "c1",
+    created_at: "2026-10-11T18:00:00.000Z",
+    observaciones: crearObservacionesCorte({
+      sesionCajaId: "caja-1",
+      ventaSicar: 1000,
+      fondoInicial: 1000,
+      efectivoFinal: 1000,
+    }),
+  };
+  assert.equal(obtenerSesionCajaActiva([apertura, cierre]), null);
 });

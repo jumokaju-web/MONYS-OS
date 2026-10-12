@@ -10,6 +10,7 @@ import {
   obtenerCierresTurno,
   analizarCierreTurnoIA,
   analizarPatronesCierresIA,
+  subirFotoCorteCaja,
 } from "../services/cierresTurnoService";
 
 import {
@@ -21,14 +22,18 @@ import {
 } from "../services/tareasOperativasService";
 import {
   calcularCorteCaja,
+  crearObservacionesAperturaCaja,
   crearObservacionesCorte,
+  FONDO_FIJO_CAJA,
+  leerAperturaCaja,
   leerCorteCaja,
   leerLiquidacionFlotilla,
+  obtenerSesionCajaActiva,
 } from "../utils/capturasFinancierasEquipo";
 
 const formularioInicial = {
   responsable: "",
-  turno: "cierre",
+  turno: "cierre_caja",
   pendientes: "",
   incidencias: "",
   productosSolicitados: "",
@@ -40,8 +45,9 @@ const formularioInicial = {
   tarjeta: "",
   transferencias: "",
   otrosCobros: "",
-  fondoInicial: "",
-  efectivoFinal: "",
+  fondoInicial: String(FONDO_FIJO_CAJA),
+  efectivoEntregado: "",
+  efectivoFinal: String(FONDO_FIJO_CAJA),
   movimientosCaja: [],
 };
 
@@ -110,6 +116,10 @@ export default function CierreTurno({
     setCargandoCierres,
   ] = useState(false);
 
+  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
+  const [abriendoCaja, setAbriendoCaja] = useState(false);
+  const [fotoCorte, setFotoCorte] = useState(null);
+
   const [
     analisisActual,
     setAnalisisActual,
@@ -168,11 +178,9 @@ export default function CierreTurno({
           limite: 10,
         });
 
-      setCierres(
-        Array.isArray(data)
-          ? data
-          : []
-      );
+      const lista = Array.isArray(data) ? data : [];
+      setCierres(lista);
+      setSesionCajaActiva(obtenerSesionCajaActiva(lista));
     } catch (
       errorCierres
     ) {
@@ -341,6 +349,46 @@ export default function CierreTurno({
     }));
   }
 
+  async function abrirCaja() {
+    const responsable = String(usuario?.nombre || formulario.responsable || "").trim();
+    if (!responsable) {
+      setError("No fue posible identificar a la responsable de caja.");
+      return;
+    }
+
+    try {
+      setAbriendoCaja(true);
+      setError("");
+      setMensaje("");
+      const sesionCajaId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `caja-${Date.now()}`;
+      await guardarCierreTurno({
+        branchId,
+        responsable,
+        turno: "apertura_caja",
+        observaciones: crearObservacionesAperturaCaja({
+          sesionCajaId,
+          responsable,
+        }),
+      });
+      setFormulario((actual) => ({
+        ...actual,
+        responsable,
+        turno: "cierre_caja",
+        fondoInicial: String(FONDO_FIJO_CAJA),
+        efectivoFinal: String(FONDO_FIJO_CAJA),
+      }));
+      setMensaje(`Caja abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
+      await cargarCierres();
+    } catch (errorApertura) {
+      setError(errorApertura?.message || "No se pudo abrir la caja.");
+    } finally {
+      setAbriendoCaja(false);
+    }
+  }
+
 
   async function manejarGuardar(
     event
@@ -363,6 +411,16 @@ export default function CierreTurno({
       return;
     }
 
+    if (!sesionCajaActiva) {
+      setError("Primero abre la caja para registrar quién queda como responsable.");
+      return;
+    }
+
+    if (!fotoCorte) {
+      setError("Toma o selecciona la foto del corte de SICAR antes de cerrar la caja.");
+      return;
+    }
+
     const camposDinero = [
       "ventaSicar",
       "efectivoVentas",
@@ -370,6 +428,7 @@ export default function CierreTurno({
       "transferencias",
       "otrosCobros",
       "fondoInicial",
+      "efectivoEntregado",
       "efectivoFinal",
     ];
     const movimientosIniciados = formulario.movimientosCaja.filter((movimiento) =>
@@ -410,7 +469,7 @@ export default function CierreTurno({
 
     const formularioLimpio = {
       ...formulario,
-      movimientosCaja: movimientosIniciados.map(({ id, ...movimiento }) => ({
+      movimientosCaja: movimientosIniciados.map(({ id: _id, ...movimiento }) => ({
         ...movimiento,
         monto: Number(movimiento.monto),
       })),
@@ -419,6 +478,21 @@ export default function CierreTurno({
     try {
       setGuardando(true);
 
+      const evidenciaCorte = await subirFotoCorteCaja({
+        archivo: fotoCorte,
+        branchId,
+      });
+
+      const datosCorte = {
+        ...formularioLimpio,
+        sesionCajaId: sesionCajaActiva.sesionCajaId,
+        responsableCaja: sesionCajaActiva.responsable,
+        fotoCorteUrl: evidenciaCorte.archivoUrl,
+        fotoCortePath: evidenciaCorte.archivoPath,
+        fondoSiguiente: FONDO_FIJO_CAJA,
+        cerradoEn: new Date().toISOString(),
+      };
+
       const cierreGuardado =
         await guardarCierreTurno({
           branchId,
@@ -426,8 +500,7 @@ export default function CierreTurno({
           responsable:
             formulario.responsable,
 
-          turno:
-            formulario.turno,
+          turno: "cierre_caja",
 
           pendientes:
             formulario.pendientes,
@@ -446,9 +519,7 @@ export default function CierreTurno({
           aprendizajes:
             formulario.aprendizajes,
 
-          observaciones: capturaDineroIniciada
-            ? crearObservacionesCorte(formularioLimpio, formulario.observaciones)
-            : formulario.observaciones,
+          observaciones: crearObservacionesCorte(datosCorte, formulario.observaciones),
         });
 
 
@@ -461,6 +532,7 @@ export default function CierreTurno({
         ...formularioInicial,
         responsable: formulario.responsable,
       });
+      setFotoCorte(null);
 
 
       await cargarCierres();
@@ -588,6 +660,11 @@ export default function CierreTurno({
   }
 
   function mostrarObservacionesCierre(cierre) {
+    const apertura = leerAperturaCaja(cierre?.observaciones);
+    if (apertura) {
+      return `Caja abierta con ${formatearDinero(apertura.fondoInicial)} de fondo`;
+    }
+
     const corte = leerCorteCaja(cierre?.observaciones);
     if (corte) {
       return `Corte enviado a Dirección · diferencia de venta ${formatearDinero(
@@ -1227,6 +1304,61 @@ export default function CierreTurno({
       )}
 
 
+      <section
+        style={{
+          padding: "18px",
+          marginBottom: "18px",
+          borderRadius: "18px",
+          border: sesionCajaActiva ? "1px solid #b9dec9" : "1px solid #e6c7d7",
+          background: sesionCajaActiva
+            ? "linear-gradient(145deg, #f0fbf5, #ffffff)"
+            : "linear-gradient(145deg, #fff2f8, #ffffff)",
+        }}
+      >
+        <div style={{ color: "#8f2f5e", fontSize: "12px", fontWeight: 900, letterSpacing: ".08em" }}>
+          RESPONSABILIDAD DE CAJA
+        </div>
+        {sesionCajaActiva ? (
+          <>
+            <h3 style={{ margin: "7px 0" }}>Caja abierta por {sesionCajaActiva.responsable}</h3>
+            <p style={{ margin: 0, color: "#5f4f57" }}>
+              Fondo inicial: <b>{formatearDinero(FONDO_FIJO_CAJA)}</b> · abierta {new Date(
+                sesionCajaActiva.abiertoEn
+              ).toLocaleString("es-MX")}
+            </p>
+            <p style={{ margin: "9px 0 0", color: "#5f4f57" }}>
+              Para que otra persona tome la caja, primero termina este corte con la foto de SICAR.
+            </p>
+          </>
+        ) : (
+          <>
+            <h3 style={{ margin: "7px 0" }}>La caja está cerrada</h3>
+            <p style={{ margin: "0 0 14px", color: "#5f4f57" }}>
+              Quien vaya a usarla debe abrirla. MONYS registrará automáticamente su nombre, hora y el fondo fijo de {formatearDinero(FONDO_FIJO_CAJA)}.
+            </p>
+            <button
+              type="button"
+              onClick={abrirCaja}
+              disabled={abriendoCaja}
+              style={{
+                width: "100%",
+                padding: "13px 16px",
+                border: 0,
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #7f174d, #ba2f72)",
+                color: "#fff",
+                fontWeight: 900,
+                cursor: abriendoCaja ? "wait" : "pointer",
+              }}
+            >
+              {abriendoCaja ? "Abriendo caja..." : `Abrir caja con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}`}
+            </button>
+          </>
+        )}
+      </section>
+
+
+      {sesionCajaActiva && (
       <form
         onSubmit={
           manejarGuardar
@@ -1260,14 +1392,12 @@ export default function CierreTurno({
               value={
                 formulario.responsable
               }
-              onChange={
-                manejarCambio
-              }
-              placeholder="Ej. Vale, Kary..."
+              readOnly
               style={{
                 width: "100%",
                 marginTop: "6px",
                 padding: "10px",
+                background: "#f8f3f6",
               }}
             />
           </div>
@@ -1275,36 +1405,20 @@ export default function CierreTurno({
 
           <div>
             <label>
-              🕐 Turno
+              💵 Fondo de caja
             </label>
-
-            <select
+            <div
               id="employee-shift-select"
-              name="turno"
-              value={
-                formulario.turno
-              }
-              onChange={
-                manejarCambio
-              }
               style={{
-                width: "100%",
                 marginTop: "6px",
-                padding: "10px",
+                padding: "11px",
+                borderRadius: "10px",
+                background: "#f8f3f6",
+                fontWeight: 900,
               }}
             >
-              <option value="apertura">
-                Apertura
-              </option>
-
-              <option value="medio">
-                Intermedio
-              </option>
-
-              <option value="cierre">
-                Cierre
-              </option>
-            </select>
+              {formatearDinero(FONDO_FIJO_CAJA)} · fijo
+            </div>
           </div>
         </div>
 
@@ -1336,6 +1450,32 @@ export default function CierreTurno({
             </p>
           </div>
 
+          <label
+            style={{
+              display: "block",
+              marginTop: "16px",
+              padding: "15px",
+              borderRadius: "13px",
+              border: fotoCorte ? "1px solid #9bc9ad" : "1px solid #d9bdcc",
+              background: fotoCorte ? "#f0faf4" : "#fff",
+              fontWeight: 900,
+            }}
+          >
+            📷 Foto obligatoria del corte de SICAR
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => setFotoCorte(event.target.files?.[0] || null)}
+              style={{ display: "block", width: "100%", marginTop: "10px" }}
+            />
+            <small style={{ display: "block", marginTop: "7px", color: "#725d68", fontWeight: 600 }}>
+              {fotoCorte
+                ? `Lista para enviar: ${fotoCorte.name}`
+                : "Toma la foto donde se vea el total, faltante o sobrante del corte."}
+            </small>
+          </label>
+
           <div
             style={{
               display: "grid",
@@ -1349,8 +1489,9 @@ export default function CierreTurno({
               ["tarjeta", "Cobros con tarjeta", "Total de terminales"],
               ["transferencias", "Transferencias", "Cobros recibidos por banco"],
               ["otrosCobros", "Otros cobros", "Vales u otra forma de pago"],
-              ["fondoInicial", "Fondo inicial", "Efectivo al abrir"],
-              ["efectivoFinal", "Efectivo contado al cierre", "Dinero físico restante"],
+              ["fondoInicial", "Fondo inicial", "Siempre inicia con $1,000"],
+              ["efectivoEntregado", "Efectivo retirado al cierre", "Dinero de la venta que entregas o resguardas"],
+              ["efectivoFinal", "Fondo que queda en caja", "Cuenta el efectivo real; la meta es dejar $1,000"],
             ].map(([name, label, ayuda]) => (
               <label key={name} style={{ fontWeight: 800, fontSize: "13px" }}>
                 {label}
@@ -1362,6 +1503,7 @@ export default function CierreTurno({
                   name={name}
                   value={formulario[name]}
                   onChange={manejarCambio}
+                  readOnly={name === "fondoInicial"}
                   placeholder="$0.00"
                   style={{
                     width: "100%",
@@ -1370,6 +1512,7 @@ export default function CierreTurno({
                     padding: "11px",
                     borderRadius: "10px",
                     border: "1px solid #d9bdcc",
+                    background: name === "fondoInicial" ? "#f8f3f6" : "#fff",
                   }}
                 />
                 <small
@@ -1772,6 +1915,7 @@ export default function CierreTurno({
             : "✅ Finalizar cierre de turno"}
         </button>
       </form>
+      )}
 
 
       <section>

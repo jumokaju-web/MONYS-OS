@@ -3,6 +3,8 @@
 .finanzas-evidencias{background:white;border:1px solid #e6d5df;border-radius:15px;padding:18px;margin:18px 0}.finanzas-evidencias h2{font-size:18px;margin:0}.finanzas-evidencias article{padding:14px;border-radius:11px;background:#faf4f8}.finanzas-evidencias p{font-size:13px;line-height:1.6;color:#776371}
 
 .centro-financiero [hidden]{display:none!important}.finanzas-ruta button{font:inherit;font-size:12px;padding:9px 12px;background:#604253;border:1px solid #95788a;border-radius:8px;color:white;cursor:pointer}.finanzas-ruta button:hover{background:#7c526b}.finanzas-evidencias button{display:block;margin-top:10px;font:inherit;font-size:13px;color:#713657;border:1px solid #dbc5d1;border-radius:8px;padding:10px;background:white;cursor:pointer}
+.captura-evidencia-corte{display:inline-flex;margin-top:12px;padding:10px 13px;border-radius:9px;background:#f3e4ec;color:#77234f;font-weight:850;text-decoration:none}.captura-evidencia-corte:hover{background:#ead3df}
+.captura-caja-activa{display:grid;gap:4px;margin:14px 0;padding:15px 17px;border:1px solid #a8d4ba;border-radius:13px;background:#effaf4;color:#244f37}.captura-caja-activa span{font-size:11px;font-weight:900;letter-spacing:.09em}.captura-caja-activa strong{font-size:20px}.captura-caja-activa small{color:#567064}.captura-caja-activa.esta-cerrada{border-color:#e2ced9;background:#faf5f8;color:#654b59}
 
 .finanzas-meta-diaria{background:#f0c1d8;border:0;border-radius:10px;padding:13px 16px;color:#432b3d;font:inherit;font-weight:800;cursor:pointer}.equilibrio-metas{grid-template-columns:repeat(2,minmax(0,1fr))}.equilibrio-metas h3{font-size:32px;margin:12px 0;color:#713657}@media(max-width:650px){.equilibrio-metas{grid-template-columns:1fr}}
 

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
-import { extraerCapturaFinanciera } from "../../inteligencia/utils/capturasFinancierasEquipo";
+import {
+  extraerCapturaFinanciera,
+  obtenerSesionCajaActiva,
+} from "../../inteligencia/utils/capturasFinancierasEquipo";
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -39,12 +42,14 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const [capturas, setCapturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
 
   const cargar = useCallback(async () => {
     try {
       setCargando(true);
       setError("");
       const cierres = await obtenerCierresTurno({ branchId, limite: 100 });
+      setSesionCajaActiva(obtenerSesionCajaActiva(cierres));
       setCapturas(cierres.map(extraerCapturaFinanciera).filter(Boolean));
     } catch (errorConsulta) {
       setError(errorConsulta?.message || "No fue posible cargar las capturas del equipo.");
@@ -100,6 +105,23 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <button type="button" onClick={cargar} disabled={cargando}>
           {cargando ? "Actualizando…" : "Actualizar"}
         </button>
+      </div>
+
+      <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
+        <span>CAJA AHORA</span>
+        {sesionCajaActiva ? (
+          <>
+            <strong>{sesionCajaActiva.responsable}</strong>
+            <small>
+              Responsable desde {new Date(sesionCajaActiva.abiertoEn).toLocaleString("es-MX")} · Fondo $1,000.00
+            </small>
+          </>
+        ) : (
+          <>
+            <strong>Sin responsable activa</strong>
+            <small>La caja está cerrada o el último corte ya fue entregado.</small>
+          </>
+        )}
       </div>
 
       <div className="capturas-resumen">
@@ -176,6 +198,16 @@ export default function BandejaCapturasEquipo({ branchId }) {
                       );
                     })}
                   </div>
+                )}
+                {datos.fotoCorteUrl && (
+                  <a
+                    className="captura-evidencia-corte"
+                    href={datos.fotoCorteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Ver foto del corte de SICAR →
+                  </a>
                 )}
               </>
             ) : (
