@@ -4,6 +4,10 @@ import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
 import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
+import {
+  detalleResponsabilidadesEmpleado,
+  resolverResponsabilidadesEmpleado,
+} from "../shared/responsabilidadesEmpleado";
 import "./InicioEmpleado.css";
 
 export default function InicioEmpleado({ usuario, datosDashboard }) {
@@ -14,6 +18,12 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
   const puesto = usuario?.puesto || usuario?.role || "Operación";
 
   const esMarketing = esPerfilGrowth({ ...usuario, puesto });
+  const responsabilidades = resolverResponsabilidadesEmpleado(usuario);
+  const responsabilidadesDetalle = detalleResponsabilidadesEmpleado(usuario);
+  const puedeRegistrarProducto = responsabilidades.some((item) =>
+    ["VENTA_TIENDA", "VENTA_WHATSAPP", "INVENTARIO_APOYO"].includes(item)
+  );
+  const puedeCaja = responsabilidades.includes("CAJA_CORTE");
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
   const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
 
@@ -255,17 +265,50 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
         )}
 
         {!esMarketing && (
+          <section className="employee-responsibilities" aria-labelledby="employee-responsibilities-title">
+            <header>
+              <div>
+                <span>TU PUESTO EN ACCIÓN</span>
+                <h2 id="employee-responsibilities-title">Lo que sí te corresponde</h2>
+              </div>
+              <strong>{responsabilidadesDetalle.length} asignadas</strong>
+            </header>
+            {responsabilidadesDetalle.length ? (
+              <div className="employee-responsibilities__grid">
+                {responsabilidadesDetalle.map((responsabilidad) => (
+                  <article key={responsabilidad.id}>
+                    <b>{responsabilidad.icono}</b>
+                    <div>
+                      <strong>{responsabilidad.nombre}</strong>
+                      <p>{responsabilidad.descripcion}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="employee-responsibilities__empty">
+                Dirección todavía debe asignarte responsabilidades. Tus tareas asignadas siguen disponibles abajo.
+              </p>
+            )}
+          </section>
+        )}
+
+        {!esMarketing && (puedeRegistrarProducto || puedeCaja) && (
           <section className="employee-quick-actions" aria-label="Acciones rápidas de tienda">
-            <button type="button" onClick={() => navegarOperacion("PRODUCTO")}>
-              <span>🛍️</span>
-              <strong>Producto solicitado</strong>
-              <small>Reportar lo que pidieron y no tenemos</small>
-            </button>
-            <button type="button" onClick={() => navegarOperacion("TURNO")}>
-              <span>💵</span>
-              <strong>Caja y corte</strong>
-              <small>Abrir con $1,000 o cerrar con foto</small>
-            </button>
+            {puedeRegistrarProducto && (
+              <button type="button" onClick={() => navegarOperacion("PRODUCTO")}>
+                <span>🛍️</span>
+                <strong>Producto solicitado</strong>
+                <small>Reportar lo que pidieron y no tenemos</small>
+              </button>
+            )}
+            {puedeCaja && (
+              <button type="button" onClick={() => navegarOperacion("TURNO")}>
+                <span>💵</span>
+                <strong>Caja y corte</strong>
+                <small>Abrir con $1,000 o cerrar con foto</small>
+              </button>
+            )}
           </section>
         )}
 
@@ -297,7 +340,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           />
         </div>
 
-        {!esMarketing && (
+        {!esMarketing && puedeRegistrarProducto && (
           <div id="employee-product-request" className="employee-product-request">
             <RegistroProductoSolicitado branchId={branchId} usuario={usuario} />
           </div>
@@ -410,7 +453,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           <>
             {[
               ["HOY", "📋", "Hoy"],
-              ["PRODUCTO", "🛍️", "Solicitudes"],
+              ...(puedeRegistrarProducto ? [["PRODUCTO", "🛍️", "Solicitudes"]] : []),
               ["INCIDENCIAS", "⚠️", "Incidencias"],
               ["TURNO", "📝", "Turno"],
             ].map(([seccion, icono, etiqueta]) => (
