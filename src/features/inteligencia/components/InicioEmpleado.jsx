@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
+import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import "./InicioEmpleado.css";
 
@@ -72,6 +73,18 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
       document
         .getElementById("employee-work-today")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (seccion === "PRODUCTO") {
+      document
+        .getElementById("employee-product-request")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => {
+        document
+          .querySelector("#employee-product-request input")
+          ?.focus({ preventScroll: true });
+      }, 450);
       return;
     }
 
@@ -241,6 +254,21 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           </div>
         )}
 
+        {!esMarketing && (
+          <section className="employee-quick-actions" aria-label="Acciones rápidas de tienda">
+            <button type="button" onClick={() => navegarOperacion("PRODUCTO")}>
+              <span>🛍️</span>
+              <strong>Producto solicitado</strong>
+              <small>Reportar lo que pidieron y no tenemos</small>
+            </button>
+            <button type="button" onClick={() => navegarOperacion("TURNO")}>
+              <span>💵</span>
+              <strong>Caja y corte</strong>
+              <small>Abrir con $1,000 o cerrar con foto</small>
+            </button>
+          </section>
+        )}
+
         {/* ======================================
             OPERACIÓN INDIVIDUAL
             ====================================== */}
@@ -264,6 +292,12 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
         >
           <OperacionEmpleado branchId={branchId} usuario={usuario} />
         </div>
+
+        {!esMarketing && (
+          <div id="employee-product-request" className="employee-product-request">
+            <RegistroProductoSolicitado branchId={branchId} usuario={usuario} />
+          </div>
+        )}
 
         {/* ======================================
             CIERRE DE TURNO
@@ -372,6 +406,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           <>
             {[
               ["HOY", "📋", "Hoy"],
+              ["PRODUCTO", "🛍️", "Solicitudes"],
               ["INCIDENCIAS", "⚠️", "Incidencias"],
               ["TURNO", "📝", "Turno"],
             ].map(([seccion, icono, etiqueta]) => (
