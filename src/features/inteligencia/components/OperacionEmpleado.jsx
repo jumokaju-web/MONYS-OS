@@ -506,6 +506,8 @@ export default function OperacionEmpleado({
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
+            (esCentroGrowth ||
+              normalizarTexto(tarea.area) !== "MARKETING") &&
             tareaPerteneceAlUsuario(tarea, {
               authUserId: usuario?.auth_user_id,
               nombreUsuario: usuario?.nombre,
@@ -536,6 +538,8 @@ export default function OperacionEmpleado({
           (tarea) =>
             tarea.estado !==
               "cancelada" &&
+            (esCentroGrowth ||
+              normalizarTexto(tarea.area) !== "MARKETING") &&
             tareaPerteneceAlUsuario(tarea, {
               authUserId: usuario?.auth_user_id,
               nombreUsuario: usuario?.nombre,
@@ -629,6 +633,7 @@ export default function OperacionEmpleado({
     fechaHoy,
     nombreEmpleado,
     diasSemana,
+    esCentroGrowth,
   ]);
 
   async function cargarEvidencias(
@@ -1191,7 +1196,7 @@ export default function OperacionEmpleado({
             Hola, {String(usuario?.nombre || "equipo").trim().split(/\s+/)[0]} 💗
           </div>
           <div style={{ marginTop: "4px", color: "#745364", fontSize: "13px" }}>
-            Tu centro de crecimiento · Hoy
+            Tu operación de tienda · Hoy
           </div>
 
           <h2 style={{ margin: "16px 0 10px", color: "#7d194b", fontSize: "20px" }}>
@@ -2175,18 +2180,20 @@ export default function OperacionEmpleado({
           </div>
         )}
       </div>
-      <CrearCampanaMarketingTarea
-        tarea={{
-          titulo: "Crear campaña con MONYS",
-          area: "MARKETING",
-        }}
-        usuario={usuario}
-        branchId={branchIdActivo}
-        organizationId={
-          organizationIdActivo
-        }
-        businessId={businessIdActivo}
-      />
+      {esCentroGrowth && (
+        <CrearCampanaMarketingTarea
+          tarea={{
+            titulo: "Crear campaña con MONYS",
+            area: "MARKETING",
+          }}
+          usuario={usuario}
+          branchId={branchIdActivo}
+          organizationId={
+            organizationIdActivo
+          }
+          businessId={businessIdActivo}
+        />
+      )}
 
       {/* TAREAS */}
 
@@ -2431,7 +2438,8 @@ export default function OperacionEmpleado({
 />
 )}
 
- {normalizarTexto(tarea.area) ===
+ {esCentroGrowth &&
+  normalizarTexto(tarea.area) ===
   "MARKETING" &&
   !normalizarTexto(
     tarea.titulo
@@ -2443,7 +2451,8 @@ export default function OperacionEmpleado({
     />
   )}
 
-{normalizarTexto(tarea.area) ===
+{esCentroGrowth &&
+  normalizarTexto(tarea.area) ===
   "MARKETING" &&
   !normalizarTexto(
     tarea.titulo
