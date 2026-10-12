@@ -290,7 +290,11 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
             scrollMarginTop: "104px",
           }}
         >
-          <OperacionEmpleado branchId={branchId} usuario={usuario} />
+          <OperacionEmpleado
+            branchId={branchId}
+            usuario={usuario}
+            datosDashboard={datosDashboard}
+          />
         </div>
 
         {!esMarketing && (

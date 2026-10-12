@@ -37,6 +37,7 @@ import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
+import AsistenteVendedora from "./AsistenteVendedora";
 
 import {
   claveEspacioGrowth,
@@ -275,6 +276,7 @@ function etiquetaPrioridad(prioridad) {
 export default function OperacionEmpleado({
   branchId = null,
   usuario = null,
+  datosDashboard = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
 
@@ -1180,75 +1182,18 @@ export default function OperacionEmpleado({
         />
       )}
 
-      {!esCentroGrowth && tareaPrioritaria && (
-        <article
-          style={{
-            marginBottom: "18px",
-            padding: "18px",
-            borderRadius: "20px",
-            border: "1px solid #efc7da",
-            background:
-              "linear-gradient(145deg, #fff0f7, #ffffff)",
-            boxShadow: "0 8px 24px rgba(157,36,91,0.08)",
-          }}
-        >
-          <div style={{ color: "#9d245b", fontWeight: 900 }}>
-            Hola, {String(usuario?.nombre || "equipo").trim().split(/\s+/)[0]} 💗
-          </div>
-          <div style={{ marginTop: "4px", color: "#745364", fontSize: "13px" }}>
-            Tu operación de tienda · Hoy
-          </div>
-
-          <h2 style={{ margin: "16px 0 10px", color: "#7d194b", fontSize: "20px" }}>
-            🎯 Tu prioridad de hoy
-          </h2>
-          <strong style={{ display: "block", color: "#30232a", fontSize: "17px" }}>
-            {tareaPrioritaria.titulo}
-          </strong>
-          <p style={{ margin: "9px 0", color: "#64535c", lineHeight: 1.45 }}>
-            {normalizarTexto(tareaPrioritaria.estado) === "EN_PROCESO"
-              ? "Ya la comenzaste: termina esta acción antes de abrir otra."
-              : normalizarTexto(tareaPrioritaria.prioridad) === "URGENTE"
-                ? "Es urgente dentro de tus tareas asignadas."
-                : normalizarTexto(tareaPrioritaria.prioridad) === "ALTA"
-                  ? "Tiene prioridad alta dentro de tus tareas asignadas."
-                  : "Es una tarea real asignada a ti para hoy."}
-            {tareaPrioritaria.hora_limite
-              ? ` Límite: ${tareaPrioritaria.hora_limite}.`
-              : ""}
-          </p>
-
-          {tareaPrioritaria.criterio_exito && (
-            <div style={{ margin: "10px 0", color: "#634554", fontSize: "13px" }}>
-              <strong>Resultado esperado:</strong> {tareaPrioritaria.criterio_exito}
-            </div>
-          )}
-          <div style={{ color: "#866f7b", fontSize: "12px" }}>
-            Valor económico: pendiente de medir con el resultado real.
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              abrirTareaPrioritaria
-            }
-            style={{
-              width: "100%",
-              marginTop: "14px",
-              padding: "12px",
-              border: "none",
-              borderRadius: "12px",
-              background: "#c33170",
-              color: "#ffffff",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            {normalizarTexto(tareaPrioritaria.estado) === "PENDIENTE"
-              ? "▶ Empezar tarea"
-              : "Ver tarea e instrucciones"}
-          </button>
-        </article>
+      {!esCentroGrowth && (
+        <AsistenteVendedora
+          usuario={usuario}
+          datosDashboard={datosDashboard}
+          tareaPrioritaria={tareaPrioritaria}
+          onTrabajarPrioridad={abrirTareaPrioritaria}
+          onRegistrarFaltante={() =>
+            document
+              .getElementById("employee-product-request")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+        />
       )}
 
       {/* RESUMEN */}
