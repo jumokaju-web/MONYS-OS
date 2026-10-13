@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useState,
 } from "react";
 
@@ -10,7 +11,7 @@ import {
   darDeBajaEmpleadoRH,
   reactivarEmpleadoRH,
   actualizarEmpleadoRH,
-  eliminarEmpleadoRH,
+  obtenerMovimientosLaboralesRH,
 } from "../../services/empleadosRHService";
 
 import {
@@ -20,6 +21,7 @@ import {
   RESPONSABILIDADES_EMPLEADO,
   detalleResponsabilidadesEmpleado,
 } from "../../shared/responsabilidadesEmpleado";
+import { agruparHistorialLaboral } from "../../shared/historialLaboral";
 
 import {
   obtenerNegociosActivos,
@@ -169,6 +171,18 @@ const [
   setEmpleadoEditando,
 ] = useState(null);
 
+  const [historialLaboral, setHistorialLaboral] = useState([]);
+  const [errorHistorial, setErrorHistorial] = useState("");
+
+  useEffect(() => {
+    let vigente = true;
+    if (!branchId) { setHistorialLaboral([]); return undefined; }
+    obtenerMovimientosLaboralesRH(branchId)
+      .then((datos) => { if (vigente) { setHistorialLaboral(datos); setErrorHistorial(""); } })
+      .catch((error) => { if (vigente) setErrorHistorial(error?.message || "No fue posible cargar el historial laboral."); });
+    return () => { vigente = false; };
+  }, [branchId, empleados]);
+
   if (!analisisRH) {
     return null;
   }
@@ -210,6 +224,8 @@ const [
   Array.isArray(empleados)
     ? empleados
     : [];
+
+    const historialPorEmpleado = agruparHistorialLaboral(historialLaboral);
 
     const puestosDisponibles =
   obtenerPuestosRH("general");
@@ -602,22 +618,19 @@ const [
     return;
   }
 
-  const confirmar =
-    window.confirm(
-      `¿Dar de baja a ${
-        empleado.nombre ||
-        "este empleado"
-      }?`
-    );
+  const motivo = window.prompt(`Escribe el motivo de la baja de ${empleado.nombre || "esta empleada"}. Se conservará en su historial.`);
+  if (!String(motivo || "").trim()) return;
+  const confirmar = window.confirm(`¿Registrar la baja de ${empleado.nombre || "esta empleada"}? No se eliminará su expediente.`);
 
   if (!confirmar) {
     return;
   }
 
   try {
-    await darDeBajaEmpleadoRH(
-      empleado.id
-    );
+    setErrorEmpleado("");
+    setMensajeEmpleado("");
+    await darDeBajaEmpleadoRH({ empleadoId: empleado.id, motivo });
+    setMensajeEmpleado("Baja registrada. El expediente y el motivo se conservaron.");
 
     setEmpleadoAccionesAbierto(
       null
@@ -634,6 +647,7 @@ const [
       "Error al dar de baja empleado:",
       error
     );
+    setErrorEmpleado(error?.message || "No fue posible registrar la baja.");
   }
 }
 
@@ -646,22 +660,19 @@ async function manejarReactivarEmpleado(
     return;
   }
 
-  const confirmar =
-    window.confirm(
-      `¿Reactivar a ${
-        empleado.nombre ||
-        "este empleado"
-      }?`
-    );
+  const motivo = window.prompt(`Escribe el motivo de la reactivación de ${empleado.nombre || "esta empleada"}.`);
+  if (!String(motivo || "").trim()) return;
+  const confirmar = window.confirm(`¿Reactivar a ${empleado.nombre || "esta empleada"}?`);
 
   if (!confirmar) {
     return;
   }
 
   try {
-    await reactivarEmpleadoRH(
-      empleado.id
-    );
+    setErrorEmpleado("");
+    setMensajeEmpleado("");
+    await reactivarEmpleadoRH({ empleadoId: empleado.id, motivo });
+    setMensajeEmpleado("Reactivación registrada en el historial laboral.");
 
     setEmpleadoAccionesAbierto(
       null
@@ -678,48 +689,7 @@ async function manejarReactivarEmpleado(
       "Error al reactivar empleado:",
       error
     );
-  }
-}
-
-async function manejarEliminarEmpleado(
-  empleado
-) {
-  if (!empleado?.id) {
-    return;
-  }
-
-  const confirmar =
-    window.confirm(
-      `¿Eliminar definitivamente a ${
-        empleado.nombre ||
-        "este empleado"
-      }?\n\nEsta acción no se puede deshacer.`
-    );
-
-  if (!confirmar) {
-    return;
-  }
-
-  try {
-    await eliminarEmpleadoRH(
-      empleado.id
-    );
-
-    setEmpleadoAccionesAbierto(
-      null
-    );
-
-    if (
-      typeof onEmpleadoCreado ===
-      "function"
-    ) {
-      await onEmpleadoCreado();
-    }
-  } catch (error) {
-    console.error(
-      "Error al eliminar empleado:",
-      error
-    );
+    setErrorEmpleado(error?.message || "No fue posible reactivar a la empleada.");
   }
 }
 
@@ -1629,6 +1599,10 @@ async function manejarEliminarEmpleado(
                   <span style={{ color: "#a36b32", fontSize: "11px" }}>Responsabilidades pendientes</span>
                 )}
               </div>
+              {(historialPorEmpleado[empleado.id] || []).length > 0 && <details style={{ marginTop: "8px", fontSize: "11px", color: "#65566f" }}>
+                <summary>Historial laboral · {historialPorEmpleado[empleado.id].length}</summary>
+                {(historialPorEmpleado[empleado.id] || []).map((movimiento) => <p key={movimiento.id} style={{ margin: "6px 0" }}><b>{movimiento.tipo === "BAJA" ? "Baja" : "Reactivación"}</b> · {movimiento.fecha_efectiva} · {movimiento.motivo}</p>)}
+              </details>}
             </div>
 
           <div
@@ -1761,29 +1735,6 @@ async function manejarEliminarEmpleado(
   </button>
 )}
 
-   <button
-  type="button"
-  onClick={() =>
-    manejarEliminarEmpleado(
-      empleado
-    )
-  }
-  style={{
-    width: "100%",
-    padding: "9px 10px",
-    border: "none",
-    borderRadius: "7px",
-    backgroundColor: "#fff4f4",
-    color: "#b42318",
-    cursor: "pointer",
-    fontWeight: "700",
-    textAlign: "left",
-    marginTop: "6px",
-  }}
->
-  🗑️ Eliminar definitivamente
-</button>
-
     </div>
   )}
 </div>
@@ -1803,6 +1754,7 @@ async function manejarEliminarEmpleado(
     </p>
   )}
 </div>
+      {errorHistorial && <p role="alert" style={{ color: "#a52d2d", fontWeight: 700 }}>{errorHistorial}</p>}
 
       {/* DIAGNÓSTICO */}
 
