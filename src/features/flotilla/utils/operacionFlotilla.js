@@ -209,7 +209,7 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
   };
 }
 
-export function calcularResumenRentalPeriodo(operaciones = [], cortes = [], liquidaciones = []) {
+export function calcularResumenRentalPeriodo(operaciones = [], cortes = [], liquidaciones = [], repartos = []) {
   const listaOperaciones = Array.isArray(operaciones) ? operaciones : [];
   const listaCortes = Array.isArray(cortes) ? cortes : [];
   const liquidacionesActivas = (Array.isArray(liquidaciones) ? liquidaciones : [])
@@ -294,6 +294,25 @@ export function calcularResumenRentalPeriodo(operaciones = [], cortes = [], liqu
     Chory: parteBase,
     Kary: dinero(utilidadRepartible - parteBase - parteBase),
   };
+  const repartosActivos = (Array.isArray(repartos) ? repartos : [])
+    .filter((item) => item?.estado === "PAGADO");
+  const repartoPorSocio = new Map(repartosActivos.map((item) => [item.socio, item]));
+  const sociosDetalle = ["Abraham", "Chory", "Kary"].map((socio) => {
+    const calculado = dinero(repartoSocios[socio]);
+    const reparto = repartoPorSocio.get(socio) || null;
+    const coincide = Boolean(reparto)
+      && dinero(reparto.utilidad_calculada) === utilidadRepartible
+      && dinero(reparto.parte_calculada) === calculado
+      && dinero(reparto.monto_entregado) === calculado;
+    return {
+      socio,
+      calculado,
+      entregado: dinero(reparto?.monto_entregado),
+      repartoId: reparto?.id || null,
+      entregadoEn: reparto?.pagado_en || null,
+      estado: reparto ? (coincide ? "PAGADO" : "CAMBIO_POSTERIOR") : calculado > 0 ? "PENDIENTE" : "SIN_REPARTO",
+    };
+  });
 
   return {
     dias,
@@ -317,6 +336,60 @@ export function calcularResumenRentalPeriodo(operaciones = [], cortes = [], liqu
     utilidadRepartible,
     hayPerdida: utilidadNeta < 0,
     repartoSocios,
+    sociosDetalle,
+    repartoEntregado: dinero(sociosDetalle.reduce((suma, item) => suma + (item.estado === "PAGADO" ? item.entregado : 0), 0)),
+    repartoPorRevisar: dinero(sociosDetalle.reduce((suma, item) => suma + (item.estado === "CAMBIO_POSTERIOR" ? item.entregado : 0), 0)),
+    repartoPendiente: dinero(sociosDetalle.reduce((suma, item) => suma + (item.estado === "PENDIENTE" ? item.calculado : 0), 0)),
     socios: ["Abraham", "Chory", "Kary"],
   };
+}
+
+export function crearFilasReporteRental({ desde, hasta, resumen }) {
+  const corte = [{
+    "Periodo desde": desde,
+    "Periodo hasta": hasta,
+    Rutas: resumen.rutas,
+    "Rutas Small": resumen.rutasSmall,
+    "Rutas Large": resumen.rutasLarge,
+    Ingreso: resumen.ingreso,
+    "Ganado choferes": resumen.pagoChoferes,
+    "Adelantos entregados": resumen.adelantosEntregados,
+    "Pendiente choferes": resumen.pendienteLiquidar,
+    "Gas empresa": resumen.gasolinaEmpresa,
+    "Gas choferes (informativo)": resumen.gasolinaChofer,
+    "Otros gastos": resumen.otrosGastos,
+    "Utilidad neta": resumen.utilidadNeta,
+    "Reparto entregado": resumen.repartoEntregado,
+    "Reparto pendiente": resumen.repartoPendiente,
+  }];
+  const choferes = resumen.choferes.map((item) => ({
+    Chofer: item.chofer,
+    Placas: item.placas,
+    Rutas: item.rutas,
+    Ganado: item.ganado,
+    Adelantos: item.adelantos,
+    "Falta pagar": item.saldoPorPagar,
+    "Adelanto excedente": item.adelantoExcedente,
+    "Gas pagada por chofer": item.gasolinaChofer,
+    "Ambulancias a favor": item.ambulanciasFavor,
+    "Ambulancias descontadas": item.ambulanciasDescuento,
+    Estado: item.estado,
+  }));
+  const socios = resumen.sociosDetalle.map((item) => ({
+    Socio: item.socio,
+    "Parte calculada": item.calculado,
+    Entregado: item.entregado,
+    Estado: item.estado,
+    "Fecha de entrega": item.entregadoEn || "",
+  }));
+  const dias = resumen.dias.map((item) => ({
+    Fecha: item.fecha,
+    Rutas: item.rutas,
+    Ingreso: item.ingreso,
+    "Ganado choferes": item.pagoChoferes,
+    "Gas empresa": item.gasolinaEmpresa,
+    "Otros gastos": item.otroGasto,
+    "Utilidad neta": item.utilidadNeta,
+  }));
+  return { corte, choferes, socios, dias };
 }

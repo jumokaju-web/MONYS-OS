@@ -254,6 +254,7 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
     { data: operaciones, error: errorOperaciones },
     { data: cortes, error: errorCortes },
     { data: liquidaciones, error: errorLiquidaciones },
+    { data: repartos, error: errorRepartos },
   ] = await Promise.all([
     supabase
       .from("flotilla_rutas")
@@ -273,18 +274,23 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
       .order("fecha", { ascending: true }),
     supabase
       .from("flotilla_rental_liquidaciones")
-      .select("id, periodo_desde, periodo_hasta, chofer_nombre, placas, ganado_calculado, adelantos_entregados, monto_pagado, adelanto_excedente, estado, observaciones, pagado_en")
+      .select("id, periodo_desde, periodo_hasta, chofer_nombre, placas, ganado_calculado, adelantos_entregados, monto_pagado, adelanto_excedente, estado, observaciones, pagado_en, motivo_anulacion, anulada_en")
+      .eq("periodo_desde", desde)
+      .eq("periodo_hasta", hasta),
+    supabase
+      .from("flotilla_rental_repartos")
+      .select("id, periodo_desde, periodo_hasta, socio, utilidad_calculada, parte_calculada, monto_entregado, estado, observaciones, pagado_en, motivo_anulacion, anulado_en")
       .eq("periodo_desde", desde)
       .eq("periodo_hasta", hasta),
   ]);
 
-  if (errorOperaciones || errorCortes || errorLiquidaciones) throw new Error("No fue posible consultar el periodo de Rental.");
+  if (errorOperaciones || errorCortes || errorLiquidaciones || errorRepartos) throw new Error("No fue posible consultar el periodo de Rental.");
 
   const rentals = (operaciones || []).filter((item) =>
     ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item.tipo_pago || item.unidad?.tipo_pago_chory)
   );
   const ids = rentals.map((item) => item.id);
-  if (ids.length === 0) return { operaciones: [], cortes: cortes || [], liquidaciones: liquidaciones || [] };
+  if (ids.length === 0) return { operaciones: [], cortes: cortes || [], liquidaciones: liquidaciones || [], repartos: repartos || [] };
 
   const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
     supabase
@@ -337,15 +343,11 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
     }),
     cortes: cortes || [],
     liquidaciones: liquidaciones || [],
+    repartos: repartos || [],
   };
 }
 
-export async function guardarLiquidacionRental({ desde, hasta, chofer, observaciones = "" }) {
-  if (!desde || !hasta || desde > hasta || !chofer?.chofer || !chofer?.placas) {
-    throw new Error("La liquidación Rental no contiene un periodo y chofer válidos.");
-  }
-  if (Number(chofer.saldoPorPagar) <= 0) throw new Error("Este chofer no tiene saldo pendiente por pagar.");
-
+async function obtenerContextoAdmin() {
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth?.user) throw new Error("La sesión administrativa ya no está activa.");
   const { data: perfil, error: perfilError } = await supabase
@@ -355,9 +357,19 @@ export async function guardarLiquidacionRental({ desde, hasta, chofer, observaci
     .eq("active", true)
     .single();
   if (perfilError || !perfil?.organization_id) throw new Error("La cuenta no está vinculada a una organización.");
+  return { usuarioId: auth.user.id, organizationId: perfil.organization_id };
+}
+
+export async function guardarLiquidacionRental({ desde, hasta, chofer, observaciones = "" }) {
+  if (!desde || !hasta || desde > hasta || !chofer?.chofer || !chofer?.placas) {
+    throw new Error("La liquidación Rental no contiene un periodo y chofer válidos.");
+  }
+  if (Number(chofer.saldoPorPagar) <= 0) throw new Error("Este chofer no tiene saldo pendiente por pagar.");
+
+  const { usuarioId, organizationId } = await obtenerContextoAdmin();
 
   const payload = {
-    organization_id: perfil.organization_id,
+    organization_id: organizationId,
     periodo_desde: desde,
     periodo_hasta: hasta,
     chofer_nombre: chofer.chofer,
@@ -369,17 +381,76 @@ export async function guardarLiquidacionRental({ desde, hasta, chofer, observaci
     estado: "PAGADA",
     observaciones: String(observaciones || "").trim() || null,
     snapshot: chofer,
-    registrado_por: auth.user.id,
+    registrado_por: usuarioId,
     pagado_en: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase
     .from("flotilla_rental_liquidaciones")
-    .upsert(payload, { onConflict: "organization_id,periodo_desde,periodo_hasta,chofer_nombre,placas" })
+    .insert(payload)
     .select("id, periodo_desde, periodo_hasta, chofer_nombre, placas, ganado_calculado, adelantos_entregados, monto_pagado, adelanto_excedente, estado, observaciones, pagado_en")
     .single();
 
   if (error) throw new Error(error.message || "No fue posible registrar la liquidación Rental.");
+  return data;
+}
+
+export async function anularLiquidacionRental({ liquidacionId, motivo }) {
+  if (!liquidacionId || !String(motivo || "").trim()) throw new Error("Escribe el motivo de la anulación.");
+  const { usuarioId } = await obtenerContextoAdmin();
+  const ahora = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("flotilla_rental_liquidaciones")
+    .update({ estado: "ANULADA", motivo_anulacion: String(motivo).trim(), anulada_por: usuarioId, anulada_en: ahora, updated_at: ahora })
+    .eq("id", liquidacionId)
+    .eq("estado", "PAGADA")
+    .select("id, estado, motivo_anulacion, anulada_en")
+    .single();
+  if (error) throw new Error(error.message || "No fue posible anular la liquidación.");
+  return data;
+}
+
+export async function guardarRepartoRental({ desde, hasta, socio, resumen }) {
+  if (!desde || !hasta || desde > hasta || !["Abraham", "Chory", "Kary"].includes(socio)) {
+    throw new Error("El reparto Rental no contiene un periodo y socio válidos.");
+  }
+  const parte = Number(resumen?.repartoSocios?.[socio]) || 0;
+  if (parte <= 0) throw new Error("Este periodo no tiene utilidad pendiente para repartir.");
+  const { usuarioId, organizationId } = await obtenerContextoAdmin();
+  const payload = {
+    organization_id: organizationId,
+    periodo_desde: desde,
+    periodo_hasta: hasta,
+    socio,
+    utilidad_calculada: Number(resumen.utilidadRepartible) || 0,
+    parte_calculada: parte,
+    monto_entregado: parte,
+    estado: "PAGADO",
+    snapshot: resumen,
+    registrado_por: usuarioId,
+    pagado_en: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from("flotilla_rental_repartos")
+    .insert(payload)
+    .select("id, periodo_desde, periodo_hasta, socio, utilidad_calculada, parte_calculada, monto_entregado, estado, pagado_en")
+    .single();
+  if (error) throw new Error(error.message || "No fue posible registrar la entrega al socio.");
+  return data;
+}
+
+export async function anularRepartoRental({ repartoId, motivo }) {
+  if (!repartoId || !String(motivo || "").trim()) throw new Error("Escribe el motivo de la anulación.");
+  const { usuarioId } = await obtenerContextoAdmin();
+  const ahora = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("flotilla_rental_repartos")
+    .update({ estado: "ANULADO", motivo_anulacion: String(motivo).trim(), anulado_por: usuarioId, anulado_en: ahora, updated_at: ahora })
+    .eq("id", repartoId)
+    .eq("estado", "PAGADO")
+    .select("id, estado, motivo_anulacion, anulado_en")
+    .single();
+  if (error) throw new Error(error.message || "No fue posible anular la entrega al socio.");
   return data;
 }
 
@@ -392,6 +463,7 @@ export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_revision_evidencias" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_liquidaciones" }, onCambio)
+    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_repartos" }, onCambio)
     .subscribe(onEstado);
 
   return () => supabase.removeChannel(canal);
