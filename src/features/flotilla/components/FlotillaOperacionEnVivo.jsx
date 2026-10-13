@@ -7,6 +7,7 @@ import {
   suscribirseAOperacionFlotilla,
 } from "./services/operacionFlotilla";
 import { calcularRepartoRental } from "../utils/operacionFlotilla";
+import FlotillaAccesosChofer from "./FlotillaAccesosChofer";
 
 function fechaMexico() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -159,6 +160,9 @@ export default function FlotillaOperacionEnVivo() {
         })}
       </div>
       <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
+
+      
+      <FlotillaAccesosChofer />
 
       <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
