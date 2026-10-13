@@ -1,5 +1,6 @@
 import { supabase } from "../../../../supabase";
 import { resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
+
 export { calcularAmbulancia, calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 
 export async function obtenerUnidadesParaAcceso() {
@@ -52,7 +53,11 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
   const ids = (operaciones || []).map((item) => item.id);
   if (ids.length === 0) return [];
 
-  const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
+  const [
+    { data: dinero, error: errorDinero },
+    { data: ambulancias, error: errorAmbulancias },
+    { data: revisiones, error: errorRevisiones },
+  ] = await Promise.all([
     supabase
       .from("flotilla_movimientos_dinero")
       .select("id, ruta_id, tipo_movimiento, uso, observaciones, monto, litros, pagador, evidencia_path, estado_conciliacion, created_at")
@@ -63,11 +68,21 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
       .select("id, ruta_origen_id, ruta_apoyada_id, solicitante, ayudante, pago_por_kilometraje, kilometros_ambulancia, paros_apoyados, estado, observaciones, evidencia_path, created_at")
       .or(`ruta_origen_id.in.(${ids.join(",")}),ruta_apoyada_id.in.(${ids.join(",")})`)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("flotilla_revision_evidencias")
+      .select("id, ruta_id, evidencia_key, tipo_evidencia, referencia_id, estado, motivo, revisado_at")
+      .in("ruta_id", ids),
   ]);
 
-  if (errorDinero || errorAmbulancias) {
-    throw new Error("No fue posible consultar gasolina, adelantos y ambulancias.");
+  if (errorDinero || errorAmbulancias || errorRevisiones) {
+    throw new Error("No fue posible consultar gasolina, ambulancias y revisión de evidencias.");
   }
+
+  const revisionesPorRuta = (revisiones || []).reduce((mapa, revision) => {
+    if (!mapa.has(revision.ruta_id)) mapa.set(revision.ruta_id, new Map());
+    mapa.get(revision.ruta_id).set(revision.evidencia_key, revision);
+    return mapa;
+  }, new Map());
 
   const [operacionesConFotos, dineroConFotos, ambulanciasConFotos] = await Promise.all([
     Promise.all((operaciones || []).map(async (item) => ({
@@ -95,6 +110,7 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
     litros: item.litros,
     pagador: item.pagador,
     evidencia_url: item.evidencia_url,
+    evidencia_key: `${item.tipo_movimiento}:${item.id}`,
     estado: item.estado_conciliacion === "CONCILIADO"
       ? (item.tipo_movimiento === "ADELANTO" ? "ENTREGADO" : "CONFIRMADO")
       : item.estado_conciliacion === "DESCARTADO" ? "RECHAZADO"
@@ -116,6 +132,7 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
       paradas: item.paros_apoyados,
       choferRelacionado: item.solicitante,
       evidencia_url: item.evidencia_url,
+      evidencia_key: `AMBULANCIA:${item.id}`,
       estado,
       created_at: item.created_at,
     };
@@ -130,10 +147,42 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
   });
 
   return operacionesConFotos.map((operacion) => {
+    const revisionesRuta = revisionesPorRuta.get(operacion.id) || new Map();
     const propios = [...movimientosDinero, ...movimientosAmbulancia]
-      .filter((item) => item.operacion_id === operacion.id);
-    return { ...operacion, movimientos: propios, resumen: resumirOperacionFlotilla(operacion, propios) };
+      .filter((item) => item.operacion_id === operacion.id)
+      .map((item) => ({ ...item, revision_evidencia: revisionesRuta.get(item.evidencia_key) || null }));
+    const operacionRevisada = {
+      ...operacion,
+      revision_foto_salida: revisionesRuta.get("RUTA:SALIDA") || null,
+      revision_foto_cierre: revisionesRuta.get("RUTA:CIERRE") || null,
+    };
+    return { ...operacionRevisada, movimientos: propios, resumen: resumirOperacionFlotilla(operacionRevisada, propios) };
   });
+}
+
+export async function guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo = null }) {
+  if (!rutaId || !evidenciaKey || !tipoEvidencia || !["APROBADA", "RECHAZADA"].includes(estado)) {
+    throw new Error("La revisión de evidencia no es válida.");
+  }
+  if (estado === "RECHAZADA" && !String(motivo || "").trim()) {
+    throw new Error("Selecciona el motivo del rechazo.");
+  }
+
+  const { data, error } = await supabase
+    .from("flotilla_revision_evidencias")
+    .upsert({
+      ruta_id: rutaId,
+      evidencia_key: evidenciaKey,
+      tipo_evidencia: tipoEvidencia,
+      referencia_id: referenciaId,
+      estado,
+      motivo: estado === "RECHAZADA" ? String(motivo).trim() : null,
+    }, { onConflict: "ruta_id,evidencia_key" })
+    .select("id, ruta_id, evidencia_key, tipo_evidencia, referencia_id, estado, motivo, revisado_at")
+    .single();
+
+  if (error) throw new Error(error.message || "No fue posible guardar la revisión de la foto.");
+  return data;
 }
 
 export async function confirmarMovimientoChofer(movimientoId, estado, tipo, datos = {}) {
@@ -204,6 +253,7 @@ export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rutas" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_movimientos_dinero" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_ambulancias" }, onCambio)
+    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_revision_evidencias" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
     .subscribe(onEstado);
 
