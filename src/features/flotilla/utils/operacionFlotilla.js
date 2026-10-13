@@ -209,9 +209,15 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
   };
 }
 
-export function calcularResumenRentalPeriodo(operaciones = [], cortes = []) {
+export function calcularResumenRentalPeriodo(operaciones = [], cortes = [], liquidaciones = []) {
   const listaOperaciones = Array.isArray(operaciones) ? operaciones : [];
   const listaCortes = Array.isArray(cortes) ? cortes : [];
+  const liquidacionesActivas = (Array.isArray(liquidaciones) ? liquidaciones : [])
+    .filter((item) => item?.estado === "PAGADA");
+  const liquidacionesPorChofer = new Map(liquidacionesActivas.map((item) => [
+    `${item.chofer_nombre}::${item.placas}`,
+    item,
+  ]));
   const fechas = [...new Set([
     ...listaOperaciones.map((item) => item?.fecha).filter(Boolean),
     ...listaCortes.map((item) => item?.fecha).filter(Boolean),
@@ -253,12 +259,23 @@ export function calcularResumenRentalPeriodo(operaciones = [], cortes = []) {
   });
   const choferes = [...choferesMapa.values()].map((item) => {
     const saldo = dinero(item.ganado - item.adelantos);
+    const liquidacion = liquidacionesPorChofer.get(`${item.chofer}::${item.placas}`) || null;
+    const coincideLiquidacion = Boolean(liquidacion)
+      && dinero(liquidacion.ganado_calculado) === item.ganado
+      && dinero(liquidacion.adelantos_entregados) === item.adelantos
+      && dinero(liquidacion.monto_pagado) === dinero(Math.max(0, saldo))
+      && dinero(liquidacion.adelanto_excedente) === dinero(Math.max(0, -saldo));
     return {
       ...item,
       saldo,
       saldoPorPagar: dinero(Math.max(0, saldo)),
       adelantoExcedente: dinero(Math.max(0, -saldo)),
-      estado: saldo > 0 ? "PENDIENTE" : saldo < 0 ? "ADELANTO_MAYOR" : "CUBIERTO",
+      montoLiquidado: dinero(liquidacion?.monto_pagado),
+      liquidadoEn: liquidacion?.pagado_en || null,
+      liquidacionId: liquidacion?.id || null,
+      estado: liquidacion
+        ? coincideLiquidacion ? "PAGADO" : "CAMBIO_POSTERIOR"
+        : saldo > 0 ? "PENDIENTE" : saldo < 0 ? "ADELANTO_MAYOR" : "CUBIERTO",
     };
   }).sort((a, b) => b.saldoPorPagar - a.saldoPorPagar || a.chofer.localeCompare(b.chofer));
 
@@ -289,6 +306,9 @@ export function calcularResumenRentalPeriodo(operaciones = [], cortes = []) {
     adelantosEntregados,
     saldoChoferes: dinero(pagoChoferes - adelantosEntregados),
     saldoPorPagar: dinero(choferes.reduce((suma, item) => suma + item.saldoPorPagar, 0)),
+    pendienteLiquidar: dinero(choferes.reduce((suma, item) => suma + (item.estado === "PAGADO" ? 0 : item.saldoPorPagar), 0)),
+    pagadoLiquidaciones: dinero(choferes.reduce((suma, item) => suma + (item.estado === "PAGADO" ? item.montoLiquidado : 0), 0)),
+    pagosPorRevisar: dinero(choferes.reduce((suma, item) => suma + (item.estado === "CAMBIO_POSTERIOR" ? item.montoLiquidado : 0), 0)),
     adelantoExcedente: dinero(choferes.reduce((suma, item) => suma + item.adelantoExcedente, 0)),
     gasolinaEmpresa,
     gasolinaChofer,
