@@ -5,6 +5,7 @@ import {
   calcularRepartoRental,
   calcularResumenRentalPeriodo,
   calcularPagoRuta,
+  crearFilasReporteRental,
   revisarEvidenciaRuta,
   resumirOperacionFlotilla,
 } from "../../src/features/flotilla/utils/operacionFlotilla.js";
@@ -260,6 +261,60 @@ test("si cambia la cuenta después del pago exige revisar la liquidación", () =
   assert.equal(resumen.pendienteLiquidar, 750);
   assert.equal(resumen.pagadoLiquidaciones, 0);
   assert.equal(resumen.pagosPorRevisar, 550);
+});
+
+test("registra el reparto exacto a Abraham, Chory y Kary sin perder centavos", () => {
+  const operaciones = [{
+    fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: { ingresoRental: 1100, ganado: 850 },
+  }];
+  const repartos = [
+    { id: "r1", socio: "Abraham", estado: "PAGADO", utilidad_calculada: 250, parte_calculada: 83.33, monto_entregado: 83.33, pagado_en: "2026-10-13T22:00:00Z" },
+    { id: "r2", socio: "Chory", estado: "PAGADO", utilidad_calculada: 250, parte_calculada: 83.33, monto_entregado: 83.33 },
+    { id: "r3", socio: "Kary", estado: "PAGADO", utilidad_calculada: 250, parte_calculada: 83.34, monto_entregado: 83.34 },
+  ];
+  const resumen = calcularResumenRentalPeriodo(operaciones, [], [], repartos);
+
+  assert.deepEqual(resumen.sociosDetalle.map((item) => [item.socio, item.calculado, item.estado]), [
+    ["Abraham", 83.33, "PAGADO"],
+    ["Chory", 83.33, "PAGADO"],
+    ["Kary", 83.34, "PAGADO"],
+  ]);
+  assert.equal(resumen.repartoEntregado, 250);
+  assert.equal(resumen.repartoPendiente, 0);
+});
+
+test("ignora repartos anulados y marca entregas antiguas cuando cambia la utilidad", () => {
+  const operaciones = [{
+    fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: { ingresoRental: 1100, ganado: 650, ambulanciasDescontadas: 200 },
+  }];
+  const repartos = [
+    { id: "anulado", socio: "Abraham", estado: "ANULADO", utilidad_calculada: 250, parte_calculada: 83.33, monto_entregado: 83.33 },
+    { id: "cambio", socio: "Chory", estado: "PAGADO", utilidad_calculada: 250, parte_calculada: 83.33, monto_entregado: 83.33 },
+  ];
+  const resumen = calcularResumenRentalPeriodo(operaciones, [], [], repartos);
+
+  assert.equal(resumen.utilidadNeta, 450);
+  assert.equal(resumen.sociosDetalle.find((item) => item.socio === "Abraham").estado, "PENDIENTE");
+  assert.equal(resumen.sociosDetalle.find((item) => item.socio === "Chory").estado, "CAMBIO_POSTERIOR");
+  assert.equal(resumen.repartoPorRevisar, 83.33);
+});
+
+test("prepara las cuatro hojas del reporte rental", () => {
+  const resumen = calcularResumenRentalPeriodo([{
+    fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: { ingresoRental: 1100, ganado: 850, gasolinaChofer: 300 },
+  }]);
+  const filas = crearFilasReporteRental({ desde: "2026-10-13", hasta: "2026-10-13", resumen });
+
+  assert.equal(filas.corte[0]["Utilidad neta"], 250);
+  assert.equal(filas.choferes[0].Chofer, "Luis");
+  assert.equal(filas.socios.length, 3);
+  assert.equal(filas.dias[0].Fecha, "2026-10-13");
 });
 
 test("marca una ruta activa completa como evidencia en curso", () => {
