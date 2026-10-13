@@ -247,6 +247,89 @@ export async function guardarCorteRental(fecha, corte) {
   return data;
 }
 
+export async function obtenerOperacionRentalPeriodo(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para Rental.");
+
+  const [{ data: operaciones, error: errorOperaciones }, { data: cortes, error: errorCortes }] = await Promise.all([
+    supabase
+      .from("flotilla_rutas")
+      .select(`
+        id, chofer_nombre, fecha, codigo_ruta, tipo_pago, estado,
+        km_inicial, km_final, kilometros_ruta,
+        unidad:flotilla_unidades(placas, tipo_pago_chory)
+      `)
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: true }),
+    supabase
+      .from("flotilla_rental_cortes")
+      .select("id, fecha, ingreso, otro_concepto, otro_importe, updated_at")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: true }),
+  ]);
+
+  if (errorOperaciones || errorCortes) throw new Error("No fue posible consultar el periodo de Rental.");
+
+  const rentals = (operaciones || []).filter((item) =>
+    ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item.tipo_pago || item.unidad?.tipo_pago_chory)
+  );
+  const ids = rentals.map((item) => item.id);
+  if (ids.length === 0) return { operaciones: [], cortes: cortes || [] };
+
+  const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
+    supabase
+      .from("flotilla_movimientos_dinero")
+      .select("id, ruta_id, tipo_movimiento, monto, pagador, estado_conciliacion")
+      .in("ruta_id", ids),
+    supabase
+      .from("flotilla_ambulancias")
+      .select("id, ruta_origen_id, ruta_apoyada_id, pago_por_kilometraje, estado")
+      .or(`ruta_origen_id.in.(${ids.join(",")}),ruta_apoyada_id.in.(${ids.join(",")})`),
+  ]);
+
+  if (errorDinero || errorAmbulancias) throw new Error("No fue posible consultar adelantos, gasolina y ambulancias del periodo.");
+
+  const movimientosDinero = (dinero || []).map((item) => ({
+    id: item.id,
+    operacion_id: item.ruta_id,
+    tipo: item.tipo_movimiento,
+    importe: item.monto,
+    pagador: item.pagador,
+    estado: item.estado_conciliacion === "CONCILIADO"
+      ? (item.tipo_movimiento === "ADELANTO" ? "ENTREGADO" : "CONFIRMADO")
+      : item.estado_conciliacion === "DESCARTADO" ? "RECHAZADO"
+        : item.tipo_movimiento === "ADELANTO" ? "SOLICITADO" : "CAPTURADO",
+  }));
+  const movimientosAmbulancia = (ambulancias || []).flatMap((item) => {
+    const estado = item.estado === "CONFIRMADA" ? "CONFIRMADO"
+      : item.estado === "CANCELADA" ? "RECHAZADO" : "SOLICITADO";
+    const abono = {
+      id: `${item.id}:ABONO`,
+      operacion_id: item.ruta_origen_id,
+      tipo: "AMBULANCIA",
+      importe: item.pago_por_kilometraje,
+      estado,
+    };
+    if (!item.ruta_apoyada_id) return [abono];
+    return [abono, {
+      ...abono,
+      id: `${item.id}:DESCUENTO`,
+      operacion_id: item.ruta_apoyada_id,
+      tipo: "AMBULANCIA_DESCUENTO",
+    }];
+  });
+
+  return {
+    operaciones: rentals.map((operacion) => {
+      const movimientos = [...movimientosDinero, ...movimientosAmbulancia]
+        .filter((item) => item.operacion_id === operacion.id);
+      return { ...operacion, movimientos, resumen: resumirOperacionFlotilla(operacion, movimientos) };
+    }),
+    cortes: cortes || [],
+  };
+}
+
 export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
   const canal = supabase
     .channel(`flotilla-operacion-en-vivo-${Date.now()}`)
