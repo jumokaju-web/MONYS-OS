@@ -9,6 +9,7 @@ import {
 } from "./services/operacionFlotilla";
 import { calcularRepartoRental, MOTIVOS_RECHAZO_EVIDENCIA, revisarEvidenciaRuta } from "../utils/operacionFlotilla";
 import FlotillaAccesosChofer from "./FlotillaAccesosChofer";
+import FlotillaResumenRentalPeriodo from "./FlotillaResumenRentalPeriodo";
 
 function fechaMexico() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -229,6 +230,7 @@ export default function FlotillaOperacionEnVivo() {
         <button type="button" disabled={guardandoRental} onClick={guardarRental} style={{ marginTop: 11 }}>{guardandoRental ? "Guardando…" : "Guardar corte rental"}</button>
         <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Small: cobra $1,100 y paga $850 al chofer. Large: cobra $1,221 y paga $1,000. Al ganado del chofer se suman o descuentan ambulancias confirmadas. Cálculo: ingreso − ganado real de choferes − gasolina pagada por la empresa − otro gasto. Los adelantos solo reducen lo pendiente por pagar; no vuelven a descontarse de la utilidad.</p>
       </section>
+      <FlotillaResumenRentalPeriodo />
     </section>
   );
 }
