@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calcularAmbulancia,
   calcularRepartoRental,
+  calcularResumenRentalPeriodo,
   calcularPagoRuta,
   revisarEvidenciaRuta,
   resumirOperacionFlotilla,
@@ -174,6 +175,52 @@ test("los adelantos reducen el saldo pendiente pero no vuelven a reducir la util
     ambulanciasDescuento: 200,
     utilidadRuta: 450,
   });
+});
+
+test("el corte por periodo separa saldos por pagar de adelantos excedentes", () => {
+  const resumen = calcularResumenRentalPeriodo([
+    {
+      id: "small-1", fecha: "2026-10-12", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+      unidad: { placas: "LG-44-598" },
+      resumen: { ingresoRental: 1100, ganado: 650, adelantosEntregados: 300, gasolinaEmpresa: 0, gasolinaChofer: 250, ambulanciasDescontadas: 200 },
+    },
+    {
+      id: "small-2", fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+      unidad: { placas: "LG-44-598" },
+      resumen: { ingresoRental: 1100, ganado: 1050, adelantosEntregados: 900, gasolinaEmpresa: 0, gasolinaChofer: 300, ambulanciasConfirmadas: 200 },
+    },
+    {
+      id: "large-1", fecha: "2026-10-13", chofer_nombre: "Ricardo", tipo_pago: "RENTAL_LARGE",
+      unidad: { placas: "LG-67-379" },
+      resumen: { ingresoRental: 1221, ganado: 1000, adelantosEntregados: 1200, gasolinaEmpresa: 100, gasolinaChofer: 0 },
+    },
+  ], [{ fecha: "2026-10-13", otro_concepto: "Taxi", otro_importe: 100 }]);
+
+  assert.equal(resumen.rutas, 3);
+  assert.equal(resumen.rutasSmall, 2);
+  assert.equal(resumen.rutasLarge, 1);
+  assert.equal(resumen.ingreso, 3421);
+  assert.equal(resumen.pagoChoferes, 2700);
+  assert.equal(resumen.adelantosEntregados, 2400);
+  assert.equal(resumen.saldoChoferes, 300);
+  assert.equal(resumen.saldoPorPagar, 500);
+  assert.equal(resumen.adelantoExcedente, 200);
+  assert.equal(resumen.utilidadNeta, 521);
+  assert.deepEqual(resumen.repartoSocios, { Abraham: 173.66, Chory: 173.66, Kary: 173.68 });
+  assert.deepEqual(resumen.choferes.map((item) => [item.chofer, item.estado, item.saldoPorPagar, item.adelantoExcedente]), [
+    ["Luis", "PENDIENTE", 500, 0],
+    ["Ricardo", "ADELANTO_MAYOR", 0, 200],
+  ]);
+});
+
+test("el corte por periodo compensa una pérdida antes de repartir utilidad", () => {
+  const resumen = calcularResumenRentalPeriodo([
+    { fecha: "2026-10-12", tipo_pago: "RENTAL_SMALL", resumen: { ingresoRental: 1100, ganado: 850, gasolinaEmpresa: 0 } },
+    { fecha: "2026-10-13", tipo_pago: "RENTAL_SMALL", resumen: { ingresoRental: 1100, ganado: 850, gasolinaEmpresa: 500 } },
+  ], []);
+
+  assert.equal(resumen.utilidadNeta, 0);
+  assert.deepEqual(resumen.repartoSocios, { Abraham: 0, Chory: 0, Kary: 0 });
 });
 
 test("marca una ruta activa completa como evidencia en curso", () => {
