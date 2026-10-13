@@ -130,16 +130,48 @@ as $$
 declare
   v_ruta_apoyada public.flotilla_rutas%rowtype;
 begin
+  if old.estado = 'CONFIRMADA' and new.estado <> 'CONFIRMADA' then
+    update public.flotilla_cuenta_chofer
+    set estado_conciliacion = 'DESCARTADO'
+    where referencia_origen in (
+      'AMBULANCIA:' || new.id::text,
+      'AMBULANCIA:' || new.id::text || ':ABONO',
+      'AMBULANCIA:' || new.id::text || ':DESCUENTO'
+    );
+    return new;
+  end if;
+
   if new.estado = 'CONFIRMADA'
-     and old.estado is distinct from new.estado
      and new.pago_por_kilometraje > 0
      and new.ruta_apoyada_id is not null then
     select * into v_ruta_apoyada from public.flotilla_rutas where id = new.ruta_apoyada_id;
 
-    if not exists (
+    if exists (
+      select 1 from public.flotilla_cuenta_chofer
+      where referencia_origen = 'AMBULANCIA:' || new.id::text
+    ) and not exists (
       select 1 from public.flotilla_cuenta_chofer
       where referencia_origen = 'AMBULANCIA:' || new.id::text || ':ABONO'
     ) then
+      update public.flotilla_cuenta_chofer
+      set referencia_origen = 'AMBULANCIA:' || new.id::text || ':ABONO'
+      where referencia_origen = 'AMBULANCIA:' || new.id::text;
+    end if;
+
+    if exists (
+      select 1 from public.flotilla_cuenta_chofer
+      where referencia_origen = 'AMBULANCIA:' || new.id::text || ':ABONO'
+    ) then
+      update public.flotilla_cuenta_chofer
+      set fecha = new.fecha, chofer_nombre = new.ayudante, unidad_id = new.unidad_apoyo_id,
+          ruta_id = new.ruta_origen_id, ambulancia_id = new.id,
+          concepto = 'Ambulancia a favor por ' || new.paros_apoyados || ' paradas',
+          monto = new.pago_por_kilometraje, naturaleza = 'SUMA', automatico = true,
+          estado_conciliacion = 'CONCILIADO', organization_id = new.organization_id,
+          business_id = new.business_id, branch_id = new.branch_id,
+          driver_auth_user_id = new.driver_auth_user_id, registrado_por = (select auth.uid())
+      where referencia_origen = 'AMBULANCIA:' || new.id::text || ':ABONO';
+    else
       insert into public.flotilla_cuenta_chofer (
         fecha, chofer_nombre, unidad_id, ruta_id, ambulancia_id, tipo_movimiento,
         concepto, monto, naturaleza, automatico, estado_conciliacion, referencia_origen,
@@ -152,10 +184,22 @@ begin
       );
     end if;
 
-    if not exists (
+    if exists (
       select 1 from public.flotilla_cuenta_chofer
       where referencia_origen = 'AMBULANCIA:' || new.id::text || ':DESCUENTO'
     ) then
+      update public.flotilla_cuenta_chofer
+      set fecha = new.fecha, chofer_nombre = v_ruta_apoyada.chofer_nombre,
+          unidad_id = v_ruta_apoyada.unidad_id, ruta_id = v_ruta_apoyada.id,
+          ambulancia_id = null,
+          concepto = 'Descuento por ambulancia de ' || new.paros_apoyados || ' paradas',
+          monto = new.pago_por_kilometraje, naturaleza = 'RESTA', automatico = true,
+          estado_conciliacion = 'CONCILIADO', organization_id = v_ruta_apoyada.organization_id,
+          business_id = v_ruta_apoyada.business_id, branch_id = v_ruta_apoyada.branch_id,
+          driver_auth_user_id = v_ruta_apoyada.driver_auth_user_id,
+          registrado_por = (select auth.uid())
+      where referencia_origen = 'AMBULANCIA:' || new.id::text || ':DESCUENTO';
+    else
       insert into public.flotilla_cuenta_chofer (
         fecha, chofer_nombre, unidad_id, ruta_id, ambulancia_id, tipo_movimiento,
         concepto, monto, naturaleza, automatico, estado_conciliacion, referencia_origen,
@@ -181,6 +225,6 @@ for each row execute function public.preparar_ambulancia_chory();
 
 drop trigger if exists flotilla_ambulancia_chory_aplicar on public.flotilla_ambulancias;
 create trigger flotilla_ambulancia_chory_aplicar
-after update of estado on public.flotilla_ambulancias
+after update of estado, ruta_apoyada_id, paros_apoyados, pago_por_kilometraje
+on public.flotilla_ambulancias
 for each row execute function public.aplicar_ambulancia_confirmada_chory();
-

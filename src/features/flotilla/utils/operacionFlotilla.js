@@ -87,6 +87,12 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
   const otroGasto = dinero(corte.otro_importe);
   const utilidadNeta = dinero(ingreso - pagoChoferes - gasolinaEmpresa - otroGasto);
   const utilidadRepartible = Math.max(0, utilidadNeta);
+  const parteBase = Math.floor((utilidadRepartible * 100) / 3) / 100;
+  const repartoSocios = {
+    Abraham: parteBase,
+    Chory: parteBase,
+    Kary: dinero(utilidadRepartible - parteBase - parteBase),
+  };
 
   return {
     rutas: rentals.length,
@@ -103,7 +109,8 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
     utilidadNeta,
     hayPerdida: utilidadNeta < 0,
     utilidadRepartible,
-    partePorSocio: dinero(utilidadRepartible / 3),
+    partePorSocio: parteBase,
+    repartoSocios,
     socios: ["Abraham", "Chory", "Kary"],
   };
 }

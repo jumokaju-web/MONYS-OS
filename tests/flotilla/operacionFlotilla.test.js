@@ -94,6 +94,8 @@ test("la utilidad rental usa tarifas y solo descuenta gasolina pagada por la emp
   assert.equal(resumen.gasolinaChofer, 800);
   assert.equal(resumen.utilidadNeta, 271);
   assert.equal(resumen.partePorSocio, 90.33);
+  assert.deepEqual(resumen.repartoSocios, { Abraham: 90.33, Chory: 90.33, Kary: 90.34 });
+  assert.equal(Object.values(resumen.repartoSocios).reduce((total, parte) => total + parte, 0), resumen.utilidadRepartible);
   assert.deepEqual(resumen.socios, ["Abraham", "Chory", "Kary"]);
 });
 
@@ -105,6 +107,7 @@ test("una pérdida rental se muestra pero no se reparte", () => {
   assert.equal(resumen.utilidadNeta, -450);
   assert.equal(resumen.utilidadRepartible, 0);
   assert.equal(resumen.partePorSocio, 0);
+  assert.deepEqual(resumen.repartoSocios, { Abraham: 0, Chory: 0, Kary: 0 });
   assert.equal(resumen.hayPerdida, true);
 });
 
