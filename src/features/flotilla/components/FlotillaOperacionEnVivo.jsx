@@ -161,16 +161,17 @@ export default function FlotillaOperacionEnVivo() {
           <b>{rental.rutas} rutas rental</b>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 800 }}>Cobro de rentals<input type="number" min="0" step="0.01" value={corteRental.ingreso} onChange={(e) => setCorteRental((actual) => ({ ...actual, ingreso: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
+          <label style={{ fontSize: 11, fontWeight: 800 }}>Cobro confirmado (opcional)<input type="number" min="0" step="0.01" value={corteRental.ingreso} onChange={(e) => setCorteRental((actual) => ({ ...actual, ingreso: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
           <label style={{ fontSize: 11, fontWeight: 800 }}>Otro gasto<input type="number" min="0" step="0.01" value={corteRental.otro_importe} onChange={(e) => setCorteRental((actual) => ({ ...actual, otro_importe: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
           <label style={{ fontSize: 11, fontWeight: 800 }}>Concepto<input type="text" placeholder="Taxi, movimiento…" value={corteRental.otro_concepto} onChange={(e) => setCorteRental((actual) => ({ ...actual, otro_concepto: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginTop: 11 }}>
-          {[['Choferes', rental.pagoChoferes], ['Gasolina', rental.gasolina], ['Otros', rental.otroGasto], ['Utilidad neta', rental.utilidadNeta]].map(([label, value]) => <div key={label} style={tarjeta}><small>{label}</small><strong style={{ display: "block", color: label === 'Utilidad neta' && rental.hayPerdida ? '#a02e2e' : undefined }}>{moneda(value)}</strong></div>)}
+          {[['Ingreso rental', rental.ingreso], ['Pago choferes', rental.pagoChoferes], ['Gasolina empresa', rental.gasolinaEmpresa], ['Utilidad neta', rental.utilidadNeta]].map(([label, value]) => <div key={label} style={tarjeta}><small>{label}</small><strong style={{ display: "block", color: label === 'Utilidad neta' && rental.hayPerdida ? '#a02e2e' : undefined }}>{moneda(value)}</strong></div>)}
         </div>
+        <p style={{ color: "#557063", fontSize: 11 }}>Ingreso automático por rutas: {moneda(rental.ingresoPorTarifa)} · Gasolina pagada por choferes (informativa, no se descuenta de la utilidad): {moneda(rental.gasolinaChofer)} · Otro gasto: {moneda(rental.otroGasto)}</p>
         {rental.hayPerdida ? <p role="status" style={{ color: "#a02e2e", fontWeight: 800 }}>Hay pérdida: se muestra para revisión y no se reparte.</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 11 }}>{rental.socios.map((socio) => <div key={socio} style={tarjeta}><small>{socio}</small><strong style={{ display: "block", color: "#08734f" }}>{moneda(rental.partePorSocio)}</strong></div>)}</div>}
         <button type="button" disabled={guardandoRental} onClick={guardarRental} style={{ marginTop: 11 }}>{guardandoRental ? "Guardando…" : "Guardar corte rental"}</button>
-        <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Cálculo: cobro − pago de choferes − gasolina reportada por esos choferes − otro gasto manual. Ambulancias confirmadas forman parte del pago del chofer.</p>
+        <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Small: cobra $1,100 y paga $850 al chofer. Large: cobra $1,221 y paga $1,000. Cálculo: ingreso − pago de choferes − gasolina pagada por la empresa − otro gasto. Los adelantos entregados reducen el saldo pendiente del chofer, no la utilidad.</p>
       </section>
     </section>
   );
