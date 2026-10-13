@@ -208,3 +208,95 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
     socios: ["Abraham", "Chory", "Kary"],
   };
 }
+
+export function calcularResumenRentalPeriodo(operaciones = [], cortes = []) {
+  const listaOperaciones = Array.isArray(operaciones) ? operaciones : [];
+  const listaCortes = Array.isArray(cortes) ? cortes : [];
+  const fechas = [...new Set([
+    ...listaOperaciones.map((item) => item?.fecha).filter(Boolean),
+    ...listaCortes.map((item) => item?.fecha).filter(Boolean),
+  ])].sort();
+  const cortesPorFecha = new Map(listaCortes.map((item) => [item.fecha, item]));
+  const dias = fechas.map((fecha) => ({
+    fecha,
+    ...calcularRepartoRental(
+      listaOperaciones.filter((item) => item?.fecha === fecha),
+      cortesPorFecha.get(fecha) || {}
+    ),
+  })).filter((item) => item.rutas > 0 || item.ingresoRegistrado > 0 || item.otroGasto > 0);
+
+  const detalles = dias.flatMap((dia) => dia.detalleRutas.map((ruta) => ({ ...ruta, fecha: dia.fecha })));
+  const choferesMapa = new Map();
+  detalles.forEach((ruta) => {
+    const clave = `${ruta.chofer}::${ruta.placas}`;
+    const actual = choferesMapa.get(clave) || {
+      chofer: ruta.chofer,
+      placas: ruta.placas,
+      rutas: 0,
+      rutasSmall: 0,
+      rutasLarge: 0,
+      ganado: 0,
+      adelantos: 0,
+      gasolinaChofer: 0,
+      ambulanciasFavor: 0,
+      ambulanciasDescuento: 0,
+    };
+    actual.rutas += 1;
+    actual.rutasSmall += ruta.tipo === "RENTAL_SMALL" ? 1 : 0;
+    actual.rutasLarge += ruta.tipo === "RENTAL_LARGE" ? 1 : 0;
+    actual.ganado = dinero(actual.ganado + ruta.pagoChofer);
+    actual.adelantos = dinero(actual.adelantos + ruta.adelantos);
+    actual.gasolinaChofer = dinero(actual.gasolinaChofer + ruta.gasolinaChofer);
+    actual.ambulanciasFavor = dinero(actual.ambulanciasFavor + ruta.ambulanciasFavor);
+    actual.ambulanciasDescuento = dinero(actual.ambulanciasDescuento + ruta.ambulanciasDescuento);
+    choferesMapa.set(clave, actual);
+  });
+  const choferes = [...choferesMapa.values()].map((item) => {
+    const saldo = dinero(item.ganado - item.adelantos);
+    return {
+      ...item,
+      saldo,
+      saldoPorPagar: dinero(Math.max(0, saldo)),
+      adelantoExcedente: dinero(Math.max(0, -saldo)),
+      estado: saldo > 0 ? "PENDIENTE" : saldo < 0 ? "ADELANTO_MAYOR" : "CUBIERTO",
+    };
+  }).sort((a, b) => b.saldoPorPagar - a.saldoPorPagar || a.chofer.localeCompare(b.chofer));
+
+  const total = (campo) => dinero(dias.reduce((suma, dia) => suma + numero(dia[campo]), 0));
+  const ingreso = total("ingreso");
+  const pagoChoferes = total("pagoChoferes");
+  const adelantosEntregados = total("adelantosEntregados");
+  const gasolinaEmpresa = total("gasolinaEmpresa");
+  const gasolinaChofer = total("gasolinaChofer");
+  const otrosGastos = total("otroGasto");
+  const utilidadNeta = dinero(ingreso - pagoChoferes - gasolinaEmpresa - otrosGastos);
+  const utilidadRepartible = Math.max(0, utilidadNeta);
+  const parteBase = Math.floor((utilidadRepartible * 100) / 3) / 100;
+  const repartoSocios = {
+    Abraham: parteBase,
+    Chory: parteBase,
+    Kary: dinero(utilidadRepartible - parteBase - parteBase),
+  };
+
+  return {
+    dias,
+    choferes,
+    rutas: detalles.length,
+    rutasSmall: detalles.filter((item) => item.tipo === "RENTAL_SMALL").length,
+    rutasLarge: detalles.filter((item) => item.tipo === "RENTAL_LARGE").length,
+    ingreso,
+    pagoChoferes,
+    adelantosEntregados,
+    saldoChoferes: dinero(pagoChoferes - adelantosEntregados),
+    saldoPorPagar: dinero(choferes.reduce((suma, item) => suma + item.saldoPorPagar, 0)),
+    adelantoExcedente: dinero(choferes.reduce((suma, item) => suma + item.adelantoExcedente, 0)),
+    gasolinaEmpresa,
+    gasolinaChofer,
+    otrosGastos,
+    utilidadNeta,
+    utilidadRepartible,
+    hayPerdida: utilidadNeta < 0,
+    repartoSocios,
+    socios: ["Abraham", "Chory", "Kary"],
+  };
+}
