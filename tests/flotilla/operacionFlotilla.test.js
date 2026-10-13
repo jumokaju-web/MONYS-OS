@@ -223,6 +223,45 @@ test("el corte por periodo compensa una pérdida antes de repartir utilidad", ()
   assert.deepEqual(resumen.repartoSocios, { Abraham: 0, Chory: 0, Kary: 0 });
 });
 
+test("una liquidación exacta deja de aparecer como pendiente", () => {
+  const operaciones = [{
+    fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: { ingresoRental: 1100, ganado: 850, adelantosEntregados: 300 },
+  }];
+  const liquidaciones = [{
+    id: "liq-1", estado: "PAGADA", chofer_nombre: "Luis", placas: "LG-44-598",
+    ganado_calculado: 850, adelantos_entregados: 300, monto_pagado: 550,
+    adelanto_excedente: 0, pagado_en: "2026-10-13T22:00:00Z",
+  }];
+  const resumen = calcularResumenRentalPeriodo(operaciones, [], liquidaciones);
+
+  assert.equal(resumen.choferes[0].estado, "PAGADO");
+  assert.equal(resumen.choferes[0].montoLiquidado, 550);
+  assert.equal(resumen.pendienteLiquidar, 0);
+  assert.equal(resumen.pagadoLiquidaciones, 550);
+  assert.equal(resumen.pagosPorRevisar, 0);
+});
+
+test("si cambia la cuenta después del pago exige revisar la liquidación", () => {
+  const operaciones = [{
+    fecha: "2026-10-13", chofer_nombre: "Luis", tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: { ingresoRental: 1100, ganado: 1050, adelantosEntregados: 300, ambulanciasConfirmadas: 200 },
+  }];
+  const liquidaciones = [{
+    id: "liq-1", estado: "PAGADA", chofer_nombre: "Luis", placas: "LG-44-598",
+    ganado_calculado: 850, adelantos_entregados: 300, monto_pagado: 550,
+    adelanto_excedente: 0,
+  }];
+  const resumen = calcularResumenRentalPeriodo(operaciones, [], liquidaciones);
+
+  assert.equal(resumen.choferes[0].estado, "CAMBIO_POSTERIOR");
+  assert.equal(resumen.pendienteLiquidar, 750);
+  assert.equal(resumen.pagadoLiquidaciones, 0);
+  assert.equal(resumen.pagosPorRevisar, 550);
+});
+
 test("marca una ruta activa completa como evidencia en curso", () => {
   const revision = revisarEvidenciaRuta({
     estado: "EN_RUTA",

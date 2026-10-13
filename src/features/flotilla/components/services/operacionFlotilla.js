@@ -250,7 +250,11 @@ export async function guardarCorteRental(fecha, corte) {
 export async function obtenerOperacionRentalPeriodo(desde, hasta) {
   if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para Rental.");
 
-  const [{ data: operaciones, error: errorOperaciones }, { data: cortes, error: errorCortes }] = await Promise.all([
+  const [
+    { data: operaciones, error: errorOperaciones },
+    { data: cortes, error: errorCortes },
+    { data: liquidaciones, error: errorLiquidaciones },
+  ] = await Promise.all([
     supabase
       .from("flotilla_rutas")
       .select(`
@@ -267,15 +271,20 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .order("fecha", { ascending: true }),
+    supabase
+      .from("flotilla_rental_liquidaciones")
+      .select("id, periodo_desde, periodo_hasta, chofer_nombre, placas, ganado_calculado, adelantos_entregados, monto_pagado, adelanto_excedente, estado, observaciones, pagado_en")
+      .eq("periodo_desde", desde)
+      .eq("periodo_hasta", hasta),
   ]);
 
-  if (errorOperaciones || errorCortes) throw new Error("No fue posible consultar el periodo de Rental.");
+  if (errorOperaciones || errorCortes || errorLiquidaciones) throw new Error("No fue posible consultar el periodo de Rental.");
 
   const rentals = (operaciones || []).filter((item) =>
     ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item.tipo_pago || item.unidad?.tipo_pago_chory)
   );
   const ids = rentals.map((item) => item.id);
-  if (ids.length === 0) return { operaciones: [], cortes: cortes || [] };
+  if (ids.length === 0) return { operaciones: [], cortes: cortes || [], liquidaciones: liquidaciones || [] };
 
   const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
     supabase
@@ -327,7 +336,51 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
       return { ...operacion, movimientos, resumen: resumirOperacionFlotilla(operacion, movimientos) };
     }),
     cortes: cortes || [],
+    liquidaciones: liquidaciones || [],
   };
+}
+
+export async function guardarLiquidacionRental({ desde, hasta, chofer, observaciones = "" }) {
+  if (!desde || !hasta || desde > hasta || !chofer?.chofer || !chofer?.placas) {
+    throw new Error("La liquidación Rental no contiene un periodo y chofer válidos.");
+  }
+  if (Number(chofer.saldoPorPagar) <= 0) throw new Error("Este chofer no tiene saldo pendiente por pagar.");
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth?.user) throw new Error("La sesión administrativa ya no está activa.");
+  const { data: perfil, error: perfilError } = await supabase
+    .from("usuarios")
+    .select("organization_id")
+    .eq("auth_user_id", auth.user.id)
+    .eq("active", true)
+    .single();
+  if (perfilError || !perfil?.organization_id) throw new Error("La cuenta no está vinculada a una organización.");
+
+  const payload = {
+    organization_id: perfil.organization_id,
+    periodo_desde: desde,
+    periodo_hasta: hasta,
+    chofer_nombre: chofer.chofer,
+    placas: chofer.placas,
+    ganado_calculado: Number(chofer.ganado) || 0,
+    adelantos_entregados: Number(chofer.adelantos) || 0,
+    monto_pagado: Number(chofer.saldoPorPagar) || 0,
+    adelanto_excedente: Number(chofer.adelantoExcedente) || 0,
+    estado: "PAGADA",
+    observaciones: String(observaciones || "").trim() || null,
+    snapshot: chofer,
+    registrado_por: auth.user.id,
+    pagado_en: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from("flotilla_rental_liquidaciones")
+    .upsert(payload, { onConflict: "organization_id,periodo_desde,periodo_hasta,chofer_nombre,placas" })
+    .select("id, periodo_desde, periodo_hasta, chofer_nombre, placas, ganado_calculado, adelantos_entregados, monto_pagado, adelanto_excedente, estado, observaciones, pagado_en")
+    .single();
+
+  if (error) throw new Error(error.message || "No fue posible registrar la liquidación Rental.");
+  return data;
 }
 
 export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
@@ -338,6 +391,7 @@ export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_ambulancias" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_revision_evidencias" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
+    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_liquidaciones" }, onCambio)
     .subscribe(onEstado);
 
   return () => supabase.removeChannel(canal);

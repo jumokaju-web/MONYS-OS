@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { calcularResumenRentalPeriodo } from "../utils/operacionFlotilla";
-import { obtenerOperacionRentalPeriodo } from "./services/operacionFlotilla";
+import { guardarLiquidacionRental, obtenerOperacionRentalPeriodo } from "./services/operacionFlotilla";
 
 function hoyMexico() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -32,9 +32,10 @@ export default function FlotillaResumenRentalPeriodo() {
   const hoy = useMemo(hoyMexico, []);
   const [desde, setDesde] = useState(() => lunesDeSemana(hoy));
   const [hasta, setHasta] = useState(hoy);
-  const [datos, setDatos] = useState({ operaciones: [], cortes: [] });
+  const [datos, setDatos] = useState({ operaciones: [], cortes: [], liquidaciones: [] });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [guardandoPago, setGuardandoPago] = useState("");
 
   const cargar = useCallback(async () => {
     try {
@@ -51,9 +52,24 @@ export default function FlotillaResumenRentalPeriodo() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const resumen = useMemo(
-    () => calcularResumenRentalPeriodo(datos.operaciones, datos.cortes),
+    () => calcularResumenRentalPeriodo(datos.operaciones, datos.cortes, datos.liquidaciones),
     [datos]
   );
+
+  async function registrarPago(chofer) {
+    const confirmado = window.confirm(`Confirma únicamente si ya pagaste ${moneda(chofer.saldoPorPagar)} a ${chofer.chofer}. MONYS registrará el pago, pero no hará una transferencia bancaria.`);
+    if (!confirmado) return;
+    try {
+      setGuardandoPago(`${chofer.chofer}::${chofer.placas}`);
+      setError("");
+      await guardarLiquidacionRental({ desde, hasta, chofer });
+      await cargar();
+    } catch (errorPago) {
+      setError(errorPago?.message || "No fue posible registrar la liquidación.");
+    } finally {
+      setGuardandoPago("");
+    }
+  }
 
   return <section style={{ ...tarjeta, marginTop: 16, background: "linear-gradient(145deg,#fbfffc,#edf9f1)", borderColor: "#acd5b9" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -78,7 +94,9 @@ export default function FlotillaResumenRentalPeriodo() {
         ["Ingreso", resumen.ingreso],
         ["Ganado choferes", resumen.pagoChoferes],
         ["Adelantos pagados", resumen.adelantosEntregados],
-        ["Falta pagar", resumen.saldoPorPagar],
+        ["Pendiente liquidar", resumen.pendienteLiquidar],
+        ["Pagado registrado", resumen.pagadoLiquidaciones],
+        ["Pagos por revisar", resumen.pagosPorRevisar],
         ["Gas empresa", resumen.gasolinaEmpresa],
         ["Otros gastos", resumen.otrosGastos],
         ["Utilidad neta", resumen.utilidadNeta],
@@ -92,7 +110,7 @@ export default function FlotillaResumenRentalPeriodo() {
       {resumen.choferes.map((chofer) => <article key={`${chofer.chofer}-${chofer.placas}`} style={tarjeta}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
           <div><b>{chofer.chofer}</b><small style={{ display: "block" }}>{chofer.placas} · {chofer.rutas} rutas</small></div>
-          <span style={{ alignSelf: "start", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 900, background: chofer.estado === "PENDIENTE" ? "#fff4df" : chofer.estado === "ADELANTO_MAYOR" ? "#ffe7df" : "#e7f7ed", color: chofer.estado === "PENDIENTE" ? "#76551b" : chofer.estado === "ADELANTO_MAYOR" ? "#8a2e1b" : "#17643a" }}>{chofer.estado === "PENDIENTE" ? "PENDIENTE POR LIQUIDAR" : chofer.estado === "ADELANTO_MAYOR" ? "ADELANTO MAYOR A LO GANADO" : "CUBIERTO CON ADELANTOS"}</span>
+          <span style={{ alignSelf: "start", padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 900, background: ["PENDIENTE", "CAMBIO_POSTERIOR"].includes(chofer.estado) ? "#fff4df" : chofer.estado === "ADELANTO_MAYOR" ? "#ffe7df" : "#e7f7ed", color: ["PENDIENTE", "CAMBIO_POSTERIOR"].includes(chofer.estado) ? "#76551b" : chofer.estado === "ADELANTO_MAYOR" ? "#8a2e1b" : "#17643a" }}>{chofer.estado === "PAGADO" ? `PAGADO · ${moneda(chofer.montoLiquidado)}` : chofer.estado === "CAMBIO_POSTERIOR" ? "REVISAR · CAMBIARON LOS DATOS" : chofer.estado === "PENDIENTE" ? "PENDIENTE POR LIQUIDAR" : chofer.estado === "ADELANTO_MAYOR" ? "ADELANTO MAYOR A LO GANADO" : "CUBIERTO CON ADELANTOS"}</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 7, marginTop: 9 }}>
           <div><small>Ganó</small><b style={{ display: "block" }}>{moneda(chofer.ganado)}</b></div>
@@ -101,6 +119,9 @@ export default function FlotillaResumenRentalPeriodo() {
           <div><small>Gas pagada por él</small><b style={{ display: "block" }}>{moneda(chofer.gasolinaChofer)}</b></div>
         </div>
         {(chofer.ambulanciasFavor > 0 || chofer.ambulanciasDescuento > 0) && <small style={{ display: "block", marginTop: 7, color: "#76551b" }}>Ambulancias a favor: {moneda(chofer.ambulanciasFavor)} · descontadas: {moneda(chofer.ambulanciasDescuento)}</small>}
+        {chofer.estado === "PENDIENTE" && <button type="button" disabled={guardandoPago === `${chofer.chofer}::${chofer.placas}`} onClick={() => registrarPago(chofer)} style={{ marginTop: 9 }}>{guardandoPago === `${chofer.chofer}::${chofer.placas}` ? "Registrando…" : `Registrar pago realizado · ${moneda(chofer.saldoPorPagar)}`}</button>}
+        {chofer.estado === "PAGADO" && chofer.liquidadoEn && <small style={{ display: "block", marginTop: 7, color: "#17643a" }}>Liquidación registrada el {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Mexico_City" }).format(new Date(chofer.liquidadoEn))}.</small>}
+        {chofer.estado === "CAMBIO_POSTERIOR" && <small role="alert" style={{ display: "block", marginTop: 7, color: "#8a2e1b", fontWeight: 800 }}>El pago guardado fue de {moneda(chofer.montoLiquidado)}, pero las rutas o movimientos cambiaron después. Revisa antes de hacer cualquier ajuste.</small>}
       </article>)}
     </div>
 
@@ -117,6 +138,6 @@ export default function FlotillaResumenRentalPeriodo() {
     {resumen.hayPerdida ? <p role="status" style={{ color: "#a02e2e", fontWeight: 900 }}>El periodo tiene pérdida neta; no se genera reparto.</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 12 }}>
       {resumen.socios.map((socio) => <div key={socio} style={tarjeta}><small>{socio}</small><strong style={{ display: "block", color: "#08734f" }}>{moneda(resumen.repartoSocios[socio])}</strong></div>)}
     </div>}
-    <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Este corte suma las rutas y los cierres diarios guardados dentro del periodo. Los adelantos disminuyen lo pendiente del chofer, pero no reducen dos veces la utilidad.</p>
+    <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Este corte suma las rutas y los cierres diarios guardados dentro del periodo. Los adelantos disminuyen lo pendiente del chofer, pero no reducen dos veces la utilidad. “Registrar pago” solo deja constancia administrativa; MONYS no realiza transferencias bancarias.</p>
   </section>;
 }
