@@ -6,7 +6,7 @@ import {
   obtenerOperacionFlotillaEnVivo,
   suscribirseAOperacionFlotilla,
 } from "./services/operacionFlotilla";
-import { calcularRepartoRental } from "../utils/operacionFlotilla";
+import { calcularRepartoRental, revisarEvidenciaRuta } from "../utils/operacionFlotilla";
 import FlotillaAccesosChofer from "./FlotillaAccesosChofer";
 
 function fechaMexico() {
@@ -68,10 +68,11 @@ export default function FlotillaOperacionEnVivo() {
 
   const totales = useMemo(() => operaciones.reduce((r, item) => ({
     activas: r.activas + (["CARGADA", "EN_RUTA"].includes(item.estado) ? 1 : 0),
+    evidenciaPendiente: r.evidenciaPendiente + (revisarEvidenciaRuta(item, item.movimientos).estado === "PENDIENTE" ? 1 : 0),
     ganado: r.ganado + item.resumen.ganado,
     gasolina: r.gasolina + item.resumen.gasolina,
     adelantos: r.adelantos + item.resumen.adelantosEntregados,
-  }), { activas: 0, ganado: 0, gasolina: 0, adelantos: 0 }), [operaciones]);
+  }), { activas: 0, evidenciaPendiente: 0, ganado: 0, gasolina: 0, adelantos: 0 }), [operaciones]);
   const rental = useMemo(() => calcularRepartoRental(operaciones, corteRental), [operaciones, corteRental]);
 
   async function cambiarEstado(movimientoId, estado, tipo, datos) {
@@ -112,8 +113,8 @@ export default function FlotillaOperacionEnVivo() {
 
       <label style={{ display: "block", maxWidth: 220, fontSize: 12, fontWeight: 800 }}>Fecha<input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ width: "100%", marginTop: 5, padding: 9, border: "1px solid #c9deef", borderRadius: 9 }} /></label>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginTop: 13 }}>
-        {[["Rutas activas", totales.activas], ["Ganado estimado", moneda(totales.ganado)], ["Gasolina", moneda(totales.gasolina)], ["Adelantos entregados", moneda(totales.adelantos)]].map(([label, value]) => <div key={label} style={tarjeta}><small>{label}</small><strong style={{ display: "block", marginTop: 4 }}>{value}</strong></div>)}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginTop: 13 }}>
+        {[["Rutas activas", totales.activas], ["Evidencia pendiente", totales.evidenciaPendiente], ["Ganado estimado", moneda(totales.ganado)], ["Gasolina", moneda(totales.gasolina)], ["Adelantos entregados", moneda(totales.adelantos)]].map(([label, value]) => <div key={label} style={{ ...tarjeta, ...(label === "Evidencia pendiente" && Number(value) > 0 ? { borderColor: "#e8a58f", background: "#fff5f0" } : {}) }}><small>{label}</small><strong style={{ display: "block", marginTop: 4 }}>{value}</strong></div>)}
       </div>
 
       {cargando && <p role="status">Consultando movimientos…</p>}
@@ -125,9 +126,11 @@ export default function FlotillaOperacionEnVivo() {
           const adelantos = item.movimientos.filter((mov) => mov.tipo === "ADELANTO");
           const ambulancias = item.movimientos.filter((mov) => ["AMBULANCIA", "AMBULANCIA_DESCUENTO"].includes(mov.tipo));
           const gasolinas = item.movimientos.filter((mov) => mov.tipo === "GASOLINA");
+          const revisionEvidencia = revisarEvidenciaRuta(item, item.movimientos);
           return <article key={item.id} style={tarjeta}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><strong>{item.chofer_nombre || "Chofer sin nombre"}</strong><b>{item.estado}</b></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{item.chofer_nombre || "Chofer sin nombre"}</strong><div style={{ display: "flex", gap: 7, alignItems: "center" }}><b>{item.estado}</b><span style={{ padding: "3px 7px", borderRadius: 999, fontSize: 10, fontWeight: 900, color: revisionEvidencia.estado === "PENDIENTE" ? "#8a2e1b" : revisionEvidencia.estado === "COMPLETA" ? "#17643a" : "#6b5712", background: revisionEvidencia.estado === "PENDIENTE" ? "#ffe7df" : revisionEvidencia.estado === "COMPLETA" ? "#e7f7ed" : "#fff6d8" }}>{revisionEvidencia.estado === "PENDIENTE" ? "EVIDENCIA PENDIENTE" : revisionEvidencia.estado === "COMPLETA" ? "EVIDENCIA COMPLETA" : "EN CURSO"}</span></div></div>
             <small>{item.codigo_ruta || "Ruta pendiente"} · {item.unidad?.placas || "Unidad sin placas"}</small>
+            {revisionEvidencia.faltantes.length > 0 && <div role="alert" style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff5f0", border: "1px solid #f0b49f", color: "#7a3223", fontSize: 11 }}><b>Falta comprobar:</b> {revisionEvidencia.faltantes.join(" · ")}</div>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7, marginTop: 10, textAlign: "center" }}>
               <div><small>KM</small><b style={{ display: "block" }}>{item.resumen.kilometros}</b></div><div><small>Ganado</small><b style={{ display: "block" }}>{moneda(item.resumen.ganado)}</b></div><div><small>Gasolina</small><b style={{ display: "block" }}>{moneda(item.resumen.gasolina)}</b></div><div><small>Saldo</small><b style={{ display: "block", color: "#08734f" }}>{moneda(item.resumen.saldoEstimado)}</b></div>
             </div>
@@ -159,9 +162,8 @@ export default function FlotillaOperacionEnVivo() {
           </article>;
         })}
       </div>
-      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
+      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>La app de Chory revisa resolución, luz, reflejo, contraste y posible desenfoque antes de enviar. MONYS marca aquí los datos o fotografías que no llegaron. Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
 
-      
       <FlotillaAccesosChofer />
 
       <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>

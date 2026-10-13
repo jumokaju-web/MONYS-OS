@@ -4,6 +4,7 @@ import {
   calcularAmbulancia,
   calcularRepartoRental,
   calcularPagoRuta,
+  revisarEvidenciaRuta,
   resumirOperacionFlotilla,
 } from "../../src/features/flotilla/utils/operacionFlotilla.js";
 
@@ -131,4 +132,62 @@ test("un cobro confirmado sustituye el ingreso automático de tarifas", () => {
   assert.equal(resumen.ingreso, 1300);
   assert.equal(resumen.origenIngreso, "REGISTRADO");
   assert.equal(resumen.utilidadNeta, 300);
+});
+
+test("marca una ruta activa completa como evidencia en curso", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "EN_RUTA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_path: "chofer/ruta/salida.jpg",
+  });
+
+  assert.equal(revision.estado, "EN_CURSO");
+  assert.deepEqual(revision.faltantes, []);
+});
+
+test("detecta datos y fotos faltantes al cerrar una ruta", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "FINALIZADA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_url: "https://evidencia/salida",
+  });
+
+  assert.equal(revision.estado, "PENDIENTE");
+  assert.deepEqual(revision.faltantes, [
+    "Kilometraje final válido",
+    "Gasolina final",
+    "Foto del tablero al regresar",
+  ]);
+});
+
+test("revisa el ticket y los datos de cada carga de gasolina", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "EN_RUTA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_path: "salida.jpg",
+  }, [{ tipo: "GASOLINA", estado: "CAPTURADO", importe: 500, litros: 0, pagador: "", evidencia_url: null }]);
+
+  assert.deepEqual(revision.faltantes, [
+    "Carga de gasolina 1: litros",
+    "Carga de gasolina 1: quién pagó",
+    "Carga de gasolina 1: foto del ticket",
+  ]);
+});
+
+test("una ruta finalizada con evidencias completas queda lista para revisión", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "FINALIZADA",
+    km_inicial: 1000,
+    km_final: 1120,
+    gasolina_in: "1/2",
+    gasolina_out: "1/4",
+    foto_salida_url: "https://evidencia/salida",
+    foto_cierre_url: "https://evidencia/cierre",
+  }, [{ tipo: "GASOLINA", estado: "CAPTURADO", importe: 500, litros: 20, pagador: "CHOFER", evidencia_url: "https://evidencia/ticket" }]);
+
+  assert.equal(revision.estado, "COMPLETA");
+  assert.equal(revision.totalFaltantes, 0);
 });
