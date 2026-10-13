@@ -1,7 +1,29 @@
 import { supabase } from "../../../../supabase";
 import { resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
-
 export { calcularAmbulancia, calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
+
+export async function obtenerUnidadesParaAcceso() {
+  const { data, error } = await supabase
+    .from("flotilla_unidades")
+    .select("id, placas, chofer_nombre, chofer_auth_user_id, tipo_operacion, tipo_pago_chory")
+    .not("chofer_nombre", "is", null)
+    .order("placas", { ascending: true });
+
+  if (error) throw new Error("No fue posible cargar las unidades para activación.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function generarCodigoActivacionChofer(unidadId) {
+  if (!unidadId) throw new Error("Selecciona una unidad.");
+  const { data, error } = await supabase.rpc("generar_codigo_activacion_chofer", {
+    p_unidad_id: unidadId,
+  });
+
+  if (error) throw new Error(error.message || "No fue posible generar el código.");
+  const resultado = Array.isArray(data) ? data[0] : data;
+  if (!resultado?.codigo) throw new Error("La base no devolvió un código de activación.");
+  return resultado;
+}
 
 async function crearUrlEvidencia(path) {
   if (!path) return null;
