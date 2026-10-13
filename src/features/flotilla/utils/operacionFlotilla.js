@@ -11,10 +11,19 @@ export function calcularPagoRuta(kilometros, tipoPago = "MLP") {
   const km = Math.max(0, numero(kilometros));
   if (tipoPago === "RENTAL_SMALL") return { base: 850, bono: 0, total: 850, cobroEmpresa: 1100 };
   if (tipoPago === "RENTAL_LARGE") return { base: 1000, bono: 0, total: 1000, cobroEmpresa: 1221 };
-  if (km < 100) return { base: 1600, bono: 0, total: 1600, cobroEmpresa: 0 };
-  if (km <= 154) return { base: 1600, bono: 150, total: 1750, cobroEmpresa: 0 };
+  if (km <= 100) return { base: 1600, bono: 0, total: 1600, cobroEmpresa: 0 };
+  if (km <= 150) return { base: 1600, bono: 150, total: 1750, cobroEmpresa: 0 };
   if (km <= 200) return { base: 1600, bono: 300, total: 1900, cobroEmpresa: 0 };
-  return { base: 1600, bono: 425, total: 2025, cobroEmpresa: 0 };
+  if (km <= 250) return { base: 1600, bono: 425, total: 2025, cobroEmpresa: 0 };
+  return { base: 1600, bono: 500, total: 2100, cobroEmpresa: 0 };
+}
+
+export function calcularAmbulancia(paradas, pagoRuta) {
+  const totalParadas = Math.max(0, Math.floor(numero(paradas)));
+  if (totalParadas === 0) return 0;
+  if (totalParadas <= 15) return 200;
+  if (totalParadas <= 30) return 320;
+  return dinero(numero(pagoRuta) * 0.5);
 }
 
 export function resumirOperacionFlotilla(operacion = {}, movimientos = []) {
@@ -39,8 +48,9 @@ export function resumirOperacionFlotilla(operacion = {}, movimientos = []) {
   const adelantosSolicitados = lista.filter((item) => item.tipo === "ADELANTO" && item.estado === "SOLICITADO").reduce((total, item) => total + numero(item.importe), 0);
   const adelantosEntregados = lista.filter((item) => item.tipo === "ADELANTO" && item.estado === "ENTREGADO").reduce((total, item) => total + numero(item.importe), 0);
   const ambulanciasConfirmadas = lista.filter((item) => item.tipo === "AMBULANCIA" && item.estado === "CONFIRMADO").reduce((total, item) => total + numero(item.importe), 0);
+  const ambulanciasDescontadas = lista.filter((item) => item.tipo === "AMBULANCIA_DESCUENTO" && item.estado === "CONFIRMADO").reduce((total, item) => total + numero(item.importe), 0);
   const otrosConfirmados = lista.filter((item) => item.tipo === "OTRO" && item.estado === "CONFIRMADO").reduce((total, item) => total + numero(item.importe), 0);
-  const ganado = dinero(pago.total + ambulanciasConfirmadas + otrosConfirmados);
+  const ganado = dinero(pago.total + ambulanciasConfirmadas + otrosConfirmados - ambulanciasDescontadas);
 
   return {
     kilometros,
@@ -53,6 +63,7 @@ export function resumirOperacionFlotilla(operacion = {}, movimientos = []) {
     adelantosSolicitados: dinero(adelantosSolicitados),
     adelantosEntregados: dinero(adelantosEntregados),
     ambulanciasConfirmadas: dinero(ambulanciasConfirmadas),
+    ambulanciasDescontadas: dinero(ambulanciasDescontadas),
     otrosConfirmados: dinero(otrosConfirmados),
     ganado,
     saldoEstimado: dinero(ganado - adelantosEntregados),
@@ -68,12 +79,20 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
   ), 0));
   const ingresoRegistrado = dinero(corte.ingreso);
   const ingreso = ingresoRegistrado > 0 ? ingresoRegistrado : ingresoPorTarifa;
-  const pagoChoferes = dinero(rentals.reduce((total, item) => total + numero(item?.resumen?.ganado), 0));
+  const pagoChoferes = dinero(rentals.reduce((total, item) => total
+    + numero(item?.resumen?.pagoBase)
+    + numero(item?.resumen?.otrosConfirmados), 0));
   const gasolinaEmpresa = dinero(rentals.reduce((total, item) => total + numero(item?.resumen?.gasolinaEmpresa), 0));
   const gasolinaChofer = dinero(rentals.reduce((total, item) => total + numero(item?.resumen?.gasolinaChofer), 0));
   const otroGasto = dinero(corte.otro_importe);
   const utilidadNeta = dinero(ingreso - pagoChoferes - gasolinaEmpresa - otroGasto);
   const utilidadRepartible = Math.max(0, utilidadNeta);
+  const parteBase = Math.floor((utilidadRepartible * 100) / 3) / 100;
+  const repartoSocios = {
+    Abraham: parteBase,
+    Chory: parteBase,
+    Kary: dinero(utilidadRepartible - parteBase - parteBase),
+  };
 
   return {
     rutas: rentals.length,
@@ -90,7 +109,8 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
     utilidadNeta,
     hayPerdida: utilidadNeta < 0,
     utilidadRepartible,
-    partePorSocio: dinero(utilidadRepartible / 3),
+    partePorSocio: parteBase,
+    repartoSocios,
     socios: ["Abraham", "Chory", "Kary"],
   };
 }
