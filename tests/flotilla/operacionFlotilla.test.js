@@ -191,3 +191,49 @@ test("una ruta finalizada con evidencias completas queda lista para revisión", 
   assert.equal(revision.estado, "COMPLETA");
   assert.equal(revision.totalFaltantes, 0);
 });
+
+test("una foto de salida rechazada mantiene la ruta pendiente y muestra el motivo", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "EN_RUTA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_url: "https://evidencia/salida",
+    revision_foto_salida: { estado: "RECHAZADA", motivo: "Foto borrosa" },
+  });
+
+  assert.equal(revision.estado, "PENDIENTE");
+  assert.deepEqual(revision.faltantes, ["Foto del tablero al salir rechazada: Foto borrosa"]);
+});
+
+test("un ticket rechazado mantiene pendiente la evidencia de gasolina", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "EN_RUTA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_path: "salida.jpg",
+  }, [{
+    tipo: "GASOLINA",
+    estado: "CAPTURADO",
+    importe: 500,
+    litros: 20,
+    pagador: "CHOFER",
+    evidencia_path: "ticket.jpg",
+    revision_evidencia: { estado: "RECHAZADA", motivo: "Ticket incompleto o ilegible" },
+  }]);
+
+  assert.equal(revision.estado, "PENDIENTE");
+  assert.deepEqual(revision.faltantes, ["Carga de gasolina 1: foto del ticket rechazada: Ticket incompleto o ilegible"]);
+});
+
+test("una foto aprobada no genera faltantes adicionales", () => {
+  const revision = revisarEvidenciaRuta({
+    estado: "EN_RUTA",
+    km_inicial: 1000,
+    gasolina_in: "1/2",
+    foto_salida_path: "salida.jpg",
+    revision_foto_salida: { estado: "APROBADA", motivo: null },
+  });
+
+  assert.equal(revision.estado, "EN_CURSO");
+  assert.deepEqual(revision.faltantes, []);
+});
