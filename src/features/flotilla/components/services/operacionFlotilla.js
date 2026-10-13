@@ -1,7 +1,7 @@
 import { supabase } from "../../../../supabase";
 import { resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 
-export { calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
+export { calcularAmbulancia, calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 
 async function crearUrlEvidencia(path) {
   if (!path) return null;
@@ -38,8 +38,8 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
       .order("created_at", { ascending: true }),
     supabase
       .from("flotilla_ambulancias")
-      .select("id, ruta_origen_id, ayudante, pago_por_kilometraje, kilometros_ambulancia, estado, observaciones, evidencia_path, created_at")
-      .in("ruta_origen_id", ids)
+      .select("id, ruta_origen_id, ruta_apoyada_id, solicitante, ayudante, pago_por_kilometraje, kilometros_ambulancia, paros_apoyados, estado, observaciones, evidencia_path, created_at")
+      .or(`ruta_origen_id.in.(${ids.join(",")}),ruta_apoyada_id.in.(${ids.join(",")})`)
       .order("created_at", { ascending: true }),
   ]);
 
@@ -79,18 +79,33 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
         : item.tipo_movimiento === "ADELANTO" ? "SOLICITADO" : "CAPTURADO",
     created_at: item.created_at,
   }));
-  const movimientosAmbulancia = ambulanciasConFotos.map((item) => ({
-    id: item.id,
-    operacion_id: item.ruta_origen_id,
-    tipo: "AMBULANCIA",
-    concepto: item.observaciones,
-    importe: item.pago_por_kilometraje,
-    kilometros: item.kilometros_ambulancia,
-    evidencia_url: item.evidencia_url,
-    estado: item.estado === "CONFIRMADA" ? "CONFIRMADO"
-      : item.estado === "CANCELADA" ? "RECHAZADO" : "SOLICITADO",
-    created_at: item.created_at,
-  }));
+  const movimientosAmbulancia = ambulanciasConFotos.flatMap((item) => {
+    const estado = item.estado === "CONFIRMADA" ? "CONFIRMADO"
+      : item.estado === "CANCELADA" ? "RECHAZADO" : "SOLICITADO";
+    const abono = {
+      id: `${item.id}:ABONO`,
+      registro_id: item.id,
+      operacion_id: item.ruta_origen_id,
+      ruta_apoyada_id: item.ruta_apoyada_id,
+      tipo: "AMBULANCIA",
+      concepto: item.observaciones,
+      importe: item.pago_por_kilometraje,
+      kilometros: item.kilometros_ambulancia,
+      paradas: item.paros_apoyados,
+      choferRelacionado: item.solicitante,
+      evidencia_url: item.evidencia_url,
+      estado,
+      created_at: item.created_at,
+    };
+    if (!item.ruta_apoyada_id) return [abono];
+    return [abono, {
+      ...abono,
+      id: `${item.id}:DESCUENTO`,
+      operacion_id: item.ruta_apoyada_id,
+      tipo: "AMBULANCIA_DESCUENTO",
+      choferRelacionado: item.ayudante,
+    }];
+  });
 
   return operacionesConFotos.map((operacion) => {
     const propios = [...movimientosDinero, ...movimientosAmbulancia]
@@ -99,19 +114,26 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
   });
 }
 
-export async function confirmarMovimientoChofer(movimientoId, estado, tipo) {
+export async function confirmarMovimientoChofer(movimientoId, estado, tipo, datos = {}) {
   if (!movimientoId || !["CONFIRMADO", "ENTREGADO", "RECHAZADO"].includes(estado)) {
     throw new Error("El movimiento o estado no es válido.");
   }
 
   const esAmbulancia = tipo === "AMBULANCIA";
   const tabla = esAmbulancia ? "flotilla_ambulancias" : "flotilla_movimientos_dinero";
+  if (esAmbulancia && estado === "CONFIRMADO" && !datos.rutaApoyadaId) {
+    throw new Error("Selecciona la ruta del chofer que recibió el apoyo.");
+  }
   const cambio = esAmbulancia
-    ? { estado: estado === "RECHAZADO" ? "CANCELADA" : "CONFIRMADA" }
+    ? {
+      estado: estado === "RECHAZADO" ? "CANCELADA" : "CONFIRMADA",
+      ...(estado === "CONFIRMADO" ? { ruta_apoyada_id: datos.rutaApoyadaId } : {}),
+    }
     : { estado_conciliacion: estado === "RECHAZADO" ? "DESCARTADO" : "CONCILIADO" };
-  const { error } = await supabase.from(tabla).update(cambio).eq("id", movimientoId);
+  const idRegistro = String(movimientoId).split(":")[0];
+  const { error } = await supabase.from(tabla).update(cambio).eq("id", idRegistro);
 
-  if (error) throw new Error("No fue posible confirmar el movimiento.");
+  if (error) throw new Error(error.message || "No fue posible confirmar el movimiento.");
 }
 
 export async function obtenerCorteRental(fecha) {

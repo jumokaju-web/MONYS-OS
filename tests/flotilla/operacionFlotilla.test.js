@@ -1,16 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  calcularAmbulancia,
   calcularRepartoRental,
   calcularPagoRuta,
   resumirOperacionFlotilla,
 } from "../../src/features/flotilla/utils/operacionFlotilla.js";
 
-test("conserva los tramos de pago MLP de Chory v18.5", () => {
+test("aplica los tramos de kilometraje confirmados para MLP", () => {
   assert.deepEqual(
-    [99, 100, 154, 155, 200, 201].map((km) => calcularPagoRuta(km).total),
-    [1600, 1750, 1750, 1900, 1900, 2025]
+    [100, 101, 150, 151, 200, 201, 250, 251].map((km) => calcularPagoRuta(km).total),
+    [1600, 1750, 1750, 1900, 1900, 2025, 2025, 2100]
   );
+});
+
+test("calcula ambulancia por paradas y usa media ruta desde 31", () => {
+  assert.deepEqual(
+    [0, 1, 15, 16, 30, 31].map((paradas) => calcularAmbulancia(paradas, 1600)),
+    [0, 200, 200, 320, 320, 800]
+  );
+  assert.equal(calcularAmbulancia(31, 1000), 500);
 });
 
 test("separa cobro rental del pago fijo al chofer", () => {
@@ -50,6 +59,17 @@ test("ambulancia confirmada suma al chofer y gasolina queda separada", () => {
   assert.equal(resumen.saldoEstimado, 1850);
 });
 
+test("ambulancia confirmada se descuenta al chofer apoyado", () => {
+  const resumen = resumirOperacionFlotilla(
+    { km_inicial: 1000, km_final: 1080, tipo_pago: "MLP" },
+    [{ tipo: "AMBULANCIA_DESCUENTO", estado: "CONFIRMADO", importe: 200 }]
+  );
+
+  assert.equal(resumen.ambulanciasDescontadas, 200);
+  assert.equal(resumen.ganado, 1400);
+  assert.equal(resumen.saldoEstimado, 1400);
+});
+
 test("usa los kilómetros calculados por la base aunque no haya lecturas inicial y final", () => {
   const resumen = resumirOperacionFlotilla(
     { kilometros_ruta: 201, tipo_pago: "MLP" },
@@ -63,8 +83,8 @@ test("usa los kilómetros calculados por la base aunque no haya lecturas inicial
 
 test("la utilidad rental usa tarifas y solo descuenta gasolina pagada por la empresa", () => {
   const resumen = calcularRepartoRental([
-    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 350 } },
-    { tipo_pago: "RENTAL_LARGE", resumen: { ganado: 1000, ingresoRental: 1221, gasolinaEmpresa: 100, gasolinaChofer: 450 } },
+    { tipo_pago: "RENTAL_SMALL", resumen: { pagoBase: 850, ganado: 650, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 350, ambulanciasDescontadas: 200 } },
+    { tipo_pago: "RENTAL_LARGE", resumen: { pagoBase: 1000, ganado: 1320, ingresoRental: 1221, gasolinaEmpresa: 100, gasolinaChofer: 450, ambulanciasConfirmadas: 320 } },
     { tipo_pago: "MLP", resumen: { ganado: 2025, gasolina: 999 } },
   ], { otro_concepto: "Taxi", otro_importe: 100 });
 
@@ -79,7 +99,7 @@ test("la utilidad rental usa tarifas y solo descuenta gasolina pagada por la emp
 
 test("una pérdida rental se muestra pero no se reparte", () => {
   const resumen = calcularRepartoRental([
-    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 500, gasolinaChofer: 0 } },
+    { tipo_pago: "RENTAL_SMALL", resumen: { pagoBase: 850, ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 500, gasolinaChofer: 0 } },
   ], { otro_importe: 200 });
 
   assert.equal(resumen.utilidadNeta, -450);
@@ -93,7 +113,7 @@ test("reconoce una rental configurada desde la unidad", () => {
     {
       tipo_pago: null,
       unidad: { tipo_pago_chory: "RENTAL_SMALL" },
-      resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 200 },
+      resumen: { pagoBase: 850, ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 200 },
     },
   ], {});
 
@@ -103,7 +123,7 @@ test("reconoce una rental configurada desde la unidad", () => {
 
 test("un cobro confirmado sustituye el ingreso automático de tarifas", () => {
   const resumen = calcularRepartoRental([
-    { tipo_pago: "RENTAL_LARGE", resumen: { ganado: 1000, ingresoRental: 1221 } },
+    { tipo_pago: "RENTAL_LARGE", resumen: { pagoBase: 1000, ganado: 1000, ingresoRental: 1221 } },
   ], { ingreso: 1300 });
   assert.equal(resumen.ingreso, 1300);
   assert.equal(resumen.origenIngreso, "REGISTRADO");

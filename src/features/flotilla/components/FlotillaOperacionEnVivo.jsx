@@ -30,6 +30,7 @@ export default function FlotillaOperacionEnVivo() {
   const [error, setError] = useState("");
   const [realtime, setRealtime] = useState("CONECTANDO");
   const [confirmando, setConfirmando] = useState("");
+  const [rutasApoyadas, setRutasApoyadas] = useState({});
   const [corteRental, setCorteRental] = useState({ ingreso: "", otro_concepto: "", otro_importe: "" });
   const [guardandoRental, setGuardandoRental] = useState(false);
 
@@ -72,10 +73,10 @@ export default function FlotillaOperacionEnVivo() {
   }), { activas: 0, ganado: 0, gasolina: 0, adelantos: 0 }), [operaciones]);
   const rental = useMemo(() => calcularRepartoRental(operaciones, corteRental), [operaciones, corteRental]);
 
-  async function cambiarEstado(movimientoId, estado, tipo) {
+  async function cambiarEstado(movimientoId, estado, tipo, datos) {
     try {
       setConfirmando(movimientoId);
-      await confirmarMovimientoChofer(movimientoId, estado, tipo);
+      await confirmarMovimientoChofer(movimientoId, estado, tipo, datos);
       await cargar({ silencioso: true });
     } catch (errorCambio) {
       setError(errorCambio?.message || "No fue posible actualizar el adelanto.");
@@ -121,7 +122,7 @@ export default function FlotillaOperacionEnVivo() {
       <div style={{ display: "grid", gap: 10, marginTop: 13 }}>
         {operaciones.map((item) => {
           const adelantos = item.movimientos.filter((mov) => mov.tipo === "ADELANTO");
-          const ambulancias = item.movimientos.filter((mov) => mov.tipo === "AMBULANCIA");
+          const ambulancias = item.movimientos.filter((mov) => ["AMBULANCIA", "AMBULANCIA_DESCUENTO"].includes(mov.tipo));
           const gasolinas = item.movimientos.filter((mov) => mov.tipo === "GASOLINA");
           return <article key={item.id} style={tarjeta}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><strong>{item.chofer_nombre || "Chofer sin nombre"}</strong><b>{item.estado}</b></div>
@@ -145,15 +146,19 @@ export default function FlotillaOperacionEnVivo() {
               {mov.estado === "SOLICITADO" && <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "ENTREGADO", mov.tipo)}>Marcar entregado</button><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>}
             </div>)}
             {ambulancias.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff4df" }}>
-              <b>Ambulancia {moneda(mov.importe)}</b> · {mov.kilometros || 0} KM · {mov.estado}
+              <b>{mov.tipo === "AMBULANCIA_DESCUENTO" ? "Descuento por ambulancia" : "Ambulancia a favor"} {moneda(mov.importe)}</b> · {mov.paradas || 0} paradas · {mov.estado}
+              {mov.choferRelacionado && <small style={{ display: "block" }}>{mov.tipo === "AMBULANCIA_DESCUENTO" ? `Ayudó: ${mov.choferRelacionado}` : `Apoyó a: ${mov.choferRelacionado}`}</small>}
               {mov.concepto && <small style={{ display: "block" }}>{mov.concepto}</small>}
               {mov.evidencia_url && <a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>}
-              {mov.estado === "SOLICITADO" && <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "CONFIRMADO", mov.tipo)}>Confirmar pago</button><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>}
+              {mov.tipo === "AMBULANCIA" && mov.estado === "SOLICITADO" && <div style={{ marginTop: 7 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 800 }}>Ruta que recibió el apoyo<select value={rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id || ""} onChange={(e) => setRutasApoyadas((actual) => ({ ...actual, [mov.registro_id]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: 7 }}><option value="">Seleccionar chofer y ruta</option>{operaciones.filter((ruta) => ruta.id !== item.id).map((ruta) => <option key={ruta.id} value={ruta.id}>{ruta.chofer_nombre || "Chofer"} · {ruta.codigo_ruta || "Ruta"} · {ruta.unidad?.placas || "Sin placas"}</option>)}</select></label>
+                <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.registro_id || !(rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id)} onClick={() => cambiarEstado(mov.registro_id, "CONFIRMADO", mov.tipo, { rutaApoyadaId: rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id })}>Confirmar transferencia</button><button type="button" disabled={confirmando === mov.registro_id} onClick={() => cambiarEstado(mov.registro_id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>
+              </div>}
             </div>)}
           </article>;
         })}
       </div>
-      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>Un adelanto solicitado no reduce el saldo del chofer hasta que Administración lo marca como entregado.</p>
+      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
 
       <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
