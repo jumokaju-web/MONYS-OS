@@ -13,9 +13,9 @@ test("conserva los tramos de pago MLP de Chory v18.5", () => {
   );
 });
 
-test("conserva pagos fijos de unidades rental", () => {
-  assert.equal(calcularPagoRuta(300, "RENTAL_SMALL").total, 1100);
-  assert.equal(calcularPagoRuta(20, "RENTAL_LARGE").total, 1221);
+test("separa cobro rental del pago fijo al chofer", () => {
+  assert.deepEqual(calcularPagoRuta(300, "RENTAL_SMALL"), { base: 850, bono: 0, total: 850, cobroEmpresa: 1100 });
+  assert.deepEqual(calcularPagoRuta(20, "RENTAL_LARGE"), { base: 1000, bono: 0, total: 1000, cobroEmpresa: 1221 });
 });
 
 test("solo un adelanto entregado reduce el saldo del chofer", () => {
@@ -61,26 +61,28 @@ test("usa los kilómetros calculados por la base aunque no haya lecturas inicial
   assert.equal(resumen.ganado, 2025);
 });
 
-test("la utilidad rental descuenta choferes, gasolina y un gasto manual", () => {
+test("la utilidad rental usa tarifas y solo descuenta gasolina pagada por la empresa", () => {
   const resumen = calcularRepartoRental([
-    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 1100, gasolina: 350 } },
-    { tipo_pago: "RENTAL_LARGE", resumen: { ganado: 1471, gasolina: 450 } },
+    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 350 } },
+    { tipo_pago: "RENTAL_LARGE", resumen: { ganado: 1000, ingresoRental: 1221, gasolinaEmpresa: 100, gasolinaChofer: 450 } },
     { tipo_pago: "MLP", resumen: { ganado: 2025, gasolina: 999 } },
-  ], { ingreso: 7200, otro_concepto: "Taxi", otro_importe: 300 });
+  ], { otro_concepto: "Taxi", otro_importe: 100 });
 
-  assert.equal(resumen.pagoChoferes, 2571);
-  assert.equal(resumen.gasolina, 800);
-  assert.equal(resumen.utilidadNeta, 3529);
-  assert.equal(resumen.partePorSocio, 1176.33);
+  assert.equal(resumen.ingreso, 2321);
+  assert.equal(resumen.pagoChoferes, 1850);
+  assert.equal(resumen.gasolinaEmpresa, 100);
+  assert.equal(resumen.gasolinaChofer, 800);
+  assert.equal(resumen.utilidadNeta, 271);
+  assert.equal(resumen.partePorSocio, 90.33);
   assert.deepEqual(resumen.socios, ["Abraham", "Chory", "Kary"]);
 });
 
 test("una pérdida rental se muestra pero no se reparte", () => {
   const resumen = calcularRepartoRental([
-    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 1100, gasolina: 500 } },
-  ], { ingreso: 1000, otro_importe: 200 });
+    { tipo_pago: "RENTAL_SMALL", resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 500, gasolinaChofer: 0 } },
+  ], { otro_importe: 200 });
 
-  assert.equal(resumen.utilidadNeta, -800);
+  assert.equal(resumen.utilidadNeta, -450);
   assert.equal(resumen.utilidadRepartible, 0);
   assert.equal(resumen.partePorSocio, 0);
   assert.equal(resumen.hayPerdida, true);
@@ -91,10 +93,19 @@ test("reconoce una rental configurada desde la unidad", () => {
     {
       tipo_pago: null,
       unidad: { tipo_pago_chory: "RENTAL_SMALL" },
-      resumen: { ganado: 1100, gasolina: 200 },
+      resumen: { ganado: 850, ingresoRental: 1100, gasolinaEmpresa: 0, gasolinaChofer: 200 },
     },
-  ], { ingreso: 2000 });
+  ], {});
 
   assert.equal(resumen.rutas, 1);
-  assert.equal(resumen.utilidadNeta, 700);
+  assert.equal(resumen.utilidadNeta, 250);
+});
+
+test("un cobro confirmado sustituye el ingreso automático de tarifas", () => {
+  const resumen = calcularRepartoRental([
+    { tipo_pago: "RENTAL_LARGE", resumen: { ganado: 1000, ingresoRental: 1221 } },
+  ], { ingreso: 1300 });
+  assert.equal(resumen.ingreso, 1300);
+  assert.equal(resumen.origenIngreso, "REGISTRADO");
+  assert.equal(resumen.utilidadNeta, 300);
 });
