@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   confirmarMovimientoChofer,
+  guardarRevisionEvidencia,
   guardarCorteRental,
   obtenerCorteRental,
   obtenerOperacionFlotillaEnVivo,
   suscribirseAOperacionFlotilla,
 } from "./services/operacionFlotilla";
-import { calcularRepartoRental, revisarEvidenciaRuta } from "../utils/operacionFlotilla";
+import { calcularRepartoRental, MOTIVOS_RECHAZO_EVIDENCIA, revisarEvidenciaRuta } from "../utils/operacionFlotilla";
 import FlotillaAccesosChofer from "./FlotillaAccesosChofer";
 
 function fechaMexico() {
@@ -23,6 +24,26 @@ const tarjeta = {
   borderRadius: "14px",
   padding: "13px",
 };
+
+function ControlRevisionFoto({ revision, guardando, onGuardar }) {
+  const [motivo, setMotivo] = useState(revision?.motivo || "");
+  const color = revision?.estado === "APROBADA" ? "#17643a" : revision?.estado === "RECHAZADA" ? "#982f24" : "#6b5712";
+  const fondo = revision?.estado === "APROBADA" ? "#e7f7ed" : revision?.estado === "RECHAZADA" ? "#ffe7df" : "#fff6d8";
+
+  return <div style={{ marginTop: 7, padding: 8, borderRadius: 9, background: fondo, border: `1px solid ${color}33` }}>
+    <small style={{ display: "block", color, fontWeight: 900 }}>
+      {revision?.estado === "APROBADA" ? "✓ FOTO APROBADA" : revision?.estado === "RECHAZADA" ? `✕ REPETIR FOTO · ${revision.motivo}` : "PENDIENTE DE REVISIÓN"}
+    </small>
+    <select aria-label="Motivo para repetir la foto" value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ width: "100%", marginTop: 6, padding: 7, borderRadius: 8 }}>
+      <option value="">Motivo si debe repetirse…</option>
+      {MOTIVOS_RECHAZO_EVIDENCIA.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+    </select>
+    <div style={{ display: "flex", gap: 7, marginTop: 7 }}>
+      <button type="button" disabled={guardando} onClick={() => onGuardar("APROBADA", null)}>Aprobar foto</button>
+      <button type="button" disabled={guardando || !motivo} onClick={() => onGuardar("RECHAZADA", motivo)}>Rechazar y pedir otra</button>
+    </div>
+  </div>;
+}
 
 export default function FlotillaOperacionEnVivo() {
   const [fecha, setFecha] = useState(fechaMexico);
@@ -87,6 +108,19 @@ export default function FlotillaOperacionEnVivo() {
     }
   }
 
+  async function revisarFoto({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo }) {
+    try {
+      setConfirmando(`REVISION:${evidenciaKey}`);
+      setError("");
+      await guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId, estado, motivo });
+      await cargar({ silencioso: true });
+    } catch (errorRevision) {
+      setError(errorRevision?.message || "No fue posible guardar la revisión de la foto.");
+    } finally {
+      setConfirmando("");
+    }
+  }
+
   async function guardarRental() {
     try {
       setGuardandoRental(true);
@@ -134,19 +168,19 @@ export default function FlotillaOperacionEnVivo() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7, marginTop: 10, textAlign: "center" }}>
               <div><small>KM</small><b style={{ display: "block" }}>{item.resumen.kilometros}</b></div><div><small>Ganado</small><b style={{ display: "block" }}>{moneda(item.resumen.ganado)}</b></div><div><small>Gasolina</small><b style={{ display: "block" }}>{moneda(item.resumen.gasolina)}</b></div><div><small>Saldo</small><b style={{ display: "block", color: "#08734f" }}>{moneda(item.resumen.saldoEstimado)}</b></div>
             </div>
-            {(item.foto_salida_url || item.foto_cierre_url) && <div style={{ display: "flex", gap: 10, marginTop: 7 }}>
-              {item.foto_salida_url && <a href={item.foto_salida_url} target="_blank" rel="noreferrer">Ver foto de salida</a>}
-              {item.foto_cierre_url && <a href={item.foto_cierre_url} target="_blank" rel="noreferrer">Ver foto de cierre</a>}
+            {(item.foto_salida_url || item.foto_cierre_url) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 9 }}>
+              {item.foto_salida_url && <div><a href={item.foto_salida_url} target="_blank" rel="noreferrer">Ver foto de salida</a><ControlRevisionFoto revision={item.revision_foto_salida} guardando={confirmando === "REVISION:RUTA:SALIDA"} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: "RUTA:SALIDA", tipoEvidencia: "FOTO_SALIDA", estado, motivo })} /></div>}
+              {item.foto_cierre_url && <div><a href={item.foto_cierre_url} target="_blank" rel="noreferrer">Ver foto de cierre</a><ControlRevisionFoto revision={item.revision_foto_cierre} guardando={confirmando === "REVISION:RUTA:CIERRE"} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: "RUTA:CIERRE", tipoEvidencia: "FOTO_CIERRE", estado, motivo })} /></div>}
             </div>}
             {gasolinas.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#eef8ff" }}>
               <b>Gasolina {moneda(mov.importe)}</b> · {mov.litros || 0} L · pagó {mov.pagador || "sin registrar"}
               {mov.concepto && <small style={{ display: "block" }}>{mov.concepto}</small>}
-              {mov.evidencia_url && <a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver foto de gasolina</a>}
+              {mov.evidencia_url && <><a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver foto de gasolina</a><ControlRevisionFoto revision={mov.revision_evidencia} guardando={confirmando === `REVISION:${mov.evidencia_key}`} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: mov.evidencia_key, tipoEvidencia: "GASOLINA", referenciaId: mov.id, estado, motivo })} /></>}
             </div>)}
             {adelantos.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff8e8" }}>
               <b>Adelanto {moneda(mov.importe)}</b> · {mov.uso || "sin uso"} · {mov.estado}
               {mov.concepto && <small style={{ display: "block" }}>{mov.concepto}</small>}
-              {mov.evidencia_url && <a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>}
+              {mov.evidencia_url && <><a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>{mov.tipo === "AMBULANCIA" && <ControlRevisionFoto revision={mov.revision_evidencia} guardando={confirmando === `REVISION:${mov.evidencia_key}`} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: mov.evidencia_key, tipoEvidencia: "AMBULANCIA", referenciaId: mov.registro_id, estado, motivo })} />}</>}
               {mov.estado === "SOLICITADO" && <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "ENTREGADO", mov.tipo)}>Marcar entregado</button><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>}
             </div>)}
             {ambulancias.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff4df" }}>
@@ -162,7 +196,7 @@ export default function FlotillaOperacionEnVivo() {
           </article>;
         })}
       </div>
-      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>La app de Chory revisa resolución, luz, reflejo, contraste y posible desenfoque antes de enviar. MONYS marca aquí los datos o fotografías que no llegaron. Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
+      <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>MONYS conserva la revisión de cada foto. Una evidencia rechazada mantiene la ruta pendiente y queda visible para que el chofer sepa por qué debe repetirla. Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
 
       <FlotillaAccesosChofer />
 

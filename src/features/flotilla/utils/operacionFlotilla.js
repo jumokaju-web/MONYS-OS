@@ -30,6 +30,20 @@ function tieneTexto(valor) {
   return String(valor ?? "").trim().length > 0;
 }
 
+export const MOTIVOS_RECHAZO_EVIDENCIA = [
+  "Foto borrosa",
+  "Kilometraje ilegible",
+  "Nivel de gasolina no visible",
+  "Ticket incompleto o ilegible",
+  "Foto equivocada",
+];
+
+function agregarRechazo(faltantes, etiqueta, revision) {
+  if (revision?.estado !== "RECHAZADA") return false;
+  faltantes.push(`${etiqueta} rechazada: ${revision.motivo || "debe repetirse"}`);
+  return true;
+}
+
 export function revisarEvidenciaRuta(operacion = {}, movimientos = []) {
   const faltantes = [];
   const lista = Array.isArray(movimientos) ? movimientos : [];
@@ -37,14 +51,16 @@ export function revisarEvidenciaRuta(operacion = {}, movimientos = []) {
 
   if (numero(operacion.km_inicial) <= 0) faltantes.push("Kilometraje inicial");
   if (!tieneTexto(operacion.gasolina_in)) faltantes.push("Gasolina inicial");
-  if (!tieneTexto(operacion.foto_salida_url || operacion.foto_salida_path)) faltantes.push("Foto del tablero al salir");
+  const salidaRechazada = agregarRechazo(faltantes, "Foto del tablero al salir", operacion.revision_foto_salida);
+  if (!salidaRechazada && !tieneTexto(operacion.foto_salida_url || operacion.foto_salida_path)) faltantes.push("Foto del tablero al salir");
 
   if (finalizada) {
     const kmInicial = numero(operacion.km_inicial);
     const kmFinal = numero(operacion.km_final);
     if (kmFinal <= 0 || (kmInicial > 0 && kmFinal < kmInicial)) faltantes.push("Kilometraje final válido");
     if (!tieneTexto(operacion.gasolina_out)) faltantes.push("Gasolina final");
-    if (!tieneTexto(operacion.foto_cierre_url || operacion.foto_cierre_path)) faltantes.push("Foto del tablero al regresar");
+    const cierreRechazado = agregarRechazo(faltantes, "Foto del tablero al regresar", operacion.revision_foto_cierre);
+    if (!cierreRechazado && !tieneTexto(operacion.foto_cierre_url || operacion.foto_cierre_path)) faltantes.push("Foto del tablero al regresar");
   }
 
   lista.forEach((movimiento, indice) => {
@@ -54,10 +70,14 @@ export function revisarEvidenciaRuta(operacion = {}, movimientos = []) {
       if (numero(movimiento.importe) <= 0) faltantes.push(`${etiqueta}: importe`);
       if (numero(movimiento.litros) <= 0) faltantes.push(`${etiqueta}: litros`);
       if (!tieneTexto(movimiento.pagador)) faltantes.push(`${etiqueta}: quién pagó`);
-      if (!tieneTexto(movimiento.evidencia_url || movimiento.evidencia_path)) faltantes.push(`${etiqueta}: foto del ticket`);
+      const ticketRechazado = agregarRechazo(faltantes, `${etiqueta}: foto del ticket`, movimiento.revision_evidencia);
+      if (!ticketRechazado && !tieneTexto(movimiento.evidencia_url || movimiento.evidencia_path)) faltantes.push(`${etiqueta}: foto del ticket`);
     }
-    if (movimiento?.tipo === "AMBULANCIA" && !tieneTexto(movimiento.evidencia_url || movimiento.evidencia_path)) {
-      faltantes.push("Ambulancia: evidencia del apoyo");
+    if (movimiento?.tipo === "AMBULANCIA") {
+      const ambulanciaRechazada = agregarRechazo(faltantes, "Ambulancia: evidencia del apoyo", movimiento.revision_evidencia);
+      if (!ambulanciaRechazada && !tieneTexto(movimiento.evidencia_url || movimiento.evidencia_path)) {
+        faltantes.push("Ambulancia: evidencia del apoyo");
+      }
     }
   });
 
