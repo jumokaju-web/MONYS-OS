@@ -13,6 +13,7 @@ import {
   suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
 import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
+import FlotillaOperacionEnVivo from "./FlotillaOperacionEnVivo";
 import { calcularLiquidacionFlotilla } from "../../inteligencia/utils/capturasFinancierasEquipo";
 
 function normalizarNombre(valor) {
@@ -479,7 +480,12 @@ export default function FlotillaChofer({
 
         {["owner", "admin"].includes(
           String(usuario?.role || "").toLowerCase()
-        ) && <ResumenFlotillaSocios unidades={unidades} />}
+        ) && (
+          <>
+            <FlotillaOperacionEnVivo />
+            <ResumenFlotillaSocios unidades={unidades} />
+          </>
+        )}
 
         {/* SALUDO */}
         <div

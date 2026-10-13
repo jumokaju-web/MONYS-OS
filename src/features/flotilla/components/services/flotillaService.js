@@ -13,6 +13,7 @@ const CAMPOS_UNIDAD = `
   propietarios,
   da_nombre,
   chofer_nombre,
+  chofer_auth_user_id,
   quien_saca_nombre,
   estado,
   aplica_admin_chory,
