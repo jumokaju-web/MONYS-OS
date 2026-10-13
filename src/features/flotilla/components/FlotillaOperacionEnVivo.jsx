@@ -180,14 +180,14 @@ export default function FlotillaOperacionEnVivo() {
             {adelantos.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff8e8" }}>
               <b>Adelanto {moneda(mov.importe)}</b> · {mov.uso || "sin uso"} · {mov.estado}
               {mov.concepto && <small style={{ display: "block" }}>{mov.concepto}</small>}
-              {mov.evidencia_url && <><a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>{mov.tipo === "AMBULANCIA" && <ControlRevisionFoto revision={mov.revision_evidencia} guardando={confirmando === `REVISION:${mov.evidencia_key}`} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: mov.evidencia_key, tipoEvidencia: "AMBULANCIA", referenciaId: mov.registro_id, estado, motivo })} />}</>}
+              {mov.evidencia_url && <a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>}
               {mov.estado === "SOLICITADO" && <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "ENTREGADO", mov.tipo)}>Marcar entregado</button><button type="button" disabled={confirmando === mov.id} onClick={() => cambiarEstado(mov.id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>}
             </div>)}
             {ambulancias.map((mov) => <div key={mov.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, background: "#fff4df" }}>
               <b>{mov.tipo === "AMBULANCIA_DESCUENTO" ? "Descuento por ambulancia" : "Ambulancia a favor"} {moneda(mov.importe)}</b> · {mov.paradas || 0} paradas · {mov.estado}
               {mov.choferRelacionado && <small style={{ display: "block" }}>{mov.tipo === "AMBULANCIA_DESCUENTO" ? `Ayudó: ${mov.choferRelacionado}` : `Apoyó a: ${mov.choferRelacionado}`}</small>}
               {mov.concepto && <small style={{ display: "block" }}>{mov.concepto}</small>}
-              {mov.evidencia_url && <a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>}
+              {mov.evidencia_url && <><a href={mov.evidencia_url} target="_blank" rel="noreferrer">Ver evidencia</a>{mov.tipo === "AMBULANCIA" && <ControlRevisionFoto revision={mov.revision_evidencia} guardando={confirmando === `REVISION:${mov.evidencia_key}`} onGuardar={(estado, motivo) => revisarFoto({ rutaId: item.id, evidenciaKey: mov.evidencia_key, tipoEvidencia: "AMBULANCIA", referenciaId: mov.registro_id, estado, motivo })} />}</>}
               {mov.tipo === "AMBULANCIA" && mov.estado === "SOLICITADO" && <div style={{ marginTop: 7 }}>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 800 }}>Ruta que recibió el apoyo<select value={rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id || ""} onChange={(e) => setRutasApoyadas((actual) => ({ ...actual, [mov.registro_id]: e.target.value }))} style={{ display: "block", width: "100%", marginTop: 4, padding: 7 }}><option value="">Seleccionar chofer y ruta</option>{operaciones.filter((ruta) => ruta.id !== item.id).map((ruta) => <option key={ruta.id} value={ruta.id}>{ruta.chofer_nombre || "Chofer"} · {ruta.codigo_ruta || "Ruta"} · {ruta.unidad?.placas || "Sin placas"}</option>)}</select></label>
                 <div style={{ display: "flex", gap: 7, marginTop: 7 }}><button type="button" disabled={confirmando === mov.registro_id || !(rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id)} onClick={() => cambiarEstado(mov.registro_id, "CONFIRMADO", mov.tipo, { rutaApoyadaId: rutasApoyadas[mov.registro_id] || mov.ruta_apoyada_id })}>Confirmar transferencia</button><button type="button" disabled={confirmando === mov.registro_id} onClick={() => cambiarEstado(mov.registro_id, "RECHAZADO", mov.tipo)}>Rechazar</button></div>
@@ -203,20 +203,31 @@ export default function FlotillaOperacionEnVivo() {
       <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><small style={{ color: "#237345", fontWeight: 900 }}>RENTALS · UTILIDAD DEL DÍA</small><h3 style={{ margin: "4px 0" }}>Abraham · Chory · Kary</h3></div>
-          <b>{rental.rutas} rutas rental</b>
+          <b>{rental.rutas} rutas · {rental.rutasSmall} Small · {rental.rutasLarge} Large</b>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 10 }}>
           <label style={{ fontSize: 11, fontWeight: 800 }}>Cobro confirmado (opcional)<input type="number" min="0" step="0.01" value={corteRental.ingreso} onChange={(e) => setCorteRental((actual) => ({ ...actual, ingreso: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
           <label style={{ fontSize: 11, fontWeight: 800 }}>Otro gasto<input type="number" min="0" step="0.01" value={corteRental.otro_importe} onChange={(e) => setCorteRental((actual) => ({ ...actual, otro_importe: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
           <label style={{ fontSize: 11, fontWeight: 800 }}>Concepto<input type="text" placeholder="Taxi, movimiento…" value={corteRental.otro_concepto} onChange={(e) => setCorteRental((actual) => ({ ...actual, otro_concepto: e.target.value }))} style={{ width: "100%", marginTop: 4, padding: 8, border: "1px solid #b8dfc4", borderRadius: 8 }} /></label>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginTop: 11 }}>
-          {[['Ingreso rental', rental.ingreso], ['Pago choferes', rental.pagoChoferes], ['Gasolina empresa', rental.gasolinaEmpresa], ['Utilidad neta', rental.utilidadNeta]].map(([label, value]) => <div key={label} style={tarjeta}><small>{label}</small><strong style={{ display: "block", color: label === 'Utilidad neta' && rental.hayPerdida ? '#a02e2e' : undefined }}>{moneda(value)}</strong></div>)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginTop: 11 }}>
+          {[['Ingreso rental', rental.ingreso], ['Ganado choferes', rental.pagoChoferes], ['Adelantos pagados', rental.adelantosEntregados], ['Pendiente choferes', rental.saldoChoferes], ['Gasolina empresa', rental.gasolinaEmpresa], ['Utilidad neta', rental.utilidadNeta]].map(([label, value]) => <div key={label} style={tarjeta}><small>{label}</small><strong style={{ display: "block", color: label === 'Utilidad neta' && rental.hayPerdida ? '#a02e2e' : undefined }}>{moneda(value)}</strong></div>)}
         </div>
-        <p style={{ color: "#557063", fontSize: 11 }}>Ingreso automático por rutas: {moneda(rental.ingresoPorTarifa)} · Gasolina pagada por choferes (informativa, no se descuenta de la utilidad): {moneda(rental.gasolinaChofer)} · Otro gasto: {moneda(rental.otroGasto)}</p>
+        <p style={{ color: "#557063", fontSize: 11 }}>Ingreso automático por rutas: {moneda(rental.ingresoPorTarifa)}{rental.origenIngreso === "REGISTRADO" ? ` · Ajuste contra cobro registrado: ${moneda(rental.ajusteIngreso)}` : ""} · Gasolina pagada por choferes (informativa, no se descuenta de la utilidad): {moneda(rental.gasolinaChofer)} · Otro gasto: {moneda(rental.otroGasto)}</p>
+        <h4 style={{ margin: "14px 0 7px" }}>Detalle por ruta</h4>
+        {rental.detalleRutas.length === 0 ? <p style={{ color: "#557063", fontSize: 12 }}>No hay rutas Rental para esta fecha.</p> : <div style={{ display: "grid", gap: 8 }}>
+          {rental.detalleRutas.map((ruta) => <article key={ruta.id || `${ruta.codigoRuta}-${ruta.placas}`} style={{ ...tarjeta, background: ruta.utilidadRuta < 0 ? "#fff5f0" : "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><b>{ruta.chofer} · {ruta.placas}</b><span style={{ fontWeight: 900 }}>{ruta.etiquetaTipo}</span></div>
+            <small>{ruta.codigoRuta}</small>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(105px,1fr))", gap: 7, marginTop: 8 }}>
+              {[['Cobro', ruta.ingreso], ['Ganó chofer', ruta.pagoChofer], ['Adelantado', ruta.adelantos], ['Falta pagar', ruta.saldoChofer], ['Gas empresa', ruta.gasolinaEmpresa], ['Utilidad ruta', ruta.utilidadRuta]].map(([label, value]) => <div key={label}><small>{label}</small><b style={{ display: "block", color: label === 'Utilidad ruta' && value < 0 ? '#a02e2e' : undefined }}>{moneda(value)}</b></div>)}
+            </div>
+            {(ruta.ambulanciasFavor > 0 || ruta.ambulanciasDescuento > 0) && <small style={{ display: "block", marginTop: 7, color: "#76551b" }}>Ambulancia a favor: {moneda(ruta.ambulanciasFavor)} · Descuento por ambulancia: {moneda(ruta.ambulanciasDescuento)}</small>}
+          </article>)}
+        </div>}
         {rental.hayPerdida ? <p role="status" style={{ color: "#a02e2e", fontWeight: 800 }}>Hay pérdida: se muestra para revisión y no se reparte.</p> : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginTop: 11 }}>{rental.socios.map((socio) => <div key={socio} style={tarjeta}><small>{socio}</small><strong style={{ display: "block", color: "#08734f" }}>{moneda(rental.repartoSocios?.[socio] ?? rental.partePorSocio)}</strong></div>)}</div>}
         <button type="button" disabled={guardandoRental} onClick={guardarRental} style={{ marginTop: 11 }}>{guardandoRental ? "Guardando…" : "Guardar corte rental"}</button>
-        <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Small: cobra $1,100 y paga $850 al chofer. Large: cobra $1,221 y paga $1,000. Cálculo: ingreso − pago de choferes − gasolina pagada por la empresa − otro gasto. Los adelantos entregados reducen el saldo pendiente del chofer, no la utilidad.</p>
+        <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Small: cobra $1,100 y paga $850 al chofer. Large: cobra $1,221 y paga $1,000. Al ganado del chofer se suman o descuentan ambulancias confirmadas. Cálculo: ingreso − ganado real de choferes − gasolina pagada por la empresa − otro gasto. Los adelantos solo reducen lo pendiente por pagar; no vuelven a descontarse de la utilidad.</p>
       </section>
     </section>
   );

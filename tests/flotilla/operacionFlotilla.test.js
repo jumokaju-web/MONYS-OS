@@ -90,14 +90,16 @@ test("la utilidad rental usa tarifas y solo descuenta gasolina pagada por la emp
   ], { otro_concepto: "Taxi", otro_importe: 100 });
 
   assert.equal(resumen.ingreso, 2321);
-  assert.equal(resumen.pagoChoferes, 1850);
+  assert.equal(resumen.pagoChoferes, 1970);
   assert.equal(resumen.gasolinaEmpresa, 100);
   assert.equal(resumen.gasolinaChofer, 800);
-  assert.equal(resumen.utilidadNeta, 271);
-  assert.equal(resumen.partePorSocio, 90.33);
-  assert.deepEqual(resumen.repartoSocios, { Abraham: 90.33, Chory: 90.33, Kary: 90.34 });
+  assert.equal(resumen.utilidadNeta, 151);
+  assert.equal(resumen.partePorSocio, 50.33);
+  assert.deepEqual(resumen.repartoSocios, { Abraham: 50.33, Chory: 50.33, Kary: 50.34 });
   assert.equal(Object.values(resumen.repartoSocios).reduce((total, parte) => total + parte, 0), resumen.utilidadRepartible);
   assert.deepEqual(resumen.socios, ["Abraham", "Chory", "Kary"]);
+  assert.equal(resumen.detalleRutas[0].utilidadRuta, 450);
+  assert.equal(resumen.detalleRutas[1].utilidadRuta, -199);
 });
 
 test("una pérdida rental se muestra pero no se reparte", () => {
@@ -132,6 +134,46 @@ test("un cobro confirmado sustituye el ingreso automático de tarifas", () => {
   assert.equal(resumen.ingreso, 1300);
   assert.equal(resumen.origenIngreso, "REGISTRADO");
   assert.equal(resumen.utilidadNeta, 300);
+});
+
+test("los adelantos reducen el saldo pendiente pero no vuelven a reducir la utilidad rental", () => {
+  const resumen = calcularRepartoRental([{
+    id: "rental-1",
+    codigo_ruta: "R-10",
+    chofer_nombre: "Luis",
+    tipo_pago: "RENTAL_SMALL",
+    unidad: { placas: "LG-44-598" },
+    resumen: {
+      ingresoRental: 1100,
+      ganado: 650,
+      adelantosEntregados: 300,
+      gasolinaEmpresa: 0,
+      gasolinaChofer: 250,
+      ambulanciasDescontadas: 200,
+    },
+  }], {});
+
+  assert.equal(resumen.pagoChoferes, 650);
+  assert.equal(resumen.adelantosEntregados, 300);
+  assert.equal(resumen.saldoChoferes, 350);
+  assert.equal(resumen.utilidadNeta, 450);
+  assert.deepEqual(resumen.detalleRutas[0], {
+    id: "rental-1",
+    tipo: "RENTAL_SMALL",
+    etiquetaTipo: "Small",
+    chofer: "Luis",
+    placas: "LG-44-598",
+    codigoRuta: "R-10",
+    ingreso: 1100,
+    pagoChofer: 650,
+    adelantos: 300,
+    saldoChofer: 350,
+    gasolinaEmpresa: 0,
+    gasolinaChofer: 250,
+    ambulanciasFavor: 0,
+    ambulanciasDescuento: 200,
+    utilidadRuta: 450,
+  });
 });
 
 test("marca una ruta activa completa como evidencia en curso", () => {

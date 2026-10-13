@@ -137,16 +137,41 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
   const rentals = (Array.isArray(operaciones) ? operaciones : []).filter((item) =>
     ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item?.tipo_pago || item?.unidad?.tipo_pago_chory)
   );
-  const ingresoPorTarifa = dinero(rentals.reduce((total, item) => total + numero(
-    item?.resumen?.ingresoRental ?? calcularPagoRuta(0, item?.tipo_pago || item?.unidad?.tipo_pago_chory).cobroEmpresa
-  ), 0));
+  const detalleRutas = rentals.map((item) => {
+    const tipo = item?.tipo_pago || item?.unidad?.tipo_pago_chory;
+    const tarifa = calcularPagoRuta(0, tipo);
+    const resumen = item?.resumen || {};
+    const ingreso = dinero(resumen.ingresoRental ?? tarifa.cobroEmpresa);
+    const pagoChofer = dinero(resumen.ganado ?? tarifa.total);
+    const adelantos = dinero(resumen.adelantosEntregados);
+    const gasolinaEmpresa = dinero(resumen.gasolinaEmpresa);
+    const gasolinaChofer = dinero(resumen.gasolinaChofer);
+    return {
+      id: item?.id,
+      tipo,
+      etiquetaTipo: tipo === "RENTAL_LARGE" ? "Large" : "Small",
+      chofer: item?.chofer_nombre || "Chofer sin nombre",
+      placas: item?.unidad?.placas || "Sin placas",
+      codigoRuta: item?.codigo_ruta || "Ruta pendiente",
+      ingreso,
+      pagoChofer,
+      adelantos,
+      saldoChofer: dinero(pagoChofer - adelantos),
+      gasolinaEmpresa,
+      gasolinaChofer,
+      ambulanciasFavor: dinero(resumen.ambulanciasConfirmadas),
+      ambulanciasDescuento: dinero(resumen.ambulanciasDescontadas),
+      utilidadRuta: dinero(ingreso - pagoChofer - gasolinaEmpresa),
+    };
+  });
+  const ingresoPorTarifa = dinero(detalleRutas.reduce((total, item) => total + item.ingreso, 0));
   const ingresoRegistrado = dinero(corte.ingreso);
   const ingreso = ingresoRegistrado > 0 ? ingresoRegistrado : ingresoPorTarifa;
-  const pagoChoferes = dinero(rentals.reduce((total, item) => total
-    + numero(item?.resumen?.pagoBase)
-    + numero(item?.resumen?.otrosConfirmados), 0));
-  const gasolinaEmpresa = dinero(rentals.reduce((total, item) => total + numero(item?.resumen?.gasolinaEmpresa), 0));
-  const gasolinaChofer = dinero(rentals.reduce((total, item) => total + numero(item?.resumen?.gasolinaChofer), 0));
+  const pagoChoferes = dinero(detalleRutas.reduce((total, item) => total + item.pagoChofer, 0));
+  const adelantosEntregados = dinero(detalleRutas.reduce((total, item) => total + item.adelantos, 0));
+  const saldoChoferes = dinero(detalleRutas.reduce((total, item) => total + item.saldoChofer, 0));
+  const gasolinaEmpresa = dinero(detalleRutas.reduce((total, item) => total + item.gasolinaEmpresa, 0));
+  const gasolinaChofer = dinero(detalleRutas.reduce((total, item) => total + item.gasolinaChofer, 0));
   const otroGasto = dinero(corte.otro_importe);
   const utilidadNeta = dinero(ingreso - pagoChoferes - gasolinaEmpresa - otroGasto);
   const utilidadRepartible = Math.max(0, utilidadNeta);
@@ -159,11 +184,17 @@ export function calcularRepartoRental(operaciones = [], corte = {}) {
 
   return {
     rutas: rentals.length,
+    rutasSmall: detalleRutas.filter((item) => item.tipo === "RENTAL_SMALL").length,
+    rutasLarge: detalleRutas.filter((item) => item.tipo === "RENTAL_LARGE").length,
+    detalleRutas,
     ingreso,
     ingresoPorTarifa,
     ingresoRegistrado,
+    ajusteIngreso: dinero(ingreso - ingresoPorTarifa),
     origenIngreso: ingresoRegistrado > 0 ? "REGISTRADO" : "TARIFAS",
     pagoChoferes,
+    adelantosEntregados,
+    saldoChoferes,
     gasolina: gasolinaEmpresa,
     gasolinaEmpresa,
     gasolinaChofer,
