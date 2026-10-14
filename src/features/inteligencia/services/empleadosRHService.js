@@ -831,41 +831,19 @@ export async function crearEmpleadoRH({
 // BAJA
 // ======================================================
 
-export async function darDeBajaEmpleadoRH(
-  empleadoId
-) {
+export async function darDeBajaEmpleadoRH({ empleadoId, motivo, fechaBaja = null }) {
   if (!empleadoId) {
     throw new Error(
       "Falta el id del empleado."
     );
   }
-
-  const fechaBaja =
-    new Date()
-      .toISOString()
-      .slice(0, 10);
-
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("empleados")
-    .update({
-      active:
-        false,
-
-      fecha_baja:
-        fechaBaja,
-
-      updated_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "id",
-      empleadoId
-    )
-    .select()
-    .single();
+  if (!String(motivo || "").trim()) throw new Error("Escribe el motivo de la baja.");
+  const { data, error } = await supabase.rpc("registrar_movimiento_laboral_empleado", {
+    p_empleado_id: empleadoId,
+    p_tipo: "BAJA",
+    p_fecha: fechaBaja,
+    p_motivo: String(motivo).trim(),
+  });
 
   if (error) {
     console.error(
@@ -885,35 +863,20 @@ export async function darDeBajaEmpleadoRH(
 // ======================================================
 
 export async function reactivarEmpleadoRH(
-  empleadoId
+  { empleadoId, motivo, fechaReactivacion = null }
 ) {
   if (!empleadoId) {
     throw new Error(
       "Falta el id del empleado."
     );
   }
-
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("empleados")
-    .update({
-      active:
-        true,
-
-      fecha_baja:
-        null,
-
-      updated_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "id",
-      empleadoId
-    )
-    .select()
-    .single();
+  if (!String(motivo || "").trim()) throw new Error("Escribe el motivo de la reactivación.");
+  const { data, error } = await supabase.rpc("registrar_movimiento_laboral_empleado", {
+    p_empleado_id: empleadoId,
+    p_tipo: "REACTIVACION",
+    p_fecha: fechaReactivacion,
+    p_motivo: String(motivo).trim(),
+  });
 
   if (error) {
     console.error(
@@ -1016,50 +979,13 @@ export async function actualizarEmpleadoRH({
 }
 
 
-// ======================================================
-// ELIMINAR
-// ======================================================
-
-export async function eliminarEmpleadoRH(
-  empleadoId
-) {
-  if (!empleadoId) {
-    throw new Error(
-      "Falta el id del empleado."
-    );
-  }
-
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("empleados")
-    .delete()
-    .eq(
-      "id",
-      empleadoId
-    )
-    .select(
-      "id"
-    );
-
-  if (error) {
-    console.error(
-      "Error al eliminar empleado RH:",
-      error
-    );
-
-    throw error;
-  }
-
-  if (
-    !data ||
-    data.length === 0
-  ) {
-    throw new Error(
-      "Supabase no permitió eliminar el empleado. Revisa la política DELETE de empleados."
-    );
-  }
-
-  return true;
+export async function obtenerMovimientosLaboralesRH(branchId) {
+  if (!branchId) return [];
+  const { data, error } = await supabase
+    .from("empleados_movimientos_laborales")
+    .select("id,empleado_id,tipo,fecha_efectiva,motivo,estado_anterior,estado_nuevo,registrado_en")
+    .eq("branch_id", branchId)
+    .order("registrado_en", { ascending: false });
+  if (error) throw new Error(error.message || "No fue posible consultar el historial laboral.");
+  return data || [];
 }
