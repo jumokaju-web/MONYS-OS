@@ -41,18 +41,23 @@ async function crearUrl(path) {
 
 export async function registrarIncidenciaFlotilla({
   rutaId,
+  codigoRuta,
   tipo,
   paqueteId,
   descripcion,
+  detalle = {},
+  mensajeWhatsapp,
   fotoContexto,
   fotoDetalle,
   fotosExtra = [],
 }) {
   const errores = validarNuevaIncidencia({
     rutaId,
+    codigoRuta,
     tipo,
     paqueteId,
     descripcion,
+    detalle,
     fotoContexto,
     fotoDetalle,
   });
@@ -108,6 +113,8 @@ export async function registrarIncidenciaFlotilla({
         tipo,
         paquete_id: String(paqueteId || "").trim() || null,
         descripcion: String(descripcion || "").trim(),
+        detalle,
+        mensaje_whatsapp: String(mensajeWhatsapp || "").trim(),
         foto_contexto_path: fotoContextoPath,
         foto_detalle_path: fotoDetallePath,
         fotos_extra_paths: fotosExtraPaths,
@@ -131,7 +138,7 @@ export async function obtenerIncidenciasFlotilla({ desde, hasta, unidadId = "", 
     .from("flotilla_incidencias")
     .select(`
       id, ruta_id, unidad_id, driver_auth_user_id, chofer_nombre, fecha,
-      tipo, paquete_id, descripcion, foto_contexto_path, foto_detalle_path,
+      tipo, paquete_id, descripcion, detalle, mensaje_whatsapp, foto_contexto_path, foto_detalle_path,
       fotos_extra_paths, estado, resolucion, revisado_at, created_at, updated_at,
       unidad:flotilla_unidades(placas),
       ruta:flotilla_rutas(codigo_ruta, estado)

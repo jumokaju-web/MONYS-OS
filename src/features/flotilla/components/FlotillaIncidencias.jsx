@@ -9,7 +9,10 @@ import {
 import {
   ESTADOS_INCIDENCIA_FLOTILLA,
   TIPOS_INCIDENCIA_FLOTILLA,
+  camposRequeridosPorTipo,
+  etiquetasEvidenciaPorTipo,
   etiquetaTipoIncidencia,
+  generarMensajeReporte,
   tipoIncidenciaRequierePaquete,
 } from "../utils/incidenciasFlotilla";
 
@@ -51,16 +54,44 @@ function GaleriaIncidencia({ incidencia }) {
   </div>;
 }
 
-function FormularioIncidencia({ rutaId, unidad, onRegistrada }) {
+function CamposReporte({ tipo, detalle, setDetalle }) {
+  const actualizar = (campo, valor) => setDetalle((actual) => ({ ...actual, [campo]: valor }));
+  if (tipo === "PARADA_FALLIDA") return <>
+    <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Motivo<input value={detalle.motivo || ""} onChange={(e) => actualizar("motivo", e.target.value)} placeholder="Ej. negocio cerrado" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>
+    <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>El lugar estaba marcado como<select value={detalle.tipoDomicilio || ""} onChange={(e) => actualizar("tipoDomicilio", e.target.value)} style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9 }}><option value="">Seleccionar…</option><option value="residencial">Residencial</option><option value="negocio">Negocio</option></select></label>
+    <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Número de visita<select value={detalle.numeroVisita || ""} onChange={(e) => actualizar("numeroVisita", e.target.value)} style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9 }}><option value="">Seleccionar…</option><option value="1">Primera visita</option><option value="2">Segunda visita</option></select></label>
+  </>;
+  if (tipo === "ALTO_VALOR") return <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>¿Quién recibe?<input value={detalle.parentescoRecibe || ""} onChange={(e) => actualizar("parentescoRecibe", e.target.value)} placeholder="Ej. hermana, titular, mamá" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>;
+  if (tipo === "RETORNO_PENDIENTE") return <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Motivo del retorno<input value={detalle.motivo || ""} onChange={(e) => actualizar("motivo", e.target.value)} placeholder="Ej. titular ausente y no respondió" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>;
+  if (tipo === "RETORNO_CEDIS") return <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>¿Quién recibe en CEDIS?<input value={detalle.recibeCedis || ""} onChange={(e) => actualizar("recibeCedis", e.target.value)} placeholder="Nombre de la persona que lo recibió" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>;
+  return null;
+}
+
+function FormularioIncidencia({ rutaId, codigoRuta, unidad, onRegistrada }) {
   const [tipo, setTipo] = useState("");
   const [paqueteId, setPaqueteId] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [detalle, setDetalle] = useState({});
   const [fotoContexto, setFotoContexto] = useState(null);
   const [fotoDetalle, setFotoDetalle] = useState(null);
   const [fotosExtra, setFotosExtra] = useState([]);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
+
+  const mensajeWhatsapp = useMemo(() => generarMensajeReporte({ codigoRuta, tipo, paqueteId, descripcion, detalle }), [codigoRuta, tipo, paqueteId, descripcion, detalle]);
+  const [etiquetaContexto, etiquetaDetalle] = etiquetasEvidenciaPorTipo(tipo);
+  const esReporteGuiado = camposRequeridosPorTipo(tipo).length > 0;
+
+  async function copiarMensaje() {
+    try {
+      await navigator.clipboard.writeText(mensajeWhatsapp);
+      setMensaje("Mensaje copiado. Ya puedes pegarlo en el grupo de WhatsApp.");
+      setError("");
+    } catch {
+      setError("No se pudo copiar automáticamente. Mantén presionado el mensaje para copiarlo.");
+    }
+  }
 
   async function enviar(evento) {
     evento.preventDefault();
@@ -71,9 +102,12 @@ function FormularioIncidencia({ rutaId, unidad, onRegistrada }) {
       setMensaje("");
       const guardada = await registrarIncidenciaFlotilla({
         rutaId,
+        codigoRuta,
         tipo,
         paqueteId,
-        descripcion,
+        descripcion: mensajeWhatsapp,
+        detalle,
+        mensajeWhatsapp,
         fotoContexto,
         fotoDetalle,
         fotosExtra,
@@ -81,6 +115,7 @@ function FormularioIncidencia({ rutaId, unidad, onRegistrada }) {
       setTipo("");
       setPaqueteId("");
       setDescripcion("");
+      setDetalle({});
       setFotoContexto(null);
       setFotoDetalle(null);
       setFotosExtra([]);
@@ -101,12 +136,15 @@ function FormularioIncidencia({ rutaId, unidad, onRegistrada }) {
     {!rutaId && <p role="alert" style={{ padding: 10, borderRadius: 9, background: "#fff0e8", color: "#8a3a20", fontWeight: 800 }}>Primero debe existir una ruta de hoy para esta unidad.</p>}
     <form onSubmit={enviar}>
       <label style={{ display: "block", fontSize: 12, fontWeight: 850 }}>Unidad<input value={unidad?.placas || "Sin unidad"} readOnly style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc", background: "#f6f2f4" }} /></label>
-      <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>¿Qué ocurrió?<select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9 }}><option value="">Seleccionar…</option>{TIPOS_INCIDENCIA_FLOTILLA.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}</select></label>
+      <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Ruta<input value={codigoRuta || "Ruta sin código"} readOnly style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc", background: "#f6f2f4" }} /></label>
+      <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>¿Qué ocurrió?<select value={tipo} onChange={(e) => { setTipo(e.target.value); setDetalle({}); }} style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9 }}><option value="">Seleccionar…</option>{TIPOS_INCIDENCIA_FLOTILLA.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}</select></label>
       {tipoIncidenciaRequierePaquete(tipo) && <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>ID del paquete<input value={paqueteId} onChange={(e) => setPaqueteId(e.target.value)} maxLength={80} placeholder="Escanea o escribe el ID visible" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>}
-      <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Explica qué pasó<textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} maxLength={1200} placeholder="Qué ocurrió, dónde quedó y qué acción tomaste" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>
+      <CamposReporte tipo={tipo} detalle={detalle} setDetalle={setDetalle} />
+      {!esReporteGuiado && <label style={{ display: "block", marginTop: 9, fontSize: 12, fontWeight: 850 }}>Explica qué pasó<textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} maxLength={1200} placeholder="Qué ocurrió, dónde quedó y qué acción tomaste" style={{ width: "100%", marginTop: 4, padding: 9, borderRadius: 9, border: "1px solid #e2d4dc" }} /></label>}
+      {tipo && <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "#f3f8ff", border: "1px solid #c9dff3" }}><small style={{ fontWeight: 900, color: "#174b7a" }}>MENSAJE PARA WHATSAPP</small><p style={{ margin: "5px 0", fontSize: 13 }}>{mensajeWhatsapp}</p><button type="button" onClick={copiarMensaje} style={{ border: "1px solid #174b7a", borderRadius: 8, background: "#fff", color: "#174b7a", padding: "6px 9px", fontWeight: 850 }}>Copiar mensaje</button></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
-        <label style={{ fontSize: 11, fontWeight: 850, padding: 9, borderRadius: 10, border: "2px dashed #d7a9c1" }}>1. Foto general<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setFotoContexto(e.target.files?.[0] || null)} style={{ width: "100%", marginTop: 7 }} /></label>
-        <label style={{ fontSize: 11, fontWeight: 850, padding: 9, borderRadius: 10, border: "2px dashed #d7a9c1" }}>2. Detalle o etiqueta<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setFotoDetalle(e.target.files?.[0] || null)} style={{ width: "100%", marginTop: 7 }} /></label>
+        <label style={{ fontSize: 11, fontWeight: 850, padding: 9, borderRadius: 10, border: "2px dashed #d7a9c1" }}>1. {etiquetaContexto}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setFotoContexto(e.target.files?.[0] || null)} style={{ width: "100%", marginTop: 7 }} /></label>
+        <label style={{ fontSize: 11, fontWeight: 850, padding: 9, borderRadius: 10, border: "2px dashed #d7a9c1" }}>2. {etiquetaDetalle}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setFotoDetalle(e.target.files?.[0] || null)} style={{ width: "100%", marginTop: 7 }} /></label>
       </div>
       <label style={{ display: "block", marginTop: 9, fontSize: 11, fontWeight: 850 }}>Fotografías adicionales · máximo 2<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={(e) => setFotosExtra(Array.from(e.target.files || []).slice(0, 2))} style={{ width: "100%", marginTop: 5 }} /></label>
       {error && <p role="alert" style={{ color: "#9b2929", fontWeight: 800 }}>{error}</p>}
@@ -196,6 +234,7 @@ function TableroIncidencias({ unidades, soloConsulta }) {
           </div>
           <small style={{ display: "block", marginTop: 6 }}>Ruta: {incidencia.ruta?.codigo_ruta || "Sin código"}{incidencia.paquete_id ? ` · Paquete: ${incidencia.paquete_id}` : ""} · Folio: {incidencia.id.slice(0, 8)}</small>
           <p style={{ marginBottom: 0 }}>{incidencia.descripcion}</p>
+          {incidencia.mensaje_whatsapp && <div style={{ padding: 9, borderRadius: 9, background: "#f3f8ff", color: "#174b7a" }}><b>Mensaje de reporte:</b> {incidencia.mensaje_whatsapp}</div>}
           <GaleriaIncidencia incidencia={incidencia} />
           {incidencia.resolucion && <p style={{ padding: 9, borderRadius: 9, background: color.fondo, color: color.color }}><b>Resolución:</b> {incidencia.resolucion}</p>}
           {!soloConsulta && <div style={{ marginTop: 10 }}>
@@ -220,9 +259,10 @@ export default function FlotillaIncidencias({
   soloConsulta = false,
   unidades = [],
   rutaId = null,
+  codigoRuta = "",
   unidad = null,
 }) {
   return modoAdministracion
     ? <TableroIncidencias unidades={unidades} soloConsulta={soloConsulta} />
-    : <FormularioIncidencia rutaId={rutaId} unidad={unidad} />;
+    : <FormularioIncidencia rutaId={rutaId} codigoRuta={codigoRuta} unidad={unidad} />;
 }

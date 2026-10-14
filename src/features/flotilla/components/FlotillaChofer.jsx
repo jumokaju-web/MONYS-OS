@@ -526,6 +526,7 @@ export default function FlotillaChofer({
         {!esVistaAdministrativa && unidad?.id && (
           <FlotillaIncidencias
             rutaId={operacionHoy?.id || rutaHoy?.id || null}
+            codigoRuta={operacionHoy?.codigo_ruta || rutaHoy?.codigo_ruta || ""}
             unidad={unidad}
           />
         )}
