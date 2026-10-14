@@ -10,7 +10,6 @@ const CAMPOS_UNIDAD = `
   placas,
   tipo_operacion,
   tipo_propiedad,
-  propietarios,
   da_nombre,
   chofer_nombre,
   chofer_auth_user_id,
@@ -20,10 +19,10 @@ const CAMPOS_UNIDAD = `
   observaciones
 `;
 
-export async function obtenerUnidadesFlotilla() {
+export async function obtenerUnidadesFlotilla({ incluirPropietarios = true } = {}) {
   const { data, error } = await supabase
     .from("flotilla_unidades")
-    .select(CAMPOS_UNIDAD)
+    .select(`${CAMPOS_UNIDAD}${incluirPropietarios ? ", propietarios" : ""}`)
     .order("placas", { ascending: true });
 
   if (error) {

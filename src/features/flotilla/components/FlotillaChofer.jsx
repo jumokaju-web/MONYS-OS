@@ -21,6 +21,7 @@ import {
   suscribirseAOperacionFlotilla,
 } from "./services/operacionFlotilla";
 import { calcularLiquidacionFlotilla } from "../../inteligencia/utils/capturasFinancierasEquipo";
+import { obtenerVisibilidadFlotilla } from "../utils/visibilidadFlotilla";
 
 function normalizarNombre(valor) {
   return String(valor || "")
@@ -73,6 +74,20 @@ export default function FlotillaChofer({
   const unidad =
     unidades.find((item) => item.id === unidadId) || null;
 
+  const visibilidad = obtenerVisibilidadFlotilla({
+    role: usuario?.role,
+    tipoAcceso: accesoFlotilla?.tipo_acceso,
+  });
+  const {
+    esAdministrador: esAdministradorFlotilla,
+    esSocioConsulta,
+    puedeVerPropietario,
+    puedeCapturarLiquidacionAdministrativa,
+    puedeVerResultadoNegocio,
+    puedeVerMovimientosPropios,
+  } = visibilidad;
+  const esVistaAdministrativa = esAdministradorFlotilla || esSocioConsulta;
+
   const [
     cargandoUnidad,
     setCargandoUnidad,
@@ -91,10 +106,14 @@ export default function FlotillaChofer({
         setCargandoUnidad(true);
         setErrorUnidad("");
 
-        const [resultado, accesoEspecial] = await Promise.all([
-          obtenerUnidadesFlotilla(),
-          obtenerMiAccesoFlotilla(),
-        ]);
+        const accesoEspecial = await obtenerMiAccesoFlotilla();
+        const rol = String(usuario?.role || "").toLowerCase();
+        const puedeRevisarTodaLaFlotilla =
+          rol === "owner" || rol === "admin" || accesoEspecial?.tipo_acceso === "ADMIN_FLOTILLA";
+        const tieneAccesoSocio = accesoEspecial?.tipo_acceso === "SOCIO_CONSULTA";
+        const resultado = await obtenerUnidadesFlotilla({
+          incluirPropietarios: puedeRevisarTodaLaFlotilla || tieneAccesoSocio,
+        });
 
         if (activo) {
           const nombreUsuario = normalizarNombre(usuario?.nombre);
@@ -107,10 +126,6 @@ export default function FlotillaChofer({
             );
           });
 
-          const rol = String(usuario?.role || "").toLowerCase();
-          const puedeRevisarTodaLaFlotilla =
-            rol === "owner" || rol === "admin" || accesoEspecial?.tipo_acceso === "ADMIN_FLOTILLA";
-          const tieneAccesoSocio = accesoEspecial?.tipo_acceso === "SOCIO_CONSULTA";
           const unidadesPermitidas = puedeRevisarTodaLaFlotilla || tieneAccesoSocio
             ? resultado
             : asignada
@@ -182,7 +197,9 @@ export default function FlotillaChofer({
         const fecha = obtenerFechaLocal();
         const [resultado, operaciones] = await Promise.all([
           obtenerRutaDeUnidadEnFecha(unidad.id, fecha),
-          obtenerOperacionFlotillaEnVivo(fecha),
+          obtenerOperacionFlotillaEnVivo(fecha, {
+            incluirPropietarios: puedeVerPropietario,
+          }),
         ]);
 
         setRutaHoy(resultado);
@@ -200,7 +217,7 @@ export default function FlotillaChofer({
         }
       }
     },
-    [unidad?.id]
+    [puedeVerPropietario, unidad?.id]
   );
 
   useEffect(() => {
@@ -233,7 +250,9 @@ export default function FlotillaChofer({
   useEffect(() => {
     let activo = true;
     setLiquidacionGuardada(null);
-    if (!unidad?.id) return () => { activo = false; };
+    if (!unidad?.id || !puedeCapturarLiquidacionAdministrativa) {
+      return () => { activo = false; };
+    }
 
     obtenerLiquidacionFlotillaHoy({
       unidadId: unidad.id,
@@ -249,7 +268,7 @@ export default function FlotillaChofer({
     return () => {
       activo = false;
     };
-  }, [unidad?.id]);
+  }, [puedeCapturarLiquidacionAdministrativa, unidad?.id]);
 
   async function enviarLiquidacion(evento) {
     evento.preventDefault();
@@ -285,11 +304,6 @@ export default function FlotillaChofer({
   const resumenRuta = operacionHoy?.resumen || null;
 
   const rolActual = String(usuario?.role || "").toLowerCase();
-  const esAdministradorFlotilla =
-    ["owner", "admin"].includes(rolActual)
-    || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
-  const esSocioConsulta = accesoFlotilla?.tipo_acceso === "SOCIO_CONSULTA";
-  const esVistaAdministrativa = esAdministradorFlotilla || esSocioConsulta;
   const puedeGestionarPnr =
     rolActual === "owner" || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
 
@@ -646,14 +660,16 @@ export default function FlotillaChofer({
               Tipo: {tipoReal}
             </div>
 
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#647d94",
-              }}
-            >
-              Dueño: {propietarioReal}
-            </div>
+            {puedeVerPropietario && (
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#647d94",
+                }}
+              >
+                Dueño: {propietarioReal}
+              </div>
+            )}
 
             <div
               style={{
@@ -912,9 +928,11 @@ export default function FlotillaChofer({
       : rutaHoy.paros_total}
   </strong>
 </div>
-             <div>
-  Dueño: <strong>{propietarioReal}</strong>
-</div>
+             {puedeVerPropietario && (
+               <div>
+                 Dueño: <strong>{propietarioReal}</strong>
+               </div>
+             )}
 
    <div>
   Paquetes:{" "}
@@ -931,6 +949,7 @@ export default function FlotillaChofer({
           </div>
         </section>
 
+        {puedeCapturarLiquidacionAdministrativa && (
         <form
           onSubmit={enviarLiquidacion}
           style={{
@@ -1051,12 +1070,14 @@ export default function FlotillaChofer({
                 {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(resumenLiquidacion.gastos)}
               </strong>
             </div>
-            <div style={{ padding: "11px", borderRadius: "11px", background: "rgba(255,255,255,.12)" }}>
-              <small>Resultado estimado</small>
-              <strong style={{ display: "block", fontSize: "19px", marginTop: "3px" }}>
-                {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(resumenLiquidacion.resultadoEstimado)}
-              </strong>
-            </div>
+            {puedeVerResultadoNegocio && (
+              <div style={{ padding: "11px", borderRadius: "11px", background: "rgba(255,255,255,.12)" }}>
+                <small>Resultado estimado</small>
+                <strong style={{ display: "block", fontSize: "19px", marginTop: "3px" }}>
+                  {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(resumenLiquidacion.resultadoEstimado)}
+                </strong>
+              </div>
+            )}
           </div>
 
           {errorLiquidacion && <p role="alert" style={{ color: "#ffd6d6", fontWeight: 800 }}>{errorLiquidacion}</p>}
@@ -1080,6 +1101,7 @@ export default function FlotillaChofer({
             {guardandoLiquidacion ? "Enviando a Dirección…" : "Guardar y enviar a Dirección →"}
           </button>
         </form>
+        )}
 
         {/* ECONOMÍA + GASTO */}
         <div
@@ -1157,6 +1179,72 @@ export default function FlotillaChofer({
               </p>
             )}
           </section>
+
+          {puedeVerMovimientosPropios && (
+            <section
+              style={{
+                background: "#ffffff",
+                borderRadius: "18px",
+                padding: "14px",
+                border: "1px solid #dbeaf5",
+              }}
+            >
+              <strong>🧾 Mis gastos y movimientos de hoy</strong>
+              <p style={{ margin: "7px 0 0", color: "#647d94", fontSize: "12px", lineHeight: 1.5 }}>
+                Aquí aparecen únicamente los movimientos de tu ruta, tanto los que
+                registraste como los que Administración agregó a tu cuenta.
+              </p>
+
+              {(operacionHoy?.movimientos || []).length === 0 ? (
+                <div
+                  style={{
+                    marginTop: "11px",
+                    padding: "11px",
+                    borderRadius: "10px",
+                    background: "#f5f9fc",
+                    color: "#647d94",
+                    fontSize: "12px",
+                  }}
+                >
+                  No hay gastos ni movimientos registrados hoy.
+                </div>
+              ) : (
+                (operacionHoy?.movimientos || []).map((movimiento) => (
+                  <div
+                    key={movimiento.id}
+                    style={{
+                      marginTop: "10px",
+                      padding: "11px",
+                      borderRadius: "11px",
+                      border: "1px solid #e0eaf2",
+                      background: "#fbfdff",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
+                      <strong style={{ fontSize: "13px" }}>
+                        {movimiento.tipo === "GASOLINA" ? "Gasolina"
+                          : movimiento.tipo === "ADELANTO" ? "Adelanto"
+                            : movimiento.tipo === "AMBULANCIA" ? "Ambulancia a favor"
+                              : movimiento.tipo === "AMBULANCIA_DESCUENTO" ? "Ambulancia descontada"
+                                : "Otro movimiento"}
+                      </strong>
+                      <strong style={{ color: "#174b7a" }}>{moneda(movimiento.importe)}</strong>
+                    </div>
+                    {movimiento.concepto && (
+                      <div style={{ marginTop: "4px", color: "#647d94", fontSize: "12px" }}>
+                        {movimiento.concepto}
+                      </div>
+                    )}
+                    <div style={{ marginTop: "5px", fontSize: "11px", fontWeight: 800, color: "#56718a" }}>
+                      Estado: {movimiento.estado === "CONFIRMADO" || movimiento.estado === "ENTREGADO"
+                        ? "Aprobado"
+                        : movimiento.estado === "RECHAZADO" ? "Rechazado" : "En revisión"}
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          )}
 
          <section
   hidden
