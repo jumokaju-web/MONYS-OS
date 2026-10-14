@@ -83,7 +83,7 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
       tipo_pago, estado, hora_inicio_ruta, hora_fin_ruta, km_inicial, km_final,
       kilometros_ruta, gasolina_in, gasolina_out, paquetes_total, paros_total,
       foto_salida_path, foto_cierre_path, updated_at,
-      unidad:flotilla_unidades(placas, tipo_operacion, tipo_pago_chory)
+      unidad:flotilla_unidades(placas, tipo_operacion, tipo_pago_chory, propietarios)
     `)
     .eq("fecha", fecha)
     .order("updated_at", { ascending: false });
@@ -233,6 +233,70 @@ export async function obtenerOperacionFlotillaPeriodo(desde, hasta) {
     resultados.push(...(await Promise.all(bloque.map((fecha) => obtenerOperacionFlotillaEnVivo(fecha)))).flat());
   }
   return resultados.sort((a, b) => `${a.fecha}-${a.codigo_ruta || ""}`.localeCompare(`${b.fecha}-${b.codigo_ruta || ""}`));
+}
+
+export async function obtenerDescuentosPnrPeriodo(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para los descuentos PNR.");
+  const { data, error } = await supabase
+    .from("flotilla_pnr_descuentos")
+    .select(`
+      id, periodo_desde, periodo_hasta, monto, aplica_socio, aplica_chofer, estado, observaciones,
+      pnr:flotilla_pnr_expedientes(
+        id, unidad_id, driver_auth_user_id, chofer_nombre, paquete_id,
+        unidad:flotilla_unidades(placas, propietarios)
+      )
+    `)
+    .eq("estado", "APLICADO")
+    .eq("periodo_desde", desde)
+    .eq("periodo_hasta", hasta)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message || "No fue posible consultar los descuentos PNR del corte.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function obtenerAjustesPrefacturaPeriodo(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para los ajustes.");
+  const { data, error } = await supabase
+    .from("flotilla_prefactura_ajustes")
+    .select("id, unidad_id, driver_auth_user_id, chofer_nombre, periodo_desde, periodo_hasta, categoria, monto, numero_parcialidad, total_parcialidades, observaciones, estado, created_at")
+    .eq("periodo_desde", desde)
+    .eq("periodo_hasta", hasta)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message || "No fue posible consultar los ajustes del corte.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function guardarAjustePrefactura({ grupo, periodo, categoria, monto, observaciones, numeroParcialidad, totalParcialidades }) {
+  if (!grupo?.unidadId) throw new Error("Selecciona el operador y la unidad.");
+  const { data, error } = await supabase.rpc("guardar_ajuste_prefactura_flotilla", {
+    p_unidad_id: grupo.unidadId,
+    p_driver_auth_user_id: grupo.driverAuthUserId || null,
+    p_chofer_nombre: grupo.operador,
+    p_periodo_desde: periodo.desde,
+    p_periodo_hasta: periodo.hasta,
+    p_categoria: categoria,
+    p_monto: Number(monto),
+    p_observaciones: String(observaciones || "").trim() || null,
+    p_numero_parcialidad: categoria === "FONDO_UNIDAD" ? Number(numeroParcialidad) : null,
+    p_total_parcialidades: categoria === "FONDO_UNIDAD" ? Number(totalParcialidades) : null,
+  });
+  if (error) throw new Error(error.message || "No fue posible guardar el ajuste.");
+  return data;
+}
+
+export async function anularAjustePrefactura(ajusteId) {
+  const { data, error } = await supabase.rpc("anular_ajuste_prefactura_flotilla", { p_ajuste_id: ajusteId });
+  if (error) throw new Error(error.message || "No fue posible anular el ajuste.");
+  return data;
+}
+
+export async function obtenerDatosPrefacturaPeriodo(desde, hasta) {
+  const [operaciones, descuentosPnr, ajustes] = await Promise.all([
+    obtenerOperacionFlotillaPeriodo(desde, hasta),
+    obtenerDescuentosPnrPeriodo(desde, hasta),
+    obtenerAjustesPrefacturaPeriodo(desde, hasta),
+  ]);
+  return { operaciones, descuentosPnr, ajustes };
 }
 
 export async function guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo = null }) {
