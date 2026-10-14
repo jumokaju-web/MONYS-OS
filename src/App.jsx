@@ -6,9 +6,11 @@ import {
 
 import "./App.css";
 import FlotillaChofer from "./features/flotilla/components/FlotillaChofer";
+import { debeAbrirFlotillaComoInicio } from "./features/flotilla/utils/accesoFlotilla";
 import CentroUsuarios from "./features/usuarios/components/CentroUsuarios";
 import { systemConfig } from "./core/config/systemConfig";
 import { useUser } from "./context/UserContext";
+import { supabase } from "./supabase";
 
 import Header from "./components/layout/Header";
 
@@ -139,6 +141,11 @@ function App() {
       permission
     );
   }
+
+  const esAccesoFlotillaControlado = debeAbrirFlotillaComoInicio({
+    role: usuario?.role,
+    puedeVerLogistica: puede("ver_logistica"),
+  });
 
   function puedeAdministrarUsuarios() {
     return (
@@ -1172,6 +1179,18 @@ if (
             "importador"
           )
         }
+      />
+    );
+  }
+
+  if (esAccesoFlotillaControlado) {
+    return (
+      <FlotillaChofer
+        usuario={usuario}
+        volverAlDashboard={async () => {
+          await supabase.auth.signOut();
+          window.location.reload();
+        }}
       />
     );
   }
