@@ -30,6 +30,45 @@ function tieneTexto(valor) {
   return String(valor ?? "").trim().length > 0;
 }
 
+function evidenciaAprobada(revision) {
+  return revision?.estado === "APROBADA";
+}
+
+export function evaluarGasolina(movimiento = {}) {
+  if (movimiento.clasificacion_gasolina === "GASOLINA_APROBADA") {
+    return { aprobada: true, faltantes: [], tratamiento: "GASOLINA" };
+  }
+  const ticket = movimiento.evidencia_ticket_url
+    || movimiento.evidencia_ticket_path
+    || movimiento.evidencia_url
+    || movimiento.evidencia_path;
+  const tableroAntes = movimiento.evidencia_tablero_antes_url
+    || movimiento.evidencia_tablero_antes_path;
+  const tableroDespues = movimiento.evidencia_tablero_despues_url
+    || movimiento.evidencia_tablero_despues_path;
+  const revisionTicket = movimiento.revision_ticket || movimiento.revision_evidencia;
+  const faltantes = [];
+
+  if (!tieneTexto(ticket)) faltantes.push("foto del ticket");
+  else if (revisionTicket?.estado === "RECHAZADA") faltantes.push(`ticket rechazado: ${revisionTicket.motivo || "debe repetirse"}`);
+  else if (!evidenciaAprobada(revisionTicket)) faltantes.push("aprobación del ticket");
+
+  if (!tieneTexto(tableroAntes)) faltantes.push("foto del tablero antes");
+  else if (movimiento.revision_tablero_antes?.estado === "RECHAZADA") faltantes.push(`tablero antes rechazado: ${movimiento.revision_tablero_antes.motivo || "debe repetirse"}`);
+  else if (!evidenciaAprobada(movimiento.revision_tablero_antes)) faltantes.push("aprobación del tablero antes");
+
+  if (!tieneTexto(tableroDespues)) faltantes.push("foto del tablero después");
+  else if (movimiento.revision_tablero_despues?.estado === "RECHAZADA") faltantes.push(`tablero después rechazado: ${movimiento.revision_tablero_despues.motivo || "debe repetirse"}`);
+  else if (!evidenciaAprobada(movimiento.revision_tablero_despues)) faltantes.push("aprobación del tablero después");
+
+  const aprobada = faltantes.length === 0;
+  return {
+    aprobada,
+    faltantes,
+    tratamiento: aprobada ? "GASOLINA" : "PRESTAMO_PERSONAL",
+  };
+}
+
 export const MOTIVOS_RECHAZO_EVIDENCIA = [
   "Foto borrosa",
   "Kilometraje ilegible",
@@ -70,8 +109,7 @@ export function revisarEvidenciaRuta(operacion = {}, movimientos = []) {
       if (numero(movimiento.importe) <= 0) faltantes.push(`${etiqueta}: importe`);
       if (numero(movimiento.litros) <= 0) faltantes.push(`${etiqueta}: litros`);
       if (!tieneTexto(movimiento.pagador)) faltantes.push(`${etiqueta}: quién pagó`);
-      const ticketRechazado = agregarRechazo(faltantes, `${etiqueta}: foto del ticket`, movimiento.revision_evidencia);
-      if (!ticketRechazado && !tieneTexto(movimiento.evidencia_url || movimiento.evidencia_path)) faltantes.push(`${etiqueta}: foto del ticket`);
+      evaluarGasolina(movimiento).faltantes.forEach((faltante) => faltantes.push(`${etiqueta}: ${faltante}`));
     }
     if (movimiento?.tipo === "AMBULANCIA") {
       const ambulanciaRechazada = agregarRechazo(faltantes, "Ambulancia: evidencia del apoyo", movimiento.revision_evidencia);
@@ -105,9 +143,13 @@ export function resumirOperacionFlotilla(operacion = {}, movimientos = []) {
     operacion.tipo_pago || operacion.unidad?.tipo_pago_chory
   );
 
-  const gasolina = lista.filter((item) => item.tipo === "GASOLINA" && item.estado !== "RECHAZADO").reduce((total, item) => total + numero(item.importe), 0);
-  const gasolinaEmpresa = lista.filter((item) => item.tipo === "GASOLINA" && item.estado !== "RECHAZADO" && String(item.pagador || "").toUpperCase() === "EMPRESA").reduce((total, item) => total + numero(item.importe), 0);
-  const gasolinaChofer = lista.filter((item) => item.tipo === "GASOLINA" && item.estado !== "RECHAZADO" && (String(item.pagador || "").toUpperCase() === "CHOFER" || (esRental && !item.pagador))).reduce((total, item) => total + numero(item.importe), 0);
+  const gasolinas = lista.filter((item) => item.tipo === "GASOLINA" && item.estado !== "RECHAZADO");
+  const gasolinasAprobadas = gasolinas.filter((item) => evaluarGasolina(item).aprobada);
+  const gasolinasPrestamo = gasolinas.filter((item) => !evaluarGasolina(item).aprobada);
+  const gasolina = gasolinasAprobadas.reduce((total, item) => total + numero(item.importe), 0);
+  const gasolinaEmpresa = gasolinasAprobadas.filter((item) => String(item.pagador || "").toUpperCase() === "EMPRESA").reduce((total, item) => total + numero(item.importe), 0);
+  const gasolinaChofer = gasolinasAprobadas.filter((item) => String(item.pagador || "").toUpperCase() === "CHOFER" || (esRental && !item.pagador)).reduce((total, item) => total + numero(item.importe), 0);
+  const prestamosGasolina = gasolinasPrestamo.reduce((total, item) => total + numero(item.importe), 0);
   const adelantosSolicitados = lista.filter((item) => item.tipo === "ADELANTO" && item.estado === "SOLICITADO").reduce((total, item) => total + numero(item.importe), 0);
   const adelantosEntregados = lista.filter((item) => item.tipo === "ADELANTO" && item.estado === "ENTREGADO").reduce((total, item) => total + numero(item.importe), 0);
   const ambulanciasConfirmadas = lista.filter((item) => item.tipo === "AMBULANCIA" && item.estado === "CONFIRMADO").reduce((total, item) => total + numero(item.importe), 0);
@@ -123,14 +165,88 @@ export function resumirOperacionFlotilla(operacion = {}, movimientos = []) {
     gasolina: dinero(gasolina),
     gasolinaEmpresa: dinero(gasolinaEmpresa),
     gasolinaChofer: dinero(gasolinaChofer),
+    prestamosGasolina: dinero(prestamosGasolina),
     adelantosSolicitados: dinero(adelantosSolicitados),
     adelantosEntregados: dinero(adelantosEntregados),
     ambulanciasConfirmadas: dinero(ambulanciasConfirmadas),
     ambulanciasDescontadas: dinero(ambulanciasDescontadas),
     otrosConfirmados: dinero(otrosConfirmados),
     ganado,
-    saldoEstimado: dinero(ganado - adelantosEntregados),
+    saldoEstimado: dinero(ganado - adelantosEntregados - prestamosGasolina),
   };
+}
+
+export function crearPrefacturaFlotilla(operaciones = [], { desde = "", hasta = "" } = {}) {
+  const filas = (Array.isArray(operaciones) ? operaciones : []).map((operacion) => {
+    const resumen = operacion.resumen || resumirOperacionFlotilla(operacion, operacion.movimientos || []);
+    const tipoPago = operacion.tipo_pago || operacion.unidad?.tipo_pago_chory || "MLP";
+    const importeRuta = tipoPago === "MLP"
+      ? dinero(resumen.pagoBase + resumen.bonoKilometraje)
+      : dinero(resumen.ingresoRental);
+    const importePrefactura = dinero(importeRuta + resumen.ambulanciasConfirmadas - resumen.ambulanciasDescontadas + resumen.otrosConfirmados);
+    return {
+      id: operacion.id,
+      fecha: operacion.fecha,
+      ruta: operacion.codigo_ruta || "Sin folio",
+      chofer: operacion.chofer_nombre || "Chofer sin nombre",
+      placas: operacion.unidad?.placas || "Sin placas",
+      tipoPago,
+      kilometros: dinero(resumen.kilometros),
+      pagoBase: dinero(resumen.pagoBase),
+      bonoKilometraje: dinero(resumen.bonoKilometraje),
+      ambulanciasFavor: dinero(resumen.ambulanciasConfirmadas),
+      ambulanciasDescuento: dinero(resumen.ambulanciasDescontadas),
+      gasolinaAprobada: dinero(resumen.gasolina),
+      prestamosGasolina: dinero(resumen.prestamosGasolina),
+      adelantos: dinero(resumen.adelantosEntregados),
+      importeRuta,
+      importePrefactura,
+      saldoChofer: dinero(resumen.saldoEstimado),
+      estado: operacion.estado || "PENDIENTE",
+      evidencia: revisarEvidenciaRuta(operacion, operacion.movimientos || []).estado,
+    };
+  });
+
+  const sumar = (campo) => dinero(filas.reduce((total, fila) => total + numero(fila[campo]), 0));
+  return {
+    desde,
+    hasta,
+    filas,
+    totales: {
+      rutas: filas.length,
+      kilometros: sumar("kilometros"),
+      importeRutas: sumar("importeRuta"),
+      ambulanciasFavor: sumar("ambulanciasFavor"),
+      ambulanciasDescuento: sumar("ambulanciasDescuento"),
+      gasolinaAprobada: sumar("gasolinaAprobada"),
+      prestamosGasolina: sumar("prestamosGasolina"),
+      adelantos: sumar("adelantos"),
+      importePrefactura: sumar("importePrefactura"),
+      saldoChoferes: sumar("saldoChofer"),
+    },
+  };
+}
+
+export function crearFilasPrefacturaFlotilla(prefactura = {}) {
+  return (prefactura.filas || []).map((fila) => ({
+    Fecha: fila.fecha,
+    Ruta: fila.ruta,
+    Chofer: fila.chofer,
+    Placas: fila.placas,
+    "Tipo de pago": fila.tipoPago,
+    Kilómetros: fila.kilometros,
+    Base: fila.pagoBase,
+    "Bono KM": fila.bonoKilometraje,
+    "Ambulancia a favor": fila.ambulanciasFavor,
+    "Ambulancia descontada": fila.ambulanciasDescuento,
+    "Importe prefactura": fila.importePrefactura,
+    "Gasolina aprobada": fila.gasolinaAprobada,
+    "Préstamo por gasolina": fila.prestamosGasolina,
+    Adelantos: fila.adelantos,
+    "Saldo chofer": fila.saldoChofer,
+    "Estado ruta": fila.estado,
+    "Estado evidencia": fila.evidencia,
+  }));
 }
 
 export function calcularRepartoRental(operaciones = [], corte = {}) {

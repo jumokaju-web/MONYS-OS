@@ -26,6 +26,46 @@ export async function generarCodigoActivacionChofer(unidadId) {
   return resultado;
 }
 
+export async function obtenerMiAccesoFlotilla() {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) return null;
+  const { data, error } = await supabase
+    .from("flotilla_accesos_usuario")
+    .select("id, tipo_acceso, socio_nombre, activo, unidades:flotilla_acceso_unidades(unidad_id)")
+    .eq("auth_user_id", auth.user.id)
+    .eq("activo", true)
+    .maybeSingle();
+  if (error) throw new Error("No fue posible consultar el acceso de Flotilla.");
+  return data ? { ...data, unidadIds: (data.unidades || []).map((item) => item.unidad_id) } : null;
+}
+
+export async function obtenerAccesosFlotilla() {
+  const { data, error } = await supabase
+    .from("flotilla_accesos_usuario")
+    .select("id, correo, nombre, tipo_acceso, socio_nombre, activo, unidades:flotilla_acceso_unidades(unidad_id)")
+    .order("nombre", { ascending: true });
+  if (error) throw new Error("No fue posible consultar los accesos de Flotilla.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function configurarAccesoFlotilla({ correo, tipoAcceso, socioNombre, unidadIds }) {
+  if (!String(correo || "").trim()) throw new Error("Escribe el correo de la cuenta MONYS.");
+  const { data, error } = await supabase.rpc("configurar_acceso_flotilla", {
+    p_correo: String(correo).trim().toLowerCase(),
+    p_tipo_acceso: tipoAcceso,
+    p_socio_nombre: tipoAcceso === "SOCIO_CONSULTA" ? socioNombre : null,
+    p_unidad_ids: tipoAcceso === "SOCIO_CONSULTA" ? unidadIds : [],
+  });
+  if (error) throw new Error(error.message || "No fue posible configurar el acceso.");
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function desactivarAccesoFlotilla(correo) {
+  const { data, error } = await supabase.rpc("desactivar_acceso_flotilla", { p_correo: correo });
+  if (error) throw new Error(error.message || "No fue posible quitar el acceso.");
+  return data;
+}
+
 async function crearUrlEvidencia(path) {
   if (!path) return null;
   const { data, error } = await supabase.storage
@@ -60,7 +100,7 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
   ] = await Promise.all([
     supabase
       .from("flotilla_movimientos_dinero")
-      .select("id, ruta_id, tipo_movimiento, uso, observaciones, monto, litros, pagador, evidencia_path, estado_conciliacion, created_at")
+      .select("id, ruta_id, tipo_movimiento, uso, observaciones, monto, litros, pagador, evidencia_path, evidencia_ticket_path, evidencia_tablero_antes_path, evidencia_tablero_despues_path, clasificacion_gasolina, estado_conciliacion, created_at")
       .in("ruta_id", ids)
       .order("created_at", { ascending: true }),
     supabase
@@ -93,6 +133,9 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
     Promise.all((dinero || []).map(async (item) => ({
       ...item,
       evidencia_url: await crearUrlEvidencia(item.evidencia_path),
+      evidencia_ticket_url: await crearUrlEvidencia(item.evidencia_ticket_path || item.evidencia_path),
+      evidencia_tablero_antes_url: await crearUrlEvidencia(item.evidencia_tablero_antes_path),
+      evidencia_tablero_despues_url: await crearUrlEvidencia(item.evidencia_tablero_despues_path),
     }))),
     Promise.all((ambulancias || []).map(async (item) => ({
       ...item,
@@ -110,6 +153,13 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
     litros: item.litros,
     pagador: item.pagador,
     evidencia_url: item.evidencia_url,
+    evidencia_ticket_url: item.evidencia_ticket_url,
+    evidencia_tablero_antes_url: item.evidencia_tablero_antes_url,
+    evidencia_tablero_despues_url: item.evidencia_tablero_despues_url,
+    evidencia_ticket_path: item.evidencia_ticket_path || item.evidencia_path,
+    evidencia_tablero_antes_path: item.evidencia_tablero_antes_path,
+    evidencia_tablero_despues_path: item.evidencia_tablero_despues_path,
+    clasificacion_gasolina: item.clasificacion_gasolina,
     evidencia_key: `${item.tipo_movimiento}:${item.id}`,
     estado: item.estado_conciliacion === "CONCILIADO"
       ? (item.tipo_movimiento === "ADELANTO" ? "ENTREGADO" : "CONFIRMADO")
@@ -150,7 +200,12 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
     const revisionesRuta = revisionesPorRuta.get(operacion.id) || new Map();
     const propios = [...movimientosDinero, ...movimientosAmbulancia]
       .filter((item) => item.operacion_id === operacion.id)
-      .map((item) => ({ ...item, revision_evidencia: revisionesRuta.get(item.evidencia_key) || null }));
+      .map((item) => item.tipo === "GASOLINA" ? {
+        ...item,
+        revision_ticket: revisionesRuta.get(`GASOLINA_TICKET:${item.id}`) || revisionesRuta.get(item.evidencia_key) || null,
+        revision_tablero_antes: revisionesRuta.get(`GASOLINA_TABLERO_ANTES:${item.id}`) || null,
+        revision_tablero_despues: revisionesRuta.get(`GASOLINA_TABLERO_DESPUES:${item.id}`) || null,
+      } : { ...item, revision_evidencia: revisionesRuta.get(item.evidencia_key) || null });
     const operacionRevisada = {
       ...operacion,
       revision_foto_salida: revisionesRuta.get("RUTA:SALIDA") || null,
@@ -158,6 +213,26 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
     };
     return { ...operacionRevisada, movimientos: propios, resumen: resumirOperacionFlotilla(operacionRevisada, propios) };
   });
+}
+
+export async function obtenerOperacionFlotillaPeriodo(desde, hasta) {
+  if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para la prefactura.");
+  const inicio = new Date(`${desde}T12:00:00Z`);
+  const fin = new Date(`${hasta}T12:00:00Z`);
+  const dias = Math.floor((fin - inicio) / 86400000) + 1;
+  if (!Number.isFinite(dias) || dias < 1 || dias > 31) throw new Error("La prefactura permite periodos de hasta 31 días.");
+
+  const fechas = Array.from({ length: dias }, (_, indice) => {
+    const fecha = new Date(inicio);
+    fecha.setUTCDate(fecha.getUTCDate() + indice);
+    return fecha.toISOString().slice(0, 10);
+  });
+  const resultados = [];
+  for (let indice = 0; indice < fechas.length; indice += 7) {
+    const bloque = fechas.slice(indice, indice + 7);
+    resultados.push(...(await Promise.all(bloque.map((fecha) => obtenerOperacionFlotillaEnVivo(fecha)))).flat());
+  }
+  return resultados.sort((a, b) => `${a.fecha}-${a.codigo_ruta || ""}`.localeCompare(`${b.fecha}-${b.codigo_ruta || ""}`));
 }
 
 export async function guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo = null }) {
@@ -247,6 +322,64 @@ export async function guardarCorteRental(fecha, corte) {
   return data;
 }
 
+export async function obtenerPrestamosFlotilla() {
+  const { data, error } = await supabase
+    .from("flotilla_prestamos")
+    .select("id, tipo_beneficiario, beneficiario_nombre, fecha, concepto, monto_original, saldo, estado, automatico, motivo_cancelacion, created_at, abonos:flotilla_prestamo_abonos(id, fecha, monto, observaciones, created_at)")
+    .order("fecha", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error("No fue posible consultar los préstamos de Flotilla.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function crearPrestamoFlotilla({ tipoBeneficiario, beneficiarioNombre, monto, concepto, fecha }) {
+  const cantidad = Number(monto);
+  if (!["EMPLEADO", "FLOTISTA"].includes(tipoBeneficiario)) throw new Error("Selecciona empleado o flotista.");
+  if (!String(beneficiarioNombre || "").trim()) throw new Error("Escribe el nombre del beneficiario.");
+  if (!Number.isFinite(cantidad) || cantidad <= 0) throw new Error("Escribe un monto válido.");
+  if (!String(concepto || "").trim()) throw new Error("Escribe el motivo del préstamo.");
+  const contexto = await obtenerContextoAdmin();
+  const { data, error } = await supabase
+    .from("flotilla_prestamos")
+    .insert({
+      organization_id: contexto.organizationId,
+      tipo_beneficiario: tipoBeneficiario,
+      beneficiario_nombre: String(beneficiarioNombre).trim(),
+      fecha,
+      concepto: String(concepto).trim(),
+      monto_original: cantidad,
+      saldo: cantidad,
+      estado: "PENDIENTE",
+      automatico: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message || "No fue posible registrar el préstamo.");
+  return data;
+}
+
+export async function registrarAbonoPrestamoFlotilla({ prestamoId, monto, observaciones, fecha }) {
+  const cantidad = Number(monto);
+  if (!prestamoId || !Number.isFinite(cantidad) || cantidad <= 0) throw new Error("Escribe un abono válido.");
+  const contexto = await obtenerContextoAdmin();
+  const { data, error } = await supabase
+    .from("flotilla_prestamo_abonos")
+    .insert({
+      organization_id: contexto.organizationId,
+      prestamo_id: prestamoId,
+      fecha,
+      monto: cantidad,
+      observaciones: String(observaciones || "").trim() || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message || "No fue posible registrar el abono.");
+  return data;
+}
+
 export async function obtenerOperacionRentalPeriodo(desde, hasta) {
   if (!desde || !hasta || desde > hasta) throw new Error("Selecciona un periodo válido para Rental.");
 
@@ -295,7 +428,7 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
   const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
     supabase
       .from("flotilla_movimientos_dinero")
-      .select("id, ruta_id, tipo_movimiento, monto, pagador, estado_conciliacion")
+      .select("id, ruta_id, tipo_movimiento, monto, pagador, clasificacion_gasolina, estado_conciliacion")
       .in("ruta_id", ids),
     supabase
       .from("flotilla_ambulancias")
@@ -311,6 +444,7 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
     tipo: item.tipo_movimiento,
     importe: item.monto,
     pagador: item.pagador,
+    clasificacion_gasolina: item.clasificacion_gasolina,
     estado: item.estado_conciliacion === "CONCILIADO"
       ? (item.tipo_movimiento === "ADELANTO" ? "ENTREGADO" : "CONFIRMADO")
       : item.estado_conciliacion === "DESCARTADO" ? "RECHAZADO"
@@ -464,6 +598,8 @@ export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_liquidaciones" }, onCambio)
     .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_repartos" }, onCambio)
+    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamos" }, onCambio)
+    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamo_abonos" }, onCambio)
     .subscribe(onEstado);
 
   return () => supabase.removeChannel(canal);

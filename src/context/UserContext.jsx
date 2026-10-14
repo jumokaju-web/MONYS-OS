@@ -8,7 +8,7 @@ import {
 import { supabase } from "../supabase";
 
 import {
-  obtenerPermisosPorRol,
+  obtenerPermisosUsuario,
 } from "../services/permisosService";
 
 const UserContext = createContext(null);
@@ -373,7 +373,7 @@ export function UserProvider({
     }
 
     cargarPermisos();
-  }, [usuario?.role]);
+  }, [usuario?.id, usuario?.role]);
 
   async function cargarPermisos() {
     try {
@@ -389,9 +389,10 @@ export function UserProvider({
       setErrorPermisos("");
 
       const permisosRol =
-        await obtenerPermisosPorRol(
-          usuario.role
-        );
+        await obtenerPermisosUsuario({
+          usuarioId: usuario.id,
+          role: usuario.role,
+        });
 
       setPermisos(
         permisosRol || []

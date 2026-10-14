@@ -6,6 +6,9 @@ import {
   calcularResumenRentalPeriodo,
   calcularPagoRuta,
   crearFilasReporteRental,
+  crearFilasPrefacturaFlotilla,
+  crearPrefacturaFlotilla,
+  evaluarGasolina,
   revisarEvidenciaRuta,
   resumirOperacionFlotilla,
 } from "../../src/features/flotilla/utils/operacionFlotilla.js";
@@ -30,7 +33,7 @@ test("separa cobro rental del pago fijo al chofer", () => {
   assert.deepEqual(calcularPagoRuta(20, "RENTAL_LARGE"), { base: 1000, bono: 0, total: 1000, cobroEmpresa: 1221 });
 });
 
-test("solo un adelanto entregado reduce el saldo del chofer", () => {
+test("un adelanto entregado y la gasolina sin evidencias reducen el saldo del chofer", () => {
   const resumen = resumirOperacionFlotilla(
     { km_inicial: 1000, km_final: 1120, tipo_pago: "MLP" },
     [
@@ -43,11 +46,12 @@ test("solo un adelanto entregado reduce el saldo del chofer", () => {
   assert.equal(resumen.ganado, 1750);
   assert.equal(resumen.adelantosSolicitados, 500);
   assert.equal(resumen.adelantosEntregados, 300);
-  assert.equal(resumen.saldoEstimado, 1450);
-  assert.equal(resumen.gasolina, 700);
+  assert.equal(resumen.saldoEstimado, 750);
+  assert.equal(resumen.gasolina, 0);
+  assert.equal(resumen.prestamosGasolina, 700);
 });
 
-test("ambulancia confirmada suma al chofer y gasolina queda separada", () => {
+test("ambulancia confirmada suma y gasolina sin evidencia se vuelve préstamo", () => {
   const resumen = resumirOperacionFlotilla(
     { km_inicial: 1000, km_final: 1080, tipo_pago: "MLP" },
     [
@@ -58,8 +62,9 @@ test("ambulancia confirmada suma al chofer y gasolina queda separada", () => {
   );
 
   assert.equal(resumen.ganado, 1850);
-  assert.equal(resumen.gasolina, 450);
-  assert.equal(resumen.saldoEstimado, 1850);
+  assert.equal(resumen.gasolina, 0);
+  assert.equal(resumen.prestamosGasolina, 450);
+  assert.equal(resumen.saldoEstimado, 1400);
 });
 
 test("ambulancia confirmada se descuenta al chofer apoyado", () => {
@@ -357,6 +362,8 @@ test("revisa el ticket y los datos de cada carga de gasolina", () => {
     "Carga de gasolina 1: litros",
     "Carga de gasolina 1: quién pagó",
     "Carga de gasolina 1: foto del ticket",
+    "Carga de gasolina 1: foto del tablero antes",
+    "Carga de gasolina 1: foto del tablero después",
   ]);
 });
 
@@ -369,7 +376,19 @@ test("una ruta finalizada con evidencias completas queda lista para revisión", 
     gasolina_out: "1/4",
     foto_salida_url: "https://evidencia/salida",
     foto_cierre_url: "https://evidencia/cierre",
-  }, [{ tipo: "GASOLINA", estado: "CAPTURADO", importe: 500, litros: 20, pagador: "CHOFER", evidencia_url: "https://evidencia/ticket" }]);
+  }, [{
+    tipo: "GASOLINA",
+    estado: "CAPTURADO",
+    importe: 500,
+    litros: 20,
+    pagador: "CHOFER",
+    evidencia_ticket_url: "https://evidencia/ticket",
+    evidencia_tablero_antes_url: "https://evidencia/antes",
+    evidencia_tablero_despues_url: "https://evidencia/despues",
+    revision_ticket: { estado: "APROBADA" },
+    revision_tablero_antes: { estado: "APROBADA" },
+    revision_tablero_despues: { estado: "APROBADA" },
+  }]);
 
   assert.equal(revision.estado, "COMPLETA");
   assert.equal(revision.totalFaltantes, 0);
@@ -405,7 +424,62 @@ test("un ticket rechazado mantiene pendiente la evidencia de gasolina", () => {
   }]);
 
   assert.equal(revision.estado, "PENDIENTE");
-  assert.deepEqual(revision.faltantes, ["Carga de gasolina 1: foto del ticket rechazada: Ticket incompleto o ilegible"]);
+  assert.deepEqual(revision.faltantes, [
+    "Carga de gasolina 1: ticket rechazado: Ticket incompleto o ilegible",
+    "Carga de gasolina 1: foto del tablero antes",
+    "Carga de gasolina 1: foto del tablero después",
+  ]);
+});
+
+test("gasolina exige ticket y tableros aprobados; de lo contrario es préstamo personal", () => {
+  const incompleta = evaluarGasolina({
+    evidencia_ticket_path: "ticket.jpg",
+    revision_ticket: { estado: "APROBADA" },
+  });
+  assert.equal(incompleta.tratamiento, "PRESTAMO_PERSONAL");
+  assert.deepEqual(incompleta.faltantes, ["foto del tablero antes", "foto del tablero después"]);
+
+  const completa = evaluarGasolina({
+    evidencia_ticket_path: "ticket.jpg",
+    evidencia_tablero_antes_path: "antes.jpg",
+    evidencia_tablero_despues_path: "despues.jpg",
+    revision_ticket: { estado: "APROBADA" },
+    revision_tablero_antes: { estado: "APROBADA" },
+    revision_tablero_despues: { estado: "APROBADA" },
+  });
+  assert.equal(completa.tratamiento, "GASOLINA");
+  assert.deepEqual(completa.faltantes, []);
+
+  assert.equal(evaluarGasolina({ clasificacion_gasolina: "GASOLINA_APROBADA" }).aprobada, true);
+});
+
+test("la prefactura separa gasolina aprobada y préstamo por evidencia incompleta", () => {
+  const prefactura = crearPrefacturaFlotilla([{
+    id: "ruta-1",
+    fecha: "2026-10-13",
+    codigo_ruta: "R-100",
+    chofer_nombre: "Javier",
+    tipo_pago: "MLP",
+    estado: "FINALIZADA",
+    km_inicial: 1000,
+    km_final: 1151,
+    gasolina_in: "1/2",
+    gasolina_out: "1/4",
+    foto_salida_path: "salida.jpg",
+    foto_cierre_path: "cierre.jpg",
+    unidad: { placas: "HU1812B" },
+    movimientos: [
+      { tipo: "GASOLINA", estado: "CAPTURADO", importe: 500 },
+      { tipo: "AMBULANCIA", estado: "CONFIRMADO", importe: 200 },
+    ],
+  }], { desde: "2026-10-13", hasta: "2026-10-13" });
+
+  assert.equal(prefactura.totales.rutas, 1);
+  assert.equal(prefactura.totales.importePrefactura, 2100);
+  assert.equal(prefactura.totales.gasolinaAprobada, 0);
+  assert.equal(prefactura.totales.prestamosGasolina, 500);
+  assert.equal(prefactura.totales.saldoChoferes, 1600);
+  assert.equal(crearFilasPrefacturaFlotilla(prefactura)[0]["Préstamo por gasolina"], 500);
 });
 
 test("una foto aprobada no genera faltantes adicionales", () => {
