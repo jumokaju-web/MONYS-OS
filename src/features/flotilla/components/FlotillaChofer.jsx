@@ -10,10 +10,14 @@ import {
   obtenerRutaDeUnidadEnFecha,
   guardarLiquidacionFlotilla,
   obtenerLiquidacionFlotillaHoy,
-  suscribirseARutasDeUnidad,
 } from "./services/flotillaService";
 import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
 import FlotillaOperacionEnVivo from "./FlotillaOperacionEnVivo";
+import {
+  obtenerMiAccesoFlotilla,
+  obtenerOperacionFlotillaEnVivo,
+  suscribirseAOperacionFlotilla,
+} from "./services/operacionFlotilla";
 import { calcularLiquidacionFlotilla } from "../../inteligencia/utils/capturasFinancierasEquipo";
 
 function normalizarNombre(valor) {
@@ -33,12 +37,20 @@ function obtenerFechaLocal() {
   ].join("-");
 }
 
+function moneda(valor) {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+  }).format(Number(valor) || 0);
+}
+
 export default function FlotillaChofer({
   usuario = null,
   volverAlDashboard,
 }) {
 
   const [unidades, setUnidades] = useState([]);
+  const [accesoFlotilla, setAccesoFlotilla] = useState(null);
   const [unidadId, setUnidadId] = useState("");
   const [liquidacion, setLiquidacion] = useState({
     ingresoRuta: "",
@@ -77,7 +89,10 @@ export default function FlotillaChofer({
         setCargandoUnidad(true);
         setErrorUnidad("");
 
-        const resultado = await obtenerUnidadesFlotilla();
+        const [resultado, accesoEspecial] = await Promise.all([
+          obtenerUnidadesFlotilla(),
+          obtenerMiAccesoFlotilla(),
+        ]);
 
         if (activo) {
           const nombreUsuario = normalizarNombre(usuario?.nombre);
@@ -92,14 +107,16 @@ export default function FlotillaChofer({
 
           const rol = String(usuario?.role || "").toLowerCase();
           const puedeRevisarTodaLaFlotilla =
-            rol === "owner" || rol === "admin";
-          const unidadesPermitidas = puedeRevisarTodaLaFlotilla
+            rol === "owner" || rol === "admin" || accesoEspecial?.tipo_acceso === "ADMIN_FLOTILLA";
+          const tieneAccesoSocio = accesoEspecial?.tipo_acceso === "SOCIO_CONSULTA";
+          const unidadesPermitidas = puedeRevisarTodaLaFlotilla || tieneAccesoSocio
             ? resultado
             : asignada
               ? [asignada]
               : [];
 
           setUnidades(unidadesPermitidas);
+          setAccesoFlotilla(accesoEspecial);
 
           setUnidadId((actual) =>
             unidadesPermitidas.some((item) => item.id === actual)
@@ -134,6 +151,7 @@ export default function FlotillaChofer({
   }, [usuario?.nombre, usuario?.role]);
 
   const [rutaHoy, setRutaHoy] = useState(null);
+  const [operacionHoy, setOperacionHoy] = useState(null);
   const [cargandoRuta, setCargandoRuta] = useState(false);
   const [errorRuta, setErrorRuta] = useState("");
   const [estadoSincronizacion, setEstadoSincronizacion] =
@@ -148,6 +166,7 @@ export default function FlotillaChofer({
     async ({ silencioso = false } = {}) => {
       if (!unidad?.id) {
         setRutaHoy(null);
+        setOperacionHoy(null);
         return;
       }
 
@@ -158,12 +177,16 @@ export default function FlotillaChofer({
         }
         setErrorRuta("");
 
-        const resultado = await obtenerRutaDeUnidadEnFecha(
-          unidad.id,
-          obtenerFechaLocal()
-        );
+        const fecha = obtenerFechaLocal();
+        const [resultado, operaciones] = await Promise.all([
+          obtenerRutaDeUnidadEnFecha(unidad.id, fecha),
+          obtenerOperacionFlotillaEnVivo(fecha),
+        ]);
 
         setRutaHoy(resultado);
+        setOperacionHoy(
+          operaciones.find((item) => item.unidad_id === unidad.id) || null
+        );
       } catch (error) {
         console.error("Error cargando ruta:", error);
         setErrorRuta(
@@ -181,14 +204,14 @@ export default function FlotillaChofer({
   useEffect(() => {
     if (!unidad?.id) {
       setRutaHoy(null);
+      setOperacionHoy(null);
       setEstadoSincronizacion("SIN_UNIDAD");
       return;
     }
 
     cargarRutaActual();
 
-    const detenerSuscripcion = suscribirseARutasDeUnidad({
-      unidadId: unidad.id,
+    const detenerSuscripcion = suscribirseAOperacionFlotilla({
       onCambio: () => cargarRutaActual({ silencioso: true }),
       onEstado: (estado) => setEstadoSincronizacion(estado),
     });
@@ -256,6 +279,8 @@ export default function FlotillaChofer({
 
     const choferReal =
     unidad?.chofer_nombre || usuario?.nombre || "Sin asignar";
+
+  const resumenRuta = operacionHoy?.resumen || null;
 
   const placasReales =
     unidad?.placas || "—";
@@ -478,11 +503,9 @@ export default function FlotillaChofer({
           </div>
         )}
 
-        {["owner", "admin"].includes(
-          String(usuario?.role || "").toLowerCase()
-        ) && (
+        {(["owner", "admin"].includes(String(usuario?.role || "").toLowerCase()) || accesoFlotilla) && (
           <>
-            <FlotillaOperacionEnVivo />
+            <FlotillaOperacionEnVivo usuario={usuario} soloConsulta={accesoFlotilla?.tipo_acceso === "SOCIO_CONSULTA"} />
             <ResumenFlotillaSocios unidades={unidades} />
           </>
         )}
@@ -630,13 +653,15 @@ export default function FlotillaChofer({
   ["📍", "Ruta", rutaHoy?.codigo_ruta || "Sin ruta"],
   [
     "🛣️",
-    "Paros",
-    rutaHoy?.paros_total == null
+    "KM",
+    resumenRuta
+      ? String(resumenRuta.kilometros)
+      : rutaHoy?.kilometros_ruta == null
       ? "Sin dato"
-      : String(rutaHoy.paros_total),
+      : String(rutaHoy.kilometros_ruta),
   ],
-  ["💵", "Ingreso base", "Pendiente"],
-  ["⛽", "Gasolina", "Pendiente"],
+  ["💵", "Ganado", resumenRuta ? moneda(resumenRuta.ganado) : "Pendiente"],
+  ["⛽", "Gas aprobada", resumenRuta ? moneda(resumenRuta.gasolina) : "Pendiente"],
 ].map(([icono, titulo, valor]) => (
             <div
               key={titulo}
@@ -702,7 +727,7 @@ export default function FlotillaChofer({
                 fontWeight: "800",
               }}
             >
-              📊 Ganancia estimada hoy
+              📊 Saldo estimado por pagar
             </div>
 
             <div
@@ -713,7 +738,7 @@ export default function FlotillaChofer({
                 marginTop: "3px",
               }}
             >
-              Pendiente
+              {resumenRuta ? moneda(resumenRuta.saldoEstimado) : "Pendiente"}
             </div>
           </div>
 
@@ -1049,11 +1074,13 @@ export default function FlotillaChofer({
             </strong>
 
             {[
-  ["Pago base chofer", "Pendiente"],
-  ["Sacar camioneta", "Pendiente"],
-  ["Gasolina", "Pendiente"],
-  ["Préstamo / adelanto", "Pendiente"],
-  ["Otros ajustes", "Pendiente"],
+  ["Pago base", resumenRuta ? moneda(resumenRuta.pagoBase) : "Pendiente"],
+  ["Bono por kilometraje", resumenRuta ? moneda(resumenRuta.bonoKilometraje) : "Pendiente"],
+  ["Ambulancias a favor", resumenRuta ? moneda(resumenRuta.ambulanciasConfirmadas) : "Pendiente"],
+  ["Ambulancias descontadas", resumenRuta ? `− ${moneda(resumenRuta.ambulanciasDescontadas)}` : "Pendiente"],
+  ["Gasolina aprobada", resumenRuta ? moneda(resumenRuta.gasolina) : "Pendiente"],
+  ["Adelantos entregados", resumenRuta ? `− ${moneda(resumenRuta.adelantosEntregados)}` : "Pendiente"],
+  ["Préstamo por gasolina sin evidencia", resumenRuta ? `− ${moneda(resumenRuta.prestamosGasolina)}` : "Pendiente"],
 ].map(([texto, valor]) => (
               <div
                 key={texto}
@@ -1081,9 +1108,26 @@ export default function FlotillaChofer({
                 color: "#14744d",
               }}
             >
-             <span>Saldo de hoy:</span>
-<span>Pendiente</span>
+             <span>Saldo estimado:</span>
+<span>{resumenRuta ? moneda(resumenRuta.saldoEstimado) : "Pendiente"}</span>
             </div>
+            {resumenRuta?.prestamosGasolina > 0 && (
+              <p
+                role="alert"
+                style={{
+                  margin: "10px 0 0",
+                  padding: "9px",
+                  borderRadius: "9px",
+                  background: "#fff1eb",
+                  color: "#8a2e1b",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                }}
+              >
+                La gasolina sin ticket, tablero antes y tablero después aprobados
+                aparece como préstamo personal hasta completar la evidencia.
+              </p>
+            )}
           </section>
 
          <section
