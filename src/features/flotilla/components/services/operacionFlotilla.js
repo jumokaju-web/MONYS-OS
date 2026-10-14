@@ -74,7 +74,13 @@ async function crearUrlEvidencia(path) {
   return error ? null : data?.signedUrl || null;
 }
 
-export async function obtenerOperacionFlotillaEnVivo(fecha) {
+export async function obtenerOperacionFlotillaEnVivo(
+  fecha,
+  { incluirPropietarios = true } = {}
+) {
+  const camposUnidad = incluirPropietarios
+    ? "placas, tipo_operacion, tipo_pago_chory, propietarios"
+    : "placas, tipo_operacion, tipo_pago_chory";
   const { data: operaciones, error } = await supabase
     .from("flotilla_rutas")
     .select(`
@@ -83,7 +89,7 @@ export async function obtenerOperacionFlotillaEnVivo(fecha) {
       tipo_pago, estado, hora_inicio_ruta, hora_fin_ruta, km_inicial, km_final,
       kilometros_ruta, gasolina_in, gasolina_out, paquetes_total, paros_total,
       foto_salida_path, foto_cierre_path, updated_at,
-      unidad:flotilla_unidades(placas, tipo_operacion, tipo_pago_chory, propietarios)
+      unidad:flotilla_unidades(${camposUnidad})
     `)
     .eq("fecha", fecha)
     .order("updated_at", { ascending: false });
