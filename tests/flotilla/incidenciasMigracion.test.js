@@ -7,6 +7,11 @@ const migracion = await readFile(new URL(
   import.meta.url,
 ), "utf8");
 
+const migracionReportes = await readFile(new URL(
+  "../../supabase/migrations/20261014210000_flotilla_reportes_whatsapp.sql",
+  import.meta.url,
+), "utf8");
+
 test("la migración crea expedientes ligados a ruta, unidad y chofer", () => {
   assert.match(migracion, /create table if not exists public\.flotilla_incidencias/i);
   assert.match(migracion, /alter table public\.flotilla_incidencias[\s\S]*add column if not exists organization_id/i);
@@ -21,4 +26,12 @@ test("protege las fotos, el alcance y la revisión administrativa", () => {
   assert.match(migracion, /flotilla_puede_ver_unidad\(unidad_id\)/i);
   assert.match(migracion, /Solo Administración puede revisar una incidencia/i);
   assert.doesNotMatch(migracion, /grant delete/i);
+});
+
+test("los reportes guardan mensaje y datos estructurados", () => {
+  assert.match(migracionReportes, /add column if not exists detalle jsonb/i);
+  assert.match(migracionReportes, /add column if not exists mensaje_whatsapp text/i);
+  assert.match(migracionReportes, /'RETORNO_CEDIS'/i);
+  assert.match(migracionReportes, /detalle->>'recibeCedis'/i);
+  assert.match(migracionReportes, /tipo not in \([\s\S]*'RETORNO_CEDIS'/i);
 });
