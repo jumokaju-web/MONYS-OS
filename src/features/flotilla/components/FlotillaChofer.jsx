@@ -14,6 +14,7 @@ import {
 import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
 import FlotillaOperacionEnVivo from "./FlotillaOperacionEnVivo";
 import FlotillaIncidencias from "./FlotillaIncidencias";
+import FlotillaPnr from "./FlotillaPnr";
 import {
   obtenerMiAccesoFlotilla,
   obtenerOperacionFlotillaEnVivo,
@@ -289,6 +290,8 @@ export default function FlotillaChofer({
     || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
   const esSocioConsulta = accesoFlotilla?.tipo_acceso === "SOCIO_CONSULTA";
   const esVistaAdministrativa = esAdministradorFlotilla || esSocioConsulta;
+  const puedeGestionarPnr =
+    rolActual === "owner" || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
 
   const placasReales =
     unidad?.placas || "—";
@@ -513,6 +516,7 @@ export default function FlotillaChofer({
 
         {esVistaAdministrativa && (
           <>
+            {puedeGestionarPnr && <FlotillaPnr modoAdministracion />}
             <FlotillaOperacionEnVivo usuario={usuario} soloConsulta={esSocioConsulta} />
             <FlotillaIncidencias
               modoAdministracion
@@ -524,11 +528,14 @@ export default function FlotillaChofer({
         )}
 
         {!esVistaAdministrativa && unidad?.id && (
-          <FlotillaIncidencias
-            rutaId={operacionHoy?.id || rutaHoy?.id || null}
-            codigoRuta={operacionHoy?.codigo_ruta || rutaHoy?.codigo_ruta || ""}
-            unidad={unidad}
-          />
+          <>
+            <FlotillaPnr />
+            <FlotillaIncidencias
+              rutaId={operacionHoy?.id || rutaHoy?.id || null}
+              codigoRuta={operacionHoy?.codigo_ruta || rutaHoy?.codigo_ruta || ""}
+              unidad={unidad}
+            />
+          </>
         )}
 
         {/* SALUDO */}
