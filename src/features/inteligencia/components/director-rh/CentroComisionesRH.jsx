@@ -7,6 +7,7 @@ import {
   listarOportunidadesGanadasComision,
 } from "../../services/comisionesSicarService";
 import { esUsuarioSicarCompartido, normalizarUsuarioSicar, resumirComisionesSicar } from "../../shared/resumenComisionesSicar";
+import { registrarLiquidacionesComisionRH } from "../../services/pagosRHService";
 
 function fechaLocal(valor) {
   return [valor.getFullYear(), String(valor.getMonth() + 1).padStart(2, "0"), String(valor.getDate()).padStart(2, "0")].join("-");
@@ -40,7 +41,7 @@ const campo = {
   background: "#fff",
 };
 
-export default function CentroComisionesRH({ organizationId, businessId, branchId, empleados = [] }) {
+export default function CentroComisionesRH({ businessId, branchId, empleados = [] }) {
   const semana = useMemo(semanaActual, []);
   const [desde, setDesde] = useState(semana.desde);
   const [hasta, setHasta] = useState(semana.hasta);
@@ -52,6 +53,7 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
   const [cargando, setCargando] = useState(true);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [guardandoUsuario, setGuardandoUsuario] = useState("");
+  const [registrandoLiquidacion, setRegistrandoLiquidacion] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [selecciones, setSelecciones] = useState({});
@@ -175,6 +177,28 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
     }
   }
 
+  async function prepararLiquidaciones() {
+    if (!importacionId || !resumen.comisiones.length) return;
+    if (!window.confirm(`¿Registrar ${resumen.comisiones.length} liquidaciones de comisión como pendientes? Todavía no se marcarán como pagadas.`)) return;
+    setRegistrandoLiquidacion(true);
+    setError("");
+    setAviso("");
+    try {
+      await registrarLiquidacionesComisionRH({
+        desde,
+        hasta,
+        importacionId,
+        partidas: resumen.comisiones,
+      });
+      setAviso("Liquidaciones registradas como pendientes. Confirma cada pago con su referencia en el control de personal.");
+      window.dispatchEvent(new Event("monys:rh-movimientos"));
+    } catch (err) {
+      setError(err?.message || "No se pudieron registrar las liquidaciones.");
+    } finally {
+      setRegistrandoLiquidacion(false);
+    }
+  }
+
   const importacionActual = importaciones.find((item) => item.id === importacionId);
 
   return (
@@ -236,6 +260,12 @@ export default function CentroComisionesRH({ organizationId, businessId, branchI
               </tbody>
             </table>
           </div>
+
+          {resumen.comisiones.length > 0 && <div style={{ marginTop: 12, padding: 13, borderRadius: 12, background: "#edf9f1", border: "1px solid #b9dfc6" }}>
+            <strong>Liquidación para autorización</strong>
+            <p style={{ margin: "5px 0 10px", color: "#53695b", fontSize: 13 }}>Crea un pendiente por empleada usando esta importación y este periodo. No paga, no descuenta nómina y no incluye folios que siguen por revisar.</p>
+            <button type="button" disabled={registrandoLiquidacion} onClick={prepararLiquidaciones} style={{ border: 0, borderRadius: 9, background: "#277648", color: "#fff", padding: "10px 13px", fontWeight: 800 }}>{registrandoLiquidacion ? "Registrando…" : `Registrar ${resumen.comisiones.length} liquidaciones pendientes`}</button>
+          </div>}
 
           <details open style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#fff", border: "1px solid #dcece2" }}>
             <summary style={{ color: "#245d3b", fontWeight: 800, cursor: "pointer" }}>Conciliación por folio · {(resumen.conciliacion || []).filter((fila) => !["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado)).length} por revisar</summary>
