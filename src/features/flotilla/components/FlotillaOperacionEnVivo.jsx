@@ -221,7 +221,7 @@ export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta =
       {!soloConsulta && <FlotillaAccesosChofer />}
       {!soloConsulta && String(usuario?.role || "").toLowerCase() === "owner" && <FlotillaAccesosSocios />}
       <FlotillaPrestamos soloConsulta={soloConsulta} />
-      <FlotillaPrefacturas />
+      <FlotillaPrefacturas puedeGestionar={!soloConsulta} />
 
       <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
