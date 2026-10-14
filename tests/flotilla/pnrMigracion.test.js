@@ -19,6 +19,7 @@ test("el driver puede responder pero no cerrar ni borrar el PNR", () => {
   assert.match(migracion, /Solo Chory o Mónica pueden gestionar este PNR/i);
   assert.match(migracion, /flotilla_puede_gestionar_pnr/i);
   assert.match(migracion, /usuario\.role = 'owner'[\s\S]*acceso\.tipo_acceso = 'ADMIN_FLOTILLA'/i);
+  assert.match(migracion, /revoke all on public\.flotilla_pnr_expedientes[\s\S]*from authenticated/i);
   assert.doesNotMatch(migracion, /grant (update|delete)[^;]*flotilla_pnr/i);
 });
 

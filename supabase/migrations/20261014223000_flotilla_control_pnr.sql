@@ -322,6 +322,7 @@ alter table public.flotilla_pnr_expedientes enable row level security;
 alter table public.flotilla_pnr_evidencias enable row level security;
 alter table public.flotilla_pnr_descuentos enable row level security;
 revoke all on public.flotilla_pnr_expedientes, public.flotilla_pnr_evidencias, public.flotilla_pnr_descuentos from anon;
+revoke all on public.flotilla_pnr_expedientes, public.flotilla_pnr_evidencias, public.flotilla_pnr_descuentos from authenticated;
 grant select, insert on public.flotilla_pnr_expedientes to authenticated;
 grant select, insert on public.flotilla_pnr_evidencias to authenticated;
 grant select on public.flotilla_pnr_descuentos to authenticated;
