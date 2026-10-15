@@ -208,7 +208,7 @@ export default function RutinaTienda({
   }
 
   return (
-    <details style={{ margin: "0 0 20px", border: "1px solid #e6cad8", borderRadius: "16px", background: "#fffafd", overflow: "hidden" }}>
+    <details id="reparto-trabajo-dia" style={{ margin: "0 0 20px", border: "1px solid #e6cad8", borderRadius: "16px", background: "#fffafd", overflow: "hidden", scrollMarginTop: "18px" }}>
       <summary style={{ padding: "16px", cursor: "pointer", color: "#76254f", fontSize: "17px", fontWeight: 900 }}>
         🧹 Reparto de trabajo del día
         <span style={{ display: "block", marginTop: "5px", color: "#77636d", fontSize: "13px", fontWeight: 500 }}>

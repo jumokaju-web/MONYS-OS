@@ -18,6 +18,8 @@ import {
   limpiarYBalancearOperacion,
 } from "../services/limpiezaOperacionService";
 import RutinaTienda from "./RutinaTienda";
+import ControlDiarioSucursal from "./ControlDiarioSucursal";
+import { fechaActualMexico } from "../services/asistenciaOperativaService";
 
 const formularioInicial = {
   titulo: "",
@@ -28,26 +30,6 @@ const formularioInicial = {
   horaLimite: "",
   instrucciones: "",
 };
-
-
-function obtenerFechaHoy() {
-  const ahora = new Date();
-
-  const year =
-    ahora.getFullYear();
-
-  const month =
-    String(
-      ahora.getMonth() + 1
-    ).padStart(2, "0");
-
-  const day =
-    String(
-      ahora.getDate()
-    ).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
 
 
 function etiquetaEstado(
@@ -132,7 +114,7 @@ export default function OperacionHoy({
 ] = useState({});
 
   const fechaHoy =
-    obtenerFechaHoy();
+    fechaActualMexico();
 
 
   async function cargarTareas() {
@@ -232,56 +214,6 @@ export default function OperacionHoy({
         ),
       [tareas]
     );
-
-
-  const resumen =
-    useMemo(() => {
-      const total =
-        tareasActivas.length;
-
-      const pendientes =
-        tareas.filter(
-          (tarea) =>
-            tarea.estado ===
-            "pendiente"
-        ).length;
-
-      const enProceso =
-        tareas.filter(
-          (tarea) =>
-            tarea.estado ===
-            "en_proceso"
-        ).length;
-
-      const terminadas =
-        tareas.filter(
-          (tarea) =>
-            tarea.estado ===
-            "terminada"
-        ).length;
-
-      const urgentes =
-        tareas.filter(
-          (tarea) =>
-            tarea.prioridad ===
-              "urgente" &&
-            tarea.estado !==
-              "terminada" &&
-            tarea.estado !==
-              "cancelada"
-        ).length;
-
-      return {
-        total,
-        pendientes,
-        enProceso,
-        terminadas,
-        urgentes,
-      };
-    }, [
-      tareas,
-      tareasActivas,
-    ]);
 
 
   function manejarCambio(
@@ -635,106 +567,18 @@ export default function OperacionHoy({
               cargarTareas
             }
           >
-            🔄 Actualizar
+            🔄 Actualizar tareas
           </button>
         </div>
       </div>
 
+      <ControlDiarioSucursal
+        branchId={branchId}
+        fecha={fechaHoy}
+        tareas={tareas}
+        onActualizarTareas={cargarTareas}
+      />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #333",
-            borderRadius: "12px",
-          }}
-        >
-          <strong>
-            {resumen.total}
-          </strong>
-
-          <div>
-            Total
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #333",
-            borderRadius: "12px",
-          }}
-        >
-          <strong>
-            {resumen.pendientes}
-          </strong>
-
-          <div>
-            Pendientes
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #333",
-            borderRadius: "12px",
-          }}
-        >
-          <strong>
-            {resumen.enProceso}
-          </strong>
-
-          <div>
-            En proceso
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #333",
-            borderRadius: "12px",
-          }}
-        >
-          <strong>
-            {resumen.terminadas}
-          </strong>
-
-          <div>
-            Terminadas
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #333",
-            borderRadius: "12px",
-          }}
-        >
-          <strong>
-            {resumen.urgentes}
-          </strong>
-
-          <div>
-            Urgentes
-          </div>
-        </div>
-      </div>
 
       <RutinaTienda
         organizationId={organizationId}
