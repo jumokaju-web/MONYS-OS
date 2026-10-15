@@ -1,4 +1,4 @@
-import { validarImportesCorte } from '../utils/corteTienda';
+import { validarCierreCajaParaEnvio, validarImportesCorte } from '../utils/corteTienda';
 import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte, tieneCapturaBorrador } from '../utils/borradorCorte';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
@@ -533,53 +533,22 @@ export default function CierreTurno({
     setAnalisisActual(null);
 
     const responsableAutenticada = String(usuario?.nombre || '').trim();
-    if (!responsableAutenticada) { setError('No fue posible confirmar quién realiza el cierre. Vuelve a iniciar sesión.'); return; }
+    const validacionCierre = validarCierreCajaParaEnvio({
+      responsable: responsableAutenticada,
+      branchId,
+      cajaId,
+      tieneSesionCaja: Boolean(sesionCajaActiva),
+      corteSinApertura,
+      fotoCorte,
+      formulario,
+    });
+    if (validacionCierre) { setError(validacionCierre); return; }
 
-    if (!branchId) { setError("No se pudo identificar la sucursal. Avisa a Dirección."); return; }
-    if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de registrar el cierre.'); return; }
-    if (!sesionCajaActiva && !corteSinApertura) {
-      setError("Abre la caja o selecciona registrar cierre sin apertura previa.");
-      return;
-    }
-
-    if (!fotoCorte) {
-      setError("Toma o selecciona la foto del corte de SICAR antes de cerrar la caja.");
-      return;
-    }
-
-    const validacionImportes = validarImportesCorte(formulario);
-    if (validacionImportes) { setError(validacionImportes); return; }
-    const camposDinero = [
-      "ventaSicar",
-      "efectivoVentas",
-      "tarjeta",
-      "transferencias",
-      "otrosCobros",
-      "fondoInicial",
-      "efectivoEntregado",
-      "efectivoFinal",
-    ];
     const movimientosIniciados = formulario.movimientosCaja.filter((movimiento) =>
       [movimiento.concepto, movimiento.recibidoPor, movimiento.monto].some(
         (valor) => String(valor ?? "").trim() !== ""
       )
     );
-    const capturaDineroIniciada =
-      camposDinero.some(
-        (campo) => String(formulario[campo] ?? "").trim() !== ""
-      ) || movimientosIniciados.length > 0;
-
-    if (
-      capturaDineroIniciada &&
-      (String(formulario.ventaSicar).trim() === "" ||
-        String(formulario.efectivoFinal).trim() === "")
-    ) {
-      setError(
-        "Para terminar el corte escribe la venta total de SICAR y el efectivo contado al cierre."
-      );
-      return;
-    }
-
     const movimientoIncompleto = movimientosIniciados.find(
       (movimiento) =>
         !Number.isFinite(Number(movimiento.monto)) ||
@@ -1629,6 +1598,7 @@ export default function CierreTurno({
             📷 Foto obligatoria del corte de SICAR
             <input
               type="file"
+              required
               accept="image/*"
               capture="environment"
               onChange={(event) => setFotoCorte(event.target.files?.[0] || null)}
@@ -1663,6 +1633,7 @@ export default function CierreTurno({
                 {label}
                 <input
                   type="number"
+                  required
                   inputMode="decimal"
                   min="0"
                   step="0.01"
@@ -2060,6 +2031,21 @@ export default function CierreTurno({
 
 
         </details>
+        <div
+          aria-live="polite"
+          style={{
+            padding: "14px",
+            borderRadius: "12px",
+            background: importesListos && fotoCorte ? "#eef8f1" : "#fff8e8",
+            color: importesListos && fotoCorte ? "#24663f" : "#73571b",
+            fontWeight: 800,
+            lineHeight: 1.45,
+          }}
+        >
+          {importesListos && fotoCorte
+            ? `Listo para enviar · ${cajaNombre} · venta ${formatearDinero(formulario.ventaSicar)} · efectivo final ${formatearDinero(formulario.efectivoFinal)}`
+            : `Antes de finalizar: ${fotoCorte ? "foto lista" : "falta la foto"} · ${importesListos ? "importes completos" : "faltan importes"}.`}
+        </div>
         <button
           type="submit"
           disabled={

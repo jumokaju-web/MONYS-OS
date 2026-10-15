@@ -220,3 +220,40 @@ test("Finanzas aplica la corrección sin perder los importes del corte nuevo", (
   assert.equal(captura.datos.cajaNombre, 'Caja 1');
   assert.equal(captura.cierre.responsable, 'Karla Yoselin');
 });
+
+test("flujo completo: el cierre de Caja 1 llega a Finanzas con venta y efectivo disponibles", () => {
+  const datos = {
+    cajaId: "CAJA_1",
+    cajaNombre: "Caja 1",
+    responsableCierre: "Karla Yoselin",
+    ventaSicar: 10000,
+    efectivoVentas: 4000,
+    tarjeta: 3500,
+    transferencias: 2500,
+    otrosCobros: 0,
+    fondoInicial: 1000,
+    efectivoEntregado: 4000,
+    efectivoFinal: 1000,
+    fotoCorteUrl: "https://evidencia.local/corte.jpg",
+    movimientosCaja: [],
+  };
+  const cierre = {
+    id: "cierre-prueba",
+    branch_id: "centro",
+    responsable: "Karla Yoselin",
+    turno: "cierre_caja",
+    fecha: "2026-10-15",
+    observaciones: crearObservacionesCorte(datos),
+  };
+
+  const [captura] = extraerCapturasFinancieras([cierre]);
+  assert.equal(captura.tipo, "caja");
+  assert.equal(captura.datos.cajaNombre, "Caja 1");
+  assert.equal(captura.datos.ventaSicar, 10000);
+  assert.equal(captura.datos.cobrado, 10000);
+  assert.equal(captura.datos.diferenciaVenta, 0);
+  assert.equal(captura.datos.efectivoFinal, 1000);
+  assert.equal(captura.datos.efectivoEsperado, 1000);
+  assert.equal(captura.datos.diferenciaCaja, 0);
+  assert.equal(captura.datos.fotoCorteUrl, "https://evidencia.local/corte.jpg");
+});
