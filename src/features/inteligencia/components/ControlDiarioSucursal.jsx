@@ -13,6 +13,16 @@ const ESTADOS = {
   SIN_ACCESO: ["Sin acceso", "is-alerta"],
 };
 
+function estadoVisible(persona) {
+  if (persona?.presente && persona?.estado === "SIN_PERFIL") {
+    return ["Presente · perfil pendiente", "is-presente-pendiente"];
+  }
+  if (persona?.presente && persona?.estado === "SIN_ACCESO") {
+    return ["Presente · acceso por revisar", "is-presente-pendiente"];
+  }
+  return ESTADOS[persona?.estado] || [persona?.estado, ""];
+}
+
 function horaMexico(fecha) {
   if (!fecha) return null;
   return new Intl.DateTimeFormat("es-MX", {
@@ -64,12 +74,12 @@ export default function ControlDiarioSucursal({
   useEffect(() => { cargar(); }, [cargar]);
 
   async function actualizarTodo() {
-    await Promise.all([
-      cargar(),
-      typeof onActualizarTareas === "function"
-        ? onActualizarTareas()
-        : Promise.resolve(),
-    ]);
+    await cargar();
+    if (typeof onActualizarTareas === "function") {
+      // La asistencia no debe quedarse esperando la carga más pesada de tareas
+      // y evidencias. Esa actualización continúa en segundo plano.
+      void onActualizarTareas();
+    }
   }
 
   const control = useMemo(() => construirControlDiarioSucursal({
@@ -118,7 +128,7 @@ export default function ControlDiarioSucursal({
 
       <div className="control-diario__lista" aria-label="Estado del equipo de hoy">
         {control.personas.length ? control.personas.map((persona) => {
-          const [etiqueta, clase] = ESTADOS[persona.estado] || [persona.estado, ""];
+          const [etiqueta, clase] = estadoVisible(persona);
           const horaEntrada = horaMexico(persona.entradaAt);
           return <article className="control-diario__persona" key={persona.empleadoId}>
             <div>
@@ -126,7 +136,10 @@ export default function ControlDiarioSucursal({
               <p>{persona.puesto}{horaEntrada ? ` · entrada ${horaEntrada}` : ""}</p>
             </div>
             <div className="control-diario__persona-derecha">
-              <span className={`control-diario__estado ${clase}`}>{etiqueta}</span>
+              <span
+                className={`control-diario__estado ${clase}`}
+                style={clase === "is-presente-pendiente" ? { background: "#eef7e9", color: "#35692f", border: "1px solid #cfe4c5" } : undefined}
+              >{etiqueta}</span>
               <small>{persona.tareas ? `${persona.terminadas}/${persona.tareas} tareas terminadas${persona.enProceso ? ` · ${persona.enProceso} en proceso` : ""}` : "Sin tareas asignadas"}</small>
             </div>
           </article>;
@@ -136,7 +149,7 @@ export default function ControlDiarioSucursal({
       {error && <p className="control-diario__error" role="alert">{error}</p>}
       <footer className="control-diario__pie">
         <span>{control.metricas.sinPerfil} perfiles pendientes · {control.metricas.sinAcceso} sin acceso · {control.metricas.descansan} descansan</span>
-        <span>{actualizadoAt ? `Actualizado ${horaMexico(actualizadoAt)}` : "Pendiente de actualizar"}</span>
+        <span>{actualizadoAt ? `Datos actualizados · ${control.metricas.presentes} entrada${control.metricas.presentes === 1 ? "" : "s"} encontrada${control.metricas.presentes === 1 ? "" : "s"} · ${horaMexico(actualizadoAt)}` : "Pendiente de actualizar"}</span>
       </footer>
     </section>
   );

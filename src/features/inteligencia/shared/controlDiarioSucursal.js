@@ -67,6 +67,7 @@ export function construirControlDiarioSucursal({
       nombre: configuracion?.nombre_preferido || empleado.nombre || "Sin nombre",
       puesto: empleado.puesto || "Puesto pendiente",
       estado,
+      presente: Boolean(entrada),
       entradaAt: entrada?.entrada_at || null,
       tareas: tareasEmpleado.length,
       terminadas,
@@ -75,7 +76,9 @@ export function construirControlDiarioSucursal({
     };
   });
 
-  const presentes = personas.filter((persona) => persona.estado === "PRESENTE").length;
+  // La asistencia y la configuración operativa son dos dimensiones distintas.
+  // Una entrada real debe contarse aunque todavía falte turno, descanso o áreas.
+  const presentes = personas.filter((persona) => persona.presente).length;
   const sinEntrada = personas.filter((persona) => persona.estado === "SIN_ENTRADA").length;
   const sinPerfil = personas.filter((persona) => persona.estado === "SIN_PERFIL").length;
   const sinAcceso = personas.filter((persona) => persona.estado === "SIN_ACCESO").length;

@@ -46,3 +46,14 @@ test("no presenta operación al día cuando hay personal presente sin reparto", 
   const control = construirControlDiarioSucursal({ fecha, empleados, configuraciones, asistencias, tareas: [] });
   assert.equal(control.prioridad.titulo, "Prepara el reparto del día");
 });
+
+test("cuenta una entrada real aunque el perfil operativo siga pendiente", () => {
+  const empleados = [{ id: "1", nombre: "Kary", active: true, auth_user_id: "u1" }];
+  const asistencias = [{ empleado_id: "1", entrada_at: "2026-10-14T16:36:00Z" }];
+  const control = construirControlDiarioSucursal({ fecha, empleados, asistencias });
+
+  assert.equal(control.metricas.presentes, 1);
+  assert.equal(control.metricas.sinPerfil, 1);
+  assert.equal(control.personas[0].presente, true);
+  assert.equal(control.personas[0].estado, "SIN_PERFIL");
+});
