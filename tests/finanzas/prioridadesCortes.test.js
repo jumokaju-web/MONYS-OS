@@ -34,3 +34,7 @@ test('una revisión vigente baja la prioridad sin borrar la diferencia históric
  lista[0].cierre.observaciones = 'modificado';
  assert.equal(resumirAlertasCortes(lista, revisiones).conDiferencia, 2);
 });
+test('un corte sin apertura necesita verificar su fondo aun sin diferencias',()=>{
+ const c=corte('1',0); c.datos.sinAperturaPrevia=true;
+ assert.equal(diagnosticarCorte(c).titulo,'Corte sin apertura registrada');
+});
