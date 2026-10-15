@@ -10,6 +10,7 @@ import {
   crearObservacionesAperturaCaja,
   crearObservacionesCorreccionCierre,
   indexarCorreccionesCierres,
+  extraerCapturasFinancieras,
   leerAperturaCaja,
   leerCorreccionCierre,
   obtenerSesionCajaActiva,
@@ -148,4 +149,74 @@ test("la corrección histórica conserva el original y usa la última en la vist
   const indice = indexarCorreccionesCierres([ultima, primera]);
   assert.equal(indice.get('c1').responsableCorregido, 'KARLA YOSELIN');
   assert.equal(indice.get('c1').cajaNombre, 'Caja 1');
+});
+
+test("Finanzas conserva un cierre anterior corregido aunque no tenga bloque financiero", () => {
+  const cierre = {
+    id: 'c1',
+    branch_id: 'centro',
+    responsable: 'Vita',
+    turno: 'cierre_caja',
+    fecha: '2026-10-14',
+    created_at: '2026-10-15T02:10:00.000Z',
+    observaciones: 'Cierre enviado desde una versión anterior.',
+  };
+  const correccion = {
+    id: 'r1',
+    branch_id: 'centro',
+    responsable: 'Mónica',
+    turno: 'correccion_cierre',
+    created_at: '2026-10-15T03:10:00.000Z',
+    observaciones: crearObservacionesCorreccionCierre({
+      cierreId: 'c1',
+      responsableCorregido: 'KARLA YOSELIN',
+      cajaId: 'CAJA_1',
+      cajaNombre: 'Caja 1',
+      corregidoPor: 'Mónica',
+    }),
+  };
+
+  const capturas = extraerCapturasFinancieras([correccion, cierre]);
+  assert.equal(capturas.length, 1);
+  assert.equal(capturas[0].tipo, 'caja');
+  assert.equal(capturas[0].cierre.responsable, 'KARLA YOSELIN');
+  assert.equal(capturas[0].datos.cajaNombre, 'Caja 1');
+  assert.equal(capturas[0].datos.responsableOriginal, 'Vita');
+  assert.equal(capturas[0].datos.registroIncompleto, true);
+  assert.equal(capturas[0].datos.diferenciaCaja, null);
+});
+
+test("Finanzas aplica la corrección sin perder los importes del corte nuevo", () => {
+  const cierre = {
+    id: 'c2',
+    responsable: 'Vita',
+    turno: 'cierre_caja',
+    observaciones: crearObservacionesCorte({
+      cajaId: 'CAJA_2',
+      cajaNombre: 'Caja 2',
+      ventaSicar: 1000,
+      efectivoVentas: 1000,
+      efectivoFinal: 2000,
+      fondoInicial: 1000,
+    }),
+  };
+  const correccion = {
+    id: 'r2',
+    responsable: 'Mónica',
+    turno: 'correccion_cierre',
+    created_at: '2026-10-15T03:20:00.000Z',
+    observaciones: crearObservacionesCorreccionCierre({
+      cierreId: 'c2',
+      responsableCorregido: 'Karla Yoselin',
+      cajaId: 'CAJA_1',
+      cajaNombre: 'Caja 1',
+      corregidoPor: 'Mónica',
+    }),
+  };
+
+  const [captura] = extraerCapturasFinancieras([cierre, correccion]);
+  assert.equal(captura.datos.ventaSicar, 1000);
+  assert.equal(captura.datos.diferenciaCaja, 0);
+  assert.equal(captura.datos.cajaNombre, 'Caja 1');
+  assert.equal(captura.cierre.responsable, 'Karla Yoselin');
 });

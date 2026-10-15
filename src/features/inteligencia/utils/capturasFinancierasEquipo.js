@@ -228,3 +228,50 @@ export function extraerCapturaFinanciera(cierre) {
 
   return null;
 }
+
+export function extraerCapturasFinancieras(cierres = []) {
+  const lista = Array.isArray(cierres) ? cierres : [];
+  const correcciones = indexarCorreccionesCierres(lista);
+
+  return lista
+    .filter((cierre) => !leerCorreccionCierre(cierre?.observaciones))
+    .map((cierre) => {
+      const correccion = correcciones.get(cierre?.id);
+      let captura = extraerCapturaFinanciera(cierre);
+
+      // Un cierre ya registrado nunca debe desaparecer de Dirección porque
+      // haya sido enviado con una versión anterior del formulario. Se muestra
+      // como incompleto para pedir evidencia, sin inventar importes en cero.
+      if (!captura && (cierre?.turno === "cierre_caja" || correccion)) {
+        captura = {
+          tipo: "caja",
+          datos: {
+            diferenciaCaja: null,
+            diferenciaVenta: null,
+            registroIncompleto: true,
+          },
+          cierre,
+        };
+      }
+
+      if (!captura || captura.tipo !== "caja" || !correccion) return captura;
+
+      return {
+        ...captura,
+        datos: {
+          ...captura.datos,
+          cajaId: correccion.cajaId || captura.datos.cajaId,
+          cajaNombre: correccion.cajaNombre || captura.datos.cajaNombre,
+          responsableCierre:
+            correccion.responsableCorregido || captura.datos.responsableCierre,
+          responsableOriginal: cierre.responsable || null,
+          correccion,
+        },
+        cierre: {
+          ...cierre,
+          responsable: correccion.responsableCorregido || cierre.responsable,
+        },
+      };
+    })
+    .filter(Boolean);
+}

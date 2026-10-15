@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import {
-  extraerCapturaFinanciera,
+  extraerCapturasFinancieras,
   obtenerSesionesCajaActivas,
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
 
@@ -37,10 +37,11 @@ const etiquetasCategoria = {
 };
 
 function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
+  const tieneValor = valor !== null && valor !== undefined && String(valor).trim() !== "";
   return (
     <div className={alerta ? "captura-dato captura-dato-alerta" : "captura-dato"}>
       <small>{titulo}</small>
-      <strong>{esDinero ? moneda.format(Number(valor) || 0) : Number(valor) || 0}</strong>
+      <strong>{tieneValor ? (esDinero ? moneda.format(Number(valor)) : Number(valor)) : "—"}</strong>
     </div>
   );
 }
@@ -91,7 +92,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
       setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
-      const recibidas = cierres.map(extraerCapturaFinanciera).filter(Boolean);
+      const recibidas = extraerCapturasFinancieras(cierres);
       setCapturas(recibidas);
       if (esOwner) {
         try {
@@ -252,6 +253,8 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
             </header>
 
             {tipo === 'caja' && datos.responsableApertura && <p className="corte-responsables">Abrió: <b>{datos.responsableApertura}</b> · Cerró: <b>{datos.responsableCierre || cierre.responsable}</b></p>}
+            {tipo === 'caja' && datos.responsableOriginal && datos.responsableOriginal !== cierre.responsable && <p className="corte-responsables">Registro original: <b>{datos.responsableOriginal}</b> · Corrección de Dirección conservada para auditoría.</p>}
+            {tipo === 'caja' && datos.registroIncompleto && <p className="capturas-aviso">Este cierre sí fue recibido, pero la versión usada no guardó el detalle financiero completo. Solicita la foto y los importes; MONYS no los sustituye por ceros.</p>}
 
             <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
             {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}
