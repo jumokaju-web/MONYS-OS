@@ -6,7 +6,6 @@ function errorRevision(error) {
   return new Error(error?.message || 'No fue posible consultar la revisión compartida.');
 }
 export async function obtenerRevisionesCortes(ids) {
-  if (!ids.length) return [];
   const { data, error } = await supabase.rpc('obtener_revisiones_cortes_diarios', { p_cierre_ids: ids });
   if (error) throw errorRevision(error);
   return data || [];
