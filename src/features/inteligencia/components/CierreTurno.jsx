@@ -1,3 +1,4 @@
+import { validarImportesCorte } from '../utils/corteTienda';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
   useEffect,
@@ -47,7 +48,7 @@ const formularioInicial = {
   otrosCobros: "",
   fondoInicial: String(FONDO_FIJO_CAJA),
   efectivoEntregado: "",
-  efectivoFinal: String(FONDO_FIJO_CAJA),
+  efectivoFinal: "",
   movimientosCaja: [],
 };
 
@@ -78,6 +79,7 @@ function movimientoCajaVacio() {
 export default function CierreTurno({
   branchId = null,
   usuario = null,
+  modoEmpleado = false,
 }) {
   const [
     formulario,
@@ -116,6 +118,7 @@ export default function CierreTurno({
     setCargandoCierres,
   ] = useState(false);
 
+  const [corteSinApertura, setCorteSinApertura] = useState(false);
   const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
   const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [fotoCorte, setFotoCorte] = useState(null);
@@ -147,6 +150,7 @@ export default function CierreTurno({
         .toLocaleDateString(
           "es-MX",
           {
+            timeZone: "America/Mexico_City",
             year: "numeric",
             month: "long",
             day: "numeric",
@@ -168,6 +172,8 @@ export default function CierreTurno({
   );
 
 
+  const importesListos = !validarImportesCorte(formulario);
+
   async function cargarCierres() {
     try {
       setCargandoCierres(true);
@@ -175,7 +181,7 @@ export default function CierreTurno({
       const data =
         await obtenerCierresTurno({
           branchId,
-          limite: 10,
+          limite: 100,
         });
 
       const lista = Array.isArray(data) ? data : [];
@@ -350,6 +356,8 @@ export default function CierreTurno({
   }
 
   async function abrirCaja() {
+    if (abriendoCaja || cargandoCierres) return;
+    if (!branchId) { setError('No se pudo identificar la sucursal. Avisa a Dirección.'); return; }
     const responsable = String(usuario?.nombre || formulario.responsable || "").trim();
     if (!responsable) {
       setError("No fue posible identificar a la responsable de caja.");
@@ -378,7 +386,7 @@ export default function CierreTurno({
         responsable,
         turno: "cierre_caja",
         fondoInicial: String(FONDO_FIJO_CAJA),
-        efectivoFinal: String(FONDO_FIJO_CAJA),
+        efectivoFinal: "",
       }));
       setMensaje(`Caja abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
       await cargarCierres();
@@ -411,8 +419,9 @@ export default function CierreTurno({
       return;
     }
 
-    if (!sesionCajaActiva) {
-      setError("Primero abre la caja para registrar quién queda como responsable.");
+    if (!branchId) { setError("No se pudo identificar la sucursal. Avisa a Dirección."); return; }
+    if (!sesionCajaActiva && !corteSinApertura) {
+      setError("Abre la caja o selecciona registrar cierre sin apertura previa.");
       return;
     }
 
@@ -421,6 +430,8 @@ export default function CierreTurno({
       return;
     }
 
+    const validacionImportes = validarImportesCorte(formulario);
+    if (validacionImportes) { setError(validacionImportes); return; }
     const camposDinero = [
       "ventaSicar",
       "efectivoVentas",
@@ -485,8 +496,10 @@ export default function CierreTurno({
 
       const datosCorte = {
         ...formularioLimpio,
-        sesionCajaId: sesionCajaActiva.sesionCajaId,
-        responsableCaja: sesionCajaActiva.responsable,
+        sesionCajaId: sesionCajaActiva?.sesionCajaId || null,
+        responsableCaja: sesionCajaActiva?.responsable || formulario.responsable,
+        sinAperturaPrevia: !sesionCajaActiva,
+        inicioRegistroCierre: !sesionCajaActiva ? new Date().toISOString() : null,
         fotoCorteUrl: evidenciaCorte.archivoUrl,
         fotoCortePath: evidenciaCorte.archivoPath,
         fondoSiguiente: FONDO_FIJO_CAJA,
@@ -533,10 +546,11 @@ export default function CierreTurno({
         responsable: formulario.responsable,
       });
       setFotoCorte(null);
+      setCorteSinApertura(false);
 
 
       await cargarCierres();
-
+      if (modoEmpleado) { setMensaje('Corte guardado y enviado a Dirección para revisión. No vuelvas a enviarlo.'); return; }
 
       try {
         setAnalizando(true);
@@ -746,8 +760,9 @@ export default function CierreTurno({
 
   return (
     <section
+      className={modoEmpleado ? "tienda-cierre" : undefined}
       style={{
-        padding: "24px",
+        padding: modoEmpleado ? "0" : "24px",
       }}
     >
       <div
@@ -760,7 +775,7 @@ export default function CierreTurno({
             margin: 0,
           }}
         >
-          🌙 Cierre Inteligente de Turno
+          {modoEmpleado ? "Tu corte, claro y completo" : "🌙 Cierre Inteligente de Turno"}
         </h2>
 
         <p
@@ -777,10 +792,7 @@ export default function CierreTurno({
             marginTop: "8px",
           }}
         >
-          MONYS recopilará lo ocurrido
-          durante el turno para detectar
-          pendientes, problemas,
-          oportunidades y aprendizajes.
+          {modoEmpleado ? "Foto, cobros y efectivo del turno." : "MONYS recopilará lo ocurrido durante el turno para detectar pendientes, problemas, oportunidades y aprendizajes."}
         </p>
       </div>
 
@@ -831,7 +843,7 @@ export default function CierreTurno({
       )}
 
 
-      {analisisActual && (
+      {!modoEmpleado && analisisActual && (
         <section
           style={{
             padding: "20px",
@@ -1318,7 +1330,7 @@ export default function CierreTurno({
         <div style={{ color: "#8f2f5e", fontSize: "12px", fontWeight: 900, letterSpacing: ".08em" }}>
           RESPONSABILIDAD DE CAJA
         </div>
-        {sesionCajaActiva ? (
+        {cargandoCierres ? <p role="status">Consultando el estado de caja…</p> : sesionCajaActiva ? (
           <>
             <h3 style={{ margin: "7px 0" }}>Caja abierta por {sesionCajaActiva.responsable}</h3>
             <p style={{ margin: 0, color: "#5f4f57" }}>
@@ -1330,16 +1342,16 @@ export default function CierreTurno({
               Para que otra persona tome la caja, primero termina este corte con la foto de SICAR.
             </p>
           </>
-        ) : (
+        ) : corteSinApertura ? <div><h3 style={{ margin: '7px 0' }}>Cierre sin apertura previa</h3><p style={{ margin: 0 }}>Captura el fondo inicial real. Dirección revisará este corte; no se crea una apertura retroactiva.</p></div> : (
           <>
-            <h3 style={{ margin: "7px 0" }}>La caja está cerrada</h3>
+            <h3 style={{ margin: "7px 0" }}>No se encontró una apertura registrada</h3>
             <p style={{ margin: "0 0 14px", color: "#5f4f57" }}>
-              Quien vaya a usarla debe abrirla. MONYS registrará automáticamente su nombre, hora y el fondo fijo de {formatearDinero(FONDO_FIJO_CAJA)}.
+              Si vas a comenzar a usar la caja, registra su apertura. Si ya vas a cerrar y no registraste la apertura, usa la opción de cierre de hoy y captura el fondo real.
             </p>
             <button
               type="button"
               onClick={abrirCaja}
-              disabled={abriendoCaja}
+              disabled={abriendoCaja || cargandoCierres || corteSinApertura}
               style={{
                 width: "100%",
                 padding: "13px 16px",
@@ -1351,14 +1363,16 @@ export default function CierreTurno({
                 cursor: abriendoCaja ? "wait" : "pointer",
               }}
             >
-              {abriendoCaja ? "Abriendo caja..." : `Abrir caja con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}`}
+              {abriendoCaja ? "Abriendo caja..." : `Iniciar caja ahora · fondo ${formatearDinero(FONDO_FIJO_CAJA)}`}
             </button>
+            <button className="tienda-cierre-sin-apertura" type="button" disabled={corteSinApertura || abriendoCaja || cargandoCierres} onClick={() => { setCorteSinApertura(true); setFormulario(actual => ({ ...actual, fondoInicial: '', efectivoFinal: '' })); setError(''); }}>Registrar cierre de hoy sin apertura previa</button>
+            {corteSinApertura && <p role="status">Este corte quedará identificado como sin apertura registrada. Escribe el fondo que realmente había al comenzar el turno; no se registrará una apertura retroactiva.</p>}
           </>
         )}
       </section>
 
 
-      {sesionCajaActiva && (
+      {(sesionCajaActiva || corteSinApertura) && (
       <form
         onSubmit={
           manejarGuardar
@@ -1419,7 +1433,7 @@ export default function CierreTurno({
                 fontWeight: 900,
               }}
             >
-              {formatearDinero(FONDO_FIJO_CAJA)} · fijo
+              {corteSinApertura ? 'Captura el fondo real en el formulario' : `${formatearDinero(FONDO_FIJO_CAJA)} · registrado`}
             </div>
           </div>
         </div>
@@ -1479,6 +1493,7 @@ export default function CierreTurno({
           </label>
 
           <div
+            className="tienda-importes"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -1491,7 +1506,7 @@ export default function CierreTurno({
               ["tarjeta", "Cobros con tarjeta", "Total de terminales"],
               ["transferencias", "Transferencias", "Cobros recibidos por banco"],
               ["otrosCobros", "Otros cobros", "Vales u otra forma de pago"],
-              ["fondoInicial", "Fondo inicial", "Siempre inicia con $1,000"],
+              ["fondoInicial", "Fondo inicial", corteSinApertura ? "Fondo real al iniciar el turno" : "Fondo registrado al abrir"],
               ["efectivoEntregado", "Efectivo retirado al cierre", "Dinero de la venta que entregas o resguardas"],
               ["efectivoFinal", "Fondo que queda en caja", "Cuenta el efectivo real; la meta es dejar $1,000"],
             ].map(([name, label, ayuda]) => (
@@ -1505,7 +1520,7 @@ export default function CierreTurno({
                   name={name}
                   value={formulario[name]}
                   onChange={manejarCambio}
-                  readOnly={name === "fondoInicial"}
+                  readOnly={name === "fondoInicial" && !corteSinApertura}
                   placeholder="$0.00"
                   style={{
                     width: "100%",
@@ -1514,7 +1529,7 @@ export default function CierreTurno({
                     padding: "11px",
                     borderRadius: "10px",
                     border: "1px solid #d9bdcc",
-                    background: name === "fondoInicial" ? "#f8f3f6" : "#fff",
+                    background: name === "fondoInicial" && !corteSinApertura ? "#f8f3f6" : "#fff",
                   }}
                 />
                 <small
@@ -1731,13 +1746,13 @@ export default function CierreTurno({
                 style={{
                   padding: "12px",
                   borderRadius: "12px",
-                  background: Number(valor) === 0 ? "#f5f8f6" : "#fff2e6",
+                  background: importesListos && etiqueta.startsWith("Diferencia") && Math.abs(Number(valor)) > 0.009 ? "#fff2e6" : "#f5f8f6",
                   border: "1px solid #eadde4",
                 }}
               >
                 <small style={{ color: "#725d68" }}>{etiqueta}</small>
                 <strong style={{ display: "block", marginTop: "4px" }}>
-                  {formatearDinero(valor)}
+                  {importesListos ? formatearDinero(valor) : "Por completar"}
                 </strong>
               </div>
             ))}
@@ -1745,6 +1760,7 @@ export default function CierreTurno({
         </section>
 
 
+        <details className="tienda-notas"><summary>Notas del turno · opcional</summary>
         <div>
           <label>
             📌 ¿Qué quedó pendiente?
@@ -1894,6 +1910,7 @@ export default function CierreTurno({
         </div>
 
 
+        </details>
         <button
           type="submit"
           disabled={
@@ -1920,7 +1937,7 @@ export default function CierreTurno({
       )}
 
 
-      <section>
+      {!modoEmpleado && <section>
         <div
           style={{
             display: "flex",
@@ -2143,7 +2160,7 @@ export default function CierreTurno({
             )}
           </div>
         )}
-      </section>
+      </section>}
     </section>
   );
 }
