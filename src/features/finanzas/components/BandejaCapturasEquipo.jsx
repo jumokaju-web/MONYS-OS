@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import {
   extraerCapturaFinanciera,
   obtenerSesionCajaActiva,
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
+
+import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../utils/prioridadesCortes";
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -44,27 +46,47 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const [error, setError] = useState("");
   const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
 
+  const solicitud = useRef(0);
+  const [filtros, setFiltros] = useState({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' });
+  const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
+  const [actualizadoEn, setActualizadoEn] = useState(null);
+  const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
+  const visibles = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros), [capturas, filtros, rangoInvalido]);
+  const alertas = useMemo(() => resumirAlertasCortes(visibles), [visibles]);
+  const cambiarFiltro = (campo, valor) => setFiltros(actual => ({ ...actual, [campo]: valor }));
+
   const cargar = useCallback(async () => {
+    const actual = ++solicitud.current;
+    setCapturas([]);
+    setSesionCajaActiva(null);
+    setActualizadoEn(null);
+    setLimiteAlcanzado(false);
     try {
       setCargando(true);
       setError("");
       const cierres = await obtenerCierresTurno({ branchId, limite: 100 });
-      setSesionCajaActiva(obtenerSesionCajaActiva(cierres));
+      if (actual !== solicitud.current) return;
+      setLimiteAlcanzado(cierres.length === 100);
+      setActualizadoEn(new Date());
+      setSesionCajaActiva(branchId ? obtenerSesionCajaActiva(cierres) : null);
       setCapturas(cierres.map(extraerCapturaFinanciera).filter(Boolean));
     } catch (errorConsulta) {
+      if (actual !== solicitud.current) return;
       setError(errorConsulta?.message || "No fue posible cargar las capturas del equipo.");
     } finally {
-      setCargando(false);
+      if (actual === solicitud.current) setCargando(false);
     }
   }, [branchId]);
 
+  const invalidarSolicitud = useCallback(() => { solicitud.current++; }, []);
   useEffect(() => {
     cargar();
-  }, [cargar]);
+    return invalidarSolicitud;
+  }, [cargar, invalidarSolicitud]);
 
   const resumen = useMemo(() => {
-    const cajas = capturas.filter((item) => item.tipo === "caja");
-    const flotilla = capturas.filter((item) => item.tipo === "flotilla");
+    const cajas = visibles.filter((item) => item.tipo === "caja");
+    const flotilla = visibles.filter((item) => item.tipo === "flotilla");
     return {
       cajas: cajas.length,
       flotilla: flotilla.length,
@@ -89,14 +111,14 @@ export default function BandejaCapturasEquipo({ branchId }) {
         0
       ),
     };
-  }, [capturas]);
+  }, [visibles]);
 
   return (
     <section className="capturas-equipo">
       <div className="capturas-equipo-cabecera">
         <div>
-          <span>ENTRADAS DEL EQUIPO · SINCRONIZADAS</span>
-          <h2>Cortes de tienda y liquidaciones de flotilla</h2>
+          <span>MONYS OS · CONTROL DIARIO</span>
+          <h2>Primero, lo que necesita tu atención</h2>
           <p>
             Aquí llega lo que registran empleadas y choferes. Primero se revisa;
             después se concilia con SICAR, banco y comprobantes.
@@ -107,7 +129,25 @@ export default function BandejaCapturasEquipo({ branchId }) {
         </button>
       </div>
 
-      <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
+      <div className="cortes-filtros" aria-label="Filtrar cortes">
+        <label>Desde<input type="date" value={filtros.desde} onChange={e => cambiarFiltro('desde', e.target.value)} /></label>
+        <label>Hasta<input type="date" value={filtros.hasta} onChange={e => cambiarFiltro('hasta', e.target.value)} /></label>
+        <label>Responsable o unidad<input type="search" value={filtros.buscar} placeholder="Buscar nombre o placas" onChange={e => cambiarFiltro('buscar', e.target.value)} /></label>
+        <label>Origen<select value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}><option value="">Todos</option><option value="caja">Tiendas</option><option value="flotilla">Flotilla</option></select></label>
+        <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Sin diferencia, falta foto</option><option value="revision">Revisión de comprobantes</option></select></label>
+        <button type="button" onClick={() => setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' })}>Limpiar filtros</button>
+      </div>
+      {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
+      <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX')}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
+      {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
+      <div className="cortes-prioridad">
+        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{alertas.conDiferencia} cortes con diferencias</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
+        <div><small>Faltantes de caja reportados</small><strong>{moneda.format(alertas.faltantes)}</strong></div>
+        <div><small>Sobrantes de caja reportados</small><strong>{moneda.format(alertas.sobrantes)}</strong></div>
+        <div><small>Sin foto / datos incompletos</small><strong>{alertas.sinEvidencia} / {alertas.incompletos}</strong></div>
+      </div>
+
+      {branchId && !cargando && !error && <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
         <span>CAJA AHORA</span>
         {sesionCajaActiva ? (
           <>
@@ -122,14 +162,14 @@ export default function BandejaCapturasEquipo({ branchId }) {
             <small>La caja está cerrada o el último corte ya fue entregado.</small>
           </>
         )}
-      </div>
+      </div>}
 
       <div className="capturas-resumen">
         <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} esDinero={false} />
         <TarjetaDato titulo="Entradas posteriores" valor={resumen.entradasCaja} />
         <TarjetaDato titulo="Salidas posteriores" valor={resumen.salidasCaja} />
         <TarjetaDato
-          titulo="Diferencia acumulada de caja"
+          titulo="Saldo neto de diferencias (no conciliado)"
           valor={resumen.diferenciasCaja}
           alerta={Math.abs(resumen.diferenciasCaja) > 0.009}
         />
@@ -152,9 +192,10 @@ export default function BandejaCapturasEquipo({ branchId }) {
         </div>
       )}
 
+      {!cargando && !error && capturas.length > 0 && visibles.length === 0 && !rangoInvalido && <p className="capturas-vacio">No hay capturas que coincidan con estos filtros.</p>}
       <div className="capturas-lista">
-        {capturas.map(({ tipo, datos, cierre }) => (
-          <article key={cierre.id} className="captura-registro">
+        {visibles.map(({ tipo, datos, cierre }) => (
+          <article key={cierre.id} className={`captura-registro corte-${diagnosticarCorte({ tipo, datos }).nivel}`}>
             <header>
               <div>
                 <span>{tipo === "caja" ? "CORTE DE TIENDA" : "LIQUIDACIÓN DE FLOTILLA"}</span>
@@ -170,6 +211,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
               </div>
             </header>
 
+            <div className="corte-siguiente"><strong>{diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
             {tipo === "caja" ? (
               <>
                 <div className="captura-grid">
