@@ -51,8 +51,12 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
   const esOwner = usuario?.role === 'owner';
   const alcanceBranchId = esOwner ? null : branchId;
   const nombresSucursales = useMemo(
-    () => new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || 'Sucursal'])),
-    [sucursales]
+    () => {
+      const nombres = new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || 'Sucursal']));
+      if (usuario?.branch_id && usuario?.sucursal) nombres.set(String(usuario.branch_id), usuario.sucursal);
+      return nombres;
+    },
+    [sucursales, usuario?.branch_id, usuario?.sucursal]
   );
   const [revisiones, setRevisiones] = useState({});
   const [errorRevisiones, setErrorRevisiones] = useState('');
@@ -118,20 +122,19 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
 
   const resumen = useMemo(() => {
     const cajas = visibles.filter((item) => item.tipo === "caja");
+    const cajasEvaluables = cajas.filter((item) => !item.datos.registroIncompleto);
     const flotilla = visibles.filter((item) => item.tipo === "flotilla");
+    const sumarCajasEvaluables = (campo) => cajasEvaluables.length
+      ? cajasEvaluables.reduce((total, item) => total + (Number(item.datos[campo]) || 0), 0)
+      : null;
     return {
       cajas: cajas.length,
+      cajasEvaluables: cajasEvaluables.length,
+      cajasIncompletas: cajas.length - cajasEvaluables.length,
       flotilla: flotilla.length,
-      diferenciasCaja: cajas.reduce(
-        (total, item) => total + (Number(item.datos.diferenciaCaja) || 0),
-        0
-      ),
-      entradasCaja: cajas.reduce(
-        (total, item) => total + (Number(item.datos.entradasPosteriores) || 0), 0
-      ),
-      salidasCaja: cajas.reduce(
-        (total, item) => total + (Number(item.datos.salidasPosteriores) || 0), 0
-      ),
+      diferenciasCaja: sumarCajasEvaluables("diferenciaCaja"),
+      entradasCaja: sumarCajasEvaluables("entradasPosteriores"),
+      salidasCaja: sumarCajasEvaluables("salidasPosteriores"),
       traspasos: cajas.reduce(
         (total, item) => total + (Number(item.datos.traspasos) || 0), 0
       ),
@@ -185,9 +188,9 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
       {esOwner && <p className="capturas-aviso">Vista de Dirección: se muestran los cortes de todas las sucursales.</p>}
       {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
       <div className="cortes-prioridad">
-        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{sinBase ? (cargando ? 'Consultando cortes…' : error ? 'No se pudo consultar' : 'Sin cortes para evaluar') : revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
-        <div><small>Faltantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.faltantes)}</strong></div>
-        <div><small>Sobrantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.sobrantes)}</strong></div>
+        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{sinBase ? (cargando ? 'Consultando cortes…' : error ? 'No se pudo consultar' : 'Sin cortes para evaluar') : resumen.cajasIncompletas > 0 && resumen.cajasEvaluables === 0 ? `${resumen.cajasIncompletas} corte sin importes para evaluar` : revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>{resumen.cajasIncompletas > 0 && resumen.cajasEvaluables === 0 ? 'Faltan la venta SICAR, los cobros, el efectivo contado y la foto. Hasta recibirlos no existe un monto verificable.' : 'Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.'}</p></div>
+        <div><small>Faltantes de caja reportados</small><strong>{sinBase || resumen.cajasEvaluables === 0 ? '—' : moneda.format(alertas.faltantes)}</strong></div>
+        <div><small>Sobrantes de caja reportados</small><strong>{sinBase || resumen.cajasEvaluables === 0 ? '—' : moneda.format(alertas.sobrantes)}</strong></div>
         <div><small>Sin foto / datos incompletos</small><strong>{sinBase ? '—' : `${alertas.sinEvidencia} / ${alertas.incompletos}`} </strong></div>
       </div>
 
@@ -254,7 +257,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
 
             {tipo === 'caja' && datos.responsableApertura && <p className="corte-responsables">Abrió: <b>{datos.responsableApertura}</b> · Cerró: <b>{datos.responsableCierre || cierre.responsable}</b></p>}
             {tipo === 'caja' && datos.responsableOriginal && datos.responsableOriginal !== cierre.responsable && <p className="corte-responsables">Registro original: <b>{datos.responsableOriginal}</b> · Corrección de Dirección conservada para auditoría.</p>}
-            {tipo === 'caja' && datos.registroIncompleto && <p className="capturas-aviso">Este cierre sí fue recibido, pero la versión usada no guardó el detalle financiero completo. Solicita la foto y los importes; MONYS no los sustituye por ceros.</p>}
+            {tipo === 'caja' && datos.registroIncompleto && <p className="capturas-aviso"><b>Importe pendiente de aclaración.</b> Este cierre sí fue recibido, pero no guardó la venta total SICAR, cobros por método, efectivo contado ni fotografía. Solicita esos datos; MONYS no los sustituye por ceros.</p>}
 
             <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
             {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}
