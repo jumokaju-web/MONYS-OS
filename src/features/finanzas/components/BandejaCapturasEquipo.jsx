@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
+import {
+  obtenerCierresTurno,
+  obtenerCierresTurnoFinanzasOwner,
+} from "../../inteligencia/services/cierresTurnoService";
 import {
   extraerCapturasFinancieras,
   obtenerSesionesCajaActivas,
@@ -87,7 +90,9 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
     try {
       setCargando(true);
       setError("");
-      const cierres = await obtenerCierresTurno({ branchId: alcanceBranchId, limite: 100 });
+      const cierres = esOwner
+        ? await obtenerCierresTurnoFinanzasOwner({ limite: 100 })
+        : await obtenerCierresTurno({ branchId: alcanceBranchId, limite: 100 });
       if (actual !== solicitud.current) return;
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
