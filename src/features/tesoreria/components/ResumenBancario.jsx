@@ -65,7 +65,9 @@ function ResumenBancario({
         >
           {cargando
             ? "Consultando saldos..."
-            : formatearDinero(
+            : resumen.saldoTotal === null || resumen.saldoTotal === undefined
+              ? "Por confirmar"
+              : formatearDinero(
                 resumen.saldoTotal,
                 formatoDinero
               )}
@@ -136,11 +138,13 @@ function ResumenBancario({
                     fontWeight: "800",
                   }}
                 >
-                  {formatearDinero(
-                    cuenta.saldo,
-                    formatoDinero,
-                    cuenta.moneda
-                  )}
+                  {cuenta.saldo === null || cuenta.saldo === undefined
+                    ? "Por confirmar"
+                    : formatearDinero(
+                        cuenta.saldo,
+                        formatoDinero,
+                        cuenta.moneda
+                      )}
                 </span>
 
                 <small
