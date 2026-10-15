@@ -7,6 +7,11 @@ import {
 
 import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../utils/prioridadesCortes";
 
+import { useUser } from '../../../context/UserContext';
+import RevisionCorteDiario from './RevisionCorteDiario';
+import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
+import { etiquetasRevision, estadoRevisionCorte } from '../utils/revisionCortes';
+
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
@@ -41,6 +46,12 @@ function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
 }
 
 export default function BandejaCapturasEquipo({ branchId }) {
+  const { usuario } = useUser();
+  const esOwner = usuario?.role === 'owner';
+  const [revisiones, setRevisiones] = useState({});
+  const [errorRevisiones, setErrorRevisiones] = useState('');
+  const [revisionDisponible, setRevisionDisponible] = useState(false);
+  const [filtroRevision, setFiltroRevision] = useState('');
   const [capturas, setCapturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -51,12 +62,15 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
   const [actualizadoEn, setActualizadoEn] = useState(null);
   const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
-  const visibles = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros), [capturas, filtros, rangoInvalido]);
-  const alertas = useMemo(() => resumirAlertasCortes(visibles), [visibles]);
+  const visibles = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros, revisiones).filter(c => !filtroRevision || (c.tipo === 'caja' && estadoRevisionCorte(c, revisiones[c.cierre.id]) === filtroRevision)), [capturas, filtros, rangoInvalido, filtroRevision, revisiones]);
+  const alertas = useMemo(() => resumirAlertasCortes(visibles, revisiones), [visibles, revisiones]);
   const cambiarFiltro = (campo, valor) => setFiltros(actual => ({ ...actual, [campo]: valor }));
 
   const cargar = useCallback(async () => {
     const actual = ++solicitud.current;
+    setRevisiones({});
+    setRevisionDisponible(false);
+    setErrorRevisiones('');
     setCapturas([]);
     setSesionCajaActiva(null);
     setActualizadoEn(null);
@@ -69,14 +83,23 @@ export default function BandejaCapturasEquipo({ branchId }) {
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
       setSesionCajaActiva(branchId ? obtenerSesionCajaActiva(cierres) : null);
-      setCapturas(cierres.map(extraerCapturaFinanciera).filter(Boolean));
+      const recibidas = cierres.map(extraerCapturaFinanciera).filter(Boolean);
+      setCapturas(recibidas);
+      if (esOwner) {
+        try {
+          const resultados = await obtenerRevisionesCortes(recibidas.filter(c => c.tipo === 'caja').map(c => c.cierre.id));
+          if (actual !== solicitud.current) return;
+          setRevisiones(Object.fromEntries(resultados.map(r => [r.cierre_id, r])));
+          setRevisionDisponible(true);
+        } catch (e) { if (actual === solicitud.current) setErrorRevisiones(e.message); }
+      }
     } catch (errorConsulta) {
       if (actual !== solicitud.current) return;
       setError(errorConsulta?.message || "No fue posible cargar las capturas del equipo.");
     } finally {
       if (actual === solicitud.current) setCargando(false);
     }
-  }, [branchId]);
+  }, [branchId, esOwner]);
 
   const invalidarSolicitud = useCallback(() => { solicitud.current++; }, []);
   useEffect(() => {
@@ -135,13 +158,14 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <label>Responsable o unidad<input type="search" value={filtros.buscar} placeholder="Buscar nombre o placas" onChange={e => cambiarFiltro('buscar', e.target.value)} /></label>
         <label>Origen<select value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}><option value="">Todos</option><option value="caja">Tiendas</option><option value="flotilla">Flotilla</option></select></label>
         <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Sin diferencia, falta foto</option><option value="revision">Revisión de comprobantes</option></select></label>
-        <button type="button" onClick={() => setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' })}>Limpiar filtros</button>
+        {esOwner && <label>Revisión<select disabled={!revisionDisponible} value={filtroRevision} onChange={e => setFiltroRevision(e.target.value)}><option value="">Todos los estados</option>{Object.entries(etiquetasRevision).map(([id, texto]) => <option key={id} value={id}>{texto}</option>)}</select></label>}
+        <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Limpiar filtros</button>
       </div>
       {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
       <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX')}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
       {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
       <div className="cortes-prioridad">
-        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{alertas.conDiferencia} cortes con diferencias</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
+        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
         <div><small>Faltantes de caja reportados</small><strong>{moneda.format(alertas.faltantes)}</strong></div>
         <div><small>Sobrantes de caja reportados</small><strong>{moneda.format(alertas.sobrantes)}</strong></div>
         <div><small>Sin foto / datos incompletos</small><strong>{alertas.sinEvidencia} / {alertas.incompletos}</strong></div>
@@ -183,6 +207,8 @@ export default function BandejaCapturasEquipo({ branchId }) {
         No se suman a utilidad hasta comprobarlas contra las otras fuentes.
       </p>
 
+      {errorRevisiones && <p role="alert" className="capturas-aviso">{errorRevisiones} No se puede confirmar el estado de revisión de estos cortes.</p>}
+      {esOwner && revisionDisponible && <p className="cortes-alcance">Las revisiones se guardan en MONYS. Pulsa Actualizar para consultar cambios de otro equipo. Conserva tu texto antes de actualizar: se vuelven a cargar los cortes.</p>}
       {error && <p role="alert">{error}</p>}
       {cargando && capturas.length === 0 && <p role="status">Cargando capturas…</p>}
       {!cargando && !error && capturas.length === 0 && (
@@ -206,12 +232,13 @@ export default function BandejaCapturasEquipo({ branchId }) {
                 </h3>
               </div>
               <div className="captura-estado">
-                <b>Pendiente de revisión</b>
+                <b>{tipo === 'caja' && esOwner ? (revisionDisponible ? etiquetasRevision[estadoRevisionCorte({ cierre }, revisiones[cierre.id])] : 'Estado de revisión sin confirmar') : 'Captura recibida'}</b>
                 <small>{fechaLegible(cierre.fecha)}</small>
               </div>
             </header>
 
-            <div className="corte-siguiente"><strong>{diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
+            <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
+            {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}
             {tipo === "caja" ? (
               <>
                 <div className="captura-grid">
