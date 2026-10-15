@@ -49,6 +49,9 @@ create index if not exists deudas_financieras_contexto_idx
 
 alter table public.deudas_financieras enable row level security;
 
+revoke all on table public.deudas_financieras from anon;
+grant select, insert, update, delete on table public.deudas_financieras to authenticated;
+
 drop policy if exists "Duenos administran deudas financieras"
   on public.deudas_financieras;
 

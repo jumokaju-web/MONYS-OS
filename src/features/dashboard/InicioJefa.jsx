@@ -7,6 +7,7 @@ import Header from "../../components/layout/Header";
 import AgendaJefa from "./components/AgendaJefa";
 import SalaRescateJefa from "./components/SalaRescateJefa";
 import TendenciaSemanalSucursales from "../inteligencia/components/director-finanzas/TendenciaSemanalSucursales";
+import CentroDireccionCEO from "./components/CentroDireccionCEO";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
@@ -468,6 +469,16 @@ const utilidadConsolidada =
 />
 
         </div>
+
+        <CentroDireccionCEO
+          datosDashboard={datosDashboard}
+          sucursales={sucursalesDashboard}
+          abrirFinanzas={abrirFinanzas}
+          abrirDirectorFinanciero={abrirDirectorFinanciero}
+          abrirCompraMaestra={abrirCompraMaestra}
+          abrirMarketing={abrirMarketing}
+          abrirImportador={abrirImportador}
+        />
 
         <section className="owner-workspaces"><header><span>AVANCES REUNIDOS</span><h2>Entra a tu centro de trabajo</h2></header><div>
           <article><span className="owner-workspace-icon">$</span><h3>Finanzas</h3><p>Bancos y aclaraciones · Meta diaria · Deudas y rescate</p><button onClick={abrirFinanzas}>Control del dinero →</button><button className="owner-link" onClick={abrirDirectorFinanciero}>Plan de rescate y deudas →</button></article>

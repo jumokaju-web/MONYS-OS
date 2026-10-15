@@ -5,11 +5,11 @@ import {
 
 import {
   obtenerSucursalesInventario,
-} from "./inventarioService";
+} from "../../inventario/services/inventarioService";
 
 import {
   generarRecomendacionesRebalanceo,
-} from "./rebalanceoInventarioService";
+} from "../../inventario/services/rebalanceoInventarioService";
 
 const DIAS_COBERTURA_OBJETIVO = 30;
 
@@ -538,6 +538,16 @@ export async function generarCompraMaestra() {
   const mapaVentasPorSucursal =
     new Map();
 
+  const productosVendidos =
+    (ventasPorSucursal || []).reduce(
+      (total, ventasSucursal) =>
+        total +
+        (Array.isArray(ventasSucursal?.ventas)
+          ? ventasSucursal.ventas.length
+          : 0),
+      0
+    );
+
   for (
     const ventasSucursal of
     ventasPorSucursal || []
@@ -849,6 +859,14 @@ export async function generarCompraMaestra() {
     );
 
   return {
+    fuentes: {
+      inventariosSucursales:
+        (inventariosPorSucursal || []).length,
+      ventasSucursales:
+        (ventasPorSucursal || []).length,
+      productosVendidos,
+    },
+
     coberturaObjetivoDias:
       DIAS_COBERTURA_OBJETIVO,
 
@@ -866,17 +884,3 @@ export async function generarCompraMaestra() {
     productos,
   };
 }
-
-generarCompraMaestra()
-  .then((resultado) => {
-    console.log(
-      "COMPRA MAESTRA:",
-      resultado
-    );
-  })
-  .catch((error) => {
-    console.error(
-      "ERROR COMPRA MAESTRA:",
-      error
-    );
-  });
