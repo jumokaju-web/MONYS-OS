@@ -1,3 +1,4 @@
+import { fechaOperativaMexico } from '../utils/corteTienda';
 import { supabase } from "../../../supabase";
 
 
@@ -79,9 +80,7 @@ export async function guardarCierreTurno({
 
     fecha:
       fecha ||
-      new Date()
-        .toISOString()
-        .slice(0, 10),
+      fechaOperativaMexico(),
   };
 
 
