@@ -1,6 +1,7 @@
 const MARCADOR_CAJA = "MONYS_CAJA_V1";
 const MARCADOR_APERTURA_CAJA = "MONYS_APERTURA_CAJA_V1";
 const MARCADOR_CORRECCION_CIERRE = "MONYS_CORRECCION_CIERRE_V1";
+const MARCADOR_COMPLEMENTO_CIERRE = "MONYS_COMPLEMENTO_CIERRE_V1";
 const MARCADOR_FLOTILLA = "MONYS_FLOTILLA_V1";
 
 export const FONDO_FIJO_CAJA = 1000;
@@ -167,6 +168,36 @@ export function leerCorreccionCierre(texto) {
   return leerBloque(texto, MARCADOR_CORRECCION_CIERRE);
 }
 
+export function crearObservacionesComplementoCierre(datos = {}, nota = "") {
+  return guardarBloque(
+    MARCADOR_COMPLEMENTO_CIERRE,
+    {
+      ...datos,
+      ...calcularCorteCaja(datos),
+      estadoRevision: "pendiente",
+      completadoEn: new Date().toISOString(),
+    },
+    nota
+  );
+}
+
+export function leerComplementoCierre(texto) {
+  return leerBloque(texto, MARCADOR_COMPLEMENTO_CIERRE);
+}
+
+export function indexarComplementosCierres(cierres = []) {
+  const complementos = new Map();
+  [...(Array.isArray(cierres) ? cierres : [])]
+    .sort((a, b) => new Date(a?.created_at || 0) - new Date(b?.created_at || 0))
+    .forEach((registro) => {
+      const complemento = leerComplementoCierre(registro?.observaciones);
+      if (complemento?.cierreId) {
+        complementos.set(complemento.cierreId, { ...complemento, registroId: registro.id });
+      }
+    });
+  return complementos;
+}
+
 export function indexarCorreccionesCierres(cierres = []) {
   const correcciones = new Map();
   [...(Array.isArray(cierres) ? cierres : [])]
@@ -232,12 +263,26 @@ export function extraerCapturaFinanciera(cierre) {
 export function extraerCapturasFinancieras(cierres = []) {
   const lista = Array.isArray(cierres) ? cierres : [];
   const correcciones = indexarCorreccionesCierres(lista);
+  const complementos = indexarComplementosCierres(lista);
 
   return lista
-    .filter((cierre) => !leerCorreccionCierre(cierre?.observaciones))
+    .filter((cierre) => !leerCorreccionCierre(cierre?.observaciones) && !leerComplementoCierre(cierre?.observaciones))
     .map((cierre) => {
       const correccion = correcciones.get(cierre?.id);
+      const complemento = complementos.get(cierre?.id);
       let captura = extraerCapturaFinanciera(cierre);
+
+      if (complemento) {
+        captura = {
+          tipo: "caja",
+          datos: {
+            ...complemento,
+            registroIncompleto: false,
+            complementoDireccion: true,
+          },
+          cierre,
+        };
+      }
 
       // Un cierre ya registrado nunca debe desaparecer de Dirección porque
       // haya sido enviado con una versión anterior del formulario. Se muestra

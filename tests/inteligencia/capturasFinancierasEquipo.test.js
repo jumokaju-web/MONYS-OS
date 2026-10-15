@@ -9,10 +9,13 @@ import {
   leerLiquidacionFlotilla,
   crearObservacionesAperturaCaja,
   crearObservacionesCorreccionCierre,
+  crearObservacionesComplementoCierre,
   indexarCorreccionesCierres,
+  indexarComplementosCierres,
   extraerCapturasFinancieras,
   leerAperturaCaja,
   leerCorreccionCierre,
+  leerComplementoCierre,
   obtenerSesionCajaActiva,
   obtenerSesionesCajaActivas,
   FONDO_FIJO_CAJA,
@@ -256,4 +259,53 @@ test("flujo completo: el cierre de Caja 1 llega a Finanzas con venta y efectivo 
   assert.equal(captura.datos.efectivoEsperado, 1000);
   assert.equal(captura.datos.diferenciaCaja, 0);
   assert.equal(captura.datos.fotoCorteUrl, "https://evidencia.local/corte.jpg");
+});
+
+test("Dirección completa un cierre anterior sin borrar el registro original", () => {
+  const cierre = {
+    id: "cierre-viejo",
+    branch_id: "centro",
+    responsable: "Karla Yoselin",
+    turno: "cierre_caja",
+    fecha: "2026-10-15",
+    created_at: "2026-10-15T02:00:00.000Z",
+    observaciones: "Cierre enviado desde una versión anterior",
+  };
+  const complemento = {
+    id: "complemento-1",
+    branch_id: "centro",
+    responsable: "Mónica",
+    turno: "complemento_cierre",
+    created_at: "2026-10-15T05:00:00.000Z",
+    observaciones: crearObservacionesComplementoCierre({
+      cierreId: cierre.id,
+      cajaId: "CAJA_1",
+      cajaNombre: "Caja 1",
+      responsableCierre: "Karla Yoselin",
+      completadoPor: "Mónica",
+      ventaSicar: 10000,
+      efectivoVentas: 4000,
+      tarjeta: 3500,
+      transferencias: 2500,
+      otrosCobros: 0,
+      fondoInicial: 1000,
+      efectivoEntregado: 4000,
+      efectivoFinal: 1000,
+      fotoCorteUrl: "https://evidencia.local/corte.jpg",
+    }),
+  };
+
+  assert.equal(leerComplementoCierre(complemento.observaciones).cierreId, cierre.id);
+  assert.equal(indexarComplementosCierres([complemento]).get(cierre.id).registroId, complemento.id);
+  const [captura] = extraerCapturasFinancieras([complemento, cierre]);
+  assert.equal(captura.cierre.id, cierre.id);
+  assert.equal(captura.cierre.responsable, "Karla Yoselin");
+  assert.equal(captura.datos.completadoPor, "Mónica");
+  assert.equal(captura.datos.complementoDireccion, true);
+  assert.equal(captura.datos.registroIncompleto, false);
+  assert.equal(captura.datos.ventaSicar, 10000);
+  assert.equal(captura.datos.cobrado, 10000);
+  assert.equal(captura.datos.efectivoFinal, 1000);
+  assert.equal(captura.datos.diferenciaCaja, 0);
+  assert.equal(extraerCapturasFinancieras([complemento, cierre]).length, 1);
 });

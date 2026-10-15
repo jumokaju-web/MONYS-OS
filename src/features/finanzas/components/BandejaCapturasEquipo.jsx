@@ -9,6 +9,7 @@ import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../u
 
 import { useUser } from '../../../context/UserContext';
 import RevisionCorteDiario from './RevisionCorteDiario';
+import CompletarCorteIncompleto from './CompletarCorteIncompleto';
 import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
 import { etiquetasRevision, estadoRevisionCorte, resumirEstadosRevision } from '../utils/revisionCortes';
 
@@ -132,6 +133,10 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
       cajasEvaluables: cajasEvaluables.length,
       cajasIncompletas: cajas.length - cajasEvaluables.length,
       flotilla: flotilla.length,
+      ventaSicar: sumarCajasEvaluables("ventaSicar"),
+      cobrado: sumarCajasEvaluables("cobrado"),
+      efectivoFinal: sumarCajasEvaluables("efectivoFinal"),
+      efectivoEntregado: sumarCajasEvaluables("efectivoEntregado"),
       diferenciasCaja: sumarCajasEvaluables("diferenciaCaja"),
       entradasCaja: sumarCajasEvaluables("entradasPosteriores"),
       salidasCaja: sumarCajasEvaluables("salidasPosteriores"),
@@ -208,6 +213,10 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
 
       {!sinBase && <div className="capturas-resumen">
         <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} esDinero={false} />
+        <TarjetaDato titulo="Venta total SICAR" valor={resumen.ventaSicar} />
+        <TarjetaDato titulo="Total cobrado" valor={resumen.cobrado} />
+        <TarjetaDato titulo="Efectivo que quedó en cajas" valor={resumen.efectivoFinal} />
+        <TarjetaDato titulo="Efectivo retirado / resguardado" valor={resumen.efectivoEntregado} />
         <TarjetaDato titulo="Entradas posteriores" valor={resumen.entradasCaja} />
         <TarjetaDato titulo="Salidas posteriores" valor={resumen.salidasCaja} />
         <TarjetaDato
@@ -258,6 +267,8 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
             {tipo === 'caja' && datos.responsableApertura && <p className="corte-responsables">Abrió: <b>{datos.responsableApertura}</b> · Cerró: <b>{datos.responsableCierre || cierre.responsable}</b></p>}
             {tipo === 'caja' && datos.responsableOriginal && datos.responsableOriginal !== cierre.responsable && <p className="corte-responsables">Registro original: <b>{datos.responsableOriginal}</b> · Corrección de Dirección conservada para auditoría.</p>}
             {tipo === 'caja' && datos.registroIncompleto && <p className="capturas-aviso"><b>Importe pendiente de aclaración.</b> Este cierre sí fue recibido, pero no guardó la venta total SICAR, cobros por método, efectivo contado ni fotografía. Solicita esos datos; MONYS no los sustituye por ceros.</p>}
+            {tipo === 'caja' && esOwner && datos.registroIncompleto && <CompletarCorteIncompleto captura={{ tipo, datos, cierre }} usuario={usuario} onGuardado={cargar} />}
+            {tipo === 'caja' && datos.complementoDireccion && <p className="capturas-aviso"><b>Corte completado por Dirección.</b> Los importes se agregaron con evidencia sin borrar el registro original. Completó: {datos.completadoPor || 'Dirección'}.</p>}
 
             <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
             {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}
@@ -266,6 +277,8 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
                 <div className="captura-grid">
                   <TarjetaDato titulo="Venta SICAR" valor={datos.ventaSicar} />
                   <TarjetaDato titulo="Cobrado" valor={datos.cobrado} />
+                  <TarjetaDato titulo="Efectivo que quedó" valor={datos.efectivoFinal} />
+                  <TarjetaDato titulo="Efectivo retirado / resguardado" valor={datos.efectivoEntregado} />
                   <TarjetaDato titulo="Salidas posteriores" valor={datos.salidasPosteriores} />
                   <TarjetaDato titulo="Diferencia contra SICAR" valor={datos.diferenciaVenta} alerta={Math.abs(Number(datos.diferenciaVenta) || 0) > 0.009} />
                   <TarjetaDato titulo="Diferencia de caja" valor={datos.diferenciaCaja} alerta={Math.abs(Number(datos.diferenciaCaja) || 0) > 0.009} />
