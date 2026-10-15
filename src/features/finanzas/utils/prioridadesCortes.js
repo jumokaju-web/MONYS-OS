@@ -12,6 +12,7 @@ export function diagnosticarCorte(captura) {
   const venta = importe(datos.diferenciaVenta);
   if (caja === null || venta === null) return { nivel: 'incompleto', peso: 4, titulo: 'Datos incompletos', accion: 'Completa las diferencias de caja y venta antes de evaluar este corte.' };
   if (Math.abs(caja) >= 0.01 || Math.abs(venta) >= 0.01) return { nivel: 'diferencia', peso: 3, titulo: 'Diferencia por aclarar', accion: 'Revisa el efectivo contado, los cobros y las salidas con la responsable. Una diferencia no demuestra una pérdida.' };
+  if (datos.sinAperturaPrevia) return { nivel: 'evidencia', peso: 2, titulo: 'Corte sin apertura registrada', accion: 'Confirma el fondo inicial declarado y los comprobantes con la responsable antes de cerrar la revisión.' };
   if (!datos.fotoCorteUrl) return { nivel: 'evidencia', peso: 2, titulo: 'Falta foto del corte', accion: 'Solicita el comprobante de SICAR antes de dar por comprobados los importes.' };
   return { nivel: 'revision', peso: 1, titulo: 'Sin diferencia detectada', accion: 'Compara la foto de SICAR con cobros y movimientos. Este diagnóstico no aprueba ni concilia el corte.' };
 }
