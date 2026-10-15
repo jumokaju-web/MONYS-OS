@@ -6,6 +6,7 @@ import {
 import Header from "../../components/layout/Header";
 import AgendaJefa from "./components/AgendaJefa";
 import SalaRescateJefa from "./components/SalaRescateJefa";
+import TendenciaSemanalSucursales from "../inteligencia/components/director-finanzas/TendenciaSemanalSucursales";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
@@ -1287,6 +1288,13 @@ const utilidadConsolidada =
               </div>
             )}
         </section>
+
+        {!cargandoSucursales && !errorSucursales && sucursalesDashboard.length > 0 && (
+          <TendenciaSemanalSucursales
+            sucursales={sucursalesDashboard}
+            onAbrirImportador={abrirImportador}
+          />
+        )}
 
         {/* VALOR MONYS */}
 

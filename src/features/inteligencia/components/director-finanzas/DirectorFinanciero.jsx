@@ -16,6 +16,7 @@ import TarjetaIndicador from "../shared/TarjetaIndicador";
 import CentroRescateFinanciero from "./CentroRescateFinanciero";
 import PlanRescate30Dias from "./PlanRescate30Dias";
 import TableroVisualFinanciero from "./TableroVisualFinanciero";
+import TendenciaSemanalSucursales from "./TendenciaSemanalSucursales";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
   actualizarEjecucionDecision,
@@ -791,6 +792,11 @@ const historial =
         sucursales={sucursalesDashboard}
         baseVigente={ventasVigentes}
         fechaCorte={metricas.fechaFinal || null}
+      />
+
+      <TendenciaSemanalSucursales
+        sucursales={sucursalesDashboard}
+        onAbrirImportador={onAbrirImportador}
       />
 
       <CentroRescateFinanciero

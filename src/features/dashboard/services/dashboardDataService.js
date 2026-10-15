@@ -450,6 +450,48 @@ export async function obtenerUltimaImportacionUtilidadVentas(
   };
 }
 
+export async function obtenerHistorialImportacionesUtilidad(
+  branchIds = [],
+  limitePorSucursal = 8
+) {
+  const ids = [...new Set(branchIds.filter(Boolean))];
+
+  if (ids.length === 0) return [];
+
+  const { data: importaciones, error } = await supabase
+    .from("importaciones")
+    .select("id, branch_id, archivo_original, total_filas, created_at")
+    .in("branch_id", ids)
+    .eq("tipo_reporte", "Utilidad de ventas")
+    .eq("estado", "procesado")
+    .order("created_at", { ascending: false })
+    .limit(Math.max(24, ids.length * limitePorSucursal * 2));
+
+  if (error) {
+    throw new Error(`No se pudo consultar el historial semanal: ${error.message}`);
+  }
+
+  const seleccionadas = [];
+  const conteo = new Map();
+
+  for (const importacion of importaciones || []) {
+    const usados = conteo.get(importacion.branch_id) || 0;
+    if (usados >= limitePorSucursal) continue;
+    conteo.set(importacion.branch_id, usados + 1);
+    seleccionadas.push(importacion);
+  }
+
+  return Promise.all(
+    seleccionadas.map(async (importacion) => ({
+      importacion,
+      detalles: await obtenerDetallesPaginados(
+        importacion.id,
+        "No se pudo consultar una semana del historial"
+      ),
+    }))
+  );
+}
+
 export async function obtenerUltimaImportacionInventario(
   branchId = null
 ) {
