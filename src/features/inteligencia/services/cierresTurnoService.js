@@ -137,8 +137,12 @@ export async function subirFotoCorteCaja({ archivo, branchId = null }) {
     throw new Error("La evidencia del corte debe ser una imagen.");
   }
 
-  const { data: authData } = await supabase.auth.getUser();
-  const usuarioId = authData?.user?.id || "equipo";
+  if (!branchId) throw new Error("No se pudo identificar la sucursal. Avisa a Dirección.");
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData?.user?.id) {
+    throw new Error("Tu sesión venció. Inicia sesión de nuevo antes de enviar el corte.");
+  }
+  const usuarioId = authData.user.id;
   const extension = archivo.name?.split(".").pop()?.toLowerCase() || "jpg";
   const alcance = String(branchId || "sin-sucursal").replace(/[^a-zA-Z0-9_-]/g, "_");
   const ruta = `${usuarioId}/cierres-caja/${alcance}/${Date.now()}-${Math.random()

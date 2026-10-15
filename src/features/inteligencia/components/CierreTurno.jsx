@@ -1,8 +1,10 @@
 import { validarImportesCorte } from '../utils/corteTienda';
+import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte } from '../utils/borradorCorte';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -81,6 +83,13 @@ export default function CierreTurno({
   usuario = null,
   modoEmpleado = false,
 }) {
+  const envioEnCurso = useRef(false);
+  const [borradorRecuperable, setBorradorRecuperable] = useState(null);
+  const [claveLeida, setClaveLeida] = useState(null);
+  const [avisoBorrador, setAvisoBorrador] = useState('');
+  const [confirmacionCorte, setConfirmacionCorte] = useState(null);
+  const [consultaCajaConfirmada, setConsultaCajaConfirmada] = useState(false);
+  const claveBorrador = modoEmpleado ? claveBorradorCorte(usuario, branchId) : null;
   const [
     formulario,
     setFormulario,
@@ -174,9 +183,51 @@ export default function CierreTurno({
 
   const importesListos = !validarImportesCorte(formulario);
 
+  useEffect(() => {
+    if (!claveBorrador) return;
+    try {
+      setBorradorRecuperable(leerBorradorCorte(window.localStorage, claveBorrador));
+      setAvisoBorrador('');
+    } catch { setAvisoBorrador('Este navegador no permite proteger el borrador. Mantén esta pantalla abierta hasta enviar el corte.'); }
+    setClaveLeida(claveBorrador);
+  }, [claveBorrador]);
+
+  useEffect(() => {
+    if (!claveBorrador || claveLeida !== claveBorrador || borradorRecuperable || guardando) return;
+    try {
+      guardarBorradorCorte(window.localStorage, claveBorrador, formulario, sesionCajaActiva?.sesionCajaId, corteSinApertura);
+    } catch { setAvisoBorrador('No se pudo proteger el borrador en este dispositivo. Mantén esta pantalla abierta hasta enviar el corte.'); }
+  }, [claveBorrador, claveLeida, borradorRecuperable, formulario, sesionCajaActiva?.sesionCajaId, corteSinApertura, guardando]);
+
+  useEffect(() => {
+    if (!modoEmpleado || !fotoCorte) return;
+    const avisar = evento => { evento.preventDefault(); evento.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [modoEmpleado, fotoCorte]);
+
+  function recuperarBorrador() {
+    if (!borradorRecuperable || !consultaCajaConfirmada || cargandoCierres) return;
+    if ((borradorRecuperable.sesionCajaId || null) !== (sesionCajaActiva?.sesionCajaId || null)) {
+      setAvisoBorrador('La sesión de caja cambió desde este borrador. No se recuperó para evitar mezclar turnos. Confirma con Dirección antes de descartarlo.');
+      return;
+    }
+    setFormulario({ ...formularioInicial, ...borradorRecuperable.formulario, responsable: String(usuario?.nombre || '').trim() });
+    setCorteSinApertura(borradorRecuperable.sinApertura);
+    setFotoCorte(null);
+    setBorradorRecuperable(null);
+    setAvisoBorrador('Borrador recuperado. Revisa los importes y vuelve a adjuntar la foto; el corte todavía no se ha enviado.');
+  }
+
+  function descartarBorrador() {
+    try { window.localStorage.removeItem(claveBorrador); setBorradorRecuperable(null); setAvisoBorrador('Borrador anterior descartado.'); }
+    catch { setAvisoBorrador('No se pudo descartar el borrador.'); }
+  }
+
   async function cargarCierres() {
     try {
       setCargandoCierres(true);
+      setConsultaCajaConfirmada(false);
 
       const data =
         await obtenerCierresTurno({
@@ -187,6 +238,7 @@ export default function CierreTurno({
       const lista = Array.isArray(data) ? data : [];
       setCierres(lista);
       setSesionCajaActiva(obtenerSesionCajaActiva(lista));
+      setConsultaCajaConfirmada(true);
     } catch (
       errorCierres
     ) {
@@ -357,6 +409,7 @@ export default function CierreTurno({
 
   async function abrirCaja() {
     if (abriendoCaja || cargandoCierres) return;
+    if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de iniciar otra caja.'); return; }
     if (!branchId) { setError('No se pudo identificar la sucursal. Avisa a Dirección.'); return; }
     const responsable = String(usuario?.nombre || formulario.responsable || "").trim();
     if (!responsable) {
@@ -402,6 +455,8 @@ export default function CierreTurno({
     event
   ) {
     event.preventDefault();
+    if (envioEnCurso.current) return;
+    if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de enviar otro corte.'); return; }
 
     setError("");
     setMensaje("");
@@ -465,6 +520,7 @@ export default function CierreTurno({
 
     const movimientoIncompleto = movimientosIniciados.find(
       (movimiento) =>
+        !Number.isFinite(Number(movimiento.monto)) ||
         !(Number(movimiento.monto) > 0) ||
         !String(movimiento.concepto || "").trim() ||
         (movimiento.tipo === "salida" &&
@@ -487,6 +543,7 @@ export default function CierreTurno({
     };
 
     try {
+      envioEnCurso.current = true;
       setGuardando(true);
 
       const evidenciaCorte = await subirFotoCorteCaja({
@@ -534,6 +591,11 @@ export default function CierreTurno({
 
           observaciones: crearObservacionesCorte(datosCorte, formulario.observaciones),
         });
+
+      setConfirmacionCorte({ folio: cierreGuardado.id, fecha: cierreGuardado.fecha, responsable: formulario.responsable, venta: formulario.ventaSicar, efectivo: formulario.efectivoFinal });
+      try { if (claveBorrador) window.localStorage.removeItem(claveBorrador); } catch { /* El corte ya fue guardado; un fallo local no debe presentarse como fallo del envío. */ }
+      setBorradorRecuperable(null);
+      setAvisoBorrador('');
 
 
       setMensaje(
@@ -627,6 +689,7 @@ export default function CierreTurno({
           "No se pudo guardar el cierre de turno."
       );
     } finally {
+      envioEnCurso.current = false;
       setGuardando(false);
     }
   }
@@ -825,6 +888,14 @@ export default function CierreTurno({
           ✅ {mensaje}
         </div>
       )}
+
+      {modoEmpleado && <aside className="tienda-borrador" aria-label="Protección de tu captura">
+        <strong>{borradorRecuperable ? 'Encontramos una captura sin terminar' : 'Borrador de tu captura'}</strong>
+        <p>{claveBorrador ? 'Los datos escritos se conservan hasta 12 horas para esta cuenta, sucursal y fecha. La foto debe adjuntarse de nuevo al recuperar. Al pulsar Salir se eliminan los borradores de esta cuenta.' : 'No se pudo identificar tu cuenta y sucursal para proteger el borrador.'}</p>
+        {borradorRecuperable && <><p>Guardado a las {new Date(borradorRecuperable.guardadoEn).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}. Recupera o descarta antes de empezar una captura nueva.</p><button type="button" onClick={recuperarBorrador} disabled={!consultaCajaConfirmada || cargandoCierres || guardando}>Recuperar captura</button><button type="button" onClick={descartarBorrador} disabled={guardando}>Descartar borrador anterior</button></>}
+        {avisoBorrador && <p role="status">{avisoBorrador}</p>}
+      </aside>}
+      {confirmacionCorte && <aside className="tienda-confirmacion" role="status"><span>CORTE RECIBIDO EN MONYS</span><h3>Tu envío quedó registrado</h3><p><b>Folio:</b> {confirmacionCorte.folio}</p><p>{confirmacionCorte.responsable} · {usuario?.sucursal || 'Sucursal de esta cuenta'}{confirmacionCorte.fecha ? ` · ${confirmacionCorte.fecha}` : ''}</p><p>Venta SICAR: {formatearDinero(confirmacionCorte.venta)} · Efectivo que queda: {formatearDinero(confirmacionCorte.efectivo)}</p><small>Pendiente de revisión de Dirección. Conserva este folio; no vuelvas a enviar el mismo corte.</small></aside>}
 
 
       {analizando && (

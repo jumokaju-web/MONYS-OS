@@ -10,7 +10,7 @@ import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../u
 import { useUser } from '../../../context/UserContext';
 import RevisionCorteDiario from './RevisionCorteDiario';
 import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
-import { etiquetasRevision, estadoRevisionCorte } from '../utils/revisionCortes';
+import { etiquetasRevision, estadoRevisionCorte, resumirEstadosRevision } from '../utils/revisionCortes';
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -62,7 +62,9 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
   const [actualizadoEn, setActualizadoEn] = useState(null);
   const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
-  const visibles = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros, revisiones).filter(c => !filtroRevision || (c.tipo === 'caja' && estadoRevisionCorte(c, revisiones[c.cierre.id]) === filtroRevision)), [capturas, filtros, rangoInvalido, filtroRevision, revisiones]);
+  const seleccionadas = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros, revisiones), [capturas, filtros, rangoInvalido, revisiones]);
+  const visibles = useMemo(() => seleccionadas.filter(c => !filtroRevision || (c.tipo === 'caja' && estadoRevisionCorte(c, revisiones[c.cierre.id]) === filtroRevision)), [seleccionadas, filtroRevision, revisiones]);
+  const estados = useMemo(() => resumirEstadosRevision(seleccionadas, revisiones), [seleccionadas, revisiones]);
   const alertas = useMemo(() => resumirAlertasCortes(visibles, revisiones), [visibles, revisiones]);
   const sinBase = cargando || Boolean(error) || visibles.length === 0;
   const cambiarFiltro = (campo, valor) => setFiltros(actual => ({ ...actual, [campo]: valor }));
@@ -158,11 +160,21 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <label>Hasta<input type="date" value={filtros.hasta} onChange={e => cambiarFiltro('hasta', e.target.value)} /></label>
         <label>Responsable o unidad<input type="search" value={filtros.buscar} placeholder="Buscar nombre o placas" onChange={e => cambiarFiltro('buscar', e.target.value)} /></label>
         <label>Origen<select value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}><option value="">Todos</option><option value="caja">Tiendas</option><option value="flotilla">Flotilla</option></select></label>
-        <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Sin diferencia, falta foto</option><option value="revision">Revisión de comprobantes</option></select></label>
+        <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Comprobar foto o apertura</option><option value="revision">Revisión de comprobantes</option></select></label>
         {esOwner && <label>Revisión<select disabled={!revisionDisponible} value={filtroRevision} onChange={e => setFiltroRevision(e.target.value)}><option value="">Todos los estados</option>{Object.entries(etiquetasRevision).map(([id, texto]) => <option key={id} value={id}>{texto}</option>)}</select></label>}
         <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Limpiar filtros</button>
       </div>
       {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
+      {esOwner && <section className="cortes-seguimiento" aria-label="Seguimiento de revisiones">
+        <div className="cortes-seguimiento-titulo"><div><span>TU MESA DE REVISIÓN</span><h3>Cada corte, con un siguiente paso</h3></div><p>Solo cortes recibidos que coinciden con los filtros de arriba. No indica qué sucursales faltan por cerrar.</p></div>
+        <div className="cortes-estados">{[
+          ['PENDIENTE', 'Por revisar', 'Comparar foto, cobros y efectivo'],
+          ['ACLARAR', 'En aclaración', 'Dar seguimiento a la explicación'],
+          ['DESACTUALIZADO', 'Revisar de nuevo', 'El contenido cambió tras la revisión'],
+          ['REVISADO', 'Revisión registrada', 'Consultar evidencia e historial'],
+        ].map(([id, titulo, ayuda]) => <button type="button" key={id} disabled={cargando || Boolean(error) || !revisionDisponible || rangoInvalido} aria-pressed={filtroRevision === id} onClick={() => setFiltroRevision(actual => actual === id ? '' : id)}><span>{titulo}</span><strong>{cargando || error || !revisionDisponible || rangoInvalido ? '—' : estados[id]}</strong><small>{ayuda}</small></button>)}</div>
+        <p className="cortes-alcance">{!revisionDisponible ? 'Los estados se mostrarán al confirmar la consulta de revisiones.' : filtroRevision ? 'Filtro activo: ' + etiquetasRevision[filtroRevision] + '. Pulsa la misma tarjeta para ver todos los estados.' : 'Selecciona una tarjeta para ver sus cortes.'}</p>
+      </section>}
       <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
       {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
       <div className="cortes-prioridad">

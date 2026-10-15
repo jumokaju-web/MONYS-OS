@@ -22,3 +22,12 @@ test('aclaración admite comprobaciones pendientes pero siempre exige explicaci�
  assert.ok(validarRevisionCorte({ ...valido, estado: 'PAGADO' }));
  assert.ok(validarRevisionCorte({ ...valido, nota: 'x'.repeat(2001) }));
 });
+
+test('la mesa de revisión separa pendientes, aclaraciones, cambios y revisados sin sumar flotilla', async () => {
+ const { resumirEstadosRevision } = await import('../../src/features/finanzas/utils/revisionCortes.js');
+ const cortes = ['a','b','c','d'].map(id => ({tipo:'caja',cierre:{id,observaciones:'actual'}}));
+ cortes.push({tipo:'flotilla',cierre:{id:'ruta'}});
+ const revisiones = {b:{estado:'ACLARAR',snapshot_observaciones:'actual'},c:{estado:'REVISADO',snapshot_observaciones:'anterior'},d:{estado:'REVISADO',snapshot_observaciones:'actual'}};
+ assert.deepEqual(resumirEstadosRevision(cortes,revisiones),{PENDIENTE:1,ACLARAR:1,DESACTUALIZADO:1,REVISADO:1});
+ assert.deepEqual(resumirEstadosRevision([],revisiones),{PENDIENTE:0,ACLARAR:0,DESACTUALIZADO:0,REVISADO:0});
+});

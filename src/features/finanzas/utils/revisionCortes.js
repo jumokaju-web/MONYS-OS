@@ -10,3 +10,13 @@ export function validarRevisionCorte({ estado, nota, evidencia, comprobaciones }
   return '';
 }
 export const etiquetasRevision = { PENDIENTE: 'Pendiente de revisión', ACLARAR: 'En aclaración', REVISADO: 'Revisado por propietaria', DESACTUALIZADO: 'El corte cambió · revisar de nuevo' };
+
+export function resumirEstadosRevision(capturas, revisiones = {}) {
+  const resumen = { PENDIENTE: 0, ACLARAR: 0, DESACTUALIZADO: 0, REVISADO: 0 };
+  for (const captura of capturas) {
+    if (captura.tipo !== 'caja') continue;
+    const estado = estadoRevisionCorte(captura, revisiones[captura.cierre.id]);
+    if (Object.hasOwn(resumen, estado)) resumen[estado]++;
+  }
+  return resumen;
+}
