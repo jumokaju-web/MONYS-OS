@@ -236,7 +236,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
           padding: "18px 12px",
         }}
       >
-        {!esMarketing && <RegistroEntradaOperativa usuario={usuario} />}
+        <RegistroEntradaOperativa usuario={usuario} />
 
         {!esMarketing && (
           <PerfilOperativoEmpleado
