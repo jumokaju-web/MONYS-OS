@@ -650,14 +650,14 @@ if (
         });
 
         try {
-         await guardarImportacion({
-  tipoReporte: item.tipoReporte,
-  archivoOriginal: item.nombre,
-  datosNormalizados:
-    item.datosNormalizados,
- branchId:
-  branchIdSeleccionado || null,
-});
+          const importacionGuardada = await guardarImportacion({
+            tipoReporte: item.tipoReporte,
+            archivoOriginal: item.nombre,
+            datosNormalizados: item.datosNormalizados,
+            branchId: branchIdSeleccionado || null,
+            organizationId: usuario?.organization_id || null,
+            usuarioNombre: usuario?.nombre || null,
+          });
 
           try {
             if (item.resumen) {

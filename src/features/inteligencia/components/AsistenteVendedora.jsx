@@ -50,6 +50,7 @@ export default function AsistenteVendedora({
     () => construirGuiaVenta({ producto, tareaPrioritaria }),
     [producto, tareaPrioritaria],
   );
+  const datosComercialesListos = Boolean(producto?.nombre) && comision.estado === "lista";
 
   useEffect(() => {
     let activo = true;
@@ -114,7 +115,9 @@ export default function AsistenteVendedora({
     <section className="sales-copilot" aria-labelledby="sales-copilot-title">
       <header className="sales-copilot__header">
         <div><span>MONYS · COPILOTO DE VENTA</span><h2 id="sales-copilot-title">Tu siguiente mejor acción</h2></div>
-        <span className="sales-copilot__status">DATOS REALES</span>
+        <span className="sales-copilot__status">
+          {datosComercialesListos ? "DATOS VERIFICADOS" : "CONEXIONES PENDIENTES"}
+        </span>
       </header>
 
       <article className="sales-copilot__action">
@@ -135,8 +138,8 @@ export default function AsistenteVendedora({
       <div className="sales-copilot__metrics">
         <article>
           <span>Tu meta de atención hoy</span>
-          <strong>15 personas</strong>
-          <small>Cuenta a quienes atiendes; registra el resultado en tu pulso al cierre</small>
+          <strong>Por definir</strong>
+          <small>Dirección debe fijarla con tu horario y una línea base real; registra hoy cuántas personas atendiste</small>
         </article>
         <article>
           <span>Producto para iniciar conversación</span>
