@@ -1,5 +1,6 @@
 const MARCADOR_CAJA = "MONYS_CAJA_V1";
 const MARCADOR_APERTURA_CAJA = "MONYS_APERTURA_CAJA_V1";
+const MARCADOR_CORRECCION_CIERRE = "MONYS_CORRECCION_CIERRE_V1";
 const MARCADOR_FLOTILLA = "MONYS_FLOTILLA_V1";
 
 export const FONDO_FIJO_CAJA = 1000;
@@ -102,6 +103,8 @@ export function crearObservacionesCorte(datos, nota) {
 export function crearObservacionesAperturaCaja(datos = {}) {
   return guardarBloque(MARCADOR_APERTURA_CAJA, {
     sesionCajaId: String(datos.sesionCajaId || "").trim(),
+    cajaId: String(datos.cajaId || "").trim(),
+    cajaNombre: String(datos.cajaNombre || "").trim(),
     responsable: String(datos.responsable || "").trim(),
     fondoInicial: FONDO_FIJO_CAJA,
     abiertoEn: datos.abiertoEn || new Date().toISOString(),
@@ -113,22 +116,66 @@ export function leerAperturaCaja(texto) {
   return leerBloque(texto, MARCADOR_APERTURA_CAJA);
 }
 
-export function obtenerSesionCajaActiva(cierres = []) {
+export function obtenerSesionesCajaActivas(cierres = []) {
   const ordenados = [...(Array.isArray(cierres) ? cierres : [])].sort(
     (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0)
   );
-
+  const resueltas = new Set();
+  const activas = {};
   for (const cierre of ordenados) {
     const apertura = leerAperturaCaja(cierre?.observaciones);
-    if (apertura) return { ...apertura, cierreAperturaId: cierre.id };
-    if (leerCorteCaja(cierre?.observaciones)) return null;
+    const corte = leerCorteCaja(cierre?.observaciones);
+    const cajaId = String(apertura?.cajaId || corte?.cajaId || "SIN_IDENTIFICAR").trim();
+    if ((!apertura && !corte) || resueltas.has(cajaId)) continue;
+    resueltas.add(cajaId);
+    if (apertura) activas[cajaId] = { ...apertura, cajaId, cierreAperturaId: cierre.id };
   }
+  return activas;
+}
 
-  return null;
+export function obtenerSesionCajaActiva(cierres = [], cajaId = null) {
+  const activas = obtenerSesionesCajaActivas(cierres);
+  if (cajaId) return activas[cajaId] || null;
+  const sesiones = Object.values(activas);
+  return sesiones.length === 1 ? sesiones[0] : null;
 }
 
 export function leerCorteCaja(texto) {
   return leerBloque(texto, MARCADOR_CAJA);
+}
+
+export function crearObservacionesCorreccionCierre({
+  cierreId,
+  responsableCorregido,
+  cajaId,
+  cajaNombre,
+  motivo,
+  corregidoPor,
+} = {}) {
+  return guardarBloque(MARCADOR_CORRECCION_CIERRE, {
+    cierreId: String(cierreId || "").trim(),
+    responsableCorregido: String(responsableCorregido || "").trim(),
+    cajaId: String(cajaId || "").trim(),
+    cajaNombre: String(cajaNombre || "").trim(),
+    motivo: String(motivo || "").trim(),
+    corregidoPor: String(corregidoPor || "").trim(),
+    corregidoEn: new Date().toISOString(),
+  });
+}
+
+export function leerCorreccionCierre(texto) {
+  return leerBloque(texto, MARCADOR_CORRECCION_CIERRE);
+}
+
+export function indexarCorreccionesCierres(cierres = []) {
+  const correcciones = new Map();
+  [...(Array.isArray(cierres) ? cierres : [])]
+    .sort((a, b) => new Date(a?.created_at || 0) - new Date(b?.created_at || 0))
+    .forEach((registro) => {
+      const correccion = leerCorreccionCierre(registro?.observaciones);
+      if (correccion?.cierreId) correcciones.set(correccion.cierreId, { ...correccion, registroId: registro.id });
+    });
+  return correcciones;
 }
 
 export function calcularLiquidacionFlotilla(datos = {}) {
@@ -180,4 +227,51 @@ export function extraerCapturaFinanciera(cierre) {
   if (flotilla) return { tipo: "flotilla", datos: flotilla, cierre };
 
   return null;
+}
+
+export function extraerCapturasFinancieras(cierres = []) {
+  const lista = Array.isArray(cierres) ? cierres : [];
+  const correcciones = indexarCorreccionesCierres(lista);
+
+  return lista
+    .filter((cierre) => !leerCorreccionCierre(cierre?.observaciones))
+    .map((cierre) => {
+      const correccion = correcciones.get(cierre?.id);
+      let captura = extraerCapturaFinanciera(cierre);
+
+      // Un cierre ya registrado nunca debe desaparecer de Dirección porque
+      // haya sido enviado con una versión anterior del formulario. Se muestra
+      // como incompleto para pedir evidencia, sin inventar importes en cero.
+      if (!captura && (cierre?.turno === "cierre_caja" || correccion)) {
+        captura = {
+          tipo: "caja",
+          datos: {
+            diferenciaCaja: null,
+            diferenciaVenta: null,
+            registroIncompleto: true,
+          },
+          cierre,
+        };
+      }
+
+      if (!captura || captura.tipo !== "caja" || !correccion) return captura;
+
+      return {
+        ...captura,
+        datos: {
+          ...captura.datos,
+          cajaId: correccion.cajaId || captura.datos.cajaId,
+          cajaNombre: correccion.cajaNombre || captura.datos.cajaNombre,
+          responsableCierre:
+            correccion.responsableCorregido || captura.datos.responsableCierre,
+          responsableOriginal: cierre.responsable || null,
+          correccion,
+        },
+        cierre: {
+          ...cierre,
+          responsable: correccion.responsableCorregido || cierre.responsable,
+        },
+      };
+    })
+    .filter(Boolean);
 }

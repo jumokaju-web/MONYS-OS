@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import {
-  extraerCapturaFinanciera,
-  obtenerSesionCajaActiva,
+  extraerCapturasFinancieras,
+  obtenerSesionesCajaActivas,
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
+
+import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../utils/prioridadesCortes";
+
+import { useUser } from '../../../context/UserContext';
+import RevisionCorteDiario from './RevisionCorteDiario';
+import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
+import { etiquetasRevision, estadoRevisionCorte, resumirEstadosRevision } from '../utils/revisionCortes';
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -30,41 +37,88 @@ const etiquetasCategoria = {
 };
 
 function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
+  const tieneValor = valor !== null && valor !== undefined && String(valor).trim() !== "";
   return (
     <div className={alerta ? "captura-dato captura-dato-alerta" : "captura-dato"}>
       <small>{titulo}</small>
-      <strong>{esDinero ? moneda.format(Number(valor) || 0) : Number(valor) || 0}</strong>
+      <strong>{tieneValor ? (esDinero ? moneda.format(Number(valor)) : Number(valor)) : "—"}</strong>
     </div>
   );
 }
 
-export default function BandejaCapturasEquipo({ branchId }) {
+export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
+  const { usuario } = useUser();
+  const esOwner = usuario?.role === 'owner';
+  const alcanceBranchId = esOwner ? null : branchId;
+  const nombresSucursales = useMemo(
+    () => new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || 'Sucursal'])),
+    [sucursales]
+  );
+  const [revisiones, setRevisiones] = useState({});
+  const [errorRevisiones, setErrorRevisiones] = useState('');
+  const [revisionDisponible, setRevisionDisponible] = useState(false);
+  const [filtroRevision, setFiltroRevision] = useState('');
   const [capturas, setCapturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
+  const [sesionesCajaActivas, setSesionesCajaActivas] = useState([]);
+
+  const solicitud = useRef(0);
+  const [filtros, setFiltros] = useState({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' });
+  const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
+  const [actualizadoEn, setActualizadoEn] = useState(null);
+  const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
+  const seleccionadas = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros, revisiones), [capturas, filtros, rangoInvalido, revisiones]);
+  const visibles = useMemo(() => seleccionadas.filter(c => !filtroRevision || (c.tipo === 'caja' && estadoRevisionCorte(c, revisiones[c.cierre.id]) === filtroRevision)), [seleccionadas, filtroRevision, revisiones]);
+  const estados = useMemo(() => resumirEstadosRevision(seleccionadas, revisiones), [seleccionadas, revisiones]);
+  const alertas = useMemo(() => resumirAlertasCortes(visibles, revisiones), [visibles, revisiones]);
+  const sinBase = cargando || Boolean(error) || visibles.length === 0;
+  const cambiarFiltro = (campo, valor) => setFiltros(actual => ({ ...actual, [campo]: valor }));
 
   const cargar = useCallback(async () => {
+    const actual = ++solicitud.current;
+    setRevisiones({});
+    setRevisionDisponible(false);
+    setErrorRevisiones('');
+    setCapturas([]);
+    setSesionesCajaActivas([]);
+    setActualizadoEn(null);
+    setLimiteAlcanzado(false);
     try {
       setCargando(true);
       setError("");
-      const cierres = await obtenerCierresTurno({ branchId, limite: 100 });
-      setSesionCajaActiva(obtenerSesionCajaActiva(cierres));
-      setCapturas(cierres.map(extraerCapturaFinanciera).filter(Boolean));
+      const cierres = await obtenerCierresTurno({ branchId: alcanceBranchId, limite: 100 });
+      if (actual !== solicitud.current) return;
+      setLimiteAlcanzado(cierres.length === 100);
+      setActualizadoEn(new Date());
+      setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
+      const recibidas = extraerCapturasFinancieras(cierres);
+      setCapturas(recibidas);
+      if (esOwner) {
+        try {
+          const resultados = await obtenerRevisionesCortes(recibidas.filter(c => c.tipo === 'caja').map(c => c.cierre.id));
+          if (actual !== solicitud.current) return;
+          setRevisiones(Object.fromEntries(resultados.map(r => [r.cierre_id, r])));
+          setRevisionDisponible(true);
+        } catch (e) { if (actual === solicitud.current) setErrorRevisiones(e.message); }
+      }
     } catch (errorConsulta) {
+      if (actual !== solicitud.current) return;
       setError(errorConsulta?.message || "No fue posible cargar las capturas del equipo.");
     } finally {
-      setCargando(false);
+      if (actual === solicitud.current) setCargando(false);
     }
-  }, [branchId]);
+  }, [alcanceBranchId, branchId, esOwner]);
 
+  const invalidarSolicitud = useCallback(() => { solicitud.current++; }, []);
   useEffect(() => {
     cargar();
-  }, [cargar]);
+    return invalidarSolicitud;
+  }, [cargar, invalidarSolicitud]);
 
   const resumen = useMemo(() => {
-    const cajas = capturas.filter((item) => item.tipo === "caja");
-    const flotilla = capturas.filter((item) => item.tipo === "flotilla");
+    const cajas = visibles.filter((item) => item.tipo === "caja");
+    const flotilla = visibles.filter((item) => item.tipo === "flotilla");
     return {
       cajas: cajas.length,
       flotilla: flotilla.length,
@@ -89,14 +143,14 @@ export default function BandejaCapturasEquipo({ branchId }) {
         0
       ),
     };
-  }, [capturas]);
+  }, [visibles]);
 
   return (
     <section className="capturas-equipo">
       <div className="capturas-equipo-cabecera">
         <div>
-          <span>ENTRADAS DEL EQUIPO · SINCRONIZADAS</span>
-          <h2>Cortes de tienda y liquidaciones de flotilla</h2>
+          <span>MONYS OS · CONTROL DIARIO</span>
+          <h2>Primero, lo que necesita tu atención</h2>
           <p>
             Aquí llega lo que registran empleadas y choferes. Primero se revisa;
             después se concilia con SICAR, banco y comprobantes.
@@ -107,42 +161,69 @@ export default function BandejaCapturasEquipo({ branchId }) {
         </button>
       </div>
 
-      <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
-        <span>CAJA AHORA</span>
-        {sesionCajaActiva ? (
-          <>
-            <strong>{sesionCajaActiva.responsable}</strong>
-            <small>
-              Responsable desde {new Date(sesionCajaActiva.abiertoEn).toLocaleString("es-MX")} · Fondo $1,000.00
-            </small>
-          </>
-        ) : (
-          <>
-            <strong>Sin responsable activa</strong>
-            <small>La caja está cerrada o el último corte ya fue entregado.</small>
-          </>
-        )}
+      <div className="cortes-filtros" aria-label="Filtrar cortes">
+        <label>Desde<input type="date" value={filtros.desde} onChange={e => cambiarFiltro('desde', e.target.value)} /></label>
+        <label>Hasta<input type="date" value={filtros.hasta} onChange={e => cambiarFiltro('hasta', e.target.value)} /></label>
+        <label>Responsable o unidad<input type="search" value={filtros.buscar} placeholder="Buscar nombre o placas" onChange={e => cambiarFiltro('buscar', e.target.value)} /></label>
+        <label>Origen<select value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}><option value="">Todos</option><option value="caja">Tiendas</option><option value="flotilla">Flotilla</option></select></label>
+        <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Comprobar foto o apertura</option><option value="revision">Revisión de comprobantes</option></select></label>
+        {esOwner && <label>Revisión<select disabled={!revisionDisponible} value={filtroRevision} onChange={e => setFiltroRevision(e.target.value)}><option value="">Todos los estados</option>{Object.entries(etiquetasRevision).map(([id, texto]) => <option key={id} value={id}>{texto}</option>)}</select></label>}
+        <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Limpiar filtros</button>
+      </div>
+      {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
+      {esOwner && <section className="cortes-seguimiento" aria-label="Seguimiento de revisiones">
+        <div className="cortes-seguimiento-titulo"><div><span>TU MESA DE REVISIÓN</span><h3>Cada corte, con un siguiente paso</h3></div><p>Solo cortes recibidos que coinciden con los filtros de arriba. No indica qué sucursales faltan por cerrar.</p></div>
+        <div className="cortes-estados">{[
+          ['PENDIENTE', 'Por revisar', 'Comparar foto, cobros y efectivo'],
+          ['ACLARAR', 'En aclaración', 'Dar seguimiento a la explicación'],
+          ['DESACTUALIZADO', 'Revisar de nuevo', 'El contenido cambió tras la revisión'],
+          ['REVISADO', 'Revisión registrada', 'Consultar evidencia e historial'],
+        ].map(([id, titulo, ayuda]) => <button type="button" key={id} disabled={cargando || Boolean(error) || !revisionDisponible || rangoInvalido} aria-pressed={filtroRevision === id} onClick={() => setFiltroRevision(actual => actual === id ? '' : id)}><span>{titulo}</span><strong>{cargando || error || !revisionDisponible || rangoInvalido ? '—' : estados[id]}</strong><small>{ayuda}</small></button>)}</div>
+        <p className="cortes-alcance">{!revisionDisponible ? 'Los estados se mostrarán al confirmar la consulta de revisiones.' : filtroRevision ? 'Filtro activo: ' + etiquetasRevision[filtroRevision] + '. Pulsa la misma tarjeta para ver todos los estados.' : 'Selecciona una tarjeta para ver sus cortes.'}</p>
+      </section>}
+      <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
+      {esOwner && <p className="capturas-aviso">Vista de Dirección: se muestran los cortes de todas las sucursales.</p>}
+      {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
+      <div className="cortes-prioridad">
+        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{sinBase ? (cargando ? 'Consultando cortes…' : error ? 'No se pudo consultar' : 'Sin cortes para evaluar') : revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
+        <div><small>Faltantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.faltantes)}</strong></div>
+        <div><small>Sobrantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.sobrantes)}</strong></div>
+        <div><small>Sin foto / datos incompletos</small><strong>{sinBase ? '—' : `${alertas.sinEvidencia} / ${alertas.incompletos}`} </strong></div>
       </div>
 
-      <div className="capturas-resumen">
+      {branchId && !cargando && !error && <div className={sesionesCajaActivas.length ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
+        <span>CAJA AHORA</span>
+        {sesionesCajaActivas.length ? (
+          <div className="captura-cajas-activas">{sesionesCajaActivas.map(sesion => <div key={sesion.cajaId}><strong>{sesion.cajaNombre || (sesion.cajaId === 'SIN_IDENTIFICAR' ? 'Caja anterior sin identificar' : sesion.cajaId)} · {sesion.responsable}</strong><small>Abierta {new Date(sesion.abiertoEn).toLocaleString("es-MX")} · Fondo $1,000.00</small></div>)}</div>
+        ) : (
+          <>
+            <strong>No se encontró una apertura activa</strong>
+            <small>No hay una apertura vigente entre los registros consultados; confirma con la encargada.</small>
+          </>
+        )}
+      </div>}
+
+      {!sinBase && <div className="capturas-resumen">
         <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} esDinero={false} />
         <TarjetaDato titulo="Entradas posteriores" valor={resumen.entradasCaja} />
         <TarjetaDato titulo="Salidas posteriores" valor={resumen.salidasCaja} />
         <TarjetaDato
-          titulo="Diferencia acumulada de caja"
+          titulo="Saldo neto de diferencias (no conciliado)"
           valor={resumen.diferenciasCaja}
           alerta={Math.abs(resumen.diferenciasCaja) > 0.009}
         />
         {resumen.traspasos > 0 && <TarjetaDato titulo="Depósitos / traspasos" valor={resumen.traspasos} />}
         {resumen.prestamos > 0 && <TarjetaDato titulo="Préstamos / anticipos" valor={resumen.prestamos} />}
         {resumen.flotilla > 0 && <TarjetaDato titulo="Resultado estimado flotilla" valor={resumen.resultadoFlotilla} />}
-      </div>
+      </div>}
 
       <p className="capturas-aviso">
         Las cifras son reportes del equipo y todavía no son contabilidad final.
         No se suman a utilidad hasta comprobarlas contra las otras fuentes.
       </p>
 
+      {errorRevisiones && <p role="alert" className="capturas-aviso">{errorRevisiones} No se puede confirmar el estado de revisión de estos cortes.</p>}
+      {esOwner && revisionDisponible && <p className="cortes-alcance">Las revisiones se guardan en MONYS. Pulsa Actualizar para consultar cambios de otro equipo. Conserva tu texto antes de actualizar: se vuelven a cargar los cortes.</p>}
       {error && <p role="alert">{error}</p>}
       {cargando && capturas.length === 0 && <p role="status">Cargando capturas…</p>}
       {!cargando && !error && capturas.length === 0 && (
@@ -152,24 +233,31 @@ export default function BandejaCapturasEquipo({ branchId }) {
         </div>
       )}
 
+      {!cargando && !error && capturas.length > 0 && visibles.length === 0 && !rangoInvalido && <p className="capturas-vacio">No hay capturas que coincidan con estos filtros.</p>}
       <div className="capturas-lista">
-        {capturas.map(({ tipo, datos, cierre }) => (
-          <article key={cierre.id} className="captura-registro">
+        {visibles.map(({ tipo, datos, cierre }) => (
+          <article key={cierre.id} className={`captura-registro corte-${diagnosticarCorte({ tipo, datos }).nivel}`}>
             <header>
               <div>
                 <span>{tipo === "caja" ? "CORTE DE TIENDA" : "LIQUIDACIÓN DE FLOTILLA"}</span>
                 <h3>
                   {tipo === "caja"
-                    ? cierre.responsable
+                    ? `${nombresSucursales.get(String(cierre.branch_id)) || 'Sucursal sin identificar'} · ${datos.cajaNombre || 'Caja sin identificar'} · ${cierre.responsable}`
                     : `${datos.placas || "Unidad"} · ${datos.chofer || cierre.responsable}`}
                 </h3>
               </div>
               <div className="captura-estado">
-                <b>Pendiente de revisión</b>
+                <b>{tipo === 'caja' && esOwner ? (revisionDisponible ? etiquetasRevision[estadoRevisionCorte({ cierre }, revisiones[cierre.id])] : 'Estado de revisión sin confirmar') : 'Captura recibida'}</b>
                 <small>{fechaLegible(cierre.fecha)}</small>
               </div>
             </header>
 
+            {tipo === 'caja' && datos.responsableApertura && <p className="corte-responsables">Abrió: <b>{datos.responsableApertura}</b> · Cerró: <b>{datos.responsableCierre || cierre.responsable}</b></p>}
+            {tipo === 'caja' && datos.responsableOriginal && datos.responsableOriginal !== cierre.responsable && <p className="corte-responsables">Registro original: <b>{datos.responsableOriginal}</b> · Corrección de Dirección conservada para auditoría.</p>}
+            {tipo === 'caja' && datos.registroIncompleto && <p className="capturas-aviso">Este cierre sí fue recibido, pero la versión usada no guardó el detalle financiero completo. Solicita la foto y los importes; MONYS no los sustituye por ceros.</p>}
+
+            <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
+            {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}
             {tipo === "caja" ? (
               <>
                 <div className="captura-grid">

@@ -1,7 +1,10 @@
+import { validarImportesCorte } from '../utils/corteTienda';
+import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte, tieneCapturaBorrador } from '../utils/borradorCorte';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -23,9 +26,12 @@ import {
 import {
   calcularCorteCaja,
   crearObservacionesAperturaCaja,
+  crearObservacionesCorreccionCierre,
   crearObservacionesCorte,
   FONDO_FIJO_CAJA,
+  indexarCorreccionesCierres,
   leerAperturaCaja,
+  leerCorreccionCierre,
   leerCorteCaja,
   leerLiquidacionFlotilla,
   obtenerSesionCajaActiva,
@@ -47,7 +53,7 @@ const formularioInicial = {
   otrosCobros: "",
   fondoInicial: String(FONDO_FIJO_CAJA),
   efectivoEntregado: "",
-  efectivoFinal: String(FONDO_FIJO_CAJA),
+  efectivoFinal: "",
   movimientosCaja: [],
 };
 
@@ -78,7 +84,16 @@ function movimientoCajaVacio() {
 export default function CierreTurno({
   branchId = null,
   usuario = null,
+  modoEmpleado = false,
 }) {
+  const envioEnCurso = useRef(false);
+  const [borradorRecuperable, setBorradorRecuperable] = useState(null);
+  const [claveLeida, setClaveLeida] = useState(null);
+  const [avisoBorrador, setAvisoBorrador] = useState('');
+  const [confirmacionCorte, setConfirmacionCorte] = useState(null);
+  const [consultaCajaConfirmada, setConsultaCajaConfirmada] = useState(false);
+  const [correccionCierre, setCorreccionCierre] = useState(null);
+  const [guardandoCorreccion, setGuardandoCorreccion] = useState(false);
   const [
     formulario,
     setFormulario,
@@ -115,8 +130,19 @@ export default function CierreTurno({
     cargandoCierres,
     setCargandoCierres,
   ] = useState(false);
+  const correccionesCierres = useMemo(() => indexarCorreccionesCierres(cierres), [cierres]);
+  const cierresVisibles = useMemo(
+    () => cierres.filter((cierre) => !leerCorreccionCierre(cierre?.observaciones)),
+    [cierres]
+  );
 
-  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
+  const [corteSinApertura, setCorteSinApertura] = useState(false);
+  const esSucursalCentro = /centro/i.test(String(usuario?.sucursal || ''));
+  const opcionesCaja = esSucursalCentro ? [['CAJA_1', 'Caja 1'], ['CAJA_2', 'Caja 2']] : [['CAJA_1', 'Caja 1']];
+  const [cajaId, setCajaId] = useState(esSucursalCentro ? '' : 'CAJA_1');
+  const cajaNombre = opcionesCaja.find(([id]) => id === cajaId)?.[1] || '';
+  const sesionCajaActiva = useMemo(() => cajaId ? obtenerSesionCajaActiva(cierres, cajaId) : null, [cierres, cajaId]);
+  const claveBorrador = modoEmpleado && cajaId ? claveBorradorCorte(usuario, branchId, cajaId) : null;
   const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [fotoCorte, setFotoCorte] = useState(null);
 
@@ -147,6 +173,7 @@ export default function CierreTurno({
         .toLocaleDateString(
           "es-MX",
           {
+            timeZone: "America/Mexico_City",
             year: "numeric",
             month: "long",
             day: "numeric",
@@ -157,9 +184,7 @@ export default function CierreTurno({
   useEffect(() => {
     const nombre = String(usuario?.nombre || "").trim();
     if (!nombre) return;
-    setFormulario((actual) =>
-      actual.responsable ? actual : { ...actual, responsable: nombre }
-    );
+    setFormulario((actual) => ({ ...actual, responsable: nombre }));
   }, [usuario?.nombre]);
 
   const corteCalculado = useMemo(
@@ -168,19 +193,63 @@ export default function CierreTurno({
   );
 
 
+  const importesListos = !validarImportesCorte(formulario);
+
+  useEffect(() => {
+    if (!claveBorrador) return;
+    try {
+      setBorradorRecuperable(leerBorradorCorte(window.localStorage, claveBorrador));
+      setAvisoBorrador('');
+    } catch { setAvisoBorrador('Este navegador no permite proteger el borrador. Mantén esta pantalla abierta hasta enviar el corte.'); }
+    setClaveLeida(claveBorrador);
+  }, [claveBorrador]);
+
+  useEffect(() => {
+    if (!claveBorrador || claveLeida !== claveBorrador || borradorRecuperable || guardando) return;
+    try {
+      guardarBorradorCorte(window.localStorage, claveBorrador, formulario, sesionCajaActiva?.sesionCajaId, corteSinApertura);
+    } catch { setAvisoBorrador('No se pudo proteger el borrador en este dispositivo. Mantén esta pantalla abierta hasta enviar el corte.'); }
+  }, [claveBorrador, claveLeida, borradorRecuperable, formulario, sesionCajaActiva?.sesionCajaId, corteSinApertura, guardando]);
+
+  useEffect(() => {
+    if (!modoEmpleado || !fotoCorte) return;
+    const avisar = evento => { evento.preventDefault(); evento.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [modoEmpleado, fotoCorte]);
+
+  function recuperarBorrador() {
+    if (!borradorRecuperable || !consultaCajaConfirmada || cargandoCierres) return;
+    if ((borradorRecuperable.sesionCajaId || null) !== (sesionCajaActiva?.sesionCajaId || null)) {
+      setAvisoBorrador('La sesión de caja cambió desde este borrador. No se recuperó para evitar mezclar turnos. Confirma con Dirección antes de descartarlo.');
+      return;
+    }
+    setFormulario({ ...formularioInicial, ...borradorRecuperable.formulario, responsable: String(usuario?.nombre || '').trim() });
+    setCorteSinApertura(borradorRecuperable.sinApertura);
+    setFotoCorte(null);
+    setBorradorRecuperable(null);
+    setAvisoBorrador('Borrador recuperado. Revisa los importes y vuelve a adjuntar la foto; el corte todavía no se ha enviado.');
+  }
+
+  function descartarBorrador() {
+    try { window.localStorage.removeItem(claveBorrador); setBorradorRecuperable(null); setAvisoBorrador('Borrador anterior descartado.'); }
+    catch { setAvisoBorrador('No se pudo descartar el borrador.'); }
+  }
+
   async function cargarCierres() {
     try {
       setCargandoCierres(true);
+      setConsultaCajaConfirmada(false);
 
       const data =
         await obtenerCierresTurno({
           branchId,
-          limite: 10,
+          limite: 100,
         });
 
       const lista = Array.isArray(data) ? data : [];
       setCierres(lista);
-      setSesionCajaActiva(obtenerSesionCajaActiva(lista));
+      setConsultaCajaConfirmada(true);
     } catch (
       errorCierres
     ) {
@@ -349,8 +418,68 @@ export default function CierreTurno({
     }));
   }
 
+  function seleccionarCaja(nuevaCajaId) {
+    if (nuevaCajaId === cajaId) return;
+    if (cajaId && (tieneCapturaBorrador(formulario) || fotoCorte)) {
+      setError(`Ya comenzaste la captura de ${cajaNombre}. Termínala o recarga el borrador antes de cambiar de caja.`);
+      return;
+    }
+    setCajaId(nuevaCajaId);
+    setFormulario({ ...formularioInicial, responsable: String(usuario?.nombre || '').trim() });
+    setFotoCorte(null);
+    setBorradorRecuperable(null);
+    setCorteSinApertura(false);
+    setConfirmacionCorte(null);
+    setError('');
+    setMensaje('');
+  }
+
+  async function guardarCorreccionHistorica(cierre) {
+    if (guardandoCorreccion || !correccionCierre || correccionCierre.cierreId !== cierre.id) return;
+    const responsableCorregido = String(correccionCierre.responsableCorregido || '').trim();
+    const cajaCorregidaId = String(correccionCierre.cajaId || '').trim();
+    const cajaCorregidaNombre = opcionesCaja.find(([id]) => id === cajaCorregidaId)?.[1] || '';
+    const corregidoPor = String(usuario?.nombre || '').trim();
+    if (!['owner', 'admin'].includes(String(usuario?.role || '').toLowerCase())) {
+      setError('Solo Dirección puede corregir un cierre histórico.');
+      return;
+    }
+    if (!responsableCorregido || !cajaCorregidaNombre || !corregidoPor) {
+      setError('Confirma la responsable y la caja correcta.');
+      return;
+    }
+    try {
+      setGuardandoCorreccion(true);
+      setError('');
+      await guardarCierreTurno({
+        branchId: cierre.branch_id || branchId,
+        responsable: corregidoPor,
+        turno: 'correccion_cierre',
+        observaciones: crearObservacionesCorreccionCierre({
+          cierreId: cierre.id,
+          responsableCorregido,
+          cajaId: cajaCorregidaId,
+          cajaNombre: cajaCorregidaNombre,
+          motivo: correccionCierre.motivo || 'Confirmación operativa posterior al cierre',
+          corregidoPor,
+        }),
+      });
+      setCorreccionCierre(null);
+      setMensaje(`Corrección registrada: ${responsableCorregido} · ${cajaCorregidaNombre}. El dato original se conserva para auditoría.`);
+      await cargarCierres();
+    } catch (errorCorreccion) {
+      setError(errorCorreccion?.message || 'No fue posible registrar la corrección.');
+    } finally {
+      setGuardandoCorreccion(false);
+    }
+  }
+
   async function abrirCaja() {
-    const responsable = String(usuario?.nombre || formulario.responsable || "").trim();
+    if (abriendoCaja || cargandoCierres) return;
+    if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de iniciar otra caja.'); return; }
+    if (!branchId) { setError('No se pudo identificar la sucursal. Avisa a Dirección.'); return; }
+    if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de iniciar.'); return; }
+    const responsable = String(usuario?.nombre || "").trim();
     if (!responsable) {
       setError("No fue posible identificar a la responsable de caja.");
       return;
@@ -370,6 +499,8 @@ export default function CierreTurno({
         turno: "apertura_caja",
         observaciones: crearObservacionesAperturaCaja({
           sesionCajaId,
+          cajaId,
+          cajaNombre,
           responsable,
         }),
       });
@@ -378,9 +509,9 @@ export default function CierreTurno({
         responsable,
         turno: "cierre_caja",
         fondoInicial: String(FONDO_FIJO_CAJA),
-        efectivoFinal: String(FONDO_FIJO_CAJA),
+        efectivoFinal: "",
       }));
-      setMensaje(`Caja abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
+      setMensaje(`${cajaNombre} abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
       await cargarCierres();
     } catch (errorApertura) {
       setError(errorApertura?.message || "No se pudo abrir la caja.");
@@ -394,25 +525,20 @@ export default function CierreTurno({
     event
   ) {
     event.preventDefault();
+    if (envioEnCurso.current) return;
+    if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de enviar otro corte.'); return; }
 
     setError("");
     setMensaje("");
     setAnalisisActual(null);
 
-    if (
-      !formulario
-        .responsable
-        .trim()
-    ) {
-      setError(
-        "Escribe quién realiza el cierre."
-      );
+    const responsableAutenticada = String(usuario?.nombre || '').trim();
+    if (!responsableAutenticada) { setError('No fue posible confirmar quién realiza el cierre. Vuelve a iniciar sesión.'); return; }
 
-      return;
-    }
-
-    if (!sesionCajaActiva) {
-      setError("Primero abre la caja para registrar quién queda como responsable.");
+    if (!branchId) { setError("No se pudo identificar la sucursal. Avisa a Dirección."); return; }
+    if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de registrar el cierre.'); return; }
+    if (!sesionCajaActiva && !corteSinApertura) {
+      setError("Abre la caja o selecciona registrar cierre sin apertura previa.");
       return;
     }
 
@@ -421,6 +547,8 @@ export default function CierreTurno({
       return;
     }
 
+    const validacionImportes = validarImportesCorte(formulario);
+    if (validacionImportes) { setError(validacionImportes); return; }
     const camposDinero = [
       "ventaSicar",
       "efectivoVentas",
@@ -454,6 +582,7 @@ export default function CierreTurno({
 
     const movimientoIncompleto = movimientosIniciados.find(
       (movimiento) =>
+        !Number.isFinite(Number(movimiento.monto)) ||
         !(Number(movimiento.monto) > 0) ||
         !String(movimiento.concepto || "").trim() ||
         (movimiento.tipo === "salida" &&
@@ -476,6 +605,7 @@ export default function CierreTurno({
     };
 
     try {
+      envioEnCurso.current = true;
       setGuardando(true);
 
       const evidenciaCorte = await subirFotoCorteCaja({
@@ -485,8 +615,14 @@ export default function CierreTurno({
 
       const datosCorte = {
         ...formularioLimpio,
-        sesionCajaId: sesionCajaActiva.sesionCajaId,
-        responsableCaja: sesionCajaActiva.responsable,
+        cajaId,
+        cajaNombre,
+        sesionCajaId: sesionCajaActiva?.sesionCajaId || null,
+        responsableApertura: sesionCajaActiva?.responsable || null,
+        responsableCaja: responsableAutenticada,
+        responsableCierre: responsableAutenticada,
+        sinAperturaPrevia: !sesionCajaActiva,
+        inicioRegistroCierre: !sesionCajaActiva ? new Date().toISOString() : null,
         fotoCorteUrl: evidenciaCorte.archivoUrl,
         fotoCortePath: evidenciaCorte.archivoPath,
         fondoSiguiente: FONDO_FIJO_CAJA,
@@ -497,8 +633,7 @@ export default function CierreTurno({
         await guardarCierreTurno({
           branchId,
 
-          responsable:
-            formulario.responsable,
+          responsable: responsableAutenticada,
 
           turno: "cierre_caja",
 
@@ -522,6 +657,11 @@ export default function CierreTurno({
           observaciones: crearObservacionesCorte(datosCorte, formulario.observaciones),
         });
 
+      setConfirmacionCorte({ folio: cierreGuardado.id, fecha: cierreGuardado.fecha, responsable: responsableAutenticada, cajaNombre, venta: formulario.ventaSicar, efectivo: formulario.efectivoFinal });
+      try { if (claveBorrador) window.localStorage.removeItem(claveBorrador); } catch { /* El corte ya fue guardado; un fallo local no debe presentarse como fallo del envío. */ }
+      setBorradorRecuperable(null);
+      setAvisoBorrador('');
+
 
       setMensaje(
         "Cierre guardado. MONYS está analizando la información."
@@ -530,13 +670,14 @@ export default function CierreTurno({
 
       setFormulario({
         ...formularioInicial,
-        responsable: formulario.responsable,
+        responsable: responsableAutenticada,
       });
       setFotoCorte(null);
+      setCorteSinApertura(false);
 
 
       await cargarCierres();
-
+      if (modoEmpleado) { setMensaje('Corte guardado y enviado a Dirección para revisión. No vuelvas a enviarlo.'); return; }
 
       try {
         setAnalizando(true);
@@ -613,6 +754,7 @@ export default function CierreTurno({
           "No se pudo guardar el cierre de turno."
       );
     } finally {
+      envioEnCurso.current = false;
       setGuardando(false);
     }
   }
@@ -746,8 +888,9 @@ export default function CierreTurno({
 
   return (
     <section
+      className={modoEmpleado ? "tienda-cierre" : undefined}
       style={{
-        padding: "24px",
+        padding: modoEmpleado ? "0" : "24px",
       }}
     >
       <div
@@ -760,7 +903,7 @@ export default function CierreTurno({
             margin: 0,
           }}
         >
-          🌙 Cierre Inteligente de Turno
+          {modoEmpleado ? "Tu corte, claro y completo" : "🌙 Cierre Inteligente de Turno"}
         </h2>
 
         <p
@@ -777,10 +920,7 @@ export default function CierreTurno({
             marginTop: "8px",
           }}
         >
-          MONYS recopilará lo ocurrido
-          durante el turno para detectar
-          pendientes, problemas,
-          oportunidades y aprendizajes.
+          {modoEmpleado ? "Foto, cobros y efectivo del turno." : "MONYS recopilará lo ocurrido durante el turno para detectar pendientes, problemas, oportunidades y aprendizajes."}
         </p>
       </div>
 
@@ -814,6 +954,18 @@ export default function CierreTurno({
         </div>
       )}
 
+      {modoEmpleado && <aside className="tienda-borrador" aria-label="Protección de tu captura">
+        <strong>{borradorRecuperable ? 'Encontramos una captura sin terminar' : 'Borrador de tu captura'}</strong>
+        <p>{claveBorrador
+          ? 'Los datos escritos se conservan hasta 12 horas para esta cuenta, sucursal, caja y fecha. La foto debe adjuntarse de nuevo al recuperar. Al pulsar Salir se eliminan los borradores de esta cuenta.'
+          : modoEmpleado && !cajaId
+            ? 'Elige Caja 1 o Caja 2 para proteger por separado el borrador de esa caja.'
+            : 'No se pudo identificar tu cuenta y sucursal para proteger el borrador.'}</p>
+        {borradorRecuperable && <><p>Guardado a las {new Date(borradorRecuperable.guardadoEn).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}. Recupera o descarta antes de empezar una captura nueva.</p><button type="button" onClick={recuperarBorrador} disabled={!consultaCajaConfirmada || cargandoCierres || guardando}>Recuperar captura</button><button type="button" onClick={descartarBorrador} disabled={guardando}>Descartar borrador anterior</button></>}
+        {avisoBorrador && <p role="status">{avisoBorrador}</p>}
+      </aside>}
+      {confirmacionCorte && <aside className="tienda-confirmacion" role="status"><span>CORTE RECIBIDO EN MONYS</span><h3>Tu envío quedó registrado</h3><p><b>Folio:</b> {confirmacionCorte.folio}</p><p>{confirmacionCorte.responsable} · {usuario?.sucursal || 'Sucursal de esta cuenta'} · {confirmacionCorte.cajaNombre}{confirmacionCorte.fecha ? ` · ${confirmacionCorte.fecha}` : ''}</p><p>Venta SICAR: {formatearDinero(confirmacionCorte.venta)} · Efectivo que queda: {formatearDinero(confirmacionCorte.efectivo)}</p><small>Pendiente de revisión de Dirección. Conserva este folio; no vuelvas a enviar el mismo corte.</small></aside>}
+
 
       {analizando && (
         <div
@@ -831,7 +983,7 @@ export default function CierreTurno({
       )}
 
 
-      {analisisActual && (
+      {!modoEmpleado && analisisActual && (
         <section
           style={{
             padding: "20px",
@@ -1304,6 +1456,15 @@ export default function CierreTurno({
       )}
 
 
+      <section className="tienda-selector-caja" aria-label="Seleccionar caja">
+        <span>CAJA FÍSICA</span>
+        <h3>{esSucursalCentro ? '¿Cuál caja vas a cerrar?' : 'Caja de esta sucursal'}</h3>
+        <p>Esta selección separa el dinero, la apertura y el corte de cada caja.</p>
+        <div>{opcionesCaja.map(([id, nombre]) => <button type="button" key={id} aria-pressed={cajaId === id} onClick={() => seleccionarCaja(id)}>{nombre}</button>)}</div>
+        {!cajaId && <small>Selecciona una caja para continuar.</small>}
+      </section>
+
+
       <section
         style={{
           padding: "18px",
@@ -1318,28 +1479,28 @@ export default function CierreTurno({
         <div style={{ color: "#8f2f5e", fontSize: "12px", fontWeight: 900, letterSpacing: ".08em" }}>
           RESPONSABILIDAD DE CAJA
         </div>
-        {sesionCajaActiva ? (
+        {cargandoCierres ? <p role="status">Consultando el estado de caja…</p> : sesionCajaActiva ? (
           <>
-            <h3 style={{ margin: "7px 0" }}>Caja abierta por {sesionCajaActiva.responsable}</h3>
+            <h3 style={{ margin: "7px 0" }}>{cajaNombre} abierta por {sesionCajaActiva.responsable}</h3>
             <p style={{ margin: 0, color: "#5f4f57" }}>
               Fondo inicial: <b>{formatearDinero(FONDO_FIJO_CAJA)}</b> · abierta {new Date(
                 sesionCajaActiva.abiertoEn
               ).toLocaleString("es-MX")}
             </p>
             <p style={{ margin: "9px 0 0", color: "#5f4f57" }}>
-              Para que otra persona tome la caja, primero termina este corte con la foto de SICAR.
+              El cierre quedará firmado por la cuenta que lo envíe. La persona que abrió se conserva por separado.
             </p>
           </>
-        ) : (
+        ) : corteSinApertura ? <div><h3 style={{ margin: '7px 0' }}>Cierre sin apertura previa</h3><p style={{ margin: 0 }}>Captura el fondo inicial real. Dirección revisará este corte; no se crea una apertura retroactiva.</p></div> : (
           <>
-            <h3 style={{ margin: "7px 0" }}>La caja está cerrada</h3>
+            <h3 style={{ margin: "7px 0" }}>No se encontró una apertura registrada</h3>
             <p style={{ margin: "0 0 14px", color: "#5f4f57" }}>
-              Quien vaya a usarla debe abrirla. MONYS registrará automáticamente su nombre, hora y el fondo fijo de {formatearDinero(FONDO_FIJO_CAJA)}.
+              Si vas a comenzar a usar la caja, registra su apertura. Si ya vas a cerrar y no registraste la apertura, usa la opción de cierre de hoy y captura el fondo real.
             </p>
             <button
               type="button"
               onClick={abrirCaja}
-              disabled={abriendoCaja}
+              disabled={!cajaId || abriendoCaja || cargandoCierres || corteSinApertura}
               style={{
                 width: "100%",
                 padding: "13px 16px",
@@ -1351,14 +1512,16 @@ export default function CierreTurno({
                 cursor: abriendoCaja ? "wait" : "pointer",
               }}
             >
-              {abriendoCaja ? "Abriendo caja..." : `Abrir caja con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}`}
+              {abriendoCaja ? "Abriendo caja..." : `Iniciar caja ahora · fondo ${formatearDinero(FONDO_FIJO_CAJA)}`}
             </button>
+            <button className="tienda-cierre-sin-apertura" type="button" disabled={!cajaId || corteSinApertura || abriendoCaja || cargandoCierres} onClick={() => { setCorteSinApertura(true); setFormulario(actual => ({ ...actual, fondoInicial: '', efectivoFinal: '' })); setError(''); }}>Registrar cierre de hoy sin apertura previa</button>
+            {corteSinApertura && <p role="status">Este corte quedará identificado como sin apertura registrada. Escribe el fondo que realmente había al comenzar el turno; no se registrará una apertura retroactiva.</p>}
           </>
         )}
       </section>
 
 
-      {sesionCajaActiva && (
+      {(sesionCajaActiva || corteSinApertura) && (
       <form
         onSubmit={
           manejarGuardar
@@ -1383,7 +1546,7 @@ export default function CierreTurno({
         >
           <div>
             <label>
-              👤 ¿Quién cierra?
+              👤 Cierre firmado por
             </label>
 
             <input
@@ -1419,7 +1582,7 @@ export default function CierreTurno({
                 fontWeight: 900,
               }}
             >
-              {formatearDinero(FONDO_FIJO_CAJA)} · fijo
+              {corteSinApertura ? 'Captura el fondo real en el formulario' : `${formatearDinero(FONDO_FIJO_CAJA)} · registrado`}
             </div>
           </div>
         </div>
@@ -1479,6 +1642,7 @@ export default function CierreTurno({
           </label>
 
           <div
+            className="tienda-importes"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -1491,7 +1655,7 @@ export default function CierreTurno({
               ["tarjeta", "Cobros con tarjeta", "Total de terminales"],
               ["transferencias", "Transferencias", "Cobros recibidos por banco"],
               ["otrosCobros", "Otros cobros", "Vales u otra forma de pago"],
-              ["fondoInicial", "Fondo inicial", "Siempre inicia con $1,000"],
+              ["fondoInicial", "Fondo inicial", corteSinApertura ? "Fondo real al iniciar el turno" : "Fondo registrado al abrir"],
               ["efectivoEntregado", "Efectivo retirado al cierre", "Dinero de la venta que entregas o resguardas"],
               ["efectivoFinal", "Fondo que queda en caja", "Cuenta el efectivo real; la meta es dejar $1,000"],
             ].map(([name, label, ayuda]) => (
@@ -1505,7 +1669,7 @@ export default function CierreTurno({
                   name={name}
                   value={formulario[name]}
                   onChange={manejarCambio}
-                  readOnly={name === "fondoInicial"}
+                  readOnly={name === "fondoInicial" && !corteSinApertura}
                   placeholder="$0.00"
                   style={{
                     width: "100%",
@@ -1514,7 +1678,7 @@ export default function CierreTurno({
                     padding: "11px",
                     borderRadius: "10px",
                     border: "1px solid #d9bdcc",
-                    background: name === "fondoInicial" ? "#f8f3f6" : "#fff",
+                    background: name === "fondoInicial" && !corteSinApertura ? "#f8f3f6" : "#fff",
                   }}
                 />
                 <small
@@ -1731,13 +1895,13 @@ export default function CierreTurno({
                 style={{
                   padding: "12px",
                   borderRadius: "12px",
-                  background: Number(valor) === 0 ? "#f5f8f6" : "#fff2e6",
+                  background: importesListos && etiqueta.startsWith("Diferencia") && Math.abs(Number(valor)) > 0.009 ? "#fff2e6" : "#f5f8f6",
                   border: "1px solid #eadde4",
                 }}
               >
                 <small style={{ color: "#725d68" }}>{etiqueta}</small>
                 <strong style={{ display: "block", marginTop: "4px" }}>
-                  {formatearDinero(valor)}
+                  {importesListos ? formatearDinero(valor) : "Por completar"}
                 </strong>
               </div>
             ))}
@@ -1745,6 +1909,7 @@ export default function CierreTurno({
         </section>
 
 
+        <details className="tienda-notas"><summary>Notas del turno · opcional</summary>
         <div>
           <label>
             📌 ¿Qué quedó pendiente?
@@ -1894,6 +2059,7 @@ export default function CierreTurno({
         </div>
 
 
+        </details>
         <button
           type="submit"
           disabled={
@@ -1920,7 +2086,7 @@ export default function CierreTurno({
       )}
 
 
-      <section>
+      {!modoEmpleado && <section>
         <div
           style={{
             display: "flex",
@@ -1971,11 +2137,11 @@ export default function CierreTurno({
 
 
         {cargandoCierres &&
-        cierres.length === 0 ? (
+        cierresVisibles.length === 0 ? (
           <p>
             Cargando cierres...
           </p>
-        ) : cierres.length ===
+        ) : cierresVisibles.length ===
           0 ? (
           <div
             style={{
@@ -1995,8 +2161,11 @@ export default function CierreTurno({
               gap: "14px",
             }}
           >
-            {cierres.map(
-              (cierre) => (
+            {cierresVisibles.map(
+              (cierre) => {
+                const correccion = correccionesCierres.get(cierre.id);
+                const editando = correccionCierre?.cierreId === cierre.id;
+                return (
                 <article
                   key={
                     cierre.id
@@ -2026,9 +2195,13 @@ export default function CierreTurno({
                       <strong>
                         👤{" "}
                         {
-                          cierre.responsable
+                          correccion?.responsableCorregido || cierre.responsable
                         }
                       </strong>
+
+                      {correccion?.cajaNombre && <div style={{ marginTop: "4px", fontWeight: 800 }}>
+                        {correccion.cajaNombre}
+                      </div>}
 
                       <div
                         style={{
@@ -2138,12 +2311,44 @@ export default function CierreTurno({
                       </p>
                     </div>
                   </div>
+
+                  {correccion && <div style={{ marginTop: "14px", padding: "12px", borderRadius: "10px", background: "#f8eef3", color: "#654657" }}>
+                    <strong>Corrección de Dirección</strong>
+                    <p style={{ margin: "5px 0 0" }}>Registro original: {cierre.responsable}. Corregido por {correccion.corregidoPor || 'Dirección'} sin borrar el historial.</p>
+                  </div>}
+
+                  {!correccion && ['owner', 'admin'].includes(String(usuario?.role || '').toLowerCase()) && !editando && (
+                    <button type="button" onClick={() => setCorreccionCierre({ cierreId: cierre.id, responsableCorregido: cierre.responsable || '', cajaId: '', motivo: 'Confirmación operativa posterior al cierre' })} style={{ marginTop: "14px" }}>
+                      Corregir responsable o caja
+                    </button>
+                  )}
+
+                  {editando && <div style={{ marginTop: "14px", padding: "14px", border: "1px solid #d9bdcc", borderRadius: "12px", background: "#fff8fb" }}>
+                    <strong>Registrar corrección sin borrar el original</strong>
+                    <label style={{ display: "block", marginTop: "10px" }}>Responsable correcta
+                      <input value={correccionCierre.responsableCorregido} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, responsableCorregido: event.target.value }))} style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }} />
+                    </label>
+                    <label style={{ display: "block", marginTop: "10px" }}>Caja correcta
+                      <select value={correccionCierre.cajaId} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, cajaId: event.target.value }))} style={{ width: "100%", marginTop: "5px", padding: "10px" }}>
+                        <option value="">Seleccionar caja</option>
+                        {opcionesCaja.map(([id, nombreCaja]) => <option key={id} value={id}>{nombreCaja}</option>)}
+                      </select>
+                    </label>
+                    <label style={{ display: "block", marginTop: "10px" }}>Motivo
+                      <input value={correccionCierre.motivo} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, motivo: event.target.value }))} style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }} />
+                    </label>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                      <button type="button" onClick={() => guardarCorreccionHistorica(cierre)} disabled={guardandoCorreccion}>{guardandoCorreccion ? 'Guardando…' : 'Guardar corrección'}</button>
+                      <button type="button" onClick={() => setCorreccionCierre(null)} disabled={guardandoCorreccion}>Cancelar</button>
+                    </div>
+                  </div>}
                 </article>
-              )
+                );
+              }
             )}
           </div>
         )}
-      </section>
+      </section>}
     </section>
   );
 }
