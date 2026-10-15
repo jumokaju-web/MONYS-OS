@@ -1,3 +1,4 @@
+import { estadoRevisionCorte } from './revisionCortes.js';
 function importe(valor) {
   if (valor === null || valor === undefined || String(valor).trim() === '') return null;
   const n = Number(valor);
@@ -15,7 +16,8 @@ export function diagnosticarCorte(captura) {
   return { nivel: 'revision', peso: 1, titulo: 'Sin diferencia detectada', accion: 'Compara la foto de SICAR con cobros y movimientos. Este diagnóstico no aprueba ni concilia el corte.' };
 }
 
-export function seleccionarCortes(capturas, filtros = {}) {
+export function seleccionarCortes(capturas, filtros = {}, revisiones = {}) {
+  const peso = c => estadoRevisionCorte(c, revisiones[c.cierre.id]) === 'REVISADO' ? 0 : diagnosticarCorte(c).peso;
   const buscar = String(filtros.buscar || '').trim().toLocaleLowerCase('es-MX');
   return capturas.filter(c => {
     const fecha = String(c.cierre.fecha || '').slice(0, 10);
@@ -24,10 +26,10 @@ export function seleccionarCortes(capturas, filtros = {}) {
       (!filtros.tipo || c.tipo === filtros.tipo) &&
       (!filtros.nivel || diagnosticarCorte(c).nivel === filtros.nivel) &&
       (!buscar || [c.cierre.responsable, c.datos.chofer, c.datos.placas, c.datos.codigoRuta].some(v => String(v || '').toLocaleLowerCase('es-MX').includes(buscar)));
-  }).sort((a, b) => diagnosticarCorte(b).peso - diagnosticarCorte(a).peso || String(b.cierre.fecha || '').localeCompare(String(a.cierre.fecha || '')) || String(a.cierre.id).localeCompare(String(b.cierre.id)));
+  }).sort((a, b) => peso(b) - peso(a) || String(b.cierre.fecha || '').localeCompare(String(a.cierre.fecha || '')) || String(a.cierre.id).localeCompare(String(b.cierre.id)));
 }
 
-export function resumirAlertasCortes(capturas) {
+export function resumirAlertasCortes(capturas, revisiones = {}) {
   const resumen = { faltantes: 0, sobrantes: 0, conDiferencia: 0, sinEvidencia: 0, incompletos: 0 };
   for (const c of capturas.filter(c => c.tipo === 'caja')) {
     const caja = importe(c.datos.diferenciaCaja);
@@ -36,7 +38,7 @@ export function resumirAlertasCortes(capturas) {
       if (caja >= 0.01) resumen.sobrantes += caja;
     }
     const diagnostico = diagnosticarCorte(c);
-    if (diagnostico.nivel === 'diferencia') resumen.conDiferencia++;
+    if (diagnostico.nivel === 'diferencia' && estadoRevisionCorte(c, revisiones[c.cierre.id]) !== 'REVISADO') resumen.conDiferencia++;
     if (diagnostico.nivel === 'incompleto') resumen.incompletos++;
     if (!c.datos.fotoCorteUrl) resumen.sinEvidencia++;
   }
