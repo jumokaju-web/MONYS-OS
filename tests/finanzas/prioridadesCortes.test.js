@@ -24,3 +24,13 @@ test('filtros inclusivos combinan fecha, responsable, origen y prioridad', () =>
 test('no mezcla liquidaciones con diferencias de caja y contabiliza evidencia faltante aun con diferencia', () => {
   assert.deepEqual(resumirAlertasCortes([corte('1', -0.01, 0, ''), { tipo: 'flotilla', datos: { diferenciaCaja: -999 } }]), { faltantes: 0.01, sobrantes: 0, conDiferencia: 1, sinEvidencia: 1, incompletos: 0 });
 });
+test('una revisión vigente baja la prioridad sin borrar la diferencia histórica', () => {
+ const lista = [corte('1', -200), corte('2', -20)];
+ lista[0].cierre.observaciones = 'original';
+ const revisiones = { '1': { estado: 'REVISADO', snapshot_observaciones: 'original' } };
+ assert.deepEqual(seleccionarCortes(lista, {}, revisiones).map(c => c.cierre.id), ['2', '1']);
+ assert.equal(resumirAlertasCortes(lista, revisiones).conDiferencia, 1);
+ assert.equal(resumirAlertasCortes(lista, revisiones).faltantes, 220);
+ lista[0].cierre.observaciones = 'modificado';
+ assert.equal(resumirAlertasCortes(lista, revisiones).conDiferencia, 2);
+});
