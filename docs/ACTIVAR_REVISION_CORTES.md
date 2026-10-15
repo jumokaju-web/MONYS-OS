@@ -23,4 +23,5 @@ La actualización entre dispositivos se consulta con Actualizar; no existe suscr
 - Lint sin advertencias en los archivos financieros modificados; existen advertencias previas en el repositorio.
 - Migración ejecutada en PostgreSQL aislado mediante PGlite con esquema mínimo de prueba: RLS entre organizaciones y roles; rechazo de escritura directa, revisión desactualizada y versión anterior; exigencia de comprobaciones; conservación de eventos anteriores.
 - Interacción del formulario comprobada con React y DOM de prueba: apertura, validación, comprobaciones y confirmación de guardado.
-- Pendientes: validación del esquema real, migración en producción, comprobación visual y prueba entre dispositivos reales. La base aislada no demuestra que la migración ya esté aplicada en Supabase.
+- Vista previa de escritorio inspeccionada con sesión real: bandeja sin capturas de formato nuevo en la consulta actual; no se crearon datos de prueba en producción.
+- Pendientes: validación del esquema real, migración en producción, comprobación visual móvil y de cortes con datos, y prueba entre dispositivos reales. La base aislada no demuestra que la migración ya esté aplicada en Supabase.
