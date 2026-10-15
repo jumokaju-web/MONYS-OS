@@ -64,6 +64,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
   const visibles = useMemo(() => rangoInvalido ? [] : seleccionarCortes(capturas, filtros, revisiones).filter(c => !filtroRevision || (c.tipo === 'caja' && estadoRevisionCorte(c, revisiones[c.cierre.id]) === filtroRevision)), [capturas, filtros, rangoInvalido, filtroRevision, revisiones]);
   const alertas = useMemo(() => resumirAlertasCortes(visibles, revisiones), [visibles, revisiones]);
+  const sinBase = cargando || Boolean(error) || visibles.length === 0;
   const cambiarFiltro = (campo, valor) => setFiltros(actual => ({ ...actual, [campo]: valor }));
 
   const cargar = useCallback(async () => {
@@ -162,13 +163,13 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Limpiar filtros</button>
       </div>
       {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
-      <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX')}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
+      <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
       {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
       <div className="cortes-prioridad">
-        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
-        <div><small>Faltantes de caja reportados</small><strong>{moneda.format(alertas.faltantes)}</strong></div>
-        <div><small>Sobrantes de caja reportados</small><strong>{moneda.format(alertas.sobrantes)}</strong></div>
-        <div><small>Sin foto / datos incompletos</small><strong>{alertas.sinEvidencia} / {alertas.incompletos}</strong></div>
+        <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{sinBase ? (cargando ? 'Consultando cortes…' : error ? 'No se pudo consultar' : 'Sin cortes para evaluar') : revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
+        <div><small>Faltantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.faltantes)}</strong></div>
+        <div><small>Sobrantes de caja reportados</small><strong>{sinBase ? '—' : moneda.format(alertas.sobrantes)}</strong></div>
+        <div><small>Sin foto / datos incompletos</small><strong>{sinBase ? '—' : `${alertas.sinEvidencia} / ${alertas.incompletos}`} </strong></div>
       </div>
 
       {branchId && !cargando && !error && <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
@@ -182,13 +183,13 @@ export default function BandejaCapturasEquipo({ branchId }) {
           </>
         ) : (
           <>
-            <strong>Sin responsable activa</strong>
-            <small>La caja está cerrada o el último corte ya fue entregado.</small>
+            <strong>No se encontró una apertura activa</strong>
+            <small>No hay una apertura vigente entre los registros consultados; confirma con la encargada.</small>
           </>
         )}
       </div>}
 
-      <div className="capturas-resumen">
+      {!sinBase && <div className="capturas-resumen">
         <TarjetaDato titulo="Cortes recibidos" valor={resumen.cajas} esDinero={false} />
         <TarjetaDato titulo="Entradas posteriores" valor={resumen.entradasCaja} />
         <TarjetaDato titulo="Salidas posteriores" valor={resumen.salidasCaja} />
@@ -200,7 +201,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
         {resumen.traspasos > 0 && <TarjetaDato titulo="Depósitos / traspasos" valor={resumen.traspasos} />}
         {resumen.prestamos > 0 && <TarjetaDato titulo="Préstamos / anticipos" valor={resumen.prestamos} />}
         {resumen.flotilla > 0 && <TarjetaDato titulo="Resultado estimado flotilla" valor={resumen.resultadoFlotilla} />}
-      </div>
+      </div>}
 
       <p className="capturas-aviso">
         Las cifras son reportes del equipo y todavía no son contabilidad final.
