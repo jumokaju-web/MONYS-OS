@@ -12,6 +12,7 @@ import RevisionCorteDiario from './RevisionCorteDiario';
 import CompletarCorteIncompleto from './CompletarCorteIncompleto';
 import CierreHoyDireccion from './CierreHoyDireccion';
 import { resumirCierreDiarioDireccion } from '../utils/cierreDiarioDireccion';
+import { indexarSeguimientosCierre } from '../utils/seguimientoCierre';
 import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
 import { etiquetasRevision, estadoRevisionCorte, resumirEstadosRevision } from '../utils/revisionCortes';
 
@@ -69,6 +70,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [sesionesCajaActivas, setSesionesCajaActivas] = useState([]);
+  const [seguimientosCierre, setSeguimientosCierre] = useState(new Map());
 
   const solicitud = useRef(0);
   const [filtros, setFiltros] = useState({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' });
@@ -89,6 +91,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
     setErrorRevisiones('');
     setCapturas([]);
     setSesionesCajaActivas([]);
+    setSeguimientosCierre(new Map());
     setActualizadoEn(null);
     setLimiteAlcanzado(false);
     try {
@@ -99,6 +102,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
       setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
+      setSeguimientosCierre(indexarSeguimientosCierre(cierres));
       const recibidas = extraerCapturasFinancieras(cierres);
       setCapturas(recibidas);
       if (esOwner) {
@@ -164,7 +168,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
 
   return (
     <section className="capturas-equipo">
-      {esOwner && <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} />}
+      {esOwner && <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} seguimientos={seguimientosCierre} usuario={usuario} />}
       <div className="capturas-equipo-cabecera">
         <div>
           <span>MONYS OS · CONTROL DIARIO</span>

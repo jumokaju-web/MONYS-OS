@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { guardarCierreTurno } from "../../inteligencia/services/cierresTurnoService";
+import { claveSeguimientoCierre, crearObservacionesSeguimientoCierre, mensajeSeguimientoCierre } from "../utils/seguimientoCierre";
+
 const moneda = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 2 });
 
 function fechaLegible(fecha) {
@@ -5,7 +9,53 @@ function fechaLegible(fecha) {
   return dia && mes && anio ? `${dia}/${mes}/${anio}` : fecha;
 }
 
-export default function CierreHoyDireccion({ resumen, cargando, error, onActualizar }) {
+function AccionSeguimiento({ caja, sucursal, fecha, seguimiento, usuario, onGuardado }) {
+  const [preparado, setPreparado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  if (caja.estado === "completo") return null;
+  const destinatario = caja.captura?.cierre?.responsable || "";
+  const mensaje = mensajeSeguimientoCierre({ fecha: fechaLegible(fecha), sucursal: sucursal.nombre, caja: caja.nombre, estado: caja.estado, destinatario });
+
+  function abrirWhatsApp() {
+    setPreparado(true);
+    window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function confirmarEnvio() {
+    setError("");
+    try {
+      setGuardando(true);
+      await guardarCierreTurno({
+        branchId: sucursal.branchId,
+        responsable: usuario?.nombre,
+        turno: "seguimiento_cierre",
+        fecha,
+        observaciones: crearObservacionesSeguimientoCierre({
+          fecha,
+          branchId: sucursal.branchId,
+          cajaId: caja.cajaId,
+          tipo: caja.estado === "incompleto" ? "importes" : "cierre",
+          destinatario: destinatario || `Encargada de ${sucursal.nombre}`,
+          registradoPor: usuario?.nombre,
+        }),
+      });
+      setPreparado(false);
+      await onGuardado?.();
+    } catch (e) {
+      setError(e?.message || "No se pudo registrar el seguimiento.");
+    } finally { setGuardando(false); }
+  }
+
+  return <div className="cierre-hoy-accion">
+    {seguimiento && <small>Solicitado {new Date(seguimiento.enviadoEn).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</small>}
+    <button type="button" onClick={abrirWhatsApp}>{seguimiento ? "Volver a pedir" : caja.estado === "incompleto" ? "Pedir importes" : "Pedir cierre"}</button>
+    {preparado && <button className="confirmar" type="button" onClick={confirmarEnvio} disabled={guardando}>{guardando ? "Registrando…" : "Ya lo envié"}</button>}
+    {error && <small className="error" role="alert">{error}</small>}
+  </div>;
+}
+
+export default function CierreHoyDireccion({ resumen, cargando, error, onActualizar, seguimientos = new Map(), usuario }) {
   const todoCerrado = resumen.cajasEsperadas > 0 && resumen.cajasFaltantes === 0 && resumen.cajasIncompletas === 0;
   return (
     <section className={`cierre-hoy ${todoCerrado ? "esta-completo" : "requiere-atencion"}`} aria-label="Cierre de hoy para Dirección">
@@ -22,7 +72,7 @@ export default function CierreHoyDireccion({ resumen, cargando, error, onActuali
       {!cargando && !error && <div className="cierre-hoy-sucursales">
         {resumen.sucursales.map((sucursal) => <article key={sucursal.branchId}>
           <div><h3>{sucursal.nombre}</h3><small>{sucursal.faltantes ? `${sucursal.faltantes} sin cerrar` : sucursal.incompletas ? `${sucursal.incompletas} sin importes completos` : "Cierre recibido"}</small></div>
-          <div className="cierre-hoy-cajas">{sucursal.cajas.map((caja) => <span key={caja.cajaId} className={`estado-${caja.estado}`}>{caja.nombre}: {caja.estado === "completo" ? "lista" : caja.estado === "incompleto" ? "aclarar" : "falta"}</span>)}</div>
+          <div className="cierre-hoy-cajas">{sucursal.cajas.map((caja) => <div className="cierre-hoy-caja" key={caja.cajaId}><span className={`estado-${caja.estado}`}>{caja.nombre}: {caja.estado === "completo" ? "lista" : caja.estado === "incompleto" ? "aclarar" : "falta"}</span><AccionSeguimiento caja={caja} sucursal={sucursal} fecha={resumen.fecha} seguimiento={seguimientos.get(claveSeguimientoCierre({ fecha: resumen.fecha, branchId: sucursal.branchId, cajaId: caja.cajaId }))} usuario={usuario} onGuardado={onActualizar} /></div>)}</div>
         </article>)}
       </div>}
       {!cargando && !error && resumen.diferencias > 0 && <p className="cierre-hoy-alerta">{resumen.diferencias} {resumen.diferencias === 1 ? "caja necesita" : "cajas necesitan"} revisar diferencias antes de decidir con el dinero.</p>}
