@@ -10,6 +10,7 @@ import { generarCompraMaestra } from "../services/compraMaestraService";
 import { resumirCierreDiarioDireccion } from "../../finanzas/utils/cierreDiarioDireccion";
 import { resumirDisponibilidadFinanciera } from "../../finanzas/utils/disponibilidadFinanciera";
 import { construirCentroDireccionCEO } from "../utils/centroDireccionCEO";
+import PlanPagosComprasCEO from "./PlanPagosComprasCEO";
 import "./CentroDireccionCEO.css";
 
 const dinero = new Intl.NumberFormat("es-MX", {
@@ -233,6 +234,17 @@ export default function CentroDireccionCEO({
           </div>
         </article>
       </div>
+
+      <PlanPagosComprasCEO
+        disponibilidad={datos.disponibilidad}
+        deudas={datos.deudas}
+        deudasConsultadas={datos.deudasConsultadas}
+        creditosProveedores={datos.proveedores}
+        compraMaestra={datos.compraMaestra}
+        compraConsultada={datos.compraConsultada}
+        abrirDirectorFinanciero={abrirDirectorFinanciero}
+        abrirCompraMaestra={abrirCompraMaestra}
+      />
 
       <footer className="centro-ceo__pie">
         <span><b>REAL</b> cifras comprobadas</span>
