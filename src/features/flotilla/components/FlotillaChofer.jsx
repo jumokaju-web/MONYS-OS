@@ -306,6 +306,11 @@ export default function FlotillaChofer({
   const rolActual = String(usuario?.role || "").toLowerCase();
   const puedeGestionarPnr =
     rolActual === "owner" || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
+  const regresaAMonys = ["owner", "admin", "director"].includes(rolActual);
+
+  function irASeccion(id) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   const placasReales =
     unidad?.placas || "—";
@@ -335,13 +340,14 @@ export default function FlotillaChofer({
         minHeight: "100vh",
         background:
           "linear-gradient(180deg, #eef8ff 0%, #ffffff 100%)",
-        padding: "14px 12px 90px",
+        padding: "calc(14px + env(safe-area-inset-top, 0px)) 12px calc(92px + env(safe-area-inset-bottom, 0px))",
         fontFamily:
           "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         color: "#14365a",
       }}
     >
       <div
+        id="flotilla-inicio"
         style={{
           width: "100%",
           maxWidth: "520px",
@@ -401,7 +407,7 @@ export default function FlotillaChofer({
                   cursor: "pointer",
                 }}
               >
-                Salir
+                {regresaAMonys ? "← MONYS" : "Salir"}
               </button>
             )}
           </div>
@@ -528,6 +534,7 @@ export default function FlotillaChofer({
           </div>
         )}
 
+        <div id="flotilla-pnr" style={{ scrollMarginTop: "16px" }}>
         {esVistaAdministrativa && (
           <>
             {puedeGestionarPnr && <FlotillaPnr modoAdministracion />}
@@ -551,6 +558,7 @@ export default function FlotillaChofer({
             />
           </>
         )}
+        </div>
 
         {/* SALUDO */}
         <div
@@ -855,7 +863,9 @@ export default function FlotillaChofer({
   </p>
 )}
 <section
+          id="flotilla-ruta"
           style={{
+            scrollMarginTop: "16px",
             background: "#ffffff",
             borderRadius: "18px",
             padding: "15px",
@@ -1105,7 +1115,9 @@ export default function FlotillaChofer({
 
         {/* ECONOMÍA + GASTO */}
         <div
+          id="flotilla-resumen"
           style={{
+            scrollMarginTop: "16px",
             display: "grid",
             gridTemplateColumns: "1fr",
             gap: "10px",
@@ -1367,25 +1379,31 @@ export default function FlotillaChofer({
           }}
         >
           {[
-            ["🏠", "Inicio"],
-            ["🗺️", "Mi ruta"],
-            ["📅", "Mi semana"],
-            ["🚑", "Ambulancia"],
-            ["☰", "Más"],
-          ].map(([icono, texto]) => (
-            <div
+            [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
+            ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
+            ["📦", "PNR", () => irASeccion("flotilla-pnr")],
+            ["🗺️", "Mi ruta", () => irASeccion("flotilla-ruta")],
+            ["💰", "Resumen", () => irASeccion("flotilla-resumen")],
+          ].map(([icono, texto, accion]) => (
+            <button
+              type="button"
               key={texto}
+              onClick={accion}
               style={{
+                border: 0,
+                background: "transparent",
+                padding: "2px 6px",
                 textAlign: "center",
                 fontSize: "11px",
                 color:
-                  texto === "Inicio"
+                  texto === "MONYS" || texto === "Salir"
                     ? "#1675df"
                     : "#536d85",
                 fontWeight:
-                  texto === "Inicio"
+                  texto === "MONYS" || texto === "Salir"
                     ? "900"
                     : "700",
+                cursor: "pointer",
               }}
             >
               <div
@@ -1397,7 +1415,7 @@ export default function FlotillaChofer({
               </div>
 
               {texto}
-            </div>
+            </button>
           ))}
         </div>
       </div>
