@@ -26,9 +26,12 @@ import {
 import {
   calcularCorteCaja,
   crearObservacionesAperturaCaja,
+  crearObservacionesCorreccionCierre,
   crearObservacionesCorte,
   FONDO_FIJO_CAJA,
+  indexarCorreccionesCierres,
   leerAperturaCaja,
+  leerCorreccionCierre,
   leerCorteCaja,
   leerLiquidacionFlotilla,
   obtenerSesionCajaActiva,
@@ -89,6 +92,8 @@ export default function CierreTurno({
   const [avisoBorrador, setAvisoBorrador] = useState('');
   const [confirmacionCorte, setConfirmacionCorte] = useState(null);
   const [consultaCajaConfirmada, setConsultaCajaConfirmada] = useState(false);
+  const [correccionCierre, setCorreccionCierre] = useState(null);
+  const [guardandoCorreccion, setGuardandoCorreccion] = useState(false);
   const [
     formulario,
     setFormulario,
@@ -125,6 +130,11 @@ export default function CierreTurno({
     cargandoCierres,
     setCargandoCierres,
   ] = useState(false);
+  const correccionesCierres = useMemo(() => indexarCorreccionesCierres(cierres), [cierres]);
+  const cierresVisibles = useMemo(
+    () => cierres.filter((cierre) => !leerCorreccionCierre(cierre?.observaciones)),
+    [cierres]
+  );
 
   const [corteSinApertura, setCorteSinApertura] = useState(false);
   const esSucursalCentro = /centro/i.test(String(usuario?.sucursal || ''));
@@ -422,6 +432,46 @@ export default function CierreTurno({
     setConfirmacionCorte(null);
     setError('');
     setMensaje('');
+  }
+
+  async function guardarCorreccionHistorica(cierre) {
+    if (guardandoCorreccion || !correccionCierre || correccionCierre.cierreId !== cierre.id) return;
+    const responsableCorregido = String(correccionCierre.responsableCorregido || '').trim();
+    const cajaCorregidaId = String(correccionCierre.cajaId || '').trim();
+    const cajaCorregidaNombre = opcionesCaja.find(([id]) => id === cajaCorregidaId)?.[1] || '';
+    const corregidoPor = String(usuario?.nombre || '').trim();
+    if (!['owner', 'admin'].includes(String(usuario?.role || '').toLowerCase())) {
+      setError('Solo Dirección puede corregir un cierre histórico.');
+      return;
+    }
+    if (!responsableCorregido || !cajaCorregidaNombre || !corregidoPor) {
+      setError('Confirma la responsable y la caja correcta.');
+      return;
+    }
+    try {
+      setGuardandoCorreccion(true);
+      setError('');
+      await guardarCierreTurno({
+        branchId: cierre.branch_id || branchId,
+        responsable: corregidoPor,
+        turno: 'correccion_cierre',
+        observaciones: crearObservacionesCorreccionCierre({
+          cierreId: cierre.id,
+          responsableCorregido,
+          cajaId: cajaCorregidaId,
+          cajaNombre: cajaCorregidaNombre,
+          motivo: correccionCierre.motivo || 'Confirmación operativa posterior al cierre',
+          corregidoPor,
+        }),
+      });
+      setCorreccionCierre(null);
+      setMensaje(`Corrección registrada: ${responsableCorregido} · ${cajaCorregidaNombre}. El dato original se conserva para auditoría.`);
+      await cargarCierres();
+    } catch (errorCorreccion) {
+      setError(errorCorreccion?.message || 'No fue posible registrar la corrección.');
+    } finally {
+      setGuardandoCorreccion(false);
+    }
   }
 
   async function abrirCaja() {
@@ -2087,11 +2137,11 @@ export default function CierreTurno({
 
 
         {cargandoCierres &&
-        cierres.length === 0 ? (
+        cierresVisibles.length === 0 ? (
           <p>
             Cargando cierres...
           </p>
-        ) : cierres.length ===
+        ) : cierresVisibles.length ===
           0 ? (
           <div
             style={{
@@ -2111,8 +2161,11 @@ export default function CierreTurno({
               gap: "14px",
             }}
           >
-            {cierres.map(
-              (cierre) => (
+            {cierresVisibles.map(
+              (cierre) => {
+                const correccion = correccionesCierres.get(cierre.id);
+                const editando = correccionCierre?.cierreId === cierre.id;
+                return (
                 <article
                   key={
                     cierre.id
@@ -2142,9 +2195,13 @@ export default function CierreTurno({
                       <strong>
                         👤{" "}
                         {
-                          cierre.responsable
+                          correccion?.responsableCorregido || cierre.responsable
                         }
                       </strong>
+
+                      {correccion?.cajaNombre && <div style={{ marginTop: "4px", fontWeight: 800 }}>
+                        {correccion.cajaNombre}
+                      </div>}
 
                       <div
                         style={{
@@ -2254,8 +2311,40 @@ export default function CierreTurno({
                       </p>
                     </div>
                   </div>
+
+                  {correccion && <div style={{ marginTop: "14px", padding: "12px", borderRadius: "10px", background: "#f8eef3", color: "#654657" }}>
+                    <strong>Corrección de Dirección</strong>
+                    <p style={{ margin: "5px 0 0" }}>Registro original: {cierre.responsable}. Corregido por {correccion.corregidoPor || 'Dirección'} sin borrar el historial.</p>
+                  </div>}
+
+                  {!correccion && ['owner', 'admin'].includes(String(usuario?.role || '').toLowerCase()) && !editando && (
+                    <button type="button" onClick={() => setCorreccionCierre({ cierreId: cierre.id, responsableCorregido: cierre.responsable || '', cajaId: '', motivo: 'Confirmación operativa posterior al cierre' })} style={{ marginTop: "14px" }}>
+                      Corregir responsable o caja
+                    </button>
+                  )}
+
+                  {editando && <div style={{ marginTop: "14px", padding: "14px", border: "1px solid #d9bdcc", borderRadius: "12px", background: "#fff8fb" }}>
+                    <strong>Registrar corrección sin borrar el original</strong>
+                    <label style={{ display: "block", marginTop: "10px" }}>Responsable correcta
+                      <input value={correccionCierre.responsableCorregido} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, responsableCorregido: event.target.value }))} style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }} />
+                    </label>
+                    <label style={{ display: "block", marginTop: "10px" }}>Caja correcta
+                      <select value={correccionCierre.cajaId} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, cajaId: event.target.value }))} style={{ width: "100%", marginTop: "5px", padding: "10px" }}>
+                        <option value="">Seleccionar caja</option>
+                        {opcionesCaja.map(([id, nombreCaja]) => <option key={id} value={id}>{nombreCaja}</option>)}
+                      </select>
+                    </label>
+                    <label style={{ display: "block", marginTop: "10px" }}>Motivo
+                      <input value={correccionCierre.motivo} onChange={(event) => setCorreccionCierre((actual) => ({ ...actual, motivo: event.target.value }))} style={{ width: "100%", boxSizing: "border-box", marginTop: "5px", padding: "10px" }} />
+                    </label>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+                      <button type="button" onClick={() => guardarCorreccionHistorica(cierre)} disabled={guardandoCorreccion}>{guardandoCorreccion ? 'Guardando…' : 'Guardar corrección'}</button>
+                      <button type="button" onClick={() => setCorreccionCierre(null)} disabled={guardandoCorreccion}>Cancelar</button>
+                    </div>
+                  </div>}
                 </article>
-              )
+                );
+              }
             )}
           </div>
         )}
