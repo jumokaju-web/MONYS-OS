@@ -6,6 +6,7 @@ import {
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import CentroComisionesRH from "./CentroComisionesRH";
 import CentroPagosRH from "./CentroPagosRH";
+import EquipoOperativo from "./EquipoOperativo";
 
 import {
   crearEmpleadoRH,
@@ -1517,6 +1518,11 @@ async function manejarReactivarEmpleado(
           }
         />
       </div>
+
+      <EquipoOperativo
+        branchId={branchId}
+        empleados={listaEmpleados}
+      />
 
        {/* LISTA DE EMPLEADOS */}
 
