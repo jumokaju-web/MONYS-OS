@@ -45,9 +45,14 @@ function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
   );
 }
 
-export default function BandejaCapturasEquipo({ branchId }) {
+export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
   const { usuario } = useUser();
   const esOwner = usuario?.role === 'owner';
+  const alcanceBranchId = esOwner ? null : branchId;
+  const nombresSucursales = useMemo(
+    () => new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || 'Sucursal'])),
+    [sucursales]
+  );
   const [revisiones, setRevisiones] = useState({});
   const [errorRevisiones, setErrorRevisiones] = useState('');
   const [revisionDisponible, setRevisionDisponible] = useState(false);
@@ -81,11 +86,11 @@ export default function BandejaCapturasEquipo({ branchId }) {
     try {
       setCargando(true);
       setError("");
-      const cierres = await obtenerCierresTurno({ branchId, limite: 100 });
+      const cierres = await obtenerCierresTurno({ branchId: alcanceBranchId, limite: 100 });
       if (actual !== solicitud.current) return;
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
-      setSesionesCajaActivas(branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
+      setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
       const recibidas = cierres.map(extraerCapturaFinanciera).filter(Boolean);
       setCapturas(recibidas);
       if (esOwner) {
@@ -102,7 +107,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
     } finally {
       if (actual === solicitud.current) setCargando(false);
     }
-  }, [branchId, esOwner]);
+  }, [alcanceBranchId, branchId, esOwner]);
 
   const invalidarSolicitud = useCallback(() => { solicitud.current++; }, []);
   useEffect(() => {
@@ -176,6 +181,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <p className="cortes-alcance">{!revisionDisponible ? 'Los estados se mostrarán al confirmar la consulta de revisiones.' : filtroRevision ? 'Filtro activo: ' + etiquetasRevision[filtroRevision] + '. Pulsa la misma tarjeta para ver todos los estados.' : 'Selecciona una tarjeta para ver sus cortes.'}</p>
       </section>}
       <p className="cortes-alcance" role="status">{cargando ? 'Consultando cortes…' : error ? 'Consulta no disponible.' : `${visibles.length} capturas visibles de ${capturas.length} recibidas.`} {actualizadoEn && `Actualizado a las ${actualizadoEn.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}.`} {limiteAlcanzado && 'Se alcanzó el límite de 100 registros recientes; este resumen puede estar incompleto.'}</p>
+      {esOwner && <p className="capturas-aviso">Vista de Dirección: se muestran los cortes de todas las sucursales.</p>}
       {!branchId && <p className="capturas-aviso">Vista de varias sucursales. Selecciona una sucursal para consultar quién tiene su caja abierta.</p>}
       <div className="cortes-prioridad">
         <div><span>POR ACLARAR · NO COMPENSADOS</span><h3>{sinBase ? (cargando ? 'Consultando cortes…' : error ? 'No se pudo consultar' : 'Sin cortes para evaluar') : revisionDisponible ? alertas.conDiferencia + ' cortes con diferencias sin revisar' : alertas.conDiferencia + ' cortes con diferencias reportadas'}</h3><p>Los faltantes y sobrantes se revisan por separado; no se cancelan entre sí.</p></div>
@@ -235,7 +241,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
                 <span>{tipo === "caja" ? "CORTE DE TIENDA" : "LIQUIDACIÓN DE FLOTILLA"}</span>
                 <h3>
                   {tipo === "caja"
-                    ? `${datos.cajaNombre || 'Caja sin identificar'} · ${cierre.responsable}`
+                    ? `${nombresSucursales.get(String(cierre.branch_id)) || 'Sucursal sin identificar'} · ${datos.cajaNombre || 'Caja sin identificar'} · ${cierre.responsable}`
                     : `${datos.placas || "Unidad"} · ${datos.chofer || cierre.responsable}`}
                 </h3>
               </div>
