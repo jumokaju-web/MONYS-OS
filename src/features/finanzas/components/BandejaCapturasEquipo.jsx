@@ -10,6 +10,8 @@ import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../u
 import { useUser } from '../../../context/UserContext';
 import RevisionCorteDiario from './RevisionCorteDiario';
 import CompletarCorteIncompleto from './CompletarCorteIncompleto';
+import CierreHoyDireccion from './CierreHoyDireccion';
+import { resumirCierreDiarioDireccion } from '../utils/cierreDiarioDireccion';
 import { obtenerRevisionesCortes } from '../services/revisionesCortesService';
 import { etiquetasRevision, estadoRevisionCorte, resumirEstadosRevision } from '../utils/revisionCortes';
 
@@ -53,7 +55,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
   const alcanceBranchId = esOwner ? null : branchId;
   const nombresSucursales = useMemo(
     () => {
-      const nombres = new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || 'Sucursal']));
+      const nombres = new Map((sucursales || []).map((sucursal) => [String(sucursal.id), sucursal.name || sucursal.nombre || 'Sucursal']));
       if (usuario?.branch_id && usuario?.sucursal) nombres.set(String(usuario.branch_id), usuario.sucursal);
       return nombres;
     },
@@ -152,9 +154,17 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
       ),
     };
   }, [visibles]);
+  const resumenCierreHoy = useMemo(() => resumirCierreDiarioDireccion({
+    capturas,
+    sucursales: [
+      ...(sucursales || []),
+      ...(usuario?.branch_id && usuario?.sucursal ? [{ id: usuario.branch_id, nombre: usuario.sucursal }] : []),
+    ],
+  }), [capturas, sucursales, usuario?.branch_id, usuario?.sucursal]);
 
   return (
     <section className="capturas-equipo">
+      {esOwner && <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} />}
       <div className="capturas-equipo-cabecera">
         <div>
           <span>MONYS OS · CONTROL DIARIO</span>
