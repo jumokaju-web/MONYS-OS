@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
 import CierreTurno from "./CierreTurno";
+import InicioTienda from "./InicioTienda";
 import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
 import PerfilOperativoEmpleado from "./PerfilOperativoEmpleado";
 import RegistroEntradaOperativa from "./RegistroEntradaOperativa";
@@ -117,6 +118,8 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
       destino?.focus({ preventScroll: true });
     }, 80);
   }
+
+  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} cerrarSesion={cerrarSesion}/>;
 
   return (
     <main
