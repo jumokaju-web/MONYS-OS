@@ -228,27 +228,6 @@ export async function obtenerCierresTurno({
     : [];
 }
 
-export async function obtenerCierresTurnoFinanzasOwner({ limite = 100 } = {}) {
-  const limiteSeguro = Math.min(Math.max(Number(limite) || 100, 1), 500);
-  const { data, error } = await supabase.rpc(
-    "obtener_cierres_turno_finanzas_owner",
-    { p_limite: limiteSeguro }
-  );
-
-  if (error) {
-    console.error("Error al obtener cierres financieros de Dirección:", error);
-    const detalle = String(error.message || "");
-    if (error.code === "PGRST202" || detalle.includes("obtener_cierres_turno_finanzas_owner")) {
-      throw new Error(
-        "La lectura segura de cortes para Dirección todavía no está instalada en la base de datos."
-      );
-    }
-    throw new Error(`No fue posible consultar los cortes de Dirección: ${detalle || "error desconocido"}`);
-  }
-
-  return Array.isArray(data) ? data : [];
-}
-
 
 export async function analizarCierreTurnoIA(
   cierreId
