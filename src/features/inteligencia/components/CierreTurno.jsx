@@ -906,7 +906,11 @@ export default function CierreTurno({
 
       {modoEmpleado && <aside className="tienda-borrador" aria-label="Protección de tu captura">
         <strong>{borradorRecuperable ? 'Encontramos una captura sin terminar' : 'Borrador de tu captura'}</strong>
-        <p>{claveBorrador ? 'Los datos escritos se conservan hasta 12 horas para esta cuenta, sucursal y fecha. La foto debe adjuntarse de nuevo al recuperar. Al pulsar Salir se eliminan los borradores de esta cuenta.' : 'No se pudo identificar tu cuenta y sucursal para proteger el borrador.'}</p>
+        <p>{claveBorrador
+          ? 'Los datos escritos se conservan hasta 12 horas para esta cuenta, sucursal, caja y fecha. La foto debe adjuntarse de nuevo al recuperar. Al pulsar Salir se eliminan los borradores de esta cuenta.'
+          : modoEmpleado && !cajaId
+            ? 'Elige Caja 1 o Caja 2 para proteger por separado el borrador de esa caja.'
+            : 'No se pudo identificar tu cuenta y sucursal para proteger el borrador.'}</p>
         {borradorRecuperable && <><p>Guardado a las {new Date(borradorRecuperable.guardadoEn).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}. Recupera o descarta antes de empezar una captura nueva.</p><button type="button" onClick={recuperarBorrador} disabled={!consultaCajaConfirmada || cargandoCierres || guardando}>Recuperar captura</button><button type="button" onClick={descartarBorrador} disabled={guardando}>Descartar borrador anterior</button></>}
         {avisoBorrador && <p role="status">{avisoBorrador}</p>}
       </aside>}
