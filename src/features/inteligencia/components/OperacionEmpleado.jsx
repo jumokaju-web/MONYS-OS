@@ -61,6 +61,20 @@ function obtenerFechaHoy() {
   return `${year}-${month}-${day}`;
 }
 
+function resultadoPulsoVentas(valores = {}) {
+  return [
+    `Personas atendidas o contactadas: ${valores.personas}`,
+    `Ventas o pedidos logrados: ${valores.ventas}`,
+    `Importe vendido o atribuido: $${Number(valores.importe || 0).toFixed(2)}`,
+    `Productos solicitados, faltantes u observaciones: ${String(valores.observaciones || "Sin observaciones").trim() || "Sin observaciones"}`,
+  ].join("\n");
+}
+
+function pulsoVentasCompleto(valores = {}) {
+  return [valores.personas, valores.ventas, valores.importe]
+    .every((valor) => valor !== "" && Number.isFinite(Number(valor)) && Number(valor) >= 0);
+}
+
 function etiquetarAntiguedadSicar(dias) {
   if (dias === null || dias === undefined) {
     return "fecha sin confirmar";
@@ -337,6 +351,9 @@ export default function OperacionEmpleado({
     useState("");
 
   const [resultadosConteoInventario, setResultadosConteoInventario] =
+    useState({});
+
+  const [resultadosPulsoVentas, setResultadosPulsoVentas] =
     useState({});
 
   const fechaHoy =
@@ -777,6 +794,9 @@ export default function OperacionEmpleado({
       const esConteoInventario = normalizarTexto(
         tarea?.titulo
       ).includes("CONTAR PRODUCTOS CRITICOS DE BODEGA");
+      const esPulsoVentas = normalizarTexto(
+        tarea?.titulo
+      ).startsWith("PULSO DE VENTAS:");
 
       if (nuevoEstado === "terminada" && esSeguimientoCRM) {
         resultadoSeguimiento = String(
@@ -795,6 +815,14 @@ export default function OperacionEmpleado({
         resultadoSeguimiento = String(resultadoCapturado || "").trim();
         if (!resultadoSeguimiento) {
           setError("Registra la existencia física de los productos antes de terminar el conteo.");
+          return;
+        }
+      }
+
+      if (nuevoEstado === "terminada" && esPulsoVentas) {
+        resultadoSeguimiento = String(resultadoCapturado || "").trim();
+        if (!resultadoSeguimiento) {
+          setError("Completa personas, ventas e importe antes de terminar tu pulso del día.");
           return;
         }
       }
@@ -2235,12 +2263,23 @@ export default function OperacionEmpleado({
               const esConteoInventario = normalizarTexto(
                 tarea.titulo
               ).includes("CONTAR PRODUCTOS CRITICOS DE BODEGA");
+              const esPulsoVentas = normalizarTexto(
+                tarea.titulo
+              ).startsWith("PULSO DE VENTAS:");
               const resultadoConteo = String(
                 resultadosConteoInventario[tarea.id] ?? tarea.resultado ?? ""
               );
+              const pulsoVentas = resultadosPulsoVentas[tarea.id] || {
+                personas: "",
+                ventas: "",
+                importe: "",
+                observaciones: "",
+              };
+              const pulsoListo = pulsoVentasCompleto(pulsoVentas);
               const requiereFotoFinal = tarea.requiere_evidencia === true;
               const puedeTerminarTarea = (!requiereFotoFinal || tieneFinal) &&
-                (!esConteoInventario || resultadoConteo.trim().length > 0);
+                (!esConteoInventario || resultadoConteo.trim().length > 0) &&
+                (!esPulsoVentas || pulsoListo);
 
 
               const esUrgente =
@@ -2421,6 +2460,31 @@ export default function OperacionEmpleado({
   </label>
 )}
 
+{esPulsoVentas && tarea.estado === "en_proceso" && (
+  <div style={{ display: "grid", gap: "10px", marginTop: "13px", padding: "13px", border: "1px solid #ead2df", borderRadius: "13px", background: "#fff8fc" }}>
+    <strong style={{ color: "#6f294e" }}>Registra tu resultado real</strong>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "9px" }}>
+      <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
+        Personas atendidas
+        <input type="number" inputMode="numeric" min="0" step="1" required value={pulsoVentas.personas} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, personas: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
+      </label>
+      <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
+        Ventas o pedidos
+        <input type="number" inputMode="numeric" min="0" step="1" required value={pulsoVentas.ventas} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, ventas: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
+      </label>
+      <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
+        Importe logrado
+        <input type="number" inputMode="decimal" min="0" step="0.01" required value={pulsoVentas.importe} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, importe: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
+      </label>
+    </div>
+    <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
+      ¿Qué pidieron o qué faltó? <small style={{ fontWeight: 500 }}>(opcional)</small>
+      <textarea rows={3} value={pulsoVentas.observaciones} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, observaciones: event.target.value } }))} placeholder="Ej. pidieron corrector 12; faltó un tono de base" style={{ width: "100%", boxSizing: "border-box", padding: "10px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
+    </label>
+    <small style={{ color: "#76666e" }}>Estos números son reporte operativo. Dirección los comparará con el corte de SICAR antes de tomarlos como venta confirmada.</small>
+  </div>
+)}
+
  {esCentroGrowth &&
   normalizarTexto(tarea.area) ===
   "MARKETING" &&
@@ -2586,7 +2650,11 @@ export default function OperacionEmpleado({
                             cambiarEstado(
                               tarea,
                               "terminada",
-                              esConteoInventario ? resultadoConteo : null
+                              esConteoInventario
+                                ? resultadoConteo
+                                : esPulsoVentas
+                                  ? resultadoPulsoVentas(pulsoVentas)
+                                  : null
                             )
                           }
                           style={{
