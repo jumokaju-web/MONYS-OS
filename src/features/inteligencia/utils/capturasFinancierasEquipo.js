@@ -102,6 +102,8 @@ export function crearObservacionesCorte(datos, nota) {
 export function crearObservacionesAperturaCaja(datos = {}) {
   return guardarBloque(MARCADOR_APERTURA_CAJA, {
     sesionCajaId: String(datos.sesionCajaId || "").trim(),
+    cajaId: String(datos.cajaId || "").trim(),
+    cajaNombre: String(datos.cajaNombre || "").trim(),
     responsable: String(datos.responsable || "").trim(),
     fondoInicial: FONDO_FIJO_CAJA,
     abiertoEn: datos.abiertoEn || new Date().toISOString(),
@@ -113,18 +115,28 @@ export function leerAperturaCaja(texto) {
   return leerBloque(texto, MARCADOR_APERTURA_CAJA);
 }
 
-export function obtenerSesionCajaActiva(cierres = []) {
+export function obtenerSesionesCajaActivas(cierres = []) {
   const ordenados = [...(Array.isArray(cierres) ? cierres : [])].sort(
     (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0)
   );
-
+  const resueltas = new Set();
+  const activas = {};
   for (const cierre of ordenados) {
     const apertura = leerAperturaCaja(cierre?.observaciones);
-    if (apertura) return { ...apertura, cierreAperturaId: cierre.id };
-    if (leerCorteCaja(cierre?.observaciones)) return null;
+    const corte = leerCorteCaja(cierre?.observaciones);
+    const cajaId = String(apertura?.cajaId || corte?.cajaId || "SIN_IDENTIFICAR").trim();
+    if ((!apertura && !corte) || resueltas.has(cajaId)) continue;
+    resueltas.add(cajaId);
+    if (apertura) activas[cajaId] = { ...apertura, cajaId, cierreAperturaId: cierre.id };
   }
+  return activas;
+}
 
-  return null;
+export function obtenerSesionCajaActiva(cierres = [], cajaId = null) {
+  const activas = obtenerSesionesCajaActivas(cierres);
+  if (cajaId) return activas[cajaId] || null;
+  const sesiones = Object.values(activas);
+  return sesiones.length === 1 ? sesiones[0] : null;
 }
 
 export function leerCorteCaja(texto) {

@@ -6,6 +6,9 @@ test('el borrador pertenece a cuenta, sucursal y fecha de México; no usa nombre
  const k=claveBorradorCorte(usuario,'centro',ahora);assert.match(k,/2026-10-14$/);
  assert.notEqual(k,claveBorradorCorte({auth_user_id:'otra'},'centro',ahora));assert.notEqual(k,claveBorradorCorte(usuario,'anaya',ahora));assert.equal(claveBorradorCorte({nombre:'Karla'},'centro',ahora),null);
 });
+test('Caja 1 y Caja 2 conservan borradores independientes',()=>{
+ assert.notEqual(claveBorradorCorte(usuario,'centro','CAJA_1'),claveBorradorCorte(usuario,'centro','CAJA_2'));
+});
 test('recupera importes y movimientos sin guardar fotos, enlaces, responsable o campos inesperados',()=>{
  const s=almacen(),k=claveBorradorCorte(usuario,'centro',ahora);guardarBorradorCorte(s,k,{ventaSicar:'123.40',efectivoFinal:'0',responsable:'otra',fotoCorteUrl:'privada',movimientosCaja:[{id:'1',tipo:'salida',monto:'30',concepto:'Proveedor',recibidoPor:'Ana'}]},'sesion1',false,ahora);
  const b=leerBorradorCorte(s,k,ahora);assert.equal(b.formulario.ventaSicar,'123.40');assert.equal(b.formulario.efectivoFinal,'0');assert.equal(b.sesionCajaId,'sesion1');assert.equal(b.formulario.movimientosCaja[0].monto,'30');assert.equal(b.formulario.responsable,undefined);assert.equal(b.formulario.fotoCorteUrl,undefined);

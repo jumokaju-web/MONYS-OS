@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import {
   extraerCapturaFinanciera,
-  obtenerSesionCajaActiva,
+  obtenerSesionesCajaActivas,
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
 
 import { diagnosticarCorte, seleccionarCortes, resumirAlertasCortes } from "../utils/prioridadesCortes";
@@ -55,7 +55,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
   const [capturas, setCapturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
+  const [sesionesCajaActivas, setSesionesCajaActivas] = useState([]);
 
   const solicitud = useRef(0);
   const [filtros, setFiltros] = useState({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' });
@@ -75,7 +75,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
     setRevisionDisponible(false);
     setErrorRevisiones('');
     setCapturas([]);
-    setSesionCajaActiva(null);
+    setSesionesCajaActivas([]);
     setActualizadoEn(null);
     setLimiteAlcanzado(false);
     try {
@@ -85,7 +85,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
       if (actual !== solicitud.current) return;
       setLimiteAlcanzado(cierres.length === 100);
       setActualizadoEn(new Date());
-      setSesionCajaActiva(branchId ? obtenerSesionCajaActiva(cierres) : null);
+      setSesionesCajaActivas(branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
       const recibidas = cierres.map(extraerCapturaFinanciera).filter(Boolean);
       setCapturas(recibidas);
       if (esOwner) {
@@ -184,15 +184,10 @@ export default function BandejaCapturasEquipo({ branchId }) {
         <div><small>Sin foto / datos incompletos</small><strong>{sinBase ? '—' : `${alertas.sinEvidencia} / ${alertas.incompletos}`} </strong></div>
       </div>
 
-      {branchId && !cargando && !error && <div className={sesionCajaActiva ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
+      {branchId && !cargando && !error && <div className={sesionesCajaActivas.length ? "captura-caja-activa" : "captura-caja-activa esta-cerrada"}>
         <span>CAJA AHORA</span>
-        {sesionCajaActiva ? (
-          <>
-            <strong>{sesionCajaActiva.responsable}</strong>
-            <small>
-              Responsable desde {new Date(sesionCajaActiva.abiertoEn).toLocaleString("es-MX")} · Fondo $1,000.00
-            </small>
-          </>
+        {sesionesCajaActivas.length ? (
+          <div className="captura-cajas-activas">{sesionesCajaActivas.map(sesion => <div key={sesion.cajaId}><strong>{sesion.cajaNombre || (sesion.cajaId === 'SIN_IDENTIFICAR' ? 'Caja anterior sin identificar' : sesion.cajaId)} · {sesion.responsable}</strong><small>Abierta {new Date(sesion.abiertoEn).toLocaleString("es-MX")} · Fondo $1,000.00</small></div>)}</div>
         ) : (
           <>
             <strong>No se encontró una apertura activa</strong>
@@ -240,7 +235,7 @@ export default function BandejaCapturasEquipo({ branchId }) {
                 <span>{tipo === "caja" ? "CORTE DE TIENDA" : "LIQUIDACIÓN DE FLOTILLA"}</span>
                 <h3>
                   {tipo === "caja"
-                    ? cierre.responsable
+                    ? `${datos.cajaNombre || 'Caja sin identificar'} · ${cierre.responsable}`
                     : `${datos.placas || "Unidad"} · ${datos.chofer || cierre.responsable}`}
                 </h3>
               </div>
@@ -249,6 +244,8 @@ export default function BandejaCapturasEquipo({ branchId }) {
                 <small>{fechaLegible(cierre.fecha)}</small>
               </div>
             </header>
+
+            {tipo === 'caja' && datos.responsableApertura && <p className="corte-responsables">Abrió: <b>{datos.responsableApertura}</b> · Cerró: <b>{datos.responsableCierre || cierre.responsable}</b></p>}
 
             <div className="corte-siguiente"><strong>{revisionDisponible && estadoRevisionCorte({ cierre }, revisiones[cierre.id]) === 'REVISADO' ? 'Revisión registrada; importes originales conservados' : diagnosticarCorte({ tipo, datos }).titulo}</strong><p>{diagnosticarCorte({ tipo, datos }).accion}</p></div>
             {tipo === 'caja' && esOwner && <RevisionCorteDiario captura={{ tipo, datos, cierre }} revision={revisiones[cierre.id]} disponible={revisionDisponible} onGuardado={r => setRevisiones(actual => ({ ...actual, [cierre.id]: r }))}/>}

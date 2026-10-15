@@ -1,5 +1,5 @@
 import { validarImportesCorte } from '../utils/corteTienda';
-import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte } from '../utils/borradorCorte';
+import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte, tieneCapturaBorrador } from '../utils/borradorCorte';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
   useEffect,
@@ -89,7 +89,6 @@ export default function CierreTurno({
   const [avisoBorrador, setAvisoBorrador] = useState('');
   const [confirmacionCorte, setConfirmacionCorte] = useState(null);
   const [consultaCajaConfirmada, setConsultaCajaConfirmada] = useState(false);
-  const claveBorrador = modoEmpleado ? claveBorradorCorte(usuario, branchId) : null;
   const [
     formulario,
     setFormulario,
@@ -128,7 +127,12 @@ export default function CierreTurno({
   ] = useState(false);
 
   const [corteSinApertura, setCorteSinApertura] = useState(false);
-  const [sesionCajaActiva, setSesionCajaActiva] = useState(null);
+  const esSucursalCentro = /centro/i.test(String(usuario?.sucursal || ''));
+  const opcionesCaja = esSucursalCentro ? [['CAJA_1', 'Caja 1'], ['CAJA_2', 'Caja 2']] : [['CAJA_1', 'Caja 1']];
+  const [cajaId, setCajaId] = useState(esSucursalCentro ? '' : 'CAJA_1');
+  const cajaNombre = opcionesCaja.find(([id]) => id === cajaId)?.[1] || '';
+  const sesionCajaActiva = useMemo(() => cajaId ? obtenerSesionCajaActiva(cierres, cajaId) : null, [cierres, cajaId]);
+  const claveBorrador = modoEmpleado && cajaId ? claveBorradorCorte(usuario, branchId, cajaId) : null;
   const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [fotoCorte, setFotoCorte] = useState(null);
 
@@ -170,9 +174,7 @@ export default function CierreTurno({
   useEffect(() => {
     const nombre = String(usuario?.nombre || "").trim();
     if (!nombre) return;
-    setFormulario((actual) =>
-      actual.responsable ? actual : { ...actual, responsable: nombre }
-    );
+    setFormulario((actual) => ({ ...actual, responsable: nombre }));
   }, [usuario?.nombre]);
 
   const corteCalculado = useMemo(
@@ -237,7 +239,6 @@ export default function CierreTurno({
 
       const lista = Array.isArray(data) ? data : [];
       setCierres(lista);
-      setSesionCajaActiva(obtenerSesionCajaActiva(lista));
       setConsultaCajaConfirmada(true);
     } catch (
       errorCierres
@@ -407,11 +408,28 @@ export default function CierreTurno({
     }));
   }
 
+  function seleccionarCaja(nuevaCajaId) {
+    if (nuevaCajaId === cajaId) return;
+    if (cajaId && (tieneCapturaBorrador(formulario) || fotoCorte)) {
+      setError(`Ya comenzaste la captura de ${cajaNombre}. Termínala o recarga el borrador antes de cambiar de caja.`);
+      return;
+    }
+    setCajaId(nuevaCajaId);
+    setFormulario({ ...formularioInicial, responsable: String(usuario?.nombre || '').trim() });
+    setFotoCorte(null);
+    setBorradorRecuperable(null);
+    setCorteSinApertura(false);
+    setConfirmacionCorte(null);
+    setError('');
+    setMensaje('');
+  }
+
   async function abrirCaja() {
     if (abriendoCaja || cargandoCierres) return;
     if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de iniciar otra caja.'); return; }
     if (!branchId) { setError('No se pudo identificar la sucursal. Avisa a Dirección.'); return; }
-    const responsable = String(usuario?.nombre || formulario.responsable || "").trim();
+    if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de iniciar.'); return; }
+    const responsable = String(usuario?.nombre || "").trim();
     if (!responsable) {
       setError("No fue posible identificar a la responsable de caja.");
       return;
@@ -431,6 +449,8 @@ export default function CierreTurno({
         turno: "apertura_caja",
         observaciones: crearObservacionesAperturaCaja({
           sesionCajaId,
+          cajaId,
+          cajaNombre,
           responsable,
         }),
       });
@@ -441,7 +461,7 @@ export default function CierreTurno({
         fondoInicial: String(FONDO_FIJO_CAJA),
         efectivoFinal: "",
       }));
-      setMensaje(`Caja abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
+      setMensaje(`${cajaNombre} abierta por ${responsable} con fondo de ${formatearDinero(FONDO_FIJO_CAJA)}.`);
       await cargarCierres();
     } catch (errorApertura) {
       setError(errorApertura?.message || "No se pudo abrir la caja.");
@@ -462,19 +482,11 @@ export default function CierreTurno({
     setMensaje("");
     setAnalisisActual(null);
 
-    if (
-      !formulario
-        .responsable
-        .trim()
-    ) {
-      setError(
-        "Escribe quién realiza el cierre."
-      );
-
-      return;
-    }
+    const responsableAutenticada = String(usuario?.nombre || '').trim();
+    if (!responsableAutenticada) { setError('No fue posible confirmar quién realiza el cierre. Vuelve a iniciar sesión.'); return; }
 
     if (!branchId) { setError("No se pudo identificar la sucursal. Avisa a Dirección."); return; }
+    if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de registrar el cierre.'); return; }
     if (!sesionCajaActiva && !corteSinApertura) {
       setError("Abre la caja o selecciona registrar cierre sin apertura previa.");
       return;
@@ -553,8 +565,12 @@ export default function CierreTurno({
 
       const datosCorte = {
         ...formularioLimpio,
+        cajaId,
+        cajaNombre,
         sesionCajaId: sesionCajaActiva?.sesionCajaId || null,
-        responsableCaja: sesionCajaActiva?.responsable || formulario.responsable,
+        responsableApertura: sesionCajaActiva?.responsable || null,
+        responsableCaja: responsableAutenticada,
+        responsableCierre: responsableAutenticada,
         sinAperturaPrevia: !sesionCajaActiva,
         inicioRegistroCierre: !sesionCajaActiva ? new Date().toISOString() : null,
         fotoCorteUrl: evidenciaCorte.archivoUrl,
@@ -567,8 +583,7 @@ export default function CierreTurno({
         await guardarCierreTurno({
           branchId,
 
-          responsable:
-            formulario.responsable,
+          responsable: responsableAutenticada,
 
           turno: "cierre_caja",
 
@@ -592,7 +607,7 @@ export default function CierreTurno({
           observaciones: crearObservacionesCorte(datosCorte, formulario.observaciones),
         });
 
-      setConfirmacionCorte({ folio: cierreGuardado.id, fecha: cierreGuardado.fecha, responsable: formulario.responsable, venta: formulario.ventaSicar, efectivo: formulario.efectivoFinal });
+      setConfirmacionCorte({ folio: cierreGuardado.id, fecha: cierreGuardado.fecha, responsable: responsableAutenticada, cajaNombre, venta: formulario.ventaSicar, efectivo: formulario.efectivoFinal });
       try { if (claveBorrador) window.localStorage.removeItem(claveBorrador); } catch { /* El corte ya fue guardado; un fallo local no debe presentarse como fallo del envío. */ }
       setBorradorRecuperable(null);
       setAvisoBorrador('');
@@ -605,7 +620,7 @@ export default function CierreTurno({
 
       setFormulario({
         ...formularioInicial,
-        responsable: formulario.responsable,
+        responsable: responsableAutenticada,
       });
       setFotoCorte(null);
       setCorteSinApertura(false);
@@ -895,7 +910,7 @@ export default function CierreTurno({
         {borradorRecuperable && <><p>Guardado a las {new Date(borradorRecuperable.guardadoEn).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}. Recupera o descarta antes de empezar una captura nueva.</p><button type="button" onClick={recuperarBorrador} disabled={!consultaCajaConfirmada || cargandoCierres || guardando}>Recuperar captura</button><button type="button" onClick={descartarBorrador} disabled={guardando}>Descartar borrador anterior</button></>}
         {avisoBorrador && <p role="status">{avisoBorrador}</p>}
       </aside>}
-      {confirmacionCorte && <aside className="tienda-confirmacion" role="status"><span>CORTE RECIBIDO EN MONYS</span><h3>Tu envío quedó registrado</h3><p><b>Folio:</b> {confirmacionCorte.folio}</p><p>{confirmacionCorte.responsable} · {usuario?.sucursal || 'Sucursal de esta cuenta'}{confirmacionCorte.fecha ? ` · ${confirmacionCorte.fecha}` : ''}</p><p>Venta SICAR: {formatearDinero(confirmacionCorte.venta)} · Efectivo que queda: {formatearDinero(confirmacionCorte.efectivo)}</p><small>Pendiente de revisión de Dirección. Conserva este folio; no vuelvas a enviar el mismo corte.</small></aside>}
+      {confirmacionCorte && <aside className="tienda-confirmacion" role="status"><span>CORTE RECIBIDO EN MONYS</span><h3>Tu envío quedó registrado</h3><p><b>Folio:</b> {confirmacionCorte.folio}</p><p>{confirmacionCorte.responsable} · {usuario?.sucursal || 'Sucursal de esta cuenta'} · {confirmacionCorte.cajaNombre}{confirmacionCorte.fecha ? ` · ${confirmacionCorte.fecha}` : ''}</p><p>Venta SICAR: {formatearDinero(confirmacionCorte.venta)} · Efectivo que queda: {formatearDinero(confirmacionCorte.efectivo)}</p><small>Pendiente de revisión de Dirección. Conserva este folio; no vuelvas a enviar el mismo corte.</small></aside>}
 
 
       {analizando && (
@@ -1387,6 +1402,15 @@ export default function CierreTurno({
       )}
 
 
+      <section className="tienda-selector-caja" aria-label="Seleccionar caja">
+        <span>CAJA FÍSICA</span>
+        <h3>{esSucursalCentro ? '¿Cuál caja vas a cerrar?' : 'Caja de esta sucursal'}</h3>
+        <p>Esta selección separa el dinero, la apertura y el corte de cada caja.</p>
+        <div>{opcionesCaja.map(([id, nombre]) => <button type="button" key={id} aria-pressed={cajaId === id} onClick={() => seleccionarCaja(id)}>{nombre}</button>)}</div>
+        {!cajaId && <small>Selecciona una caja para continuar.</small>}
+      </section>
+
+
       <section
         style={{
           padding: "18px",
@@ -1403,14 +1427,14 @@ export default function CierreTurno({
         </div>
         {cargandoCierres ? <p role="status">Consultando el estado de caja…</p> : sesionCajaActiva ? (
           <>
-            <h3 style={{ margin: "7px 0" }}>Caja abierta por {sesionCajaActiva.responsable}</h3>
+            <h3 style={{ margin: "7px 0" }}>{cajaNombre} abierta por {sesionCajaActiva.responsable}</h3>
             <p style={{ margin: 0, color: "#5f4f57" }}>
               Fondo inicial: <b>{formatearDinero(FONDO_FIJO_CAJA)}</b> · abierta {new Date(
                 sesionCajaActiva.abiertoEn
               ).toLocaleString("es-MX")}
             </p>
             <p style={{ margin: "9px 0 0", color: "#5f4f57" }}>
-              Para que otra persona tome la caja, primero termina este corte con la foto de SICAR.
+              El cierre quedará firmado por la cuenta que lo envíe. La persona que abrió se conserva por separado.
             </p>
           </>
         ) : corteSinApertura ? <div><h3 style={{ margin: '7px 0' }}>Cierre sin apertura previa</h3><p style={{ margin: 0 }}>Captura el fondo inicial real. Dirección revisará este corte; no se crea una apertura retroactiva.</p></div> : (
@@ -1422,7 +1446,7 @@ export default function CierreTurno({
             <button
               type="button"
               onClick={abrirCaja}
-              disabled={abriendoCaja || cargandoCierres || corteSinApertura}
+              disabled={!cajaId || abriendoCaja || cargandoCierres || corteSinApertura}
               style={{
                 width: "100%",
                 padding: "13px 16px",
@@ -1436,7 +1460,7 @@ export default function CierreTurno({
             >
               {abriendoCaja ? "Abriendo caja..." : `Iniciar caja ahora · fondo ${formatearDinero(FONDO_FIJO_CAJA)}`}
             </button>
-            <button className="tienda-cierre-sin-apertura" type="button" disabled={corteSinApertura || abriendoCaja || cargandoCierres} onClick={() => { setCorteSinApertura(true); setFormulario(actual => ({ ...actual, fondoInicial: '', efectivoFinal: '' })); setError(''); }}>Registrar cierre de hoy sin apertura previa</button>
+            <button className="tienda-cierre-sin-apertura" type="button" disabled={!cajaId || corteSinApertura || abriendoCaja || cargandoCierres} onClick={() => { setCorteSinApertura(true); setFormulario(actual => ({ ...actual, fondoInicial: '', efectivoFinal: '' })); setError(''); }}>Registrar cierre de hoy sin apertura previa</button>
             {corteSinApertura && <p role="status">Este corte quedará identificado como sin apertura registrada. Escribe el fondo que realmente había al comenzar el turno; no se registrará una apertura retroactiva.</p>}
           </>
         )}
@@ -1468,7 +1492,7 @@ export default function CierreTurno({
         >
           <div>
             <label>
-              👤 ¿Quién cierra?
+              👤 Cierre firmado por
             </label>
 
             <input

@@ -8,9 +8,11 @@ export function prefijoBorradorUsuario(usuario) {
   const id = usuario?.auth_user_id || usuario?.id;
   return id ? `${PREFIJO}${encodeURIComponent(id)}:` : null;
 }
-export function claveBorradorCorte(usuario, branchId, ahora = new Date()) {
+export function claveBorradorCorte(usuario, branchId, ahoraOCaja = new Date()) {
   const prefijo = prefijoBorradorUsuario(usuario);
-  return prefijo && branchId ? `${prefijo}${encodeURIComponent(branchId)}:${fechaOperativaMexico(ahora)}` : null;
+  const ahora = ahoraOCaja instanceof Date ? ahoraOCaja : new Date();
+  const caja = ahoraOCaja instanceof Date ? '' : `:${encodeURIComponent(String(ahoraOCaja || ''))}`;
+  return prefijo && branchId && (!caja || ahoraOCaja) ? `${prefijo}${encodeURIComponent(branchId)}${caja}:${fechaOperativaMexico(ahora)}` : null;
 }
 export function limpiarFormularioBorrador(formulario) {
   const limpio = Object.fromEntries(camposTexto.map(c => [c, String(formulario[c] ?? '')]));

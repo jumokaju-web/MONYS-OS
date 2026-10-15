@@ -10,6 +10,7 @@ import {
   crearObservacionesAperturaCaja,
   leerAperturaCaja,
   obtenerSesionCajaActiva,
+  obtenerSesionesCajaActivas,
   FONDO_FIJO_CAJA,
 } from "../../src/features/inteligencia/utils/capturasFinancierasEquipo.js";
 
@@ -120,4 +121,19 @@ test("la última apertura queda activa hasta que se registra un corte", () => {
     }),
   };
   assert.equal(obtenerSesionCajaActiva([apertura, cierre]), null);
+});
+
+test("mantiene Caja 1 y Caja 2 independientes y cada corte cierra solo su caja", () => {
+  const apertura = (id, cajaId, responsable, hora) => ({ id, created_at: hora, observaciones: crearObservacionesAperturaCaja({ sesionCajaId: id, cajaId, cajaNombre: cajaId === 'CAJA_1' ? 'Caja 1' : 'Caja 2', responsable, abiertoEn: hora }) });
+  const registros = [
+    apertura('a1', 'CAJA_1', 'Vita', '2026-10-14T15:00:00.000Z'),
+    apertura('a2', 'CAJA_2', 'Karla', '2026-10-14T15:05:00.000Z'),
+  ];
+  assert.equal(obtenerSesionCajaActiva(registros, 'CAJA_1').responsable, 'Vita');
+  assert.equal(obtenerSesionCajaActiva(registros, 'CAJA_2').responsable, 'Karla');
+  assert.equal(obtenerSesionCajaActiva(registros), null, 'no debe elegir una caja arbitrariamente cuando hay dos abiertas');
+  registros.push({ id: 'c2', created_at: '2026-10-15T01:00:00.000Z', observaciones: crearObservacionesCorte({ cajaId: 'CAJA_2', sesionCajaId: 'a2', responsableApertura: 'Karla', responsableCierre: 'Karla' }) });
+  const activas = obtenerSesionesCajaActivas(registros);
+  assert.equal(activas.CAJA_1.responsable, 'Vita');
+  assert.equal(activas.CAJA_2, undefined);
 });
