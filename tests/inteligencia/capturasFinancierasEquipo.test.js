@@ -8,7 +8,10 @@ import {
   leerCorteCaja,
   leerLiquidacionFlotilla,
   crearObservacionesAperturaCaja,
+  crearObservacionesCorreccionCierre,
+  indexarCorreccionesCierres,
   leerAperturaCaja,
+  leerCorreccionCierre,
   obtenerSesionCajaActiva,
   obtenerSesionesCajaActivas,
   FONDO_FIJO_CAJA,
@@ -136,4 +139,13 @@ test("mantiene Caja 1 y Caja 2 independientes y cada corte cierra solo su caja",
   const activas = obtenerSesionesCajaActivas(registros);
   assert.equal(activas.CAJA_1.responsable, 'Vita');
   assert.equal(activas.CAJA_2, undefined);
+});
+
+test("la corrección histórica conserva el original y usa la última en la vista", () => {
+  const primera = { id: 'r1', created_at: '2026-10-15T03:00:00.000Z', observaciones: crearObservacionesCorreccionCierre({ cierreId: 'c1', responsableCorregido: 'Karla', cajaId: 'CAJA_1', cajaNombre: 'Caja 1', corregidoPor: 'Mónica' }) };
+  const ultima = { id: 'r2', created_at: '2026-10-15T03:05:00.000Z', observaciones: crearObservacionesCorreccionCierre({ cierreId: 'c1', responsableCorregido: 'KARLA YOSELIN', cajaId: 'CAJA_1', cajaNombre: 'Caja 1', corregidoPor: 'Mónica' }) };
+  assert.equal(leerCorreccionCierre(primera.observaciones).cierreId, 'c1');
+  const indice = indexarCorreccionesCierres([ultima, primera]);
+  assert.equal(indice.get('c1').responsableCorregido, 'KARLA YOSELIN');
+  assert.equal(indice.get('c1').cajaNombre, 'Caja 1');
 });
