@@ -1,5 +1,6 @@
 const MARCADOR_CAJA = "MONYS_CAJA_V1";
 const MARCADOR_APERTURA_CAJA = "MONYS_APERTURA_CAJA_V1";
+const MARCADOR_CORRECCION_CIERRE = "MONYS_CORRECCION_CIERRE_V1";
 const MARCADOR_FLOTILLA = "MONYS_FLOTILLA_V1";
 
 export const FONDO_FIJO_CAJA = 1000;
@@ -141,6 +142,40 @@ export function obtenerSesionCajaActiva(cierres = [], cajaId = null) {
 
 export function leerCorteCaja(texto) {
   return leerBloque(texto, MARCADOR_CAJA);
+}
+
+export function crearObservacionesCorreccionCierre({
+  cierreId,
+  responsableCorregido,
+  cajaId,
+  cajaNombre,
+  motivo,
+  corregidoPor,
+} = {}) {
+  return guardarBloque(MARCADOR_CORRECCION_CIERRE, {
+    cierreId: String(cierreId || "").trim(),
+    responsableCorregido: String(responsableCorregido || "").trim(),
+    cajaId: String(cajaId || "").trim(),
+    cajaNombre: String(cajaNombre || "").trim(),
+    motivo: String(motivo || "").trim(),
+    corregidoPor: String(corregidoPor || "").trim(),
+    corregidoEn: new Date().toISOString(),
+  });
+}
+
+export function leerCorreccionCierre(texto) {
+  return leerBloque(texto, MARCADOR_CORRECCION_CIERRE);
+}
+
+export function indexarCorreccionesCierres(cierres = []) {
+  const correcciones = new Map();
+  [...(Array.isArray(cierres) ? cierres : [])]
+    .sort((a, b) => new Date(a?.created_at || 0) - new Date(b?.created_at || 0))
+    .forEach((registro) => {
+      const correccion = leerCorreccionCierre(registro?.observaciones);
+      if (correccion?.cierreId) correcciones.set(correccion.cierreId, { ...correccion, registroId: registro.id });
+    });
+  return correcciones;
 }
 
 export function calcularLiquidacionFlotilla(datos = {}) {
