@@ -460,6 +460,18 @@ export default function CentroTrabajoGrowth({
     )
     .slice(0, 5);
 
+  const requiereSicarVigente = (tarea) => {
+    const texto = `${tarea?.titulo || ""} ${tarea?.descripcion || ""}`
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+    return /CAMPANA|PRESUPUESTO|PAUTA|ESCALAR/.test(texto);
+  };
+
+  const agendaEnPausa = agendaVisible.filter(
+    (tarea) => !oportunidadVigente && requiereSicarVigente(tarea),
+  );
+
   const fechasAgendaPropuesta = proximasFechasHabiles(5);
 
   const agendaPropuesta = [
@@ -814,15 +826,15 @@ export default function CentroTrabajoGrowth({
           </div>
 
           <b>
-            {!oportunidadVigente && tareasSemana > 0
-              ? `${tareasSemana} en pausa · faltan datos`
+            {agendaEnPausa.length > 0
+              ? `${agendaEnPausa.length} en pausa · faltan datos`
               : tareasSemana > 0
                 ? `${tareasSemana} programadas`
                 : "Borrador IA listo"}
           </b>
         </div>
 
-        {!oportunidadVigente && tareasSemana > 0 && (
+        {agendaEnPausa.length > 0 && (
           <div className="growth-workspace__agenda-draft-note">
             <span aria-hidden="true">🛡️</span>
             <div>
@@ -847,7 +859,7 @@ export default function CentroTrabajoGrowth({
                 <p>{tarea.titulo}</p>
 
                 <em>
-                  {!oportunidadVigente
+                  {!oportunidadVigente && requiereSicarVigente(tarea)
                     ? "En pausa · datos vencidos"
                     : String(tarea.estado || "pendiente").replaceAll("_", " ")}
                 </em>
@@ -888,7 +900,7 @@ export default function CentroTrabajoGrowth({
           className="growth-workspace__agenda-button"
           onClick={onVerSemana}
         >
-          Ver calendario completo
+          Abrir mi semana
           <span aria-hidden="true">→</span>
         </button>
       </section>

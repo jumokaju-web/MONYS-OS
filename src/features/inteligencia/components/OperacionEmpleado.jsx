@@ -356,8 +356,20 @@ export default function OperacionEmpleado({
   const [resultadosPulsoVentas, setResultadosPulsoVentas] =
     useState({});
 
+  const [semanaAbierta, setSemanaAbierta] =
+    useState(false);
+
   const fechaHoy =
     obtenerFechaHoy();
+
+  useEffect(() => {
+    if (!semanaAbierta) return undefined;
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+    };
+  }, [semanaAbierta]);
 
   useEffect(() => {
     let activo = true;
@@ -526,8 +538,8 @@ export default function OperacionEmpleado({
       const propias =
         (registros || []).filter(
           (tarea) =>
-            tarea.estado !==
-              "cancelada" &&
+            normalizarTexto(tarea.estado) !==
+              "CANCELADA" &&
             (esCentroGrowth ||
               normalizarTexto(tarea.area) !== "MARKETING") &&
             tareaPerteneceAlUsuario(tarea, {
@@ -558,8 +570,8 @@ export default function OperacionEmpleado({
       const propiasCalendario =
         registrosCalendarioCompletos.filter(
           (tarea) =>
-            tarea.estado !==
-              "cancelada" &&
+            normalizarTexto(tarea.estado) !==
+              "CANCELADA" &&
             (esCentroGrowth ||
               normalizarTexto(tarea.area) !== "MARKETING") &&
             tareaPerteneceAlUsuario(tarea, {
@@ -1177,16 +1189,7 @@ export default function OperacionEmpleado({
           onEmpezarPrioridad={
             abrirTareaPrioritaria
           }
-          onVerSemana={() =>
-            document
-              .getElementById(
-                "calendario-growth"
-              )
-              ?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              })
-          }
+          onVerSemana={() => setSemanaAbierta(true)}
           onAbrirModulo={(seccion) => {
             window.dispatchEvent(
               new CustomEvent(
@@ -1235,6 +1238,7 @@ export default function OperacionEmpleado({
               .getElementById("employee-product-request")
               ?.scrollIntoView({ behavior: "smooth", block: "start" })
           }
+          onVerSemana={() => setSemanaAbierta(true)}
         />
       )}
 
@@ -1382,15 +1386,31 @@ export default function OperacionEmpleado({
 
       <div
         style={{
-          marginBottom: "20px",
-          padding: "15px",
-          borderRadius: "18px",
+          marginBottom: semanaAbierta ? 0 : "20px",
+          padding: semanaAbierta ? "18px clamp(14px, 4vw, 28px) 110px" : "15px",
+          borderRadius: semanaAbierta ? 0 : "18px",
           border:
             "1px solid #ead7e1",
           background:
             "linear-gradient(180deg, #fffafd 0%, #ffffff 100%)",
+          ...(semanaAbierta ? {
+            position: "fixed",
+            inset: 0,
+            zIndex: 12000,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          } : {}),
         }}
       >
+        {semanaAbierta && (
+          <button
+            type="button"
+            onClick={() => setSemanaAbierta(false)}
+            style={{ marginBottom: "14px", minHeight: "44px", padding: "9px 14px", border: "1px solid #dfbfd0", borderRadius: "12px", background: "#ffffff", color: "#7d3157", fontWeight: 900, cursor: "pointer" }}
+          >
+            ← Volver a mi día
+          </button>
+        )}
         <div
           style={{
             display: "flex",

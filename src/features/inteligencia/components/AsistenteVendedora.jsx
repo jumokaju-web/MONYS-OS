@@ -42,6 +42,7 @@ export default function AsistenteVendedora({
   tareaPrioritaria,
   onTrabajarPrioridad,
   onRegistrarFaltante,
+  onVerSemana,
 }) {
   const [comision, setComision] = useState({ estado: "cargando" });
   const producto = useMemo(() => recomendarProductoVendedora(datosDashboard), [datosDashboard]);
@@ -109,17 +110,6 @@ export default function AsistenteVendedora({
     return () => { activo = false; };
   }, [datosDashboard?.branch_id, datosDashboard?.business_id, usuario]);
 
-  const metricas = datosDashboard?.metricas || {};
-  const fechaInicial = metricas.fechaInicial instanceof Date
-    ? metricas.fechaInicial.toISOString().slice(0, 10)
-    : fechaISO(metricas.fechaInicial);
-  const fechaFinal = metricas.fechaFinal instanceof Date
-    ? metricas.fechaFinal.toISOString().slice(0, 10)
-    : fechaISO(metricas.fechaFinal);
-  const periodo = fechaInicial && fechaFinal
-    ? `${etiquetaFecha(fechaInicial)} – ${etiquetaFecha(fechaFinal)}`
-    : "Último corte SICAR";
-
   return (
     <section className="sales-copilot" aria-labelledby="sales-copilot-title">
       <header className="sales-copilot__header">
@@ -138,14 +128,15 @@ export default function AsistenteVendedora({
             </button>
           )}
           <button type="button" className="is-secondary" onClick={onRegistrarFaltante}>Reportar faltante</button>
+          <button type="button" className="is-secondary" onClick={onVerSemana}>Ver mi semana</button>
         </div>
       </article>
 
       <div className="sales-copilot__metrics">
         <article>
-          <span>Ritmo diario de la sucursal</span>
-          <strong>{Number(metricas.ventaPromedioDiaria) > 0 ? dinero.format(metricas.ventaPromedioDiaria) : "Por calcular"}</strong>
-          <small>{periodo} · referencia, no meta</small>
+          <span>Tu meta de atención hoy</span>
+          <strong>15 personas</strong>
+          <small>Cuenta a quienes atiendes; registra el resultado en tu pulso al cierre</small>
         </article>
         <article>
           <span>Producto para iniciar conversación</span>
