@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { obtenerHistorialImportacionesUtilidad } from "../../../dashboard/services/dashboardDataService";
 import {
+  construirLecturaEjecutiva,
   construirMetaRecuperacion,
   construirTendenciaSemanal,
   resumirImportacionUtilidad,
   seleccionarCandidatosCampana,
 } from "../../utils/tendenciaSemanalSucursales";
 import "./TendenciaSemanalSucursales.css";
+import "./TendenciaSemanalEjecutiva.css";
 
 const METRICAS = {
-  ventas: { etiqueta: "Ventas", valor: (semana) => semana.ventas, dinero: true },
-  utilidadBruta: { etiqueta: "Utilidad bruta", valor: (semana) => semana.utilidadBruta, dinero: true },
-  margen: { etiqueta: "Margen", valor: (semana) => semana.margen, dinero: false },
+  ventas: { etiqueta: "Ventas", valor: (semana) => semana.ventas, variacion: (semana) => semana.variacionVentas, dinero: true },
+  utilidadBruta: { etiqueta: "Utilidad bruta", valor: (semana) => semana.utilidadBruta, variacion: (semana) => semana.variacionUtilidad, dinero: true },
+  margen: { etiqueta: "Margen", valor: (semana) => semana.margen, variacion: (semana) => semana.variacionMargenPuntos, dinero: false, puntos: true },
 };
 
 function moneda(valor) {
+  if (valor === null || valor === undefined || !Number.isFinite(Number(valor))) return "Por confirmar";
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -71,6 +74,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
   }, [sucursalesClave, sucursales]);
 
   const tendencia = useMemo(() => construirTendenciaSemanal(semanas), [semanas]);
+  const lectura = useMemo(() => construirLecturaEjecutiva(tendencia), [tendencia]);
   const configuracion = METRICAS[metrica];
   const maximo = Math.max(...tendencia.semanas.map((semana) => Number(configuracion.valor(semana)) || 0), 1);
   const meta = construirMetaRecuperacion(tendencia.semanas, "General Anaya", 10);
@@ -99,6 +103,31 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         ))}
       </div>
 
+      {lectura.sucursales.length > 0 && (
+        <section className="weekly-rescue__executive" aria-label="Lectura ejecutiva de la última semana">
+          <div className="weekly-rescue__executive-title">
+            <div><span>LECTURA EJECUTIVA · ÚLTIMO CORTE</span><h4>Qué cambió y qué conviene revisar</h4></div>
+            <small className={lectura.comparacionMismoCorte ? "es-listo" : "es-pendiente"}>
+              {lectura.comparacionMismoCorte ? "Sucursales comparables" : "Los cortes no coinciden entre sucursales"}
+            </small>
+          </div>
+          <div className="weekly-rescue__executive-grid">
+            {lectura.sucursales.map((semana) => (
+              <article key={semana.branchId} className={`es-${semana.lectura.estado}`}>
+                <div><span>{semana.sucursal}</span><small>{fechaCorta(semana.periodoInicio)}–{fechaCorta(semana.periodoFin)}</small></div>
+                <h5>{semana.lectura.titulo}</h5>
+                <div className="weekly-rescue__executive-numbers">
+                  <p><small>Ventas</small><b>{moneda(semana.ventas)}</b><em>{semana.variacionVentas === null ? "Sin comparación" : `${semana.variacionVentas >= 0 ? "▲" : "▼"} ${Math.abs(semana.variacionVentas).toFixed(1)}%`}</em></p>
+                  <p><small>Utilidad</small><b>{moneda(semana.utilidadBruta)}</b><em>{semana.variacionUtilidad === null ? "Sin comparación" : `${semana.variacionUtilidad >= 0 ? "▲" : "▼"} ${Math.abs(semana.variacionUtilidad).toFixed(1)}%`}</em></p>
+                  <p><small>Margen</small><b>{porcentaje(semana.margen)}</b><em>{semana.variacionMargenPuntos === null ? "Sin comparación" : `${semana.variacionMargenPuntos >= 0 ? "+" : ""}${semana.variacionMargenPuntos.toFixed(1)} pts`}</em></p>
+                </div>
+                <p className="weekly-rescue__executive-action"><b>Siguiente revisión:</b> {semana.lectura.accion}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       {cargando ? <p className="weekly-rescue__message">Cargando semanas reales…</p> : error ? <p role="alert" className="weekly-rescue__message weekly-rescue__message--error">{error}</p> : tendencia.periodos.length === 0 ? (
         <p className="weekly-rescue__message">Sube el reporte semanal “Utilidad de ventas” de cada sucursal para iniciar la gráfica.</p>
       ) : (
@@ -109,13 +138,20 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
               <div className="weekly-chart__bars">
                 {periodo.sucursales.map((semana) => {
                   const valor = configuracion.valor(semana);
-                  const ancho = Math.max(3, Math.min(100, ((Number(valor) || 0) / maximo) * 100));
+                  const variacion = configuracion.variacion(semana);
+                  const ancho = valor === null || valor === undefined
+                    ? 0
+                    : Math.max(3, Math.min(100, ((Number(valor) || 0) / maximo) * 100));
                   const esAnaya = semana.sucursal.toLowerCase().includes("general anaya");
                   return (
                     <div key={semana.id} className="weekly-chart__branch">
                       <div><span>{semana.sucursal}</span><strong>{configuracion.dinero ? moneda(valor) : porcentaje(valor)}</strong></div>
                       <div className="weekly-chart__track"><i className={esAnaya ? "is-anaya" : "is-centro"} style={{ width: `${ancho}%` }} /></div>
-                      <small>{semana.variacionVentas === null ? "Línea base" : `${semana.variacionVentas >= 0 ? "▲" : "▼"} ${Math.abs(semana.variacionVentas).toFixed(1)}% vs semana anterior`}</small>
+                      <small>{variacion === null
+                        ? "Sin corte anterior comparable"
+                        : configuracion.puntos
+                          ? `${variacion >= 0 ? "+" : ""}${variacion.toFixed(1)} puntos vs corte anterior`
+                          : `${variacion >= 0 ? "▲" : "▼"} ${Math.abs(variacion).toFixed(1)}% vs corte anterior`}</small>
                     </div>
                   );
                 })}

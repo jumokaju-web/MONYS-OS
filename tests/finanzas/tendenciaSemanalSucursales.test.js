@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  construirLecturaEjecutiva,
   construirMetaRecuperacion,
   construirTendenciaSemanal,
   resumirImportacionUtilidad,
@@ -35,6 +36,44 @@ test("conserva semanas por sucursal, elimina duplicados y calcula la variación"
   assert.equal(tendencia.periodos.length, 2);
   assert.equal(tendencia.semanas.find((item) => item.id === "a1").ventas, 100);
   assert.equal(tendencia.semanas.find((item) => item.id === "a2").variacionVentas, 10);
+  assert.equal(Number(tendencia.semanas.find((item) => item.id === "a2").variacionUtilidad.toFixed(2)), 12.5);
+  assert.equal(Number(tendencia.semanas.find((item) => item.id === "a2").variacionMargenPuntos.toFixed(2)), 0.91);
+});
+
+test("no compara cortes con distinta duración", () => {
+  const semanaCompleta = semana({ id: "a1", branchId: "anaya", nombre: "General Anaya", inicio: "2026-10-01", fin: "2026-10-07", ventas: 100, costo: 60, utilidad: 40 });
+  const corteParcial = semana({ id: "a2", branchId: "anaya", nombre: "General Anaya", inicio: "2026-10-08", fin: "2026-10-10", ventas: 80, costo: 50, utilidad: 30 });
+  const tendencia = construirTendenciaSemanal([semanaCompleta, corteParcial]);
+  const ultima = tendencia.semanas.find((item) => item.id === "a2");
+
+  assert.equal(ultima.periodoAnteriorComparable, false);
+  assert.equal(ultima.variacionVentas, null);
+  assert.equal(ultima.variacionUtilidad, null);
+});
+
+test("la lectura ejecutiva distingue crecimiento rentable y deterioro", () => {
+  const anaya1 = semana({ id: "a1", branchId: "anaya", nombre: "General Anaya", inicio: "2026-10-01", fin: "2026-10-07", ventas: 100, costo: 60, utilidad: 40 });
+  const anaya2 = semana({ id: "a2", branchId: "anaya", nombre: "General Anaya", inicio: "2026-10-08", fin: "2026-10-14", ventas: 120, costo: 70, utilidad: 50 });
+  const centro1 = semana({ id: "c1", branchId: "centro", nombre: "Centro", inicio: "2026-10-01", fin: "2026-10-07", ventas: 500, costo: 300, utilidad: 200 });
+  const centro2 = semana({ id: "c2", branchId: "centro", nombre: "Centro", inicio: "2026-10-08", fin: "2026-10-14", ventas: 450, costo: 290, utilidad: 160 });
+  const lectura = construirLecturaEjecutiva(construirTendenciaSemanal([anaya1, anaya2, centro1, centro2]));
+
+  assert.equal(lectura.comparacionMismoCorte, true);
+  assert.equal(lectura.sucursales.find((item) => item.branchId === "anaya").lectura.estado, "crece");
+  assert.equal(lectura.sucursales.find((item) => item.branchId === "centro").lectura.estado, "riesgo");
+});
+
+test("una métrica financiera ausente permanece pendiente y no se convierte en cero", () => {
+  const resultado = resumirImportacionUtilidad({
+    importacion: { id: "x", created_at: "2026-10-15T10:00:00Z" },
+    sucursal: { id: "centro", nombre: "Centro" },
+    detalles: [{ datos_originales: { periodoInicio: "2026-10-01", periodoFin: "2026-10-07", costoTotal: 90 } }],
+  });
+
+  assert.equal(resultado.ventas, null);
+  assert.equal(resultado.utilidadBruta, null);
+  assert.equal(resultado.costo, 90);
+  assert.equal(resultado.margen, null);
 });
 
 test("la primera meta de rescate aumenta 10% sin fingir que ya igualó a Centro", () => {
