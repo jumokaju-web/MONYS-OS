@@ -69,8 +69,8 @@ movimientos = [],
   };
 
   const estadoVentasCorte = obtenerEstadoCorte({
-    cargando: cargandoDashboard,
-    error: errorDashboard,
+    cargando: cargandoDashboard || cargandoSucursales,
+    error: errorDashboard || errorSucursales,
     fechaInicial,
     fechaFinal,
   });
