@@ -35,6 +35,7 @@ import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
 import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import { crearResultadoPulsoVentas, validarValoresPulsoVentas } from "../shared/pulsoVentas";
+import { crearResultadoRevisionTraspaso, leerRevisionTraspaso, validarCapturaRevisionTraspaso } from "../../inventario/shared/revisionTraspaso";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
@@ -349,6 +350,9 @@ export default function OperacionEmpleado({
     useState({});
 
   const [resultadosPulsoVentas, setResultadosPulsoVentas] =
+    useState({});
+
+  const [resultadosRevisionTraspaso, setResultadosRevisionTraspaso] =
     useState({});
 
   const [semanaAbierta, setSemanaAbierta] =
@@ -804,6 +808,8 @@ export default function OperacionEmpleado({
       const esPulsoVentas = normalizarTexto(
         tarea?.titulo
       ).startsWith("PULSO DE VENTAS:");
+      const revisionTraspaso = leerRevisionTraspaso(tarea);
+      const esRevisionTraspaso = Boolean(revisionTraspaso);
 
       if (nuevoEstado === "terminada" && esSeguimientoCRM) {
         resultadoSeguimiento = String(
@@ -830,6 +836,15 @@ export default function OperacionEmpleado({
         resultadoSeguimiento = String(resultadoCapturado || "").trim();
         if (!resultadoSeguimiento) {
           setError("Completa personas, ventas e importe antes de terminar tu pulso del día.");
+          return;
+        }
+      }
+
+      if (nuevoEstado === "terminada" && esRevisionTraspaso) {
+        try {
+          resultadoSeguimiento = crearResultadoRevisionTraspaso(resultadoCapturado || {});
+        } catch (errorRevision) {
+          setError(errorRevision.message);
           return;
         }
       }
@@ -1854,7 +1869,7 @@ export default function OperacionEmpleado({
                                 </div>
                               )}
 
-                              {tarea.instrucciones && (
+{tarea.instrucciones && !esRevisionTraspaso && (
                                 <div
                                   style={{
                                     whiteSpace:
@@ -2281,6 +2296,8 @@ export default function OperacionEmpleado({
               const esPulsoVentas = normalizarTexto(
                 tarea.titulo
               ).startsWith("PULSO DE VENTAS:");
+              const revisionTraspaso = leerRevisionTraspaso(tarea);
+              const esRevisionTraspaso = Boolean(revisionTraspaso);
               const resultadoConteo = String(
                 resultadosConteoInventario[tarea.id] ?? tarea.resultado ?? ""
               );
@@ -2290,11 +2307,18 @@ export default function OperacionEmpleado({
                 importe: "",
                 observaciones: "",
               };
+              const resultadoRevision = resultadosRevisionTraspaso[tarea.id] || {
+                existenciaFisica: "",
+                decision: "",
+                observaciones: "",
+              };
+              const revisionLista = esRevisionTraspaso && validarCapturaRevisionTraspaso({ ...resultadoRevision, lado: revisionTraspaso.lado });
               const pulsoListo = pulsoVentasCompleto(pulsoVentas);
               const requiereFotoFinal = tarea.requiere_evidencia === true;
               const puedeTerminarTarea = (!requiereFotoFinal || tieneFinal) &&
                 (!esConteoInventario || resultadoConteo.trim().length > 0) &&
-                (!esPulsoVentas || pulsoListo);
+                (!esPulsoVentas || pulsoListo) &&
+                (!esRevisionTraspaso || revisionLista);
 
 
               const esUrgente =
@@ -2500,6 +2524,38 @@ export default function OperacionEmpleado({
   </div>
 )}
 
+{esRevisionTraspaso && tarea.estado === "en_proceso" && (
+  <div style={{ display: "grid", gap: 10, marginTop: 13, padding: 13, border: "1px solid #d2e8d9", borderRadius: 13, background: "#f5fbf7" }}>
+    <strong style={{ color: "#245d3b" }}>Verifica el producto en la sucursal</strong>
+    <p style={{ margin: 0, color: "#5d6a60", fontSize: 13 }}>Producto: {revisionTraspaso.producto}. La sugerencia es solo una alerta: revisa anaquel y bodega antes de responder. No se moverá ni descontará inventario.</p>
+    <p style={{ margin: 0, color: "#5d6a60", fontSize: 13 }}>Dirección sugerida: {revisionTraspaso.sucursalOrigen} → {revisionTraspaso.sucursalDestino}. Periodo del reporte: {String(revisionTraspaso.periodoInicio || "sin fecha").slice(0, 10)} a {String(revisionTraspaso.periodoFin || "sin fecha").slice(0, 10)}; cantidad sugerida: {revisionTraspaso.cantidadSugerida ?? "pendiente"}.</p>
+    <label style={{ display: "grid", gap: 5, color: "#4c594f", fontWeight: 750 }}>
+      {revisionTraspaso.lado === "ORIGEN" ? "Piezas disponibles que contaste físicamente" : "Existencia física que contaste"}
+      <input type="number" inputMode="numeric" min="0" step="1" required value={resultadoRevision.existenciaFisica} onChange={(event) => setResultadosRevisionTraspaso((actual) => ({ ...actual, [tarea.id]: { ...resultadoRevision, existenciaFisica: event.target.value } }))} style={{ minHeight: 42, boxSizing: "border-box", padding: 9, border: "1px solid #c9ddd0", borderRadius: 9, font: "inherit" }} />
+    </label>
+    <label style={{ display: "grid", gap: 5, color: "#4c594f", fontWeight: 750 }}>
+      Resultado de la revisión
+      <select required value={resultadoRevision.decision} onChange={(event) => setResultadosRevisionTraspaso((actual) => ({ ...actual, [tarea.id]: { ...resultadoRevision, decision: event.target.value } }))} style={{ minHeight: 42, boxSizing: "border-box", padding: 9, border: "1px solid #c9ddd0", borderRadius: 9, background: "#fff", font: "inherit" }}>
+        <option value="">Selecciona lo que encontraste</option>
+        {revisionTraspaso.lado === "ORIGEN" ? <>
+          <option value="hay_excedente">Sí hay piezas disponibles</option>
+          <option value="no_hay_excedente">No hay piezas para enviar</option>
+          <option value="ajustar">El conteo o producto debe corregirse</option>
+        </> : <>
+          <option value="si_hace_falta">Sí hacen falta piezas</option>
+          <option value="no_hace_falta">No hacen falta piezas</option>
+          <option value="ajustar">El conteo o producto debe corregirse</option>
+        </>}
+      </select>
+    </label>
+    <label style={{ display: "grid", gap: 5, color: "#4c594f", fontWeight: 750 }}>
+      Nota para Dirección <small style={{ fontWeight: 500 }}>(opcional)</small>
+      <textarea rows={2} value={resultadoRevision.observaciones} onChange={(event) => setResultadosRevisionTraspaso((actual) => ({ ...actual, [tarea.id]: { ...resultadoRevision, observaciones: event.target.value } }))} placeholder="Ubicación, condición o diferencia encontrada" style={{ width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #c9ddd0", borderRadius: 9, font: "inherit" }} />
+    </label>
+    <small style={{ color: "#68776c" }}>El conteo 0 se acepta solo si lo verificaste. La empleada de la otra sucursal también debe confirmar antes de autorizar el traslado.</small>
+  </div>
+)}
+
  {esCentroGrowth &&
   normalizarTexto(tarea.area) ===
   "MARKETING" &&
@@ -2669,7 +2725,9 @@ export default function OperacionEmpleado({
                                 ? resultadoConteo
                                 : esPulsoVentas
                                   ? resultadoPulsoVentas(pulsoVentas)
-                                  : null
+                                  : esRevisionTraspaso
+                                    ? { ...resultadoRevision, lado: revisionTraspaso.lado }
+                                    : null
                             )
                           }
                           style={{
@@ -2697,7 +2755,7 @@ export default function OperacionEmpleado({
                                 : "not-allowed",
                           }}
                         >
-                          {esConteoInventario ? "✅ Guardar conteo y terminar" : "✅ Terminar tarea"}
+                          {esConteoInventario ? "✅ Guardar conteo y terminar" : esRevisionTraspaso ? "✅ Guardar verificación física" : "✅ Terminar tarea"}
                         </button>
                       )}
 

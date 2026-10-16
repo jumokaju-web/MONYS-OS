@@ -209,6 +209,8 @@ function obtenerCodigoRecomendacion(
 
 function DirectorInventario({
   datosDashboard,
+  organizationId = null,
+  businessId = null,
   analisisFinanciero = null,
 }) {
 
@@ -1820,7 +1822,10 @@ const compraFinancieramenteAutorizada =
           )
         )}
       </div>
-      <RecomendacionesRebalanceo />
+      <RecomendacionesRebalanceo
+        organizationId={organizationId}
+        businessId={businessId}
+      />
 
       <TransferenciasInventario />
     </section>

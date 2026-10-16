@@ -2933,7 +2933,9 @@ export async function crearTareaAutomaticaDesdePrioridad({
 
 
   const instruccionesAutomaticas =
-    asignacion?.nombre
+    prioridad.instrucciones
+      ? String(prioridad.instrucciones).trim()
+      : asignacion?.nombre
       ? `Tarea asignada automáticamente por MONYS a ${asignacion.nombre}. Ejecutar la acción indicada y registrar evidencia del resultado.`
       : "Ejecutar la acción indicada por MONYS y registrar evidencia del resultado.";
 
@@ -2968,9 +2970,10 @@ area:
       creadaPor,
 
       requiereEvidencia:
-        true,
+        prioridad.requiereEvidencia !== false,
 
       criterioExito:
+        prioridad.criterioExito ||
         "La acción debe quedar resuelta y respaldada con evidencia suficiente para que MONYS pueda verificar el cumplimiento.",
     });
 

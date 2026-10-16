@@ -6,6 +6,7 @@ import {
   obtenerUltimosInventariosPorSucursal,
   obtenerUltimasVentasPorSucursal,
 } from "../../dashboard/services/dashboardDataService";
+import { leerExistenciaReportada } from "../shared/existenciaReportada";
 
 const DIAS_OBJETIVO_DESTINO = 14;
 const DIAS_RESERVA_ORIGEN = 30;
@@ -63,18 +64,7 @@ function obtenerDescripcion(detalle) {
 }
 
 function obtenerExistencia(detalle) {
-  const datosOriginales =
-    detalle?.datos_originales || {};
-
-  return convertirNumero(
-    detalle?.existencia ??
-      datosOriginales.existencia ??
-      datosOriginales.exis ??
-      datosOriginales.stock ??
-      detalle?.cantidad ??
-      datosOriginales.cantidad ??
-      0
-  );
+  return leerExistenciaReportada(detalle);
 }
 
 function obtenerClaveProducto(detalle) {
@@ -281,6 +271,11 @@ function construirMapaInventario(
       obtenerExistencia(
         detalle
       );
+
+    // Una fila sin existencia informada no equivale a cero piezas.
+    if (existencia === null) {
+      continue;
+    }
 
     const registroActual =
       mapa.get(clave);

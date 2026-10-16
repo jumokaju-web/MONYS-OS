@@ -5,21 +5,24 @@ import {
 import {
   crearTareaAutomaticaDesdePrioridad,
 } from "./tareasOperativasService";
+import { construirVerificacionesTraspaso } from "../../inventario/shared/revisionTraspaso";
 
 
 // ======================================================
 // MONYS OS
 // REBALANCEO → TAREAS OPERATIVAS
 //
-// Convierte únicamente recomendaciones ALTA
-// en tareas concretas.
+// Convierte recomendaciones ALTA en verificaciones físicas por sucursal.
 //
+// Asigna como máximo dos revisiones por sucursal: una para confirmar
+// posible sobrante y otra para confirmar posible faltante.
 // NO ejecuta el traspaso.
-// Solo prepara la acción para revisión/ejecución.
 // ======================================================
 
 export async function crearTareasPrioritariasRebalanceo({
-  maximo = 3,
+  maximoPorSucursal = 2,
+  organizationId = null,
+  businessId = null,
 } = {}) {
   const recomendaciones =
     await generarRecomendacionesRebalanceo();
@@ -36,45 +39,26 @@ export async function crearTareasPrioritariasRebalanceo({
             recomendacion?.prioridad ||
             ""
           ).toUpperCase() === "ALTA"
-      )
-      .slice(
-        0,
-        Math.max(
-          1,
-          Number(maximo) || 3
-        )
       );
 
+  const verificaciones = construirVerificacionesTraspaso(altas, {
+    maximoPorSucursal,
+  });
 
   const resultados = [];
 
 
-  for (
-    const recomendacion
-    of altas
-  ) {
+  for (const verificacion of verificaciones) {
+    const { recomendacion } = verificacion;
     try {
-      /*
-        La tarea se asigna a la sucursal
-        DE ORIGEN porque ahí está físicamente
-        la mercancía que debe prepararse.
-      */
-
-      const titulo =
-        `Preparar traspaso de ${recomendacion.producto}: ${recomendacion.cantidadSugerida} pzas de ${recomendacion.sucursalOrigen} a ${recomendacion.sucursalDestino}`;
-
-
-      const descripcion =
-        `${recomendacion.motivo} ` +
-        `MONYS recomienda mover ${recomendacion.cantidadSugerida} piezas de ${recomendacion.sucursalOrigen} a ${recomendacion.sucursalDestino}. ` +
-        `Antes de realizar el movimiento se debe confirmar físicamente la existencia disponible.`;
+      const descripcion = `${verificacion.descripcion} MONYS sugiere ${recomendacion.cantidadSugerida} piezas para el posible traspaso ${recomendacion.sucursalOrigen} → ${recomendacion.sucursalDestino}. No muevas producto ni actualices inventario desde esta tarea.`;
 
 
       const prioridad = {
         id:
           `rebalanceo-${recomendacion.productId}-${recomendacion.branchOrigenId}-${recomendacion.branchDestinoId}`,
 
-        titulo,
+        titulo: verificacion.titulo,
 
         descripcion,
 
@@ -90,14 +74,21 @@ export async function crearTareasPrioritariasRebalanceo({
         origenTexto:
           "Rebalanceo inteligente",
 
-        responsable:
-          "Inventario",
+        area:
+          "inventario",
 
-        confianza:
-          90,
+        responsable: "Inventario",
 
         requiereAtencion:
           true,
+
+        requiereEvidencia: false,
+
+        instrucciones:
+          verificacion.instrucciones,
+
+        criterioExito:
+          "Captura el conteo físico explícito y decide si hay sobrante/faltante, si no se confirma o si debe ajustarse la cantidad. Dirección revisará ambas sucursales antes de autorizar cualquier movimiento.",
 
         metadata: {
           productId:
@@ -150,7 +141,11 @@ export async function crearTareasPrioritariasRebalanceo({
           prioridad,
 
           branchId:
-            recomendacion.branchOrigenId,
+            verificacion.branchId,
+
+          organizationId,
+
+          businessId,
 
           creadaPor:
             "MONYS OS",
@@ -160,6 +155,14 @@ export async function crearTareasPrioritariasRebalanceo({
       resultados.push({
         producto:
           recomendacion.producto,
+
+        lado:
+          verificacion.lado,
+
+        sucursal:
+          verificacion.lado === "ORIGEN"
+            ? recomendacion.sucursalOrigen
+            : recomendacion.sucursalDestino,
 
         origen:
           recomendacion.sucursalOrigen,
@@ -218,7 +221,7 @@ export async function crearTareasPrioritariasRebalanceo({
       ).length,
 
     revisadas:
-      altas.length,
+      verificaciones.length,
 
     creadas:
       resultados.filter(

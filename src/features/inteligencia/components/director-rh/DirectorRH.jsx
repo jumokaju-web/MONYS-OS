@@ -698,14 +698,18 @@ async function manejarReactivarEmpleado(
   return (
     <section
       style={{
-        marginTop: "30px",
-        padding: "28px",
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        marginTop: "14px",
+        padding: "clamp(12px, 3vw, 24px)",
         borderRadius: "22px",
         background:
           "linear-gradient(135deg, #ffffff 0%, #f7f3ff 100%)",
         border: "1px solid #d9c7ef",
         boxShadow:
           "0 12px 35px rgba(110, 75, 160, 0.10)",
+        overflow: "hidden",
       }}
     >
       {/* ENCABEZADO */}

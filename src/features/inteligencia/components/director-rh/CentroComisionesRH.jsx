@@ -202,7 +202,7 @@ export default function CentroComisionesRH({ businessId, branchId, empleados = [
   const importacionActual = importaciones.find((item) => item.id === importacionId);
 
   return (
-    <section style={{ marginTop: 28, padding: 22, borderRadius: 18, background: "linear-gradient(135deg, #fff 0%, #f4fff8 100%)", border: "1px solid #bde4cc", boxShadow: "0 12px 30px rgba(34, 107, 61, .08)" }}>
+    <section style={{ width: "100%", minWidth: 0, boxSizing: "border-box", marginTop: 20, padding: "clamp(12px, 3vw, 22px)", borderRadius: 18, background: "linear-gradient(135deg, #fff 0%, #f4fff8 100%)", border: "1px solid #bde4cc", boxShadow: "0 12px 30px rgba(34, 107, 61, .08)", overflow: "hidden" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", alignItems: "start", gap: 12 }}>
         <div>
           <p style={{ margin: "0 0 6px", color: "#227a48", fontWeight: 800, letterSpacing: ".08em" }}>MONYS OS · RH + FINANZAS</p>
@@ -251,7 +251,7 @@ export default function CentroComisionesRH({ businessId, branchId, empleados = [
       ) : (
         <>
           {resumen.filasSinIdentidad > 0 && <p style={{ color: "#916218", fontSize: 13 }}>{resumen.filasSinIdentidad} filas se omitieron porque les falta fecha, folio, usuario o venta válida.</p>}
-          <div style={{ marginTop: 14, overflowX: "auto" }}>
+          <div style={{ width: "100%", minWidth: 0, marginTop: 14, overflowX: "auto", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" }}>
             <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse", background: "#fff", borderRadius: 12 }}>
               <thead><tr>{["Empleada", "Tickets", "Tickets CRM", "Venta base", "1% estimado"].map((label) => <th key={label} style={{ textAlign: "left", padding: 11, borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
               <tbody>
@@ -270,13 +270,13 @@ export default function CentroComisionesRH({ businessId, branchId, empleados = [
           <details open style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#fff", border: "1px solid #dcece2" }}>
             <summary style={{ color: "#245d3b", fontWeight: 800, cursor: "pointer" }}>Conciliación por folio · {(resumen.conciliacion || []).filter((fila) => !["CRM_ATRIBUIDO", "SICAR_ASIGNADO"].includes(fila.estado)).length} por revisar</summary>
             <p style={{ margin: "6px 0 10px", color: "#697386", fontSize: 13 }}>CRM identifica quién atendió; SICAR aporta el importe real. Los folios con dudas quedan fuera del cálculo automático.</p>
-            <label style={{ display: "grid", gridTemplateColumns: "minmax(180px, 260px) 1fr", alignItems: "center", gap: 8, marginBottom: 10, color: "#697386", fontSize: 13 }}>Mostrar
+            <label style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start", gap: 6, marginBottom: 10, color: "#697386", fontSize: 13 }}>Mostrar
               <select value={filtroConciliacion} onChange={(e) => setFiltroConciliacion(e.target.value)} style={campo}>
                 <option value="PENDIENTES">Solo folios por revisar</option>
                 <option value="TODAS">Todos los folios</option>
               </select>
             </label>
-            <div style={{ overflow: "auto", maxHeight: 390 }}>
+            <div style={{ width: "100%", minWidth: 0, overflow: "auto", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch", maxHeight: 390 }}>
               <table style={{ width: "100%", minWidth: 820, borderCollapse: "collapse" }}>
                 <thead><tr>{["Folio", "Fecha", "Usuario SICAR", "Responsable", "Empleadas CRM", "Venta SICAR", "Resultado"].map((label) => <th key={label} style={{ position: "sticky", top: 0, textAlign: "left", padding: 9, background: "#f7f9fc", borderBottom: "1px solid #e4e8ef", color: "#536073" }}>{label}</th>)}</tr></thead>
                 <tbody>
@@ -321,13 +321,13 @@ export default function CentroComisionesRH({ businessId, branchId, empleados = [
                 const actual = personal.find((persona) => normalizarUsuarioSicar(persona.usuario_sicar) === clave);
                 const seleccionado = selecciones[clave] ?? actual?.id ?? "";
                 const compartido = esUsuarioSicarCompartido(usuarioSicar);
-                return <div key={clave} style={{ display: "grid", gridTemplateColumns: "minmax(140px, 1fr) minmax(180px, 1fr) auto", alignItems: "center", gap: 8, padding: 9, borderRadius: 10, background: "#f8fbf9" }}>
-                  <div><strong>{usuarioSicar}</strong>{compartido && <small style={{ display: "block", color: "#805700", marginTop: 4 }}>Cuenta compartida de sucursal; no se asigna a una empleada.</small>}</div>
-                  <select disabled={compartido} value={seleccionado} onChange={(e) => setSelecciones((prev) => ({ ...prev, [clave]: e.target.value }))} style={{ ...campo, background: compartido ? "#f1f2f4" : "#fff" }}>
+                return <div key={clave} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 8, padding: 9, borderRadius: 10, background: "#f8fbf9", minWidth: 0 }}>
+                  <div style={{ gridColumn: "1 / -1", minWidth: 0, overflowWrap: "anywhere" }}><strong>{usuarioSicar}</strong>{compartido && <small style={{ display: "block", color: "#805700", marginTop: 4 }}>Cuenta compartida de sucursal; no se asigna a una empleada.</small>}</div>
+                  <select disabled={compartido} value={seleccionado} onChange={(e) => setSelecciones((prev) => ({ ...prev, [clave]: e.target.value }))} style={{ ...campo, minWidth: 0, background: compartido ? "#f1f2f4" : "#fff" }}>
                     <option value="">Elegir empleada</option>
                     {empleadosDisponibles.map((persona) => <option key={persona.id} value={persona.id}>{persona.nombre}{persona.active ? "" : " · baja"}</option>)}
                   </select>
-                  <button type="button" disabled={compartido || !seleccionado || guardandoUsuario === usuarioSicar} onClick={() => guardarMapeo(usuarioSicar)} style={{ border: 0, borderRadius: 9, background: "#277648", color: "#fff", padding: "10px 12px", fontWeight: 800, cursor: "pointer" }}>{guardandoUsuario === usuarioSicar ? "Guardando…" : "Guardar"}</button>
+                  <button type="button" disabled={compartido || !seleccionado || guardandoUsuario === usuarioSicar} onClick={() => guardarMapeo(usuarioSicar)} style={{ minHeight: 42, border: 0, borderRadius: 9, background: "#277648", color: "#fff", padding: "9px 11px", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>{guardandoUsuario === usuarioSicar ? "Guardando…" : "Guardar"}</button>
                 </div>;
               })}
             </div>

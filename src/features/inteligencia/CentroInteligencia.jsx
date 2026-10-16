@@ -204,8 +204,8 @@ function CentroInteligencia({
   ] = useState(directorInicial);
   useEffect(() => {
     if (!directorInicial) return;
-    const frame = requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ block: 'start' }));
-    return () => cancelAnimationFrame(frame);
+    setDirectorAbierto(directorInicial);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, [directorInicial]);
 
   const [
@@ -515,6 +515,34 @@ const analisisRH =
         analisisInventarioCEO,
     });
 
+  const abrirDashboardDireccion = () => {
+    setDirectorAbierto(null);
+    volverAlDashboard?.();
+  };
+
+  if (directorAbierto) {
+    const directorActivo = directores.find((director) => director.id === directorAbierto);
+    const vistaDirector = {
+      comercial: <DirectorComercial datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} cargandoSucursales={cargandoSucursales} errorSucursales={errorSucursales} organizationId={organizationId} businessId={businessId} branchId={branchId} empleados={usuariosRH} />,
+      inventario: <DirectorInventario datosDashboard={datosDashboard} organizationId={organizationId} businessId={businessId} analisisFinanciero={analisisFinancieroCEO} />,
+      financiero: <DirectorFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} creditosProveedores={creditosProveedores} onAbrirImportador={onAbrirImportador} onAbrirValor={onAbrirValor} />,
+      marketing: <DirectorMarketing analisisMarketing={analisisMarketing} onVolverAlDashboard={abrirDashboardDireccion} onAbrirImportador={onAbrirImportador} />,
+      rh: <DirectorRH analisisRH={analisisRH} organizationId={organizationId} businessId={businessId} branchId={branchId} empleados={usuariosRH} onEmpleadoCreado={cargarEmpleadosRH} />,
+      ceo: <PanelCEOIA decisionCEO={decisionCEO} />,
+    }[directorAbierto];
+
+    return (
+      <main className="centro-inteligencia" style={{ width: "min(1180px, 94%)", minWidth: 0, margin: "0 auto", padding: "12px 0 32px", boxSizing: "border-box" }}>
+        <header style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+          <button type="button" onClick={() => setDirectorAbierto(null)} style={{ minHeight: 42, padding: "9px 13px", borderRadius: 11, border: "1px solid #e2c8d5", background: "#fff", color: "#70274c", fontWeight: 800, cursor: "pointer" }}>← Todos los Directores IA</button>
+          <button type="button" onClick={abrirDashboardDireccion} style={{ minHeight: 42, padding: "9px 13px", borderRadius: 11, border: "1px solid #e2c8d5", background: "#fff", color: "#70274c", fontWeight: 800, cursor: "pointer" }}>Inicio de Dirección</button>
+        </header>
+        <h1 style={{ margin: "8px 0 16px", fontSize: "clamp(23px, 5vw, 34px)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{directorActivo?.icono} {directorActivo?.nombre || "Área de Dirección"}</h1>
+        {vistaDirector || <p>Esta área aún no está disponible.</p>}
+      </main>
+    );
+  }
+
   /*
     ==========================================
     ABRIR / CERRAR DIRECTORES
@@ -549,10 +577,9 @@ const analisisRH =
 
       <CentroMando sucursales={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => {
         setDirectorAbierto(id);
-        requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
       }} />
       {typeof onAbrirValor === "function" && <section className="junta"><span className="junta-label">DIRECCIÓN · EJECUCIÓN · VALOR ECONÓMICO</span><h2>¿Qué cambió gracias a nuestras acciones?</h2><p>Registra pruebas con línea base y evidencia, revisa resultados y consulta por separado los ingresos por vender MONYS OS.</p><button type="button" onClick={onAbrirValor}>Abrir Centro de Valor →</button></section>}
-      <JuntaDirectiva analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => { setDirectorAbierto(id); requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('panel-director-activo')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))); }} />
+      <JuntaDirectiva analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => setDirectorAbierto(id)} />
       <button
         type="button"
         onClick={volverAlDashboard}
@@ -857,6 +884,8 @@ const analisisRH =
           datosDashboard={
             datosDashboard
           }
+          organizationId={organizationId}
+          businessId={businessId}
           analisisFinanciero={
             analisisFinancieroCEO
           }

@@ -40,7 +40,7 @@ function obtenerEstiloPrioridad(
   };
 }
 
-function RecomendacionesRebalanceo() {
+function RecomendacionesRebalanceo({ organizationId = null, businessId = null }) {
   const [
     recomendaciones,
     setRecomendaciones,
@@ -219,7 +219,7 @@ const [
         <meta charset="UTF-8" />
 
         <title>
-          Traspaso ${escapar(
+          Propuesta de traspaso ${escapar(
             sucursalOrigen
           )} a ${escapar(
             sucursalDestino
@@ -277,8 +277,8 @@ const [
             margin-top: 40px;
             display: grid;
             grid-template-columns:
-              1fr 1fr;
-            gap: 70px;
+              repeat(3, minmax(0, 1fr));
+            gap: 28px;
           }
 
           .firma {
@@ -298,8 +298,10 @@ const [
 
       <body>
         <h1>
-          MONYS OS · Hoja de Traspaso
+          MONYS OS · Propuesta de traspaso
         </h1>
+
+        <p><strong>PENDIENTE DE VERIFICACIÓN Y AUTORIZACIÓN.</strong> Confirma físicamente existencia en origen y necesidad en destino. No mover producto ni actualizar SICAR hasta que ambas sucursales confirmen y Mónica autorice.</p>
 
         <div class="ruta">
           ${escapar(
@@ -351,17 +353,21 @@ const [
 
         <div class="firmas">
           <div class="firma">
-            Preparó en
+            Verificó existencia física en
             ${escapar(
               sucursalOrigen
             )}
           </div>
 
           <div class="firma">
-            Recibió en
+            Verificó necesidad física en
             ${escapar(
               sucursalDestino
             )}
+          </div>
+
+          <div class="firma">
+            Autorizó Mónica
           </div>
         </div>
 
@@ -386,11 +392,13 @@ async function crearTareasDesdeRebalanceo() {
 
     const resultado =
       await crearTareasPrioritariasRebalanceo({
-        maximo: 3,
+        maximoPorSucursal: 2,
+        organizationId,
+        businessId,
       });
 
     setMensajeTareas(
-      `MONYS revisó ${resultado.revisadas} recomendaciones prioritarias. ` +
+      `MONYS preparó ${resultado.revisadas} verificaciones físicas; máximo dos por sucursal. ` +
       `Creó ${resultado.creadas} tareas, evitó ${resultado.duplicadas} duplicadas y tuvo ${resultado.errores} errores.`
     );
   } catch (errorTareas) {
@@ -561,10 +569,7 @@ async function crearTareasDesdeRebalanceo() {
           lineHeight: "1.6",
         }}
       >
-        MONYS OS compara las
-        existencias entre sucursales
-        y detecta dónde hay exceso y
-        dónde hace falta mercancía.
+        MONYS compara ventas y existencias reales y propone qué revisar en cada sucursal. Una empleada confirma el conteo físico y si de verdad sobra o hace falta. El resultado queda para Dirección; esta tarea nunca mueve inventario.
       </p>
 
       {error && (
@@ -797,75 +802,30 @@ async function crearTareasDesdeRebalanceo() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={
-          cargarRecomendaciones
-        }
-        style={{
-          marginTop: "20px",
-          padding:
-            "11px 16px",
-          borderRadius: "10px",
-          border:
-            "1px solid #b8dff5",
-          backgroundColor:
-            "#ffffff",
-          color: "#287da9",
-          fontWeight: "800",
-          cursor: "pointer",
-        }}
-      >
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "20px" }}>
+        <button
+          type="button"
+          onClick={cargarRecomendaciones}
+          style={{ padding: "11px 16px", borderRadius: "10px", border: "1px solid #b8dff5", backgroundColor: "#ffffff", color: "#287da9", fontWeight: "800", cursor: "pointer" }}
+        >
+          🔄 Volver a analizar
+        </button>
 
         <button
-  type="button"
-  onClick={
-    crearTareasDesdeRebalanceo
-  }
-  disabled={
-    creandoTareas
-  }
-  style={{
-    marginTop: "20px",
-    marginRight: "10px",
-    padding: "11px 16px",
-    borderRadius: "10px",
-    border:
-      "1px solid #d8b66a",
-    backgroundColor:
-      "#fff8df",
-    color:
-      "#7a5b00",
-    fontWeight: "800",
-    cursor:
-      creandoTareas
-        ? "not-allowed"
-        : "pointer",
-  }}
->
-  {creandoTareas
-    ? "Creando tareas..."
-    : "⚡ Crear tareas prioritarias"}
-</button>
+          type="button"
+          onClick={crearTareasDesdeRebalanceo}
+          disabled={creandoTareas || recomendaciones.length === 0}
+          style={{ padding: "11px 16px", borderRadius: "10px", border: "1px solid #d8b66a", backgroundColor: "#fff8df", color: "#7a5b00", fontWeight: "800", cursor: creandoTareas ? "not-allowed" : "pointer" }}
+        >
+          {creandoTareas ? "Preparando verificaciones…" : "Asignar verificaciones físicas · máx. 2 por sucursal"}
+        </button>
+      </div>
 
-{mensajeTareas && (
-  <div
-    style={{
-      marginTop: "12px",
-      padding: "12px",
-      borderRadius: "10px",
-      backgroundColor:
-        "#f6f6f6",
-      border:
-        "1px solid #ddd",
-    }}
-  >
-    {mensajeTareas}
-  </div>
-)}
-
-        🔄 Volver a analizar
-      </button>
+      {mensajeTareas && (
+        <div style={{ marginTop: "12px", padding: "12px", borderRadius: "10px", backgroundColor: "#f6f6f6", border: "1px solid #ddd" }}>
+          {mensajeTareas}
+        </div>
+      )}
     </section>
   );
 }
