@@ -12,6 +12,7 @@ import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
 import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinancieroIA";
+import { obtenerEstadoCorte } from "./utils/estadoCorte";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -47,6 +48,10 @@ movimientos = [],
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
+  cargandoDashboard = false,
+  errorDashboard = "",
+  cargandoMovimientos = false,
+  errorMovimientos = false,
 
   contenidoOperacion = null,
   contenidoAcciones = null,
@@ -63,14 +68,34 @@ movimientos = [],
     return Number.isNaN(fecha.getTime()) ? 'Fecha pendiente' : fecha.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'});
   };
 
+  const estadoVentasCorte = obtenerEstadoCorte({
+    cargando: cargandoDashboard,
+    error: errorDashboard,
+    fechaInicial,
+    fechaFinal,
+  });
+  const estadoFlujoCorte = obtenerEstadoCorte({
+    cargando: cargandoMovimientos || cargandoDashboard,
+    error: errorMovimientos || errorDashboard,
+    fechaInicial,
+    fechaFinal,
+  });
   const detallePeriodo =
-    fechaInicial && fechaFinal
+    estadoVentasCorte === "listo"
       ? `${formatearFechaPeriodo(
           fechaInicial
         )} al ${formatearFechaPeriodo(
           fechaFinal
         )}`
-      : "Periodo no disponible";
+      : estadoVentasCorte === "cargando"
+        ? "Cargando corte…"
+        : "Periodo pendiente";
+  const etiquetaEstadoCorte = (estado) => {
+    if (estado === "cargando") return "Cargando…";
+    if (estado === "error") return "No disponible";
+    if (estado === "sin-periodo") return "Corte pendiente";
+    return "";
+  };
 
   const [
     recordatoriosJefa,
@@ -448,24 +473,22 @@ const utilidadConsolidada =
           <MetricaJefa
             icono="↗"
             titulo="Ventas"
-            valor={formatoDinero(
-              ventasConsolidadas
-            )}
+            valor={estadoVentasCorte === "listo" ? formatoDinero(ventasConsolidadas) : etiquetaEstadoCorte(estadoVentasCorte)}
+            detalle={estadoVentasCorte === "listo" ? "" : "Reporte del corte pendiente de confirmar."}
           />
 
           <MetricaJefa
             icono="◆"
             titulo="Utilidad bruta"
-            valor={formatoDinero(
-              utilidadConsolidada
-            )}
+            valor={estadoVentasCorte === "listo" ? formatoDinero(utilidadConsolidada) : etiquetaEstadoCorte(estadoVentasCorte)}
+            detalle={estadoVentasCorte === "listo" ? "" : "Reporte del corte pendiente de confirmar."}
           />
 
          <MetricaJefa
   icono="◎"
   titulo="Flujo registrado del corte"
-  valor={movimientosFlujo.length ? formatoDinero(disponible) : "Sin movimientos del corte"}
-  detalle={`${movimientosFlujo.length} registros en este periodo · no es saldo bancario`}
+  valor={estadoFlujoCorte !== "listo" ? etiquetaEstadoCorte(estadoFlujoCorte) : movimientosFlujo.length ? formatoDinero(disponible) : "Sin movimientos del corte"}
+  detalle={estadoFlujoCorte === "listo" ? `${movimientosFlujo.length} registros en este periodo · no es saldo bancario` : estadoFlujoCorte === "error" ? "No se pudo consultar la fuente de movimientos." : estadoFlujoCorte === "sin-periodo" ? "Falta un periodo válido para filtrar movimientos." : "Consultando movimientos registrados."}
 />
 
         </div>

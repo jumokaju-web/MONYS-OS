@@ -100,6 +100,8 @@ function App() {
     movimientos,
     setMovimientos,
   ] = useState([]);
+  const [cargandoMovimientos, setCargandoMovimientos] = useState(true);
+  const [errorMovimientos, setErrorMovimientos] = useState(false);
 
 
 
@@ -274,6 +276,8 @@ function App() {
   */
   const cargarMovimientos =
     async () => {
+      setCargandoMovimientos(true);
+      setErrorMovimientos(false);
       try {
         const registros =
           await obtenerMovimientosTesoreria();
@@ -342,10 +346,13 @@ receiptStatus:
           movimientosAdaptados
         );
       } catch (error) {
+        setErrorMovimientos(true);
         console.error(
           "No fue posible cargar los movimientos del Dashboard:",
           error
         );
+      } finally {
+        setCargandoMovimientos(false);
       }
     };
 
@@ -1204,7 +1211,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa movimientosFlujo={movimientosDelPeriodo} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
+    <InicioJefa movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
 
       datosDashboard={
         datosDashboard
