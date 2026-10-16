@@ -17,6 +17,7 @@ import CentroRescateFinanciero from "./CentroRescateFinanciero";
 import PlanRescate30Dias from "./PlanRescate30Dias";
 import TableroVisualFinanciero from "./TableroVisualFinanciero";
 import TendenciaSemanalSucursales from "./TendenciaSemanalSucursales";
+import RutaCEOFinanciera from "./RutaCEOFinanciera";
 import { generarAnalisisFinanciero } from "../../ia/directorFinancieroIA";
 import {
   actualizarEjecucionDecision,
@@ -59,6 +60,7 @@ function obtenerAntiguedadDias(fecha) {
     saldoTotal: 0,
   },
   onAbrirImportador,
+  onAbrirValor,
 }) {
 
     const [
@@ -249,7 +251,6 @@ ventasSobrePuntoEquilibrio,
     proyeccionUtilidadMes,
 
     reservaRecomendada,
-    capacidadCompra,
 
     saldoProveedoresVencidos,
     proveedoresVencidos,
@@ -583,6 +584,19 @@ const historial =
       <p role="alert">{consolidacion.motivo}</p>
       <p>El resultado consolidado, el equilibrio y las proyecciones quedan pendientes hasta tener cortes compatibles.</p>
       {onAbrirImportador && <button onClick={onAbrirImportador}>Actualizar reportes SICAR</button>}
+      <RutaCEOFinanciera
+        metricas={metricas}
+        movimientos={movimientos}
+        movimientosPendientes={movimientosPendientes}
+        gastosSinClasificar={gastosSinClasificar}
+        sucursales={sucursalesDashboard}
+        baseVigente={ventasVigentes}
+        onAbrirImportador={onAbrirImportador}
+        onAbrirValor={onAbrirValor}
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+      />
       <TableroVisualFinanciero sucursales={sucursalesDashboard} />
     </section>;
   }
@@ -797,6 +811,24 @@ const historial =
       <TendenciaSemanalSucursales
         sucursales={sucursalesDashboard}
         onAbrirImportador={onAbrirImportador}
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
+        onAbrirValor={onAbrirValor}
+      />
+
+      <RutaCEOFinanciera
+        metricas={metricas}
+        movimientos={movimientos}
+        movimientosPendientes={movimientosPendientes}
+        gastosSinClasificar={gastosSinClasificar}
+        sucursales={sucursalesDashboard}
+        baseVigente={ventasVigentes}
+        onAbrirImportador={onAbrirImportador}
+        onAbrirValor={onAbrirValor}
+        organizationId={organizationId}
+        businessId={businessId}
+        branchId={branchId}
       />
 
       <CentroRescateFinanciero
@@ -1096,25 +1128,20 @@ const historial =
         />
 
         <TarjetaIndicador
-          titulo={
-            proyeccionListaParaDecision
-              ? "Capacidad de compra sugerida"
-              : "Capacidad de compra bloqueada"
-          }
-          valor={formatoDinero(
-            proyeccionListaParaDecision
-              ? capacidadCompra
-              : 0
-          )}
+          titulo="Capacidad de compra bloqueada"
+          valor="Pendiente"
           icono="🛒"
         />
 
         <TarjetaIndicador
           titulo="Reserva por calcular"
-          valor="Faltan saldos iniciales de caja y bancos"
+          valor="Faltan saldos reales, pagos completos e inventario necesario"
           icono="🏦"
         />
       </div>
+      <p style={{ margin: "8px 0 0", color: "#704d0c", fontSize: 13, lineHeight: 1.5 }}>
+        La proyección de ventas no demuestra efectivo disponible. MONYS habilitará una cifra de compra cuando estén confirmados los saldos de caja y bancos, las obligaciones próximas y la necesidad de inventario.
+      </p>
 
         <div
   style={{

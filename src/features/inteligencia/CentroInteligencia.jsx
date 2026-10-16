@@ -881,6 +881,9 @@ const analisisRH =
   onAbrirImportador={
     onAbrirImportador
   }
+  onAbrirValor={
+    onAbrirValor
+  }
 />
       )}
 

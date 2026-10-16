@@ -105,6 +105,12 @@ function App() {
     setPantallaActual,
   ] = useState("dashboard");
   const [directorInicial, setDirectorInicial] = useState(null);
+  const [iniciativaValorInicial, setIniciativaValorInicial] = useState(null);
+
+  const abrirCentroValor = (iniciativa = null) => {
+    setIniciativaValorInicial(iniciativa);
+    setPantallaActual("valor");
+  };
 
 
 
@@ -715,7 +721,7 @@ const disponible =
         return;
       }
 
-      if (nombre === "Centro de Valor") { setPantallaActual("valor"); return; }
+      if (nombre === "Centro de Valor") { abrirCentroValor(); return; }
 
       if (
         nombre ===
@@ -1124,7 +1130,7 @@ if (
 
   if (pantallaActual === "valor") {
     if (!esOwner) return mostrarAccesoDenegado("Centro de Valor");
-    return <CentroValor volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirCapturaDemanda={() => setPantallaActual("captura-demanda")} onAbrirInteligencia={() => { setDirectorInicial(null); setPantallaActual("inteligencia"); }} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => { const panel = document.getElementById("operacion-equipo"); const bloque = panel?.closest("details"); if (bloque) bloque.open = true; panel?.scrollIntoView({ behavior: "smooth", block: "start" }); })); }} />;
+    return <CentroValor iniciativaInicial={iniciativaValorInicial} onPrefillAplicado={() => setIniciativaValorInicial(null)} volverAlDashboard={() => setPantallaActual("dashboard")} onAbrirCapturaDemanda={() => setPantallaActual("captura-demanda")} onAbrirInteligencia={() => { setDirectorInicial(null); setPantallaActual("inteligencia"); }} onAbrirTesoreria={() => setPantallaActual("tesoreria")} onAbrirOperacion={() => { setPantallaActual("dashboard"); requestAnimationFrame(() => requestAnimationFrame(() => { const panel = document.getElementById("operacion-equipo"); const bloque = panel?.closest("details"); if (bloque) bloque.open = true; panel?.scrollIntoView({ behavior: "smooth", block: "start" }); })); }} />;
   }
 
   /*
@@ -1143,7 +1149,7 @@ if (
     }
 
     return (
-      <CentroInteligencia directorInicial={directorInicial} onAbrirValor={() => setPantallaActual("valor")}
+      <CentroInteligencia directorInicial={directorInicial} onAbrirValor={abrirCentroValor}
         datosDashboard={
           datosDashboard
         }
@@ -1206,7 +1212,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa movimientosFlujo={movimientosDelPeriodo} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={() => setPantallaActual("valor")}
+    <InicioJefa movimientosFlujo={movimientosDelPeriodo} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
 
       datosDashboard={
         datosDashboard

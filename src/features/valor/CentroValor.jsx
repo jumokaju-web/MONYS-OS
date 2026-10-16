@@ -8,11 +8,12 @@ const dinero = v => v == null ? 'Por completar' : new Intl.NumberFormat('es-MX',
 const nuevo = () => ({id:crypto.randomUUID(),titulo:'',hipotesis:'',indicador:'utilidad_bruta',base:'',dias:'',fuenteBase:'',fecha:''});
 function hoyMexico() {const partes=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=t=>partes.find(p=>p.type===t)?.value;return `${v('year')}-${v('month')}-${v('day')}`;}
 function FechaMovimiento(valor) {const fecha=new Date(valor);if(!valor || Number.isNaN(fecha.getTime()))return '';const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(fecha);const v=t=>p.find(x=>x.type===t)?.value;return `${v('year')}-${v('month')}-${v('day')}`;}
-export default function CentroValor({volverAlDashboard,onAbrirInteligencia,onAbrirTesoreria,onAbrirOperacion,onAbrirCapturaDemanda}) {
+export default function CentroValor({volverAlDashboard,onAbrirInteligencia,onAbrirTesoreria,onAbrirOperacion,onAbrirCapturaDemanda,iniciativaInicial=null,onPrefillAplicado}) {
  const {usuario}=useUser();
  const [tab,setTab]=useState('direccion');const [datos,setDatos]=useState({iniciativas:[],movimientos:[]});const [cargando,setCargando]=useState(true);const [error,setError]=useState('');const [mensaje,setMensaje]=useState('');const [revision,setRevision]=useState(0);const [ocupado,setOcupado]=useState(false);
  const [form,setForm]=useState(nuevo);const [editar,setEditar]=useState(null);const [resultado,setResultado]=useState({observado:'',costo:'',dias:'',evidencia:'',aprendizaje:''});const [escenario,setEscenario]=useState({clientes:'',precio:'',costoFijo:'',costoCliente:''});const [inicio,setInicio]=useState(hoyMexico().slice(0,7)+'-01');const [fin,setFin]=useState(hoyMexico());
  useEffect(()=>{let vigente=true;setCargando(true);setError('');setDatos({iniciativas:[],movimientos:[]});cargarCentroValor(usuario).then(d=>{if(vigente)setDatos(d);}).catch(e=>{if(vigente)setError(e.message);}).finally(()=>{if(vigente)setCargando(false);});return()=>{vigente=false;};},[usuario,revision]);
+ useEffect(()=>{if(!iniciativaInicial)return;setTab('impacto');setForm({...nuevo(),...iniciativaInicial});onPrefillAplicado?.();},[iniciativaInicial,onPrefillAplicado]);
  const [demandaDesde,setDemandaDesde]=useState(() => { const d=new Date(hoyMexico()+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-30);return d.toISOString().slice(0,10); });
  const [demandaHasta,setDemandaHasta]=useState(hoyMexico());
  const demandaRangoValido=Boolean(demandaDesde && demandaHasta && demandaDesde<=demandaHasta);

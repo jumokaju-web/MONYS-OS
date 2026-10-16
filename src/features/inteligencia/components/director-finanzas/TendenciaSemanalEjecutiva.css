@@ -178,6 +178,19 @@
 .weekly-causes__card summary, .weekly-causes__pending summary { color:#783c59; cursor:pointer; font-size:11px; font-weight:800; }
 .weekly-causes__card details p { margin:8px 0; color:#594750; font-size:10px; line-height:1.5; }
 .weekly-causes__approval { padding:8px; border-radius:8px; background:#fff5dc; color:#74551c !important; font-weight:800; }
+.weekly-causes__assignment { margin-top:10px; }
+.weekly-causes__measure-button { width:100%; margin-bottom:8px; border:1px solid #b97599; border-radius:10px; background:#fff1f7; color:#64143f; padding:11px 13px; font:inherit; font-size:12px; font-weight:850; cursor:pointer; }
+.weekly-causes__assign-button, .weekly-causes__assignment-form button { width:100%; border:0; border-radius:10px; background:#64143f; color:#fff; padding:11px 13px; font:inherit; font-size:12px; font-weight:850; cursor:pointer; }
+.weekly-causes__assignment-form { display:grid; gap:9px; margin-top:10px; padding:11px; border:1px solid #eadce3; border-radius:11px; background:#fff9fc; }
+.weekly-causes__assignment-form label { display:grid; gap:5px; color:#594750; font-size:11px; font-weight:800; }
+.weekly-causes__assignment-form select, .weekly-causes__assignment-form input, .weekly-causes__assignment-form textarea { width:100%; min-width:0; box-sizing:border-box; border:1px solid #d8c8d1; border-radius:8px; padding:10px; background:#fff; color:#38232e; font:inherit; font-size:13px; }
+.weekly-causes__assignment-form button:disabled { opacity:.55; cursor:not-allowed; }
+.weekly-causes__assignment-message { margin:8px 0 0; color:#286946; font-size:11px; line-height:1.5; }
+.weekly-causes__history-toggle { display:block; margin:9px auto 0; padding:7px 10px; border:1px solid #d9c5d0; border-radius:8px; background:#fff; color:#713954; font:inherit; font-size:11px; font-weight:800; cursor:pointer; }
+.weekly-causes__history { display:grid; gap:8px; margin-top:9px; padding:10px; border:1px solid #eadce3; border-radius:10px; background:#fff9fc; }
+.weekly-causes__history article { display:grid; gap:4px; padding:9px; border-radius:8px; background:#fff; color:#594750; font-size:11px; }
+.weekly-causes__history article span, .weekly-causes__history article small { line-height:1.45; }
+.weekly-causes__history > p { margin:2px 0; color:#66545e; font-size:10px; line-height:1.5; }
 .weekly-causes__empty { margin:10px 0; padding:12px; border:1px solid #eadbb5; border-radius:10px; background:#fff9e9; color:#72571f; font-size:12px; line-height:1.5; }
 .weekly-causes__pending { margin-top:12px; padding:10px 12px; border:1px solid #eadbb5; border-radius:10px; background:#fffaf0; }
 .weekly-causes__pending p { color:#665b43; font-size:11px; line-height:1.45; }

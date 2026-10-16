@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analizarCausasCambioSemanal } from "../../src/features/inteligencia/utils/causasCambioSemanal.js";
+import { analizarCausasCambioSemanal, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../src/features/inteligencia/utils/causasCambioSemanal.js";
 import { normalizarVentasPorArticulo } from "../../src/features/importador/utils/normalizador.js";
 
 const reporte = (id, branchId, inicio, fin, detalles) => ({
@@ -27,6 +27,69 @@ test("descompone venta por unidades y precio, utilidad y costo implícito, sin a
   assert.match(resultado.notaCausalidad, /no demuestran causalidad/);
   assert.equal(resultado.acciones[0].requiereAutorizacion, true);
   assert.equal(resultado.acciones[0].fechaRevision, null);
+  assert.equal(resultado.acciones[0].branchId, "centro");
+});
+
+test("programa una revisión solo con responsable vinculado de la sucursal, fecha y criterio", () => {
+  const accion = {
+    estado: "REAL",
+    branchId: "centro",
+    producto: "Crema",
+    resumen: "La venta cambió entre reportes comparables.",
+    accion: "Validar precio y disponibilidad.",
+    resultadoEsperado: "Confirmar inventario y documentar hallazgo.",
+    evidencia: { reportes: [{ inicio: "2026-10-01", fin: "2026-10-07" }, { inicio: "2026-10-08", fin: "2026-10-14" }] },
+  };
+  const datos = {
+    accion,
+    responsable: { nombre: "Karla", usuarioId: "user-1", branchId: "centro", organizationId: "org-1", businessId: "business-1" },
+    fechaRevision: "2026-10-20",
+    criterioExito: "Conteo validado con foto y resultado anotado.",
+  };
+
+  assert.throws(() => construirTareaCausaSemanal({ ...datos, responsable: { ...datos.responsable, branchId: "anaya" } }), /misma sucursal/);
+  assert.throws(() => construirTareaCausaSemanal({ ...datos, accion: { ...accion, estado: "PENDIENTE" } }), /evidencia registrada/);
+  assert.throws(() => construirTareaCausaSemanal({ ...datos, fechaRevision: "2026-02-30" }), /fecha de revisión válida/);
+  const tarea = construirTareaCausaSemanal(datos);
+
+  assert.equal(tarea.branchId, "centro");
+  assert.equal(tarea.organizationId, "org-1");
+  assert.equal(tarea.businessId, "business-1");
+  assert.equal(tarea.responsableUsuarioId, "user-1");
+  assert.equal(tarea.requiereEvidencia, true);
+  assert.match(tarea.instrucciones, /2026-10-01 a 2026-10-07 vs 2026-10-08 a 2026-10-14/);
+  assert.match(tarea.instrucciones, /no autoriza compra, traspaso/);
+});
+
+test("prepara medición de utilidad de producto solo con SICAR completo de la sucursal actual", () => {
+  const accion = {
+    estado: "REAL",
+    branchId: "centro",
+    producto: "Crema",
+    sucursal: "Centro",
+    accion: "Validar precio y disponibilidad.",
+    evidencia: {
+      utilidadActual: 0,
+      utilidadActualConfirmada: true,
+      utilidadesCompletas: true,
+      reportes: [
+        { inicio: "2026-10-01", fin: "2026-10-07" },
+        { id: "sicar-2", archivo: "ventas-14-oct.xlsx", inicio: "2026-10-08", fin: "2026-10-14" },
+      ],
+    },
+  };
+  const iniciativa = construirIniciativaValorDesdeCausa({ accion, branchIdActual: "centro" });
+
+  assert.equal(iniciativa.base, "0");
+  assert.equal(iniciativa.dias, "7");
+  assert.equal(iniciativa.indicador, "utilidad_bruta");
+  assert.equal(iniciativa.fecha, "");
+  assert.match(iniciativa.fuenteBase, /ventas-14-oct\.xlsx · 2026-10-08 a 2026-10-14/);
+  assert.match(iniciativa.hipotesis, /no prueba causalidad/);
+  assert.equal(construirIniciativaValorDesdeCausa({ accion: { ...accion, evidencia: { ...accion.evidencia, utilidadActual: null } }, branchIdActual: "centro" }), null);
+  assert.equal(construirIniciativaValorDesdeCausa({ accion: { ...accion, evidencia: { ...accion.evidencia, utilidadActualConfirmada: false } }, branchIdActual: "centro" }), null);
+  assert.equal(construirIniciativaValorDesdeCausa({ accion, branchIdActual: "anaya" }), null);
+  assert.equal(construirIniciativaValorDesdeCausa({ accion: { ...accion, estado: "PENDIENTE" }, branchIdActual: "centro" }), null);
 });
 
 test("separa stock con demanda y stock sin movimiento en el último corte, sin inferir obsolescencia", () => {

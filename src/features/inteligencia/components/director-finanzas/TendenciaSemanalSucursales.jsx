@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { obtenerHistorialCausasSemanales, obtenerHistorialImportacionesUtilidad } from "../../../dashboard/services/dashboardDataService";
+import { obtenerEmpleadosActivosParaAsignacion } from "../../services/empleadosRHService";
+import { crearTareaOperativa, obtenerCalendarioTareasOperativas, obtenerEvidenciasTarea } from "../../services/tareasOperativasService";
 import {
   construirLecturaEjecutiva,
   construirMetaRecuperacion,
@@ -7,7 +9,7 @@ import {
   resumirImportacionUtilidad,
   seleccionarCandidatosCampana,
 } from "../../utils/tendenciaSemanalSucursales";
-import { analizarCausasCambioSemanal } from "../../utils/causasCambioSemanal";
+import { analizarCausasCambioSemanal, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../utils/causasCambioSemanal";
 import "./TendenciaSemanalSucursales.css";
 import "./TendenciaSemanalEjecutiva.css";
 
@@ -35,7 +37,150 @@ function fechaCorta(valor) {
   return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "UTC" }).format(fecha);
 }
 
-export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImportador }) {
+function fechaHoyMexico() {
+  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const valores = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
+  return `${valores.year}-${valores.month}-${valores.day}`;
+}
+
+function moverFechaISO(fechaISO, dias) {
+  const fecha = new Date(`${fechaISO}T12:00:00Z`);
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+}
+
+function fechaEtiqueta(valor) {
+  if (!valor || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return "Fecha pendiente";
+  return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${valor}T12:00:00Z`));
+}
+
+function RevisionCausa({ accion, organizationId, businessId, branchIdActual, onAbrirValor }) {
+  const [abierta, setAbierta] = useState(false);
+  const [empleados, setEmpleados] = useState([]);
+  const [responsableId, setResponsableId] = useState("");
+  const [fechaRevision, setFechaRevision] = useState("");
+  const [criterio, setCriterio] = useState(accion.resultadoEsperado || "");
+  const [cargando, setCargando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [mostrarSeguimiento, setMostrarSeguimiento] = useState(false);
+  const [historial, setHistorial] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState("");
+  const [recargaHistorial, setRecargaHistorial] = useState(0);
+  const iniciativaValor = construirIniciativaValorDesdeCausa({ accion, branchIdActual });
+
+  useEffect(() => {
+    if (!abierta || !accion.branchId) return undefined;
+    let vigente = true;
+    setCargando(true);
+    obtenerEmpleadosActivosParaAsignacion(accion.branchId)
+      .then((lista) => {
+        if (vigente) setEmpleados((lista || []).filter((persona) => persona.active && persona.usuario_id && persona.branch_id === accion.branchId));
+      })
+      .catch((error) => {
+        if (vigente) setMensaje(error?.message || "No fue posible consultar el equipo de esta sucursal.");
+      })
+      .finally(() => { if (vigente) setCargando(false); });
+    return () => { vigente = false; };
+  }, [abierta, accion.branchId]);
+
+  useEffect(() => {
+    if (!mostrarSeguimiento || !accion.branchId) return undefined;
+    let vigente = true;
+    const hoy = fechaHoyMexico();
+    setCargandoHistorial(true);
+    setErrorHistorial("");
+    obtenerCalendarioTareasOperativas({
+      branchId: accion.branchId,
+      area: "administracion",
+      fechaInicio: moverFechaISO(hoy, -90),
+      fechaFin: moverFechaISO(hoy, 90),
+    }).then(async (tareas) => {
+      const titulo = `Revisión de producto · ${accion.producto}`;
+      const coincidencias = (tareas || []).filter((tarea) => tarea?.titulo === titulo)
+        .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")))
+        .slice(0, 4);
+      const conEvidencia = await Promise.all(coincidencias.map(async (tarea) => {
+        try {
+          const evidencias = await obtenerEvidenciasTarea(tarea.id);
+          return { ...tarea, cantidadEvidencias: evidencias.length };
+        } catch {
+          return { ...tarea, cantidadEvidencias: null };
+        }
+      }));
+      if (vigente) setHistorial(conEvidencia);
+    }).catch((error) => {
+      if (vigente) setErrorHistorial(error?.message || "No fue posible consultar el seguimiento de esta revisión.");
+    }).finally(() => { if (vigente) setCargandoHistorial(false); });
+    return () => { vigente = false; };
+  }, [mostrarSeguimiento, accion.branchId, accion.producto, recargaHistorial]);
+
+  async function programar(evento) {
+    evento.preventDefault();
+    if (guardando) return;
+    setGuardando(true);
+    setMensaje("");
+    try {
+      const persona = empleados.find((empleado) => empleado.id === responsableId);
+      const tarea = construirTareaCausaSemanal({
+        accion,
+        responsable: persona ? { nombre: persona.nombre, usuarioId: persona.usuario_id, branchId: persona.branch_id, organizationId: persona.organization_id, businessId: persona.business_id } : null,
+        fechaRevision,
+        criterioExito: criterio,
+        organizationId,
+        businessId,
+      });
+      const guardada = await crearTareaOperativa(tarea);
+      setMensaje(guardada?.criterio_exito !== tarea.criterioExito
+        ? "Ya había una tarea para esa persona, producto y fecha. Se conservó el criterio previo sin sobrescribirlo; revisa Operación de Hoy."
+        : `La revisión quedó registrada o ya estaba programada para ${fechaRevision} con este mismo criterio. Aparecerá en Operación de Hoy y solicitará evidencia.`);
+      setRecargaHistorial((valor) => valor + 1);
+      setAbierta(false);
+    } catch (error) {
+      setMensaje(error?.message || "No fue posible programar la revisión.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="weekly-causes__assignment">
+      {iniciativaValor && typeof onAbrirValor === "function" && <button type="button" className="weekly-causes__measure-button" onClick={() => onAbrirValor(iniciativaValor)}>Medir resultado económico en Centro de Valor →</button>}
+      <button type="button" className="weekly-causes__assign-button" onClick={() => { setAbierta((valor) => !valor); setMensaje(""); }}>
+        {abierta ? "Cerrar asignación" : "Asignar revisión y medir"}
+      </button>
+      {abierta && <form onSubmit={programar} className="weekly-causes__assignment-form">
+        <label>Responsable
+          <select value={responsableId} onChange={(evento) => setResponsableId(evento.target.value)} disabled={cargando || empleados.length === 0} required>
+            <option value="">{cargando ? "Consultando equipo…" : empleados.length ? "Selecciona una persona" : "Sin personas activas vinculadas a MONYS"}</option>
+            {empleados.map((persona) => <option key={persona.id} value={persona.id}>{persona.nombre}{persona.puesto ? ` · ${persona.puesto}` : ""}</option>)}
+          </select>
+        </label>
+        <label>Fecha de revisión<input type="date" min={fechaHoyMexico()} value={fechaRevision} onChange={(evento) => setFechaRevision(evento.target.value)} required /></label>
+        <label>Qué confirmará el resultado<textarea value={criterio} onChange={(evento) => setCriterio(evento.target.value)} maxLength={400} rows={2} required /></label>
+        <button type="submit" disabled={guardando || cargando || empleados.length === 0}>{guardando ? "Programando…" : "Programar revisión con evidencia"}</button>
+      </form>}
+      {mensaje && <p role="status" className="weekly-causes__assignment-message">{mensaje}</p>}
+      <button type="button" className="weekly-causes__history-toggle" onClick={() => setMostrarSeguimiento((valor) => !valor)}>
+        {mostrarSeguimiento ? "Ocultar seguimiento" : "Ver seguimiento y evidencias"}
+      </button>
+      {mostrarSeguimiento && <div className="weekly-causes__history" aria-live="polite">
+        {cargandoHistorial ? <p>Consultando tareas y evidencias…</p>
+          : errorHistorial ? <p role="alert">{errorHistorial}</p>
+            : historial.length === 0 ? <p>No hay revisiones de este producto registradas en los últimos 90 días ni programadas para los próximos 90 días.</p>
+              : historial.map((tarea) => <article key={tarea.id}>
+                <b>{fechaEtiqueta(tarea.fecha)} · {tarea.responsable || "Responsable pendiente"}</b>
+                <span>Estado: {String(tarea.estado || "pendiente").replaceAll("_", " ")} · {tarea.cantidadEvidencias === null ? "Evidencia no consultada" : `${tarea.cantidadEvidencias} evidencia(s)`}</span>
+                <small>{tarea.criterio_exito || "Criterio de éxito pendiente"}{tarea.estado === "terminada" && " · tarea terminada; impacto financiero no comprobado"}</small>
+              </article>)}
+        <p>La ejecución de la revisión y sus archivos no demuestran por sí solos ventas o utilidad incremental. Para medir el efecto económico, registra el resultado en Centro de Valor.</p>
+      </div>}
+    </div>
+  );
+}
+
+export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImportador, organizationId, businessId, branchId, onAbrirValor }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [errorCausas, setErrorCausas] = useState("");
@@ -152,6 +297,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
                     <p><b>Siguiente acción:</b> {accion.accion}</p><p><b>Responsable sugerida:</b> {accion.responsable}</p><p><b>Fecha de revisión:</b> Pendiente de asignar por Dirección</p><p><b>Resultado esperado:</b> {accion.resultadoEsperado}</p>
                     <p className="weekly-causes__approval">Recomendación de MONYS · autorización de Mónica pendiente.</p>
                   </details>
+                  <RevisionCausa accion={accion} organizationId={organizationId} businessId={businessId} branchIdActual={branchId} onAbrirValor={onAbrirValor} />
                 </article>
               ))}
             </div>

@@ -141,6 +141,7 @@ function cambioPorProducto(par, sucursal) {
       unidadesActuales: b?.unidadesCompletas ? b.unidades : b ? null : 0,
       ventaActual: b?.ventasCompletas ? b.venta : b ? null : 0,
       utilidadActual: b?.utilidadesCompletas ? b.utilidad : b ? null : 0,
+      utilidadActualConfirmada: Boolean(b?.utilidadesCompletas),
       tipo,
       periodoAnterior: par.anterior.rango,
       periodoActual: par.actual.rango,
@@ -179,8 +180,68 @@ function mapearInventario(paquetes = []) {
   return mapa;
 }
 
-function crearAccion({ tipo, producto, sucursal, resumen, evidencia, accion, resultadoEsperado, estado = "REAL" }) {
-  return { tipo, producto, sucursal, resumen, evidencia, accion, responsable: "Encargada de sucursal (asignación pendiente)", fechaRevision: null, resultadoEsperado, estado, requiereAutorizacion: true };
+function crearAccion({ tipo, producto, sucursal, branchId, resumen, evidencia, accion, resultadoEsperado, estado = "REAL" }) {
+  return { tipo, producto, sucursal, branchId, resumen, evidencia, accion, responsable: "Encargada de sucursal (asignación pendiente)", fechaRevision: null, resultadoEsperado, estado, requiereAutorizacion: true };
+}
+
+function fechaISOValida(valor) {
+  if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const fecha = new Date(`${valor}T12:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === valor;
+}
+
+export function construirTareaCausaSemanal({ accion, responsable, fechaRevision, criterioExito, organizationId, businessId } = {}) {
+  if (accion?.estado !== "REAL") throw new Error("Solo se puede asignar una revisión respaldada por evidencia registrada.");
+  if (!accion?.branchId) throw new Error("Falta identificar la sucursal de esta revisión.");
+  if (!responsable?.nombre?.trim() || !responsable?.usuarioId || responsable.branchId !== accion.branchId) {
+    throw new Error("Selecciona una persona activa vinculada a MONYS en la misma sucursal.");
+  }
+  if (!fechaISOValida(fechaRevision)) throw new Error("Selecciona una fecha de revisión válida.");
+  if (!accion.producto || !accion.accion || !accion.evidencia) throw new Error("La recomendación no contiene producto y evidencia suficientes.");
+  if (!criterioExito?.trim()) throw new Error("Escribe qué resultado o evidencia confirmará que la revisión se completó.");
+
+  const periodos = (accion.evidencia.reportes || []).map((reporte) => `${reporte.inicio} a ${reporte.fin}`).join(" vs ");
+  const fuente = periodos ? `Reportes SICAR comparados: ${periodos}.` : `Corte de inventario SICAR: ${accion.evidencia.fechaCorteInventario || "fecha pendiente"}.`;
+  return {
+    organizationId: organizationId || responsable.organizationId || null,
+    businessId: businessId || responsable.businessId || null,
+    branchId: accion.branchId,
+    titulo: `Revisión de producto · ${accion.producto}`,
+    descripcion: `${accion.resumen} Siguiente revisión sugerida: ${accion.accion}`,
+    area: "administracion",
+    responsable: responsable.nombre.trim(),
+    responsableUsuarioId: responsable.usuarioId,
+    prioridad: "normal",
+    fecha: fechaRevision,
+    instrucciones: `${fuente} Registra qué comprobaste y adjunta evidencia. Esta tarea organiza una revisión; no autoriza compra, traspaso, promoción, descuento ni gasto.`,
+    creadaPor: "MONYS OS · Causas del cambio semanal",
+    requiereEvidencia: true,
+    criterioExito: criterioExito.trim(),
+  };
+}
+
+export function construirIniciativaValorDesdeCausa({ accion, branchIdActual } = {}) {
+  if (accion?.estado !== "REAL" || !accion?.branchId || accion.branchId !== branchIdActual) return null;
+  if (accion.evidencia?.utilidadActualConfirmada !== true) return null;
+  const utilidadBase = numero(accion.evidencia?.utilidadActual);
+  const reporteActual = accion.evidencia?.reportes?.at(-1);
+  const inicio = fecha(reporteActual?.inicio);
+  const fin = fecha(reporteActual?.fin);
+  if (utilidadBase === null || utilidadBase < 0 || (!reporteActual?.id && !reporteActual?.archivo) || !inicio || !fin || fin < inicio) return null;
+
+  const dias = Math.round((fin.getTime() - inicio.getTime()) / 86400000) + 1;
+  if (!Number.isInteger(dias) || dias < 1) return null;
+  const fuente = reporteActual.archivo || `importación ${reporteActual.id || "SICAR"}`;
+
+  return {
+    titulo: `Seguimiento económico · ${accion.producto} · ${accion.sucursal}`.slice(0, 150),
+    hipotesis: `Revisar si la acción "${accion.accion}" coincide con una mejora de utilidad bruta en el siguiente corte comparable. Esta comparación es observacional y no prueba causalidad por sí sola.`,
+    indicador: "utilidad_bruta",
+    base: String(utilidadBase),
+    dias: String(dias),
+    fuenteBase: `SICAR · ${accion.sucursal} · ${fuente} · ${reporteActual.inicio} a ${reporteActual.fin}`.slice(0, 1000),
+    fecha: "",
+  };
 }
 
 export function analizarCausasCambioSemanal({ reportes = [], inventarios = [], nombresSucursal = {} } = {}) {
@@ -206,29 +267,29 @@ export function analizarCausasCambioSemanal({ reportes = [], inventarios = [], n
     if (cambio.efectoCantidad !== null) drivers.push(`cantidad ${cambio.efectoCantidad >= 0 ? "+" : "−"}${Math.abs(cambio.efectoCantidad).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}`);
     if (cambio.efectoPrecio !== null) drivers.push(`precio promedio ${cambio.efectoPrecio >= 0 ? "+" : "−"}${Math.abs(cambio.efectoPrecio).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}`);
     if (drivers.length) resumen += ` Descomposición matemática del cambio: ${drivers.join("; ")}; explica el movimiento observado, no prueba su causa.`;
-    const evidencia = { reportes: cambio.evidencia.reportes, cambioVenta: cambio.cambioVenta, cambioUnidades: cambio.cambioUnidades, unidadesActuales: cambio.unidadesActuales, cambioUtilidad: cambio.cambioUtilidad, cambioCostoImplicito: cambio.cambioCostoImplicito, cambioMargenPuntos: cambio.cambioMargenPuntos, inventario: stockActual?.existencia ?? null, fechaCorteInventario: stockActual?.fechaCorte ?? null };
+    const evidencia = { reportes: cambio.evidencia.reportes, cambioVenta: cambio.cambioVenta, cambioUnidades: cambio.cambioUnidades, unidadesActuales: cambio.unidadesActuales, cambioUtilidad: cambio.cambioUtilidad, utilidadActual: cambio.utilidadActual, utilidadActualConfirmada: cambio.utilidadActualConfirmada, utilidadesCompletas: cambio.evidencia.utilidadesCompletas, cambioCostoImplicito: cambio.cambioCostoImplicito, cambioMargenPuntos: cambio.cambioMargenPuntos, inventario: stockActual?.existencia ?? null, fechaCorteInventario: stockActual?.fechaCorte ?? null };
     const mover = cambio.cambioVenta > 0 ? (existenciaAlternativa ? `Confirmar la foto de ${nombresSucursal[existenciaAlternativa.branchId] || "la otra sucursal"} (${existenciaAlternativa.existencia} piezas) y revisar un traspaso; si no alcanza, evaluar reposición con margen y caja. No emitir compra automática.` : "Revisar reposición con proveedor, margen y caja; no emitir compra automática.") : "Revisar precio, costo, exhibición y disponibilidad antes de dejar de comprar.";
     if (existenciaAlternativa) evidencia.inventarioOtraSucursal = { sucursal: nombresSucursal[existenciaAlternativa.branchId] || "Otra sucursal", existencia: existenciaAlternativa.existencia, minimo: existenciaAlternativa.minimo, fechaCorte: existenciaAlternativa.fechaCorte };
-    if (cambio.cambioVenta !== null && cambio.cambioVenta !== 0) acciones.push(crearAccion({ tipo: cambio.cambioVenta > 0 ? "venta_arriba" : "venta_abajo", producto: cambio.producto, sucursal: cambio.sucursal, resumen, evidencia, accion: mover, resultadoEsperado: "Confirmar si el cambio se repite en el siguiente corte y proteger utilidad sin comprometer caja." }));
+    if (cambio.cambioVenta !== null && cambio.cambioVenta !== 0) acciones.push(crearAccion({ tipo: cambio.cambioVenta > 0 ? "venta_arriba" : "venta_abajo", producto: cambio.producto, sucursal: cambio.sucursal, branchId: cambio.branchId, resumen, evidencia, accion: mover, resultadoEsperado: "Confirmar si el cambio se repite en el siguiente corte y proteger utilidad sin comprometer caja." }));
     if (cambio.cambioUtilidad !== null && cambio.cambioUtilidad !== 0) {
       const especialVentaSube = cambio.cambioVenta !== null && cambio.cambioVenta > 0 && cambio.cambioUtilidad < 0;
       const especialUtilidadResiste = cambio.cambioVenta !== null && cambio.cambioVenta < 0 && cambio.cambioUtilidad > 0;
       const tipoUtilidad = especialVentaSube ? "venta_sube_utilidad_baja" : especialUtilidadResiste ? "venta_baja_utilidad_resiste" : cambio.cambioUtilidad > 0 ? "utilidad_arriba" : "utilidad_abajo";
       const resumenUtilidad = especialVentaSube ? "La venta creció y la utilidad bruta bajó; revisar precio neto, descuentos y costo registrado. La comparación no identifica por sí sola cuál factor lo causó." : especialUtilidadResiste ? "La venta bajó mientras la utilidad bruta subió; revisar mezcla, unidades, precio y costo antes de cambiar la oferta." : resumen || "La utilidad por producto cambió entre dos reportes comparables.";
       const accionUtilidad = especialVentaSube ? "Auditar precio, descuentos, costo de reposición y captura SICAR antes de repetir promociones." : especialUtilidadResiste ? "Validar si subió el margen por unidad y probar exhibición sin descuento general." : cambio.cambioUtilidad > 0 ? "Confirmar que el aumento de utilidad se sostiene y revisar costo de reposición antes de comprar." : "Revisar costo, descuento y precio neto registrados antes de repetir la oferta.";
-      acciones.push(crearAccion({ tipo: tipoUtilidad, producto: cambio.producto, sucursal: cambio.sucursal, resumen: resumenUtilidad, evidencia, accion: accionUtilidad, resultadoEsperado: "Proteger utilidad bruta confirmada sin asumir causalidad ni comprometer caja." }));
+      acciones.push(crearAccion({ tipo: tipoUtilidad, producto: cambio.producto, sucursal: cambio.sucursal, branchId: cambio.branchId, resumen: resumenUtilidad, evidencia, accion: accionUtilidad, resultadoEsperado: "Proteger utilidad bruta confirmada sin asumir causalidad ni comprometer caja." }));
     }
 
     const umbralBajo = stockActual?.minimo ?? 0;
-    if (cambio.cambioUnidades > 0 && stockActual?.existencia !== null && stockActual?.existencia !== undefined && stockActual.existencia <= umbralBajo) acciones.push(crearAccion({ tipo: "demanda_stock_bajo", producto: cambio.producto, sucursal: cambio.sucursal, resumen: `Las unidades subieron en los periodos comparados y la foto más reciente de inventario SICAR reporta ${stockActual.existencia} piezas${stockActual.minimo === null ? "" : ` frente a mínimo ${stockActual.minimo}`}. El corte de stock puede ser de otra fecha que las ventas.`, evidencia, accion: "Contar físicamente y revisar disponibilidad en ambas sucursales; preparar reposición o traspaso solo tras confirmar stock y margen.", resultadoEsperado: "Evitar quiebres confirmados sin comprar inventario que no rote." }));
+    if (cambio.cambioUnidades > 0 && stockActual?.existencia !== null && stockActual?.existencia !== undefined && stockActual.existencia <= umbralBajo) acciones.push(crearAccion({ tipo: "demanda_stock_bajo", producto: cambio.producto, sucursal: cambio.sucursal, branchId: cambio.branchId, resumen: `Las unidades subieron en los periodos comparados y la foto más reciente de inventario SICAR reporta ${stockActual.existencia} piezas${stockActual.minimo === null ? "" : ` frente a mínimo ${stockActual.minimo}`}. El corte de stock puede ser de otra fecha que las ventas.`, evidencia, accion: "Contar físicamente y revisar disponibilidad en ambas sucursales; preparar reposición o traspaso solo tras confirmar stock y margen.", resultadoEsperado: "Evitar quiebres confirmados sin comprar inventario que no rote." }));
   }
 
   for (const inventario of stock.values()) {
     const par = pares.find((item) => item.branchId === inventario.branchId);
     if (!par || inventario.existencia === null || inventario.existencia <= 0) continue;
     const vendido = cambios.find((cambio) => cambio.key === inventario.key && cambio.branchId === inventario.branchId);
-    if (vendido && vendido.unidadesActuales === 0 && vendido.evidencia.cantidadesCompletas) acciones.push(crearAccion({ tipo: "stock_sin_movimiento", producto: inventario.producto, sucursal: vendido.sucursal, resumen: `El inventario más reciente reporta ${inventario.existencia} piezas y el reporte SICAR no muestra unidades vendidas en el último periodo comparable. Esto cubre solo ese periodo, no acredita obsolescencia.`, evidencia: { reporteInventario: inventario.reporte, fechaCorteInventario: inventario.fechaCorte, reportes: vendido.evidencia.reportes, existencia: inventario.existencia }, accion: "Validar conteo, antigüedad, estacionalidad y margen; pausar una nueva compra hasta la revisión.", resultadoEsperado: "Reducir riesgo de sobreinventario con una salida comercial aprobada por Dirección." }));
-    if (!vendido && inventario.existencia > (inventario.minimo ?? 0)) acciones.push(crearAccion({ tipo: "stock_sin_movimiento", producto: inventario.producto, sucursal: nombresSucursal[inventario.branchId] || "Sucursal", resumen: `El inventario SICAR reporta ${inventario.existencia} piezas y el producto no aparece en las filas de los dos reportes de venta comparables consultados. La ausencia de una fila no acredita por sí sola obsolescencia ni confirma el conteo físico.`, evidencia: { reporteInventario: inventario.reporte, fechaCorteInventario: inventario.fechaCorte, reportes: par && [par.anterior, par.actual].map((item) => ({ id: item.importacion?.id, archivo: item.importacion?.archivo_original, inicio: item.rango.inicio.toISOString().slice(0, 10), fin: item.rango.fin.toISOString().slice(0, 10) })), existencia: inventario.existencia }, accion: "Validar código, conteo, antigüedad, estacionalidad y margen antes de pausar compras o preparar promoción.", resultadoEsperado: "Decidir una salida comercial basada en rotación y margen confirmados." }));
+    if (vendido && vendido.unidadesActuales === 0 && vendido.evidencia.cantidadesCompletas) acciones.push(crearAccion({ tipo: "stock_sin_movimiento", producto: inventario.producto, sucursal: vendido.sucursal, branchId: inventario.branchId, resumen: `El inventario más reciente reporta ${inventario.existencia} piezas y el reporte SICAR no muestra unidades vendidas en el último periodo comparable. Esto cubre solo ese periodo, no acredita obsolescencia.`, evidencia: { reporteInventario: inventario.reporte, fechaCorteInventario: inventario.fechaCorte, reportes: vendido.evidencia.reportes, existencia: inventario.existencia }, accion: "Validar conteo, antigüedad, estacionalidad y margen; pausar una nueva compra hasta la revisión.", resultadoEsperado: "Reducir riesgo de sobreinventario con una salida comercial aprobada por Dirección." }));
+    if (!vendido && inventario.existencia > (inventario.minimo ?? 0)) acciones.push(crearAccion({ tipo: "stock_sin_movimiento", producto: inventario.producto, sucursal: nombresSucursal[inventario.branchId] || "Sucursal", branchId: inventario.branchId, resumen: `El inventario SICAR reporta ${inventario.existencia} piezas y el producto no aparece en las filas de los dos reportes de venta comparables consultados. La ausencia de una fila no acredita por sí sola obsolescencia ni confirma el conteo físico.`, evidencia: { reporteInventario: inventario.reporte, fechaCorteInventario: inventario.fechaCorte, reportes: par && [par.anterior, par.actual].map((item) => ({ id: item.importacion?.id, archivo: item.importacion?.archivo_original, inicio: item.rango.inicio.toISOString().slice(0, 10), fin: item.rango.fin.toISOString().slice(0, 10) })), existencia: inventario.existencia }, accion: "Validar código, conteo, antigüedad, estacionalidad y margen antes de pausar compras o preparar promoción.", resultadoEsperado: "Decidir una salida comercial basada en rotación y margen confirmados." }));
   }
 
   const sucursalesMismoPeriodo = [];
