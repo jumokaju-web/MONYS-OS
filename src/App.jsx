@@ -46,6 +46,9 @@ import {
   actualizarEstadoMovimientoTesoreria,
   obtenerMovimientosTesoreria,
 } from "./features/tesoreria/services/tesoreriaService";
+import {
+  obtenerFechaMovimiento,
+} from "./features/dashboard/utils/movimientosPeriodo";
 
 const modulos = [
   ["💰", "Registrar dinero"],
@@ -451,19 +454,8 @@ if (fechaFinalFlujo) {
 const movimientosDelPeriodo =
   movimientos.filter(
     (movimiento) => {
-      const valorFecha =
-        movimiento.fecha ??
-        movimiento.fecha_movimiento ??
-        movimiento.movement_date ??
-        movimiento.occurred_at ??
-        movimiento.created_at ??
-        movimiento.date ??
-        null;
-
       const fechaMovimiento =
-        convertirFechaPeriodo(
-          valorFecha
-        );
+        obtenerFechaMovimiento(movimiento);
 
       if (
         !fechaMovimiento ||
