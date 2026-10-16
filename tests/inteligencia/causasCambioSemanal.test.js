@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analizarCausasCambioSemanal, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../src/features/inteligencia/utils/causasCambioSemanal.js";
+import { analizarCausasCambioSemanal, analizarHistorialCausasSemanales, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../src/features/inteligencia/utils/causasCambioSemanal.js";
 import { normalizarVentasPorArticulo } from "../../src/features/importador/utils/normalizador.js";
 
 const reporte = (id, branchId, inicio, fin, detalles) => ({
@@ -28,6 +28,24 @@ test("descompone venta por unidades y precio, utilidad y costo implícito, sin a
   assert.equal(resultado.acciones[0].requiereAutorizacion, true);
   assert.equal(resultado.acciones[0].fechaRevision, null);
   assert.equal(resultado.acciones[0].branchId, "centro");
+});
+
+test("conecta el historial SICAR del servicio con el analizador semanal", () => {
+  const detalles = [{ codigo: "A", descripcion: "Crema", cantidad: 2, importe: 100, utilidad: 40, cantidadDisponible: true, importeDisponible: true, utilidadDisponible: true }]
+    .map((fila) => ({ codigo: fila.codigo, descripcion: fila.descripcion, cantidad: fila.cantidad, datos_originales: fila }));
+  const historialDelServicio = {
+    ventas: [
+      { importacion: { id: "v1", branch_id: "centro", archivo_original: "semana-1.xlsx" }, periodo: { fechaInicio: "2026-10-01", fechaFin: "2026-10-07" }, detalles },
+      { importacion: { id: "v2", branch_id: "centro", archivo_original: "semana-2.xlsx" }, periodo: { fechaInicio: "2026-10-08", fechaFin: "2026-10-14" }, detalles },
+    ],
+    inventarios: [],
+  };
+
+  const resultado = analizarHistorialCausasSemanales(historialDelServicio, { centro: "Centro" });
+
+  assert.equal(resultado.estado, "REAL");
+  assert.equal(resultado.comparaciones[0].cambioVenta, 0);
+  assert.equal(resultado.comparaciones[0].sucursal, "Centro");
 });
 
 test("programa una revisión solo con responsable vinculado de la sucursal, fecha y criterio", () => {

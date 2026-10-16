@@ -9,7 +9,7 @@ import {
   resumirImportacionUtilidad,
   seleccionarCandidatosCampana,
 } from "../../utils/tendenciaSemanalSucursales";
-import { analizarCausasCambioSemanal, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../utils/causasCambioSemanal";
+import { analizarHistorialCausasSemanales, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../utils/causasCambioSemanal";
 import "./TendenciaSemanalSucursales.css";
 import "./TendenciaSemanalEjecutiva.css";
 
@@ -226,7 +226,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         else {
           setErrorCausas("");
           const nombresSucursal = Object.fromEntries(sucursales.map((sucursal) => [sucursal.id, sucursal.nombre || sucursal.name || "Sucursal"]));
-          setCausas(analizarCausasCambioSemanal({ ...causasResultado.value, nombresSucursal }));
+          setCausas(analizarHistorialCausasSemanales(causasResultado.value, nombresSucursal));
         }
       } catch (errorCarga) {
         if (activo) setError(errorCarga?.message || "No fue posible cargar la tendencia semanal.");
@@ -261,7 +261,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         <div>
           <span>CRECIMIENTO POR SUCURSAL · DATOS SICAR</span>
           <h3 id="weekly-rescue-title">Pulso semanal y rescate de General Anaya</h3>
-          <p>Cada nuevo corte se agrega a la historia para saber si la venta subió, bajó y qué acción produjo el cambio.</p>
+          <p>Cada nuevo corte permite revisar qué cambió y relacionarlo con acciones registradas, sin atribuir causalidad automáticamente.</p>
         </div>
         <strong>{cargando ? "Consultando semanas…" : error ? "Semanas pendientes" : `${tendencia.periodos.length} semana${tendencia.periodos.length === 1 ? "" : "s"} registrada${tendencia.periodos.length === 1 ? "" : "s"}`}</strong>
       </header>

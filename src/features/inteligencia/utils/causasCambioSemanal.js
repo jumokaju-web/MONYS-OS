@@ -314,3 +314,11 @@ export function analizarCausasCambioSemanal({ reportes = [], inventarios = [], n
   acciones.sort((a, b) => (prioridad[a.tipo] ?? 9) - (prioridad[b.tipo] ?? 9) || (Math.abs(Number(b.evidencia.cambioVenta) || 0) + Math.abs(Number(b.evidencia.cambioUtilidad) || 0)) - (Math.abs(Number(a.evidencia.cambioVenta) || 0) + Math.abs(Number(a.evidencia.cambioUtilidad) || 0)));
   return { estado: pares.length ? "REAL" : "PENDIENTE", acciones, pendientes, comparaciones: cambios, sucursalesMismoPeriodo, diferenciasSucursal, reportesSinPeriodo: noComparables, notaCausalidad: "Comparación observacional. Los cambios describen asociación y descomposición aritmética; no demuestran causalidad." };
 }
+
+export function analizarHistorialCausasSemanales(historial = {}, nombresSucursal = {}) {
+  return analizarCausasCambioSemanal({
+    reportes: historial.ventas || [],
+    inventarios: historial.inventarios || [],
+    nombresSucursal,
+  });
+}
