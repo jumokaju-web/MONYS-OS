@@ -149,3 +149,41 @@
     grid-template-columns: 1fr;
   }
 }
+
+.weekly-causes {
+  margin: 14px 0;
+  padding: 16px;
+  border: 1px solid #dfd0d8;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fff 0%, #faf5f8 100%);
+}
+
+.weekly-causes__header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.weekly-causes__header span { color:#8d315e; font-size:10px; font-weight:900; letter-spacing:.1em; }
+.weekly-causes__header h4 { margin:5px 0; color:#38232e; font-size:19px; }
+.weekly-causes__header p { margin:0; color:#76616c; font-size:12px; }
+.weekly-causes__header > strong { flex:0 0 auto; padding:8px 10px; border-radius:999px; background:#f0e3eb; color:#713954; font-size:11px; }
+.weekly-causes__trust { margin:13px 0; padding:10px 12px; border-left:3px solid #94758a; border-radius:8px; background:#f4eff3; color:#584751; font-size:11px; line-height:1.5; }
+.weekly-causes__matched { margin:10px 0; color:#286946; font-size:11px; font-weight:750; }
+.weekly-causes__grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.weekly-causes__card { min-width:0; padding:13px; border:1px solid #eadde4; border-radius:13px; background:#fff; }
+.weekly-causes__card--venta_arriba, .weekly-causes__card--demanda_stock_bajo { border-left:4px solid #4c9168; }
+.weekly-causes__card--venta_abajo, .weekly-causes__card--venta_sube_utilidad_baja { border-left:4px solid #bd6a4b; }
+.weekly-causes__card--stock_sin_movimiento { border-left:4px solid #c09032; }
+.weekly-causes__card-title { display:flex; justify-content:space-between; gap:8px; color:#806c76; font-size:9px; font-weight:850; letter-spacing:.07em; }
+.weekly-causes__card-title span { color:#8d315e; }
+.weekly-causes__card h5 { margin:7px 0; color:#38232e; font-size:15px; }
+.weekly-causes__card > p { color:#66545e; font-size:11px; line-height:1.5; }
+.weekly-causes__card details { margin-top:8px; padding-top:8px; border-top:1px solid #f0e8ed; }
+.weekly-causes__card summary, .weekly-causes__pending summary { color:#783c59; cursor:pointer; font-size:11px; font-weight:800; }
+.weekly-causes__card details p { margin:8px 0; color:#594750; font-size:10px; line-height:1.5; }
+.weekly-causes__approval { padding:8px; border-radius:8px; background:#fff5dc; color:#74551c !important; font-weight:800; }
+.weekly-causes__empty { margin:10px 0; padding:12px; border:1px solid #eadbb5; border-radius:10px; background:#fff9e9; color:#72571f; font-size:12px; line-height:1.5; }
+.weekly-causes__pending { margin-top:12px; padding:10px 12px; border:1px solid #eadbb5; border-radius:10px; background:#fffaf0; }
+.weekly-causes__pending p { color:#665b43; font-size:11px; line-height:1.45; }
+
+@media (max-width:760px) {
+  .weekly-causes__header { display:grid; }
+  .weekly-causes__header > strong { justify-self:start; }
+  .weekly-causes__grid { grid-template-columns:1fr; }
+}

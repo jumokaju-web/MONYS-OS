@@ -252,6 +252,8 @@ export function normalizarVentasPorArticulo(filas) {
 
         importeDisponible: columnas.importe >= 0,
         utilidadDisponible: columnas.utilidad >= 0,
+        cantidadDisponible: columnas.cantidad >= 0,
+        costoDisponible: columnas.costo >= 0,
         tipoDato: "ventas_articulo",
       };
     })

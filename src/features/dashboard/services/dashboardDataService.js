@@ -126,6 +126,12 @@ function convertirFechaValida(valor) {
     return null;
   }
 
+  if (typeof valor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+    const fechaDia = new Date(`${valor}T00:00:00Z`);
+    if (Number.isNaN(fechaDia.getTime()) || fechaDia.toISOString().slice(0, 10) !== valor) return null;
+    return fechaDia;
+  }
+
   const fecha =
     new Date(valor);
 
@@ -492,6 +498,42 @@ export async function obtenerHistorialImportacionesUtilidad(
   );
 }
 
+export async function obtenerHistorialCausasSemanales(
+  branchIds = [],
+  limitePorSucursal = 6
+) {
+  const ids = [...new Set(branchIds.filter(Boolean))];
+  if (ids.length === 0) return { ventas: [], inventarios: [] };
+
+  const importacionesPorSucursal = await Promise.all(ids.map(async (branchId) => {
+    const { data, error } = await supabase
+      .from("importaciones")
+      .select("id, tipo_reporte, archivo_original, total_filas, branch_id, created_at")
+      .eq("branch_id", branchId)
+      .eq("tipo_reporte", "Ventas por artículo")
+      .eq("estado", "procesado")
+      .order("created_at", { ascending: false })
+      .limit(limitePorSucursal);
+    if (error) throw new Error(`No se pudo consultar el historial de ventas por producto: ${error.message}`);
+    return data || [];
+  }));
+
+  const ventas = [];
+  for (const importacion of importacionesPorSucursal.flat()) {
+    const [detalles, filasVenta] = await Promise.all([
+      obtenerDetallesPaginados(importacion.id, "No se pudo leer un reporte de ventas por producto"),
+      obtenerVentasArticulosPorImportacion(importacion.id),
+    ]);
+    ventas.push({ importacion, detalles, filasVenta, periodo: obtenerPeriodoDesdeDetalles(detalles) || obtenerPeriodoDesdeVentas(filasVenta) });
+  }
+
+  const inventarios = await obtenerUltimosInventariosPorSucursal(ids);
+  return {
+    ventas,
+    inventarios: inventarios.filter((inventario) => ids.includes(inventario.branch_id)),
+  };
+}
+
 export async function obtenerUltimaImportacionInventario(
   branchId = null
 ) {
@@ -550,11 +592,8 @@ export async function obtenerUltimaImportacionInventario(
   };
 }
 
-export async function obtenerUltimosInventariosPorSucursal() {
-  const {
-    data: importaciones,
-    error,
-  } = await supabase
+export async function obtenerUltimosInventariosPorSucursal(branchIds = []) {
+  let consulta = supabase
     .from("importaciones")
     .select(`
       id,
@@ -577,8 +616,15 @@ export async function obtenerUltimosInventariosPorSucursal() {
       "branch_id",
       "is",
       null
-    )
-    .order("created_at", {
+    );
+
+  const ids = [...new Set(branchIds.filter(Boolean))];
+  if (ids.length) consulta = consulta.in("branch_id", ids);
+
+  const {
+    data: importaciones,
+    error,
+  } = await consulta.order("created_at", {
       ascending: false,
     });
 
