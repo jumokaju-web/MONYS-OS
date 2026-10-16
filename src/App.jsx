@@ -1211,7 +1211,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
+    <InicioJefa usuario={usuario} movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
 
       datosDashboard={
         datosDashboard

@@ -7,6 +7,7 @@ import Header from "../../components/layout/Header";
 import AgendaJefa from "./components/AgendaJefa";
 import SalaRescateJefa from "./components/SalaRescateJefa";
 import TendenciaSemanalSucursales from "../inteligencia/components/director-finanzas/TendenciaSemanalSucursales";
+import PulsoVentasDireccion from "./components/PulsoVentasDireccion";
 import CentroDireccionCEO from "./components/CentroDireccionCEO";
 import {
   obtenerRecordatoriosJefa,
@@ -24,6 +25,7 @@ function antiguedadEnDias(fecha) {
 }
 
 export default function InicioJefa({
+  usuario = null,
   datosDashboard = null,
   ventasTotales = 0,
   utilidadTotal = 0,
@@ -465,7 +467,7 @@ const utilidadConsolidada =
         }}
       >
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
-        <div className="owner-decision-strip"><span>PRIORIDAD DE DIRECCIÓN</span><h2>{movimientosPendientes ? `Aclara ${movimientosPendientes} movimiento${movimientosPendientes===1?'':'s'} antes de decidir con la caja` : 'Revisa la Junta y actualiza el corte del negocio'}</h2><p>{movimientosPendientes ? 'La evidencia y el destino del dinero necesitan revisión.' : 'El siguiente paso depende de las fuentes cargadas y su vigencia.'}</p><button onClick={movimientosPendientes ? abrirTesoreria : abrirJuntaDirectiva}>Trabajar esta prioridad →</button></div><div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button></div>
+        <div className="owner-decision-strip"><span>PRIORIDAD DE DIRECCIÓN</span><h2>{movimientosPendientes ? `Aclara ${movimientosPendientes} movimiento${movimientosPendientes===1?'':'s'} antes de decidir con la caja` : 'Revisa la Junta y actualiza el corte del negocio'}</h2><p>{movimientosPendientes ? 'La evidencia y el destino del dinero necesitan revisión.' : 'El siguiente paso depende de las fuentes cargadas y su vigencia.'}</p><button onClick={movimientosPendientes ? abrirTesoreria : abrirJuntaDirectiva}>Trabajar esta prioridad →</button></div><div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button><button onClick={()=>{const panel=document.getElementById('owner-pulso-ventas');panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}}>Pulso de vendedoras ↓</button></div>
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         {/* MÉTRICAS */}
 
@@ -509,6 +511,7 @@ const utilidadConsolidada =
           <article><span className="owner-workspace-icon">◇</span><h3>Flotilla</h3><p>Unidades y rutas · Resumen de socios · Seguimiento</p><button onClick={abrirFlotilla}>Revisar flotilla →</button></article>
           <article><span className="owner-workspace-icon">◎</span><h3>Empleados</h3><p>Equipo · Accesos · Comisiones y operación</p><button onClick={abrirEmpleados}>Gestionar equipo →</button><button className="owner-link" onClick={()=>{const panel=document.getElementById('operacion-equipo');const bloque=panel?.closest('details');if(bloque)bloque.open=true;panel?.scrollIntoView({behavior:'smooth'});}}>Operación de hoy ↓</button></article>
         </div></section>
+        <PulsoVentasDireccion usuario={usuario} sucursales={sucursalesDashboard} />
         <details id="rescate-integrado" className="owner-rescate"><summary>Plan de rescate · tareas, avance y evidencias</summary><SalaRescateJefa branchId={datosDashboard?.branch_id || null} abrirDirectorFinanciero={abrirDirectorFinanciero}/></details>
 
         <section className="owner-financial-hub"><div><span>FINANZAS · CENTRO DE TRABAJO</span><h2>Controla tu dinero y tu siguiente paso</h2><p>Bancos y aclaraciones · Entradas y salidas · Punto de equilibrio · Proveedores · Planeación de flujo</p></div><button onClick={abrirFinanzas}>Abrir Finanzas →</button></section>

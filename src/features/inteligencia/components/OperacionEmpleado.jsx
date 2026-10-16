@@ -34,6 +34,7 @@ import {
 import { tareaPerteneceAlUsuario } from "../shared/tareaPerteneceAlUsuario";
 import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
+import { crearResultadoPulsoVentas, validarValoresPulsoVentas } from "../shared/pulsoVentas";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
@@ -62,17 +63,11 @@ function obtenerFechaHoy() {
 }
 
 function resultadoPulsoVentas(valores = {}) {
-  return [
-    `Personas atendidas o contactadas: ${valores.personas}`,
-    `Ventas o pedidos logrados: ${valores.ventas}`,
-    `Importe vendido o atribuido: $${Number(valores.importe || 0).toFixed(2)}`,
-    `Productos solicitados, faltantes u observaciones: ${String(valores.observaciones || "Sin observaciones").trim() || "Sin observaciones"}`,
-  ].join("\n");
+  return crearResultadoPulsoVentas(valores);
 }
 
 function pulsoVentasCompleto(valores = {}) {
-  return [valores.personas, valores.ventas, valores.importe]
-    .every((valor) => valor !== "" && Number.isFinite(Number(valor)) && Number(valor) >= 0);
+  return validarValoresPulsoVentas(valores);
 }
 
 function etiquetarAntiguedadSicar(dias) {
@@ -2489,11 +2484,11 @@ export default function OperacionEmpleado({
         <input type="number" inputMode="numeric" min="0" step="1" required value={pulsoVentas.personas} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, personas: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
       </label>
       <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
-        Ventas o pedidos
+        Tickets o pedidos concretados
         <input type="number" inputMode="numeric" min="0" step="1" required value={pulsoVentas.ventas} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, ventas: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
       </label>
       <label style={{ display: "grid", gap: "5px", color: "#4c3944", fontWeight: 750 }}>
-        Importe logrado
+        Importe vendido o atribuido · MXN
         <input type="number" inputMode="decimal" min="0" step="0.01" required value={pulsoVentas.importe} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, importe: event.target.value } }))} style={{ minHeight: "42px", padding: "9px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
       </label>
     </div>
@@ -2501,7 +2496,7 @@ export default function OperacionEmpleado({
       ¿Qué pidieron o qué faltó? <small style={{ fontWeight: 500 }}>(opcional)</small>
       <textarea rows={3} value={pulsoVentas.observaciones} onChange={(event) => setResultadosPulsoVentas((actual) => ({ ...actual, [tarea.id]: { ...pulsoVentas, observaciones: event.target.value } }))} placeholder="Ej. pidieron corrector 12; faltó un tono de base" style={{ width: "100%", boxSizing: "border-box", padding: "10px", border: "1px solid #dfc8d4", borderRadius: "9px", font: "inherit" }} />
     </label>
-    <small style={{ color: "#76666e" }}>Estos números son reporte operativo. Dirección los comparará con el corte de SICAR antes de tomarlos como venta confirmada.</small>
+    <small style={{ color: "#76666e" }}>Es reporte operativo de la empleada, no venta contable. Dirección lo comparará con SICAR. Los tickets no equivalen necesariamente a personas únicas; MONYS no calcula conversión con estas dos cifras.</small>
   </div>
 )}
 
