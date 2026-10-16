@@ -263,7 +263,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
           <h3 id="weekly-rescue-title">Pulso semanal y rescate de General Anaya</h3>
           <p>Cada nuevo corte se agrega a la historia para saber si la venta subió, bajó y qué acción produjo el cambio.</p>
         </div>
-        <strong>{tendencia.periodos.length} semana{tendencia.periodos.length === 1 ? "" : "s"} registrada{tendencia.periodos.length === 1 ? "" : "s"}</strong>
+        <strong>{cargando ? "Consultando semanas…" : error ? "Semanas pendientes" : `${tendencia.periodos.length} semana${tendencia.periodos.length === 1 ? "" : "s"} registrada${tendencia.periodos.length === 1 ? "" : "s"}`}</strong>
       </header>
 
       <div className="weekly-rescue__tabs" aria-label="Métrica de la gráfica">
@@ -275,7 +275,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
       <section className="weekly-causes" aria-labelledby="weekly-causes-title">
         <header className="weekly-causes__header">
           <div><span>ANÁLISIS FINANCIERO POR PRODUCTO · SICAR</span><h4 id="weekly-causes-title">Causas observadas del cambio semanal</h4><p>Productos que movieron venta, utilidad y unidades; revisión de inventario y siguiente decisión.</p></div>
-          <strong>{causas?.acciones.length || 0} revisiones sugeridas</strong>
+          <strong>{cargandoCausas ? "Consultando revisiones…" : errorCausas ? "Revisiones pendientes" : !causas ? "Pendiente de SICAR" : `${causas.acciones.length} revisiones sugeridas`}</strong>
         </header>
         <p className="weekly-causes__trust"><b>Lectura observacional:</b> los reportes muestran asociación y descomposición matemática; no prueban por sí solos qué causó el resultado. Toda compra, traspaso o campaña requiere autorización de Mónica.</p>
         {cargandoCausas ? <p className="weekly-causes__empty">Consultando los reportes SICAR disponibles…</p> : errorCausas ? <p role="alert" className="weekly-causes__empty">No se pudieron consultar las ventas e inventarios por producto: {errorCausas}</p> : !causas || causas.pendientes.some((item) => item.faltan?.some((falta) => falta.includes("dos reportes"))) ? <div className="weekly-causes__empty"><p>Pendiente: faltan dos reportes SICAR “Ventas por artículo” con fechas válidas y periodos de igual duración por sucursal. La lectura semanal ejecutiva permanece disponible arriba.</p>{onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Subir reporte SICAR para habilitar el análisis →</button>}</div> : (
