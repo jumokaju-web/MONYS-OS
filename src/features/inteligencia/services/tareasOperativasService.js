@@ -880,6 +880,17 @@ export async function tomarCorreccionInventario({
   }
 
   const {
+    data: auth,
+    error: errorAuth,
+  } = await supabase.auth.getUser();
+
+  if (errorAuth || !auth?.user?.id) {
+    throw new Error(
+      "La sesión ya no está activa. Vuelve a iniciar sesión para tomar la corrección."
+    );
+  }
+
+  const {
     data,
     error,
   } = await supabase
@@ -887,6 +898,9 @@ export async function tomarCorreccionInventario({
     .update({
       responsable:
         nombreResponsable,
+
+      responsable_usuario_id:
+        auth.user.id,
 
       updated_at:
         new Date().toISOString(),
@@ -1713,18 +1727,6 @@ export async function subirEvidenciaTarea({
   }
 
   const {
-    data: urlData,
-  } = supabase.storage
-    .from("tareas-evidencias")
-    .getPublicUrl(
-      nombreArchivo
-    );
-
-  const archivoUrl =
-    urlData?.publicUrl ||
-    null;
-
-  const {
     data,
     error,
   } = await supabase
@@ -1738,8 +1740,9 @@ export async function subirEvidenciaTarea({
       archivo_path:
         nombreArchivo,
 
-      archivo_url:
-        archivoUrl,
+      // Las fotos viven en un bucket privado. La URL firmada se genera al
+      // consultar la evidencia y no se guarda como enlace permanente.
+      archivo_url: null,
 
       descripcion:
         descripcion || null,
@@ -1784,7 +1787,6 @@ export async function obtenerEvidenciasTarea(
       tarea_id,
       tipo,
       archivo_path,
-      archivo_url,
       descripcion,
       responsable,
       created_at
@@ -1810,9 +1812,27 @@ export async function obtenerEvidenciasTarea(
     throw error;
   }
 
-  return Array.isArray(data)
-    ? data
-    : [];
+  return Promise.all(
+    (Array.isArray(data) ? data : []).map(async (evidencia) => {
+      if (!evidencia.archivo_path) {
+        return { ...evidencia, archivo_url: null };
+      }
+
+      const { data: urlFirmada, error: errorUrl } = await supabase.storage
+        .from("tareas-evidencias")
+        .createSignedUrl(evidencia.archivo_path, 60 * 60);
+
+      if (errorUrl) {
+        console.error("Error al crear URL temporal de evidencia:", errorUrl);
+        throw errorUrl;
+      }
+
+      return {
+        ...evidencia,
+        archivo_url: urlFirmada?.signedUrl || null,
+      };
+    })
+  );
 }
 
 
