@@ -9,6 +9,13 @@ import {
   areasSugeridasParaEmpleado,
   resumirEquipoOperativo,
 } from "../../shared/equipoOperativo";
+import {
+  obtenerExcepcionesHorario,
+  obtenerHorariosEmpleados,
+  obtenerSucursalesHorario,
+} from "../../services/horarioEmpleadoService";
+import HorarioEmpleadoEditor from "./HorarioEmpleadoEditor";
+import { fechaActualMexico } from "../../services/asistenciaOperativaService";
 import "./EquipoOperativo.css";
 
 const FORMULARIO_VACIO = {
@@ -20,7 +27,11 @@ const FORMULARIO_VACIO = {
 
 export default function EquipoOperativo({ branchId, empleados = [] }) {
   const [configuraciones, setConfiguraciones] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [excepciones, setExcepciones] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
   const [editandoId, setEditandoId] = useState(null);
+  const [editandoHorarioId, setEditandoHorarioId] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -32,8 +43,8 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
     [empleados],
   );
   const resumen = useMemo(
-    () => resumirEquipoOperativo(empleadosActivos, configuraciones),
-    [empleadosActivos, configuraciones],
+    () => resumirEquipoOperativo(empleadosActivos, configuraciones, horarios),
+    [empleadosActivos, configuraciones, horarios],
   );
   const configuracionPorEmpleado = useMemo(
     () => new Map(configuraciones.map((configuracion) => [String(configuracion.empleado_id), configuracion])),
@@ -43,18 +54,34 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
   const cargar = useCallback(async () => {
     if (!branchId) {
       setConfiguraciones([]);
+      setHorarios([]);
+      setExcepciones([]);
       return;
     }
     setCargando(true);
     setError("");
     try {
-      setConfiguraciones(await obtenerConfiguracionesOperativasSucursal(branchId));
+      const ids = empleadosActivos.map((empleado) => empleado.id).filter(Boolean);
+      const inicio = fechaActualMexico();
+      const finValor = new Date(`${inicio}T12:00:00`);
+      finValor.setDate(finValor.getDate() + 60);
+      const fin = `${finValor.getFullYear()}-${String(finValor.getMonth() + 1).padStart(2, "0")}-${String(finValor.getDate()).padStart(2, "0")}`;
+      const [perfiles, semana, cambios, branches] = await Promise.all([
+        obtenerConfiguracionesOperativasSucursal(branchId),
+        obtenerHorariosEmpleados(ids),
+        obtenerExcepcionesHorario({ empleadoIds: ids, fechaDesde: inicio, fechaHasta: fin }),
+        obtenerSucursalesHorario(empleadosActivos[0]?.business_id),
+      ]);
+      setConfiguraciones(perfiles);
+      setHorarios(semana);
+      setExcepciones(cambios);
+      setSucursales(branches);
     } catch (errorCarga) {
       setError(errorCarga?.message || "No pudimos cargar los perfiles operativos.");
     } finally {
       setCargando(false);
     }
-  }, [branchId]);
+  }, [branchId, empleadosActivos]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -124,13 +151,14 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
           <p>Define descanso, turno y áreas. MONYS usará esto junto con la entrada del día para repartir tareas sin cargar a quien no está.</p>
         </div>
         <b className={`equipo-operativo__estado ${resumen.completo ? "is-ready" : ""}`}>
-          {resumen.completo ? "Equipo configurado" : `${resumen.pendientes} por configurar`}
+          {resumen.completo ? "Equipo configurado" : `${Math.max(resumen.pendientes, resumen.horariosPendientes)} por completar`}
         </b>
       </header>
 
       <div className="equipo-operativo__metricas">
         <article className="equipo-operativo__metrica"><small>Personal activo</small><strong>{resumen.activos}</strong></article>
         <article className="equipo-operativo__metrica"><small>Perfiles listos</small><strong>{resumen.listos}</strong></article>
+        <article className="equipo-operativo__metrica"><small>Calendarios completos</small><strong>{resumen.calendariosListos}</strong></article>
         <article className="equipo-operativo__metrica"><small>Sin acceso vinculado</small><strong>{resumen.sinAcceso}</strong></article>
       </div>
 
@@ -163,6 +191,14 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
                   disabled={!empleado.auth_user_id}
                 >
                   {editando ? "Cerrar" : configuracion ? "Editar perfil" : "Configurar"}
+                </button>
+                <button
+                  type="button"
+                  className="equipo-operativo__boton"
+                  onClick={() => setEditandoHorarioId(editandoHorarioId === empleado.id ? null : empleado.id)}
+                  disabled={!empleado.auth_user_id || !configuracion}
+                >
+                  {editandoHorarioId === empleado.id ? "Cerrar horario" : "Horario semanal"}
                 </button>
               </div>
 
@@ -200,6 +236,16 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
                   <button className="equipo-operativo__boton" type="button" onClick={() => setEditandoId(null)}>Cancelar</button>
                 </div>
               </form>}
+
+              {editandoHorarioId === empleado.id && configuracion && <HorarioEmpleadoEditor
+                empleado={empleado}
+                perfil={configuracion}
+                horarios={horarios}
+                excepciones={excepciones}
+                sucursales={sucursales}
+                onGuardado={cargar}
+                onCerrar={() => setEditandoHorarioId(null)}
+              />}
             </article>
           );
         })}

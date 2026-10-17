@@ -1,8 +1,5 @@
 import { resolverResponsabilidadesEmpleado } from "./responsabilidadesEmpleado.js";
-
-function weekday(fecha) {
-  return new Date(`${fecha}T12:00:00`).getDay();
-}
+import { resolverHorarioEmpleado } from "./horarioEmpleado.js";
 
 function fechaValida(fecha) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return false;
@@ -63,8 +60,9 @@ function esVendedoraTienda(empleado, configuracion) {
     resolverResponsabilidadesEmpleado(empleado).includes("VENTA_TIENDA");
 }
 
-function coincideTurno(configuracion, turno) {
-  return configuracion?.turno_asignado === turno || configuracion?.turno_asignado === "AMBOS";
+function coincideTurno(configuracion, turno, horario = null) {
+  const turnoReal = horario?.turno || configuracion?.turno_asignado;
+  return turnoReal === turno || turnoReal === "AMBOS";
 }
 
 function ordenarPorMenorCarga(candidatos, historial, fecha) {
@@ -87,6 +85,8 @@ export function construirRutinaInteligente({
   fecha,
   empleados = [],
   configuraciones = [],
+  horarios = [],
+  excepcionesHorario = [],
   historial = [],
   productosCriticos = [],
   fuenteInventario = null,
@@ -100,12 +100,22 @@ export function construirRutinaInteligente({
   const trabajoPrevio = Array.isArray(historial) ? historial : [];
   const inventarioCritico = Array.isArray(productosCriticos) ? productosCriticos : [];
   const asignacionesHoy = [];
-  const dia = weekday(fecha);
   const avisos = [];
+  const horariosPorEmpleado = new Map(lista.map((empleado) => {
+    const config = perfiles.get(String(empleado.id)) || null;
+    return [String(empleado.id), resolverHorarioEmpleado({
+      fecha,
+      empleado,
+      perfil: config,
+      horarios,
+      excepciones: excepcionesHorario,
+      asistenciaRegistrada,
+    })];
+  }));
   const perfilesListos = lista.filter((empleado) => {
     const config = perfiles.get(String(empleado.id));
     if (!config) return false;
-    return Number(config.dia_descanso) !== dia;
+    return horariosPorEmpleado.get(String(empleado.id))?.disponible;
   });
   const idsPresentes = Array.isArray(asistenciaRegistrada)
     ? new Set(asistenciaRegistrada.map((item) => String(item?.empleado_id || item)))
@@ -115,18 +125,9 @@ export function construirRutinaInteligente({
     .map((item) => [String(item.empleado_id), item]));
   const equipo = lista.map((empleado) => {
     const config = perfiles.get(String(empleado.id));
-    const descansa = Boolean(config && Number(config.dia_descanso) === dia);
+    const horario = horariosPorEmpleado.get(String(empleado.id));
     const entrada = entradasPorEmpleado.get(String(empleado.id)) || null;
-    const estaPresente = Boolean(idsPresentes?.has(String(empleado.id)));
-    const estado = !config
-      ? "PERFIL_PENDIENTE"
-      : descansa
-        ? "DESCANSA"
-        : idsPresentes === null
-          ? "PROGRAMADA"
-          : estaPresente
-            ? "PRESENTE"
-            : "SIN_ENTRADA";
+    const estado = horario?.estado || "PERFIL_PENDIENTE";
     const areas = Array.isArray(config?.areas_asignadas) && config.areas_asignadas.length
       ? config.areas_asignadas
       : [config?.area_asignada].filter(Boolean);
@@ -136,10 +137,14 @@ export function construirRutinaInteligente({
       puesto: empleado.puesto || null,
       responsabilidades: resolverResponsabilidadesEmpleado(empleado),
       areas,
-      turno: config?.turno_asignado || null,
+      turno: horario?.turno || config?.turno_asignado || null,
       descanso: config ? Number(config.dia_descanso) : null,
       estado,
-      entradaAt: entrada?.entrada_at || null,
+      entradaAt: horario?.entradaAt || entrada?.entrada_at || null,
+      horaInicio: horario?.horaInicio || null,
+      horaFin: horario?.horaFin || null,
+      fuenteHorario: horario?.fuente || "PENDIENTE",
+      horarioFlexible: Boolean(horario?.flexible),
     };
   });
   const disponibles = perfilesListos.filter((empleado) =>
@@ -156,6 +161,12 @@ export function construirRutinaInteligente({
   }
   if (idsPresentes && !disponibles.length) {
     avisos.push("Nadie con perfil completo registró entrada en esta sucursal y fecha; no se asignaron tareas a personal solo programado.");
+  }
+  const flexiblesSinEntrada = lista.filter((empleado) =>
+    horariosPorEmpleado.get(String(empleado.id))?.estado === "HORARIO_FLEXIBLE",
+  );
+  if (flexiblesSinEntrada.length) {
+    avisos.push(`${flexiblesSinEntrada.length} persona${flexiblesSinEntrada.length === 1 ? "" : "s"} tiene horario flexible; solo se asignará trabajo cuando registre entrada o Dirección capture una excepción concreta.`);
   }
   if (!personalTienda.length) {
     avisos.push("No hay vendedoras de tienda disponibles con perfil y responsabilidades configurados para esta fecha.");
@@ -175,7 +186,11 @@ export function construirRutinaInteligente({
   }
 
   const candidatosTurno = (turno) => personalTienda.filter((empleado) =>
-    coincideTurno(perfiles.get(String(empleado.id)), turno),
+    coincideTurno(
+      perfiles.get(String(empleado.id)),
+      turno,
+      horariosPorEmpleado.get(String(empleado.id)),
+    ),
   );
   const barrer = [
     { turno: "PRIMERO", titulo: "Barrer y trapear al iniciar el primer turno" },

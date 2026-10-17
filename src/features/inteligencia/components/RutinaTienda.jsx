@@ -5,6 +5,7 @@ import { obtenerEmpleadosActivosParaAsignacion } from "../services/empleadosRHSe
 import { AREAS_OPERATIVAS, obtenerConfiguracionesOperativasSucursal } from "../services/empleadoConfiguracionOperativaService";
 import { fechaActualMexico, obtenerAsistenciaOperativa } from "../services/asistenciaOperativaService";
 import { crearTareaOperativa, obtenerTareasOperativas } from "../services/tareasOperativasService";
+import { obtenerExcepcionesHorario, obtenerHorariosEmpleados } from "../services/horarioEmpleadoService";
 import { construirRutinaInteligente, priorizarProductosParaConteo, tareasPendientesDeRutina } from "../shared/rutinaTienda";
 import { RESPONSABILIDADES_EMPLEADO } from "../shared/responsabilidadesEmpleado";
 
@@ -44,6 +45,8 @@ export default function RutinaTienda({
   const [empleados, setEmpleados] = useState([]);
   const [configuraciones, setConfiguraciones] = useState([]);
   const [historial, setHistorial] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [excepcionesHorario, setExcepcionesHorario] = useState([]);
   const [asistenciaRegistrada, setAsistenciaRegistrada] = useState(null);
   const [fecha, setFecha] = useState(fechaLocalHoy);
   const [cargando, setCargando] = useState(false);
@@ -79,6 +82,8 @@ export default function RutinaTienda({
         setEmpleados([]);
         setConfiguraciones([]);
         setHistorial([]);
+        setHorarios([]);
+        setExcepcionesHorario([]);
         setAsistenciaRegistrada(null);
         setError("Selecciona una sucursal para preparar sus rutinas.");
         return;
@@ -99,12 +104,19 @@ export default function RutinaTienda({
           requiereChecada ? obtenerAsistenciaOperativa({ branchId, fecha }) : Promise.resolve(null),
         ]);
         if (tareas.error) throw tareas.error;
+        const idsEmpleados = lista.map((empleado) => empleado.id).filter(Boolean);
+        const [calendarioSemanal, cambiosFecha] = await Promise.all([
+          obtenerHorariosEmpleados(idsEmpleados),
+          obtenerExcepcionesHorario({ empleadoIds: idsEmpleados, fechaDesde: fecha, fechaHasta: fecha }),
+        ]);
         if (vigente) {
           setEmpleados(lista);
           setConfiguraciones(perfiles);
           setHistorial((tareas.data || []).filter((tarea) =>
             /baño|barrer|trapear|bodega|inventario crítico/i.test(tarea.titulo || ""),
           ));
+          setHorarios(calendarioSemanal);
+          setExcepcionesHorario(cambiosFecha);
           setAsistenciaRegistrada(asistencia);
         }
       } catch (errorCarga) {
@@ -126,6 +138,8 @@ export default function RutinaTienda({
         fecha,
         empleados,
         configuraciones,
+        horarios,
+        excepcionesHorario,
         historial,
         productosCriticos,
         fuenteInventario: fechaFuente ? { fecha: fechaCorta(fechaFuente), nombre: inventario?.importacion?.nombre || null } : null,
@@ -134,7 +148,7 @@ export default function RutinaTienda({
     } catch (errorRutina) {
       return { tareas: [], avisos: [errorRutina.message], equipo: [], empleadosDisponibles: 0, personasProgramadas: [], asistencias: [], personasPresentes: null, productosUrgentes: 0, productosAsignados: 0 };
     }
-  }, [fecha, empleados, configuraciones, historial, productosCriticos, fechaFuente, inventario?.importacion?.nombre, asistenciaRegistrada]);
+  }, [fecha, empleados, configuraciones, horarios, excepcionesHorario, historial, productosCriticos, fechaFuente, inventario?.importacion?.nombre, asistenciaRegistrada]);
 
   const edadReporte = edadEnDias(fechaFuente);
   const etiquetasArea = new Map(AREAS_OPERATIVAS.map((area) => [area.id, area.nombre]));
@@ -143,6 +157,7 @@ export default function RutinaTienda({
     PRESENTE: { texto: "Entrada registrada", fondo: "#e9f7ef", color: "#246b45" },
     SIN_ENTRADA: { texto: "Sin entrada", fondo: "#fff4df", color: "#815d14" },
     DESCANSA: { texto: "Descansa hoy", fondo: "#f1edf2", color: "#665866" },
+    HORARIO_FLEXIBLE: { texto: "Horario flexible · confirmar", fondo: "#fff4df", color: "#815d14" },
     PROGRAMADA: { texto: "Programada", fondo: "#edf3ff", color: "#3c5e91" },
     PERFIL_PENDIENTE: { texto: "Perfil pendiente", fondo: "#fff0ef", color: "#a0443c" },
   };
@@ -258,7 +273,7 @@ export default function RutinaTienda({
             return <article key={persona.empleadoId} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: "8px 12px", padding: "10px 11px", borderRadius: "11px", border: "1px solid #f0e7ec", background: "#fffafd" }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ display: "block", color: "#392c34", fontSize: "14px" }}>{persona.nombre}</strong>
-                <span style={{ display: "block", marginTop: "3px", color: "#71636b", fontSize: "12px", lineHeight: 1.4 }}>{[persona.puesto, persona.turno === "PRIMERO" ? "Primer turno" : persona.turno === "SEGUNDO" ? "Segundo turno" : persona.turno === "AMBOS" ? "Ambos turnos" : null, areas, roles].filter(Boolean).join(" · ") || "Completa su perfil operativo"}</span>
+                <span style={{ display: "block", marginTop: "3px", color: "#71636b", fontSize: "12px", lineHeight: 1.4 }}>{[persona.puesto, persona.horaInicio && persona.horaFin ? `${String(persona.horaInicio).slice(0, 5)} a ${String(persona.horaFin).slice(0, 5)}` : persona.turno === "PRIMERO" ? "Primer turno" : persona.turno === "SEGUNDO" ? "Segundo turno" : persona.turno === "AMBOS" ? "Ambos turnos" : null, areas, roles].filter(Boolean).join(" · ") || "Completa su perfil operativo"}</span>
               </div>
               <span style={{ padding: "6px 9px", borderRadius: "999px", whiteSpace: "nowrap", background: estado.fondo, color: estado.color, fontSize: "11px", fontWeight: 800 }}>{estado.texto}{horaEntrada ? ` · ${horaEntrada}` : ""}</span>
             </article>;

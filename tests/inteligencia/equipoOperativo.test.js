@@ -12,7 +12,17 @@ test("resume perfiles listos y accesos faltantes sin contar personal inactivo", 
     { id: "3", active: false, auth_user_id: null },
   ];
   const resumen = resumirEquipoOperativo(empleados, [{ empleado_id: "1" }]);
-  assert.deepEqual(resumen, { activos: 2, listos: 1, pendientes: 1, sinAcceso: 1, completo: false });
+  assert.deepEqual(resumen, { activos: 2, listos: 1, pendientes: 1, sinAcceso: 1, calendariosListos: 1, horariosPendientes: 1, completo: false });
+});
+
+test("no declara listo el equipo mientras falte completar los siete días", () => {
+  const empleados = [{ id: "1", active: true, auth_user_id: "u1" }];
+  const configuraciones = [{ empleado_id: "1" }];
+  const horarios = Array.from({ length: 6 }, (_, dia_semana) => ({ empleado_id: "1", dia_semana }));
+  assert.deepEqual(
+    resumirEquipoOperativo(empleados, configuraciones, horarios),
+    { activos: 1, listos: 1, pendientes: 0, sinAcceso: 0, calendariosListos: 0, horariosPendientes: 1, completo: false },
+  );
 });
 
 test("sugiere áreas desde responsabilidades y limita el perfil a tres", () => {

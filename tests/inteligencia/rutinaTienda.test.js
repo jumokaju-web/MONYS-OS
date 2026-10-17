@@ -157,6 +157,30 @@ test("para hoy asigna solo a quien registró entrada y sigue respetando descanso
   assert.ok(sinEntrada.avisos.some((aviso) => aviso.includes("registró entrada")));
 });
 
+test("la entrada real permite trabajar aunque el descanso base haya cambiado", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-12", // descanso base de Ana
+    empleados,
+    configuraciones,
+    asistenciaRegistrada: [{ empleado_id: "v1", entrada_at: "2026-10-12T15:00:00Z" }],
+  });
+  assert.equal(resultado.equipo.find((persona) => persona.empleadoId === "v1").estado, "PRESENTE");
+  assert.equal(resultado.personasProgramadas.includes("Ana López"), true);
+});
+
+test("no asigna trabajo futuro a un horario flexible sin confirmación", () => {
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-13",
+    empleados,
+    configuraciones,
+    horarios: [{ empleado_id: "v2", dia_semana: 2, estado: "FLEXIBLE", branch_id: "centro" }],
+  });
+  const karla = resultado.equipo.find((persona) => persona.empleadoId === "v2");
+  assert.equal(karla.estado, "HORARIO_FLEXIBLE");
+  assert.equal(resultado.personasProgramadas.includes("Karla Ruiz"), false);
+  assert.ok(resultado.avisos.some((aviso) => aviso.includes("horario flexible")));
+});
+
 test("muestra Dirección quién está presente, quién no registró y quién descansa", () => {
   const resultado = construirRutinaInteligente({
     fecha: "2026-10-12", // Lunes: Ana descansa.

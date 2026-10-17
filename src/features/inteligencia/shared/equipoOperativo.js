@@ -18,18 +18,31 @@ export function areasSugeridasParaEmpleado(empleado = {}) {
   return [];
 }
 
-export function resumirEquipoOperativo(empleados = [], configuraciones = []) {
+export function resumirEquipoOperativo(empleados = [], configuraciones = [], horarios = null) {
   const activos = (Array.isArray(empleados) ? empleados : []).filter((empleado) => empleado?.active !== false);
   const perfiles = new Map((Array.isArray(configuraciones) ? configuraciones : [])
     .map((configuracion) => [String(configuracion.empleado_id), configuracion]));
   const listos = activos.filter((empleado) => perfiles.has(String(empleado.id)));
   const sinAcceso = activos.filter((empleado) => !empleado.auth_user_id);
+  const calendarioDisponible = Array.isArray(horarios);
+  const diasPorEmpleado = new Map();
+  for (const fila of calendarioDisponible ? horarios : []) {
+    const id = String(fila?.empleado_id || "");
+    if (!id) continue;
+    if (!diasPorEmpleado.has(id)) diasPorEmpleado.set(id, new Set());
+    diasPorEmpleado.get(id).add(Number(fila.dia_semana));
+  }
+  const calendariosListos = calendarioDisponible
+    ? activos.filter((empleado) => diasPorEmpleado.get(String(empleado.id))?.size === 7).length
+    : listos.length;
 
   return {
     activos: activos.length,
     listos: listos.length,
     pendientes: activos.length - listos.length,
     sinAcceso: sinAcceso.length,
-    completo: activos.length > 0 && listos.length === activos.length,
+    calendariosListos,
+    horariosPendientes: Math.max(0, activos.length - calendariosListos),
+    completo: activos.length > 0 && listos.length === activos.length && calendariosListos === activos.length,
   };
 }
