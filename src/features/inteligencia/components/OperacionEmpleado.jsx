@@ -1869,7 +1869,7 @@ export default function OperacionEmpleado({
                                 </div>
                               )}
 
-{tarea.instrucciones && !esRevisionTraspaso && (
+{tarea.instrucciones && !leerRevisionTraspaso(tarea) && (
                                 <div
                                   style={{
                                     whiteSpace:
