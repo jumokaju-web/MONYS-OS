@@ -62,3 +62,20 @@ export function extraerPeriodoSicar(filasAntesEncabezados = []) {
 
   return { periodoInicio: null, periodoFin: null };
 }
+
+export function adjuntarPeriodoSicar(datosNormalizados, tipoReporte, periodo) {
+  const tiposConPeriodo = new Set([
+    "Ventas por artículo",
+    "Utilidad por artículos",
+    "Utilidad de ventas",
+  ]);
+  if (!tiposConPeriodo.has(tipoReporte) || !Array.isArray(datosNormalizados)) {
+    return datosNormalizados;
+  }
+
+  return datosNormalizados.map((fila) => ({
+    ...fila,
+    periodoInicio: periodo?.periodoInicio ?? null,
+    periodoFin: periodo?.periodoFin ?? null,
+  }));
+}

@@ -26,23 +26,31 @@ function agregado(reporte) {
       producto: String(original.descripcion ?? detalle.descripcion ?? "Producto sin descripción").trim(),
       unidades: 0,
       venta: 0,
+      costo: 0,
       utilidad: 0,
       unidadesCompletas: true,
       ventasCompletas: true,
+      costosCompletos: true,
       utilidadesCompletas: true,
+      costoReportadoCompleto: true,
       filas: 0,
     };
     const q = numero(original.cantidad ?? detalle.cantidad);
     const cantidadDisponible = original.cantidadDisponible === true || (q !== null && q > 0);
     const importe = numero(original.importe ?? detalle.importe);
     const importeDisponible = original.importeDisponible === true || (importe !== null && importe > 0);
+    const costo = numero(original.costoTotal ?? original.costo ?? detalle.costo);
+    const costoDisponible = original.costoDisponible === true;
     const utilidad = numero(original.utilidad ?? detalle.utilidad);
     const utilidadDisponible = original.utilidadDisponible === true || (utilidad !== null && utilidad !== 0);
     current.unidadesCompletas &&= cantidadDisponible;
     current.ventasCompletas &&= importeDisponible;
+    current.costosCompletos &&= costoDisponible;
+    current.costoReportadoCompleto &&= costoDisponible;
     current.utilidadesCompletas &&= utilidadDisponible;
     if (cantidadDisponible) current.unidades += q;
     if (importeDisponible) current.venta += importe;
+    if (costoDisponible) current.costo += costo;
     if (utilidadDisponible) current.utilidad += utilidad;
     current.filas += 1;
     mapa.set(key, current);
@@ -121,7 +129,9 @@ function cambioPorProducto(par, sucursal) {
     const cambioUtilidad = utilidadDisponible ? u1 - u0 : null;
     const costoImplicitoAnterior = ventasDisponibles && utilidadDisponible ? v0 - u0 : null;
     const costoImplicitoActual = ventasDisponibles && utilidadDisponible ? v1 - u1 : null;
-    const cambioCostoImplicito = costoImplicitoAnterior === null ? null : costoImplicitoActual - costoImplicitoAnterior;
+    const costosReportadosDisponibles = (!a || a.costosCompletos) && (!b || b.costosCompletos);
+    const cambioCostoReportado = costosReportadosDisponibles && (!a || a.costoReportadoCompleto) && (!b || b.costoReportadoCompleto) ? (b?.costo ?? 0) - (a?.costo ?? 0) : null;
+    const cambioCostoImplicito = cambioCostoReportado ?? (costoImplicitoAnterior === null ? null : costoImplicitoActual - costoImplicitoAnterior);
     const margenAnterior = ventasDisponibles && utilidadDisponible && v0 > 0 ? (u0 / v0) * 100 : null;
     const margenActual = ventasDisponibles && utilidadDisponible && v1 > 0 ? (u1 / v1) * 100 : null;
     const tipo = cambioVenta === null ? "datos" : cambioVenta > 0 ? "venta_sube" : cambioVenta < 0 ? "venta_baja" : "estable";
@@ -137,6 +147,7 @@ function cambioPorProducto(par, sucursal) {
       efectoPrecio,
       cambioUtilidad,
       cambioCostoImplicito,
+      costoReportado: cambioCostoReportado !== null,
       cambioMargenPuntos: margenAnterior === null || margenActual === null ? null : margenActual - margenAnterior,
       unidadesActuales: b?.unidadesCompletas ? b.unidades : b ? null : 0,
       ventaActual: b?.ventasCompletas ? b.venta : b ? null : 0,
@@ -262,12 +273,12 @@ export function analizarCausasCambioSemanal({ reportes = [], inventarios = [], n
     if (cambio.cambioVenta !== null && cambio.cambioVenta !== 0) resumenPartes.push(`La venta registrada ${cambio.cambioVenta > 0 ? "aumentó" : "bajó"} ${Math.abs(cambio.cambioVenta).toLocaleString("es-MX", { style: "currency", currency: "MXN" })} entre dos periodos comparables.`);
     if (cambio.cambioUtilidad !== null && cambio.cambioUtilidad !== 0) resumenPartes.push(`La utilidad bruta ${cambio.cambioUtilidad > 0 ? "subió" : "bajó"} ${Math.abs(cambio.cambioUtilidad).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}.`);
     let resumen = resumenPartes.join(" ");
-    if (cambio.cambioCostoImplicito !== null) resumen += ` Costo implícito (venta menos utilidad) ${cambio.cambioCostoImplicito >= 0 ? "+" : "−"}${Math.abs(cambio.cambioCostoImplicito).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}${cambio.cambioMargenPuntos === null ? "" : `; margen ${cambio.cambioMargenPuntos >= 0 ? "+" : "−"}${Math.abs(cambio.cambioMargenPuntos).toFixed(1)} puntos`}.`;
+    if (cambio.cambioCostoImplicito !== null) resumen += ` ${cambio.costoReportado ? "Costo total SICAR" : "Costo implícito estimado (venta menos utilidad)"} ${cambio.cambioCostoImplicito >= 0 ? "+" : "−"}${Math.abs(cambio.cambioCostoImplicito).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}${cambio.cambioMargenPuntos === null ? "" : `; margen ${cambio.cambioMargenPuntos >= 0 ? "+" : "−"}${Math.abs(cambio.cambioMargenPuntos).toFixed(1)} puntos`}.`;
     const drivers = [];
     if (cambio.efectoCantidad !== null) drivers.push(`cantidad ${cambio.efectoCantidad >= 0 ? "+" : "−"}${Math.abs(cambio.efectoCantidad).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}`);
     if (cambio.efectoPrecio !== null) drivers.push(`precio promedio ${cambio.efectoPrecio >= 0 ? "+" : "−"}${Math.abs(cambio.efectoPrecio).toLocaleString("es-MX", { style: "currency", currency: "MXN" })}`);
     if (drivers.length) resumen += ` Descomposición matemática del cambio: ${drivers.join("; ")}; explica el movimiento observado, no prueba su causa.`;
-    const evidencia = { reportes: cambio.evidencia.reportes, cambioVenta: cambio.cambioVenta, cambioUnidades: cambio.cambioUnidades, unidadesActuales: cambio.unidadesActuales, cambioUtilidad: cambio.cambioUtilidad, utilidadActual: cambio.utilidadActual, utilidadActualConfirmada: cambio.utilidadActualConfirmada, utilidadesCompletas: cambio.evidencia.utilidadesCompletas, cambioCostoImplicito: cambio.cambioCostoImplicito, cambioMargenPuntos: cambio.cambioMargenPuntos, inventario: stockActual?.existencia ?? null, fechaCorteInventario: stockActual?.fechaCorte ?? null };
+    const evidencia = { reportes: cambio.evidencia.reportes, cambioVenta: cambio.cambioVenta, cambioUnidades: cambio.cambioUnidades, unidadesActuales: cambio.unidadesActuales, cambioUtilidad: cambio.cambioUtilidad, utilidadActual: cambio.utilidadActual, utilidadActualConfirmada: cambio.utilidadActualConfirmada, utilidadesCompletas: cambio.evidencia.utilidadesCompletas, cambioCostoImplicito: cambio.cambioCostoImplicito, costoReportado: cambio.costoReportado, cambioMargenPuntos: cambio.cambioMargenPuntos, inventario: stockActual?.existencia ?? null, fechaCorteInventario: stockActual?.fechaCorte ?? null };
     const mover = cambio.cambioVenta > 0 ? (existenciaAlternativa ? `Confirmar la foto de ${nombresSucursal[existenciaAlternativa.branchId] || "la otra sucursal"} (${existenciaAlternativa.existencia} piezas) y revisar un traspaso; si no alcanza, evaluar reposición con margen y caja. No emitir compra automática.` : "Revisar reposición con proveedor, margen y caja; no emitir compra automática.") : "Revisar precio, costo, exhibición y disponibilidad antes de dejar de comprar.";
     if (existenciaAlternativa) evidencia.inventarioOtraSucursal = { sucursal: nombresSucursal[existenciaAlternativa.branchId] || "Otra sucursal", existencia: existenciaAlternativa.existencia, minimo: existenciaAlternativa.minimo, fechaCorte: existenciaAlternativa.fechaCorte };
     if (cambio.cambioVenta !== null && cambio.cambioVenta !== 0) acciones.push(crearAccion({ tipo: cambio.cambioVenta > 0 ? "venta_arriba" : "venta_abajo", producto: cambio.producto, sucursal: cambio.sucursal, branchId: cambio.branchId, resumen, evidencia, accion: mover, resultadoEsperado: "Confirmar si el cambio se repite en el siguiente corte y proteger utilidad sin comprometer caja." }));

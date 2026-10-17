@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analizarCausasCambioSemanal, analizarHistorialCausasSemanales, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../src/features/inteligencia/utils/causasCambioSemanal.js";
-import { normalizarVentasPorArticulo } from "../../src/features/importador/utils/normalizador.js";
+import { normalizarUtilidadArticulos, normalizarVentasPorArticulo } from "../../src/features/importador/utils/normalizador.js";
 
 const reporte = (id, branchId, inicio, fin, detalles) => ({
   importacion: { id, branch_id: branchId, archivo_original: `${id}.xlsx`, created_at: `${fin}T12:00:00Z` },
@@ -28,6 +28,50 @@ test("descompone venta por unidades y precio, utilidad y costo implícito, sin a
   assert.equal(resultado.acciones[0].requiereAutorizacion, true);
   assert.equal(resultado.acciones[0].fechaRevision, null);
   assert.equal(resultado.acciones[0].branchId, "centro");
+});
+
+test("usa venta, costo, utilidad y cero confirmado de utilidad por artículos SICAR", () => {
+  const reporteSicar = (id, inicio, fin, totalCom, totalVen, utilidad) => reporte(id, "centro", inicio, fin, [{
+    codigo: "A",
+    descripcion: "Crema",
+    cantidad: 2,
+    importe: totalVen,
+    costoTotal: totalCom,
+    utilidad,
+    cantidadDisponible: true,
+    importeDisponible: true,
+    costoDisponible: true,
+    utilidadDisponible: true,
+  }]);
+  const resultado = analizarCausasCambioSemanal({ reportes: [
+    reporteSicar("base", "2026-09-28", "2026-10-04", 60, 100, 40),
+    reporteSicar("actual", "2026-10-05", "2026-10-11", 75, 125, 50),
+  ] });
+
+  assert.equal(resultado.comparaciones[0].cambioVenta, 25);
+  assert.equal(resultado.comparaciones[0].cambioUtilidad, 10);
+  assert.equal(resultado.comparaciones[0].cambioCostoImplicito, 15);
+  assert.equal(resultado.comparaciones[0].costoReportado, true);
+  assert.match(resultado.acciones[0].resumen, /Costo total SICAR/);
+});
+
+test("normaliza utilidad por artículos sin convertir datos ausentes en cero ni conservar renglones de título", () => {
+  const filas = normalizarUtilidadArticulos([
+    ["Clave", "Descripción", "Cant.", "Total Com.", "Total Ven.", "Util %", "Utilidad"],
+    ["A", "Crema", 2, 0, 100, 0, 0],
+    ["B", "Pestañas", "", "", 45, "", 12],
+    ["", "HAWAI", "", "", "", "", ""],
+  ]);
+
+  assert.equal(filas.length, 2);
+  assert.equal(filas[0].costoTotal, 0);
+  assert.equal(filas[0].costoDisponible, true);
+  assert.equal(filas[0].utilidad, 0);
+  assert.equal(filas[0].utilidadDisponible, true);
+  assert.equal(filas[1].cantidad, null);
+  assert.equal(filas[1].cantidadDisponible, false);
+  assert.equal(filas[1].costoTotal, null);
+  assert.equal(filas[1].costoDisponible, false);
 });
 
 test("conecta el historial SICAR del servicio con el analizador semanal", () => {

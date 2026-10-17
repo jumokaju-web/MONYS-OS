@@ -27,7 +27,7 @@ import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
-import { extraerPeriodoSicar } from "../utils/periodoSicar";
+import { adjuntarPeriodoSicar, extraerPeriodoSicar } from "../utils/periodoSicar";
 import { reconciliarUtilidadVentas } from "../utils/reconciliarUtilidadVentas";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
@@ -369,6 +369,7 @@ let datosNormalizados =
 
 if (
   tipoReporte === "Ventas por artículo" ||
+  tipoReporte === "Utilidad por artículos" ||
   tipoReporte === "Utilidad de ventas"
 ) {
   if (!periodoInicio || !periodoFin) {
@@ -377,11 +378,10 @@ if (
     );
   }
 
-  datosNormalizados = datosNormalizados.map((fila) => ({
-    ...fila,
+  datosNormalizados = adjuntarPeriodoSicar(datosNormalizados, tipoReporte, {
     periodoInicio,
     periodoFin,
-  }));
+  });
 }
 
       const vistaPrevia =

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extraerPeriodoSicar, normalizarFechaSicar } from "../../src/features/importador/utils/periodoSicar.js";
+import { adjuntarPeriodoSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../../src/features/importador/utils/periodoSicar.js";
 
 test("convierte fechas SICAR en formato mexicano día/mes/año", () => {
   assert.equal(normalizarFechaSicar("28/09/2026"), "2026-09-28");
@@ -40,4 +40,13 @@ test("extrae el periodo del encabezado SICAR con celdas combinadas", () => {
     periodoInicio: "2026-09-28",
     periodoFin: "2026-10-04",
   });
+});
+
+test("conserva el periodo de los reportes SICAR de utilidad por artículos", () => {
+  const filas = [{ codigo: "A", importe: 125, utilidad: 40 }];
+  assert.deepEqual(adjuntarPeriodoSicar(filas, "Utilidad por artículos", {
+    periodoInicio: "2026-10-05",
+    periodoFin: "2026-10-11",
+  }), [{ ...filas[0], periodoInicio: "2026-10-05", periodoFin: "2026-10-11" }]);
+  assert.equal(adjuntarPeriodoSicar(filas, "Otro reporte", { periodoInicio: "2026-10-05" }), filas);
 });

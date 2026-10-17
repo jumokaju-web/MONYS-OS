@@ -510,10 +510,10 @@ export async function obtenerHistorialCausasSemanales(
       .from("importaciones")
       .select("id, tipo_reporte, archivo_original, total_filas, branch_id, created_at")
       .eq("branch_id", branchId)
-      .eq("tipo_reporte", "Ventas por artículo")
+      .in("tipo_reporte", ["Ventas por artículo", "Utilidad por artículos"])
       .eq("estado", "procesado")
       .order("created_at", { ascending: false })
-      .limit(limitePorSucursal);
+      .limit(limitePorSucursal * 2);
     if (error) throw new Error(`No se pudo consultar el historial de ventas por producto: ${error.message}`);
     return data || [];
   }));

@@ -24,6 +24,18 @@ function convertirNumero(valor) {
   return Number.isFinite(numero) ? numero : 0;
 }
 
+function convertirNumeroOpcional(valor) {
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : null;
+  }
+
+  const texto = String(valor ?? "").replace(/[$,\s]/g, "").trim();
+  if (!texto) return null;
+
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : null;
+}
+
 function buscarColumna(encabezadosLimpios, opciones) {
   return encabezadosLimpios.findIndex((encabezado) =>
     opciones.some((opcion) => encabezado === opcion)
@@ -871,53 +883,33 @@ export function normalizarUtilidadArticulos(
         )
       ).trim();
 
-      const cantidad =
-        convertirNumero(
-          obtenerValor(
-            fila,
-            columnas.cantidad
-          )
-        );
+      const cantidad = convertirNumeroOpcional(
+        obtenerValor(fila, columnas.cantidad)
+      );
 
-      const costoTotal =
-        convertirNumero(
-          obtenerValor(
-            fila,
-            columnas.totalCompra
-          )
-        );
+      const costoTotal = convertirNumeroOpcional(
+        obtenerValor(fila, columnas.totalCompra)
+      );
 
-      const ventaTotal =
-        convertirNumero(
-          obtenerValor(
-            fila,
-            columnas.totalVenta
-          )
-        );
+      const ventaTotal = convertirNumeroOpcional(
+        obtenerValor(fila, columnas.totalVenta)
+      );
 
-      const utilidad =
-        convertirNumero(
-          obtenerValor(
-            fila,
-            columnas.utilidad
-          )
-        );
+      const utilidad = convertirNumeroOpcional(
+        obtenerValor(fila, columnas.utilidad)
+      );
 
-      const utilidadPorcentaje =
-        convertirNumero(
-          obtenerValor(
-            fila,
-            columnas.utilidadPorcentaje
-          )
-        );
+      const utilidadPorcentaje = convertirNumeroOpcional(
+        obtenerValor(fila, columnas.utilidadPorcentaje)
+      );
 
       const margenSobreVenta =
-        ventaTotal > 0
+        ventaTotal > 0 && utilidad !== null
           ? (
               utilidad /
               ventaTotal
             ) * 100
-          : 0;
+          : null;
 
       return {
         codigo,
@@ -944,6 +936,11 @@ export function normalizarUtilidadArticulos(
 
         utilidadPorcentaje,
 
+        cantidadDisponible: cantidad !== null,
+        costoDisponible: costoTotal !== null,
+        importeDisponible: ventaTotal !== null,
+        utilidadDisponible: utilidad !== null,
+
         margenSobreVenta,
 
         tipoDato:
@@ -952,8 +949,8 @@ export function normalizarUtilidadArticulos(
     })
     .filter(
       (fila) =>
-        fila.codigo !== "" ||
-        fila.descripcion !== ""
+        (fila.codigo !== "" || fila.descripcion !== "") &&
+        (fila.cantidadDisponible || fila.costoDisponible || fila.importeDisponible || fila.utilidadDisponible)
     );
 }
 
