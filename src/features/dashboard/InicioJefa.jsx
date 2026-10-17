@@ -31,7 +31,7 @@ export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
-  movimientosFlujo = [],
+  movimientosFlujo: _movimientosFlujo = [],
 fechaInicial = null,
 fechaFinal = null,
 movimientos = [],
@@ -93,13 +93,6 @@ movimientos = [],
       : estadoVentasCorte === "cargando"
         ? "Cargando corte…"
         : "Periodo pendiente";
-  const etiquetaEstadoCorte = (estado) => {
-    if (estado === "cargando") return "Cargando…";
-    if (estado === "error") return "No disponible";
-    if (estado === "sin-periodo") return "Corte pendiente";
-    return "";
-  };
-
   const [
     recordatoriosJefa,
     setRecordatoriosJefa,
@@ -468,7 +461,6 @@ const utilidadConsolidada =
         }}
       >
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
-        <div className="owner-decision-strip"><span>PRIORIDAD DE DIRECCIÓN</span><h2>{movimientosPendientes ? `Aclara ${movimientosPendientes} movimiento${movimientosPendientes===1?'':'s'} antes de decidir con la caja` : 'Revisa la Junta y actualiza el corte del negocio'}</h2><p>{movimientosPendientes ? 'La evidencia y el destino del dinero necesitan revisión.' : 'El siguiente paso depende de las fuentes cargadas y su vigencia.'}</p><button onClick={movimientosPendientes ? abrirTesoreria : abrirJuntaDirectiva}>Trabajar esta prioridad →</button></div><div className="owner-command-links"><button onClick={abrirJuntaDirectiva}>Junta Directiva →</button><button onClick={abrirCentroValor}>Valor generado →</button><button onClick={()=>{const panel=document.getElementById('rescate-integrado');panel.open=true;panel.scrollIntoView({behavior:'smooth'});}}>Plan de rescate →</button><button onClick={()=>{const panel=document.getElementById('owner-pulso-ventas');panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}}>Pulso de vendedoras ↓</button></div>
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         <ActivacionOperativa
           organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
@@ -487,32 +479,6 @@ const utilidadConsolidada =
           onAbrirMarketing={abrirMarketing}
           onAbrirFlotilla={abrirFlotilla}
         />
-        {/* MÉTRICAS */}
-
-        <div className="owner-metrics">
-          <MetricaJefa
-            icono="↗"
-            titulo="Ventas"
-            valor={estadoVentasCorte === "listo" ? formatoDinero(ventasConsolidadas) : etiquetaEstadoCorte(estadoVentasCorte)}
-            detalle={estadoVentasCorte === "listo" ? "" : "Reporte del corte pendiente de confirmar."}
-          />
-
-          <MetricaJefa
-            icono="◆"
-            titulo="Utilidad bruta"
-            valor={estadoVentasCorte === "listo" ? formatoDinero(utilidadConsolidada) : etiquetaEstadoCorte(estadoVentasCorte)}
-            detalle={estadoVentasCorte === "listo" ? "" : "Reporte del corte pendiente de confirmar."}
-          />
-
-         <MetricaJefa
-  icono="◎"
-  titulo="Flujo registrado del corte"
-  valor={estadoFlujoCorte !== "listo" ? etiquetaEstadoCorte(estadoFlujoCorte) : movimientosFlujo.length ? formatoDinero(disponible) : "Sin movimientos del corte"}
-  detalle={estadoFlujoCorte === "listo" ? `${movimientosFlujo.length} registros en este periodo · no es saldo bancario` : estadoFlujoCorte === "error" ? "No se pudo consultar la fuente de movimientos." : estadoFlujoCorte === "sin-periodo" ? "Falta un periodo válido para filtrar movimientos." : "Consultando movimientos registrados."}
-/>
-
-        </div>
-
         <CentroDireccionCEO
           datosDashboard={datosDashboard}
           sucursales={sucursalesDashboard}
@@ -523,33 +489,8 @@ const utilidadConsolidada =
           abrirImportador={abrirImportador}
         />
 
-        <section className="owner-workspaces"><header><span>AVANCES REUNIDOS</span><h2>Entra a tu centro de trabajo</h2></header><div>
-          <article><span className="owner-workspace-icon">$</span><h3>Finanzas</h3><p>Bancos y aclaraciones · Meta diaria · Deudas y rescate</p><button onClick={abrirFinanzas}>Control del dinero →</button><button className="owner-link" onClick={abrirDirectorFinanciero}>Plan de rescate y deudas →</button></article>
-          <article><span className="owner-workspace-icon">↗</span><h3>Marketing</h3><p>Campañas · Trabajo diario · Resultados y aprendizaje</p><button onClick={abrirMarketing}>Centro de crecimiento →</button></article>
-          <article><span className="owner-workspace-icon">◇</span><h3>Flotilla</h3><p>Unidades y rutas · Resumen de socios · Seguimiento</p><button onClick={abrirFlotilla}>Revisar flotilla →</button></article>
-          <article><span className="owner-workspace-icon">◎</span><h3>Empleados</h3><p>Equipo · Accesos · Comisiones y operación</p><button onClick={abrirEmpleados}>Gestionar equipo →</button><button className="owner-link" onClick={()=>{const panel=document.getElementById('operacion-equipo');const bloque=panel?.closest('details');if(bloque)bloque.open=true;panel?.scrollIntoView({behavior:'smooth'});}}>Operación de hoy ↓</button></article>
-        </div></section>
         <PulsoVentasDireccion usuario={usuario} sucursales={sucursalesDashboard} />
         <details id="rescate-integrado" className="owner-rescate"><summary>Plan de rescate · tareas, avance y evidencias</summary><SalaRescateJefa branchId={datosDashboard?.branch_id || null} abrirDirectorFinanciero={abrirDirectorFinanciero}/></details>
-
-        <section className="owner-financial-hub"><div><span>FINANZAS · CENTRO DE TRABAJO</span><h2>Controla tu dinero y tu siguiente paso</h2><p>Bancos y aclaraciones · Entradas y salidas · Punto de equilibrio · Proveedores · Planeación de flujo</p></div><button onClick={abrirFinanzas}>Abrir Finanzas →</button></section>
-
-        <section style={{ background: "#49293e", borderRadius: 18, padding: 20, color: "white", marginBottom: 18 }}>
-          <div style={{ fontSize: 10, letterSpacing: 1.4, color: "#e9bed3", fontWeight: 800 }}>DIRECCIÓN · INTELIGENCIA · RESULTADOS</div>
-          <h2 style={{ fontSize: 21, margin: "8px 0", color: "#fff8fc", lineHeight: 1.25 }}>Decide con evidencia</h2>
-          <p style={{ fontSize: 13, color: "#ead5e2", lineHeight: 1.5 }}>Revisa prioridades y comprueba qué acciones mejoraron tu negocio.</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button type="button" onClick={abrirJuntaDirectiva} style={{ padding: "12px 16px", minHeight: 44, border: 0, borderRadius: 11, background: "#f0c1d8", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Abrir Junta Directiva →</button>
-            <button type="button" onClick={abrirCentroValor} style={{ padding: "12px 16px", minHeight: 44, border: "1px solid #e6bdd2", borderRadius: 11, background: "white", color: "#49293e", fontWeight: 800, cursor: "pointer" }}>Centro de Valor →</button>
-          </div>
-        </section>
-
-        <nav className="owner-shortcuts" aria-label="Accesos de dirección">
-          <button type="button" onClick={abrirTesoreria}>Movimientos registrados →</button>
-          <button type="button" onClick={abrirImportador}>Subir reportes →</button>
-          <button type="button" onClick={abrirInventario}>Inventario →</button>
-          <button type="button" onClick={() => { const panel=document.getElementById('operacion-equipo'); const bloque=panel?.closest('details'); if(bloque)bloque.open=true; panel?.scrollIntoView({behavior:'smooth'}); }}>Operación del equipo ↓</button>
-        </nav>
         <details className="owner-expanded"><summary>Detalle financiero · fuentes, compromisos y decisiones</summary>
         <section
           style={{
@@ -1047,6 +988,9 @@ const utilidadConsolidada =
         </section>
 
         </details>
+        <details className="owner-secondary">
+          <summary>Más análisis y herramientas de Dirección</summary>
+          <div className="owner-secondary__content">
         {/* ATENCIÓN */}
 
                 <AgendaJefa
@@ -1508,6 +1452,8 @@ const utilidadConsolidada =
             {contenidoCierre}
           </BloquePlegable>
         )}
+          </div>
+        </details>
       </section>
     </main>
   );
@@ -1719,67 +1665,6 @@ function DatoSucursal({
     </div>
   );
 }
-
-function MetricaJefa({
-  icono,
-  titulo,
-  valor,
-  detalle = "",
-}) {
-  return (
-    <div
-      style={{
-        background: "#ffffff",
-        border: "1px solid #eadde4",
-        borderRadius: "14px",
-        padding: "15px",
-        textAlign: "left",
-        minWidth: 0,
-        boxShadow:
-          "0 8px 24px rgba(83, 39, 62, 0.05)",
-      }}
-    >
-      <div
-        style={{
-          color: "#8a7680",
-          fontSize: "11px",
-          fontWeight: "900",
-          marginBottom: "7px",
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-        }}
-      >
-        <span style={{ color: "#c72772" }}>{icono}</span>
-        <span>{titulo}</span>
-      </div>
-
-      <strong
-        style={{
-          color: "#2d2026",
-          fontSize: "clamp(15px, 2vw, 20px)",
-          wordBreak: "break-word",
-        }}
-      >
-        {valor}
-      </strong>
-
-      {detalle && (
-        <div
-          style={{
-            marginTop: "4px",
-            color: "#8a7680",
-            fontSize: "10px",
-            fontWeight: "600",
-          }}
-        >
-          {detalle}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 function Acceso({
   icono,

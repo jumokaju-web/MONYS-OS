@@ -27,7 +27,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     INCIDENCIAS: {
       kicker: 'LO QUE NECESITA ATENCIÓN',
       titulo: 'Reportar incidencia',
-      descripcion: 'Registra el problema con evidencia para que la persona responsable pueda darle seguimiento.',
+      descripcion: 'Registra qué pasó, qué hiciste y qué apoyo necesitas para que Dirección pueda darle seguimiento.',
     },
     CAJA: {
       kicker: 'ANTES DE TERMINAR',
@@ -62,7 +62,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
           <ol className="tienda-ruta" aria-label="Ruta del turno">
             <li><span>1</span><div><strong>Entrada</strong><small>Confirma que ya comenzaste.</small></div></li>
             <li><span>2</span><div><strong>Tareas y ventas</strong><small>Atiende lo asignado y registra el resultado.</small></div></li>
-            <li><span>3</span><div><strong>Lo que pasó</strong><small>Deja solicitudes e incidencias con evidencia.</small></div></li>
+            <li><span>3</span><div><strong>Lo que pasó</strong><small>Deja solicitudes e incidencias con datos claros.</small></div></li>
             <li><span>4</span><div><strong>Cierre</strong><small>Completa caja antes de terminar.</small></div></li>
           </ol>
         </div>

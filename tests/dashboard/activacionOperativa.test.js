@@ -8,12 +8,20 @@ function base() {
   return {
     hoy: "2026-10-17",
     finanzas: { disponible: true, datosVigentes: true, movimientosPendientes: 0 },
+    bancos: { disponible: true, valor: { cuentas: [{ id: "b1", saldo: 1000 }], completo: true } },
+    proveedores: fuente([{
+      branchId: "s1",
+      sucursal: "Centro",
+      disponible: true,
+      importacion: { id: "i1", created_at: "2026-10-16T12:00:00Z" },
+      saldoTotal: 500,
+    }]),
     empleados: fuente([{ id: "e1", active: true, usuario_id: "u1" }]),
     perfiles: fuente([{ empleado_id: "e1" }]),
     horarios: fuente(Array.from({ length: 7 }, (_, dia) => ({ empleado_id: "e1", dia_semana: dia }))),
     tareas: fuente([]),
     campanas: fuente([]),
-    rutas: fuente([]),
+    rutas: fuente([{ id: "r0", estado: "CERRADA" }]),
     incidenciasFlotilla: fuente([]),
     pnr: fuente([]),
     movimientosFlotilla: fuente([]),
@@ -33,6 +41,46 @@ test("no convierte una fuente ausente en cero", () => {
   assert.equal(flotilla.estado, "PENDIENTE");
   assert.equal(flotilla.cifra, null);
   assert.match(flotilla.etiquetaCifra, /Dato pendiente/);
+});
+
+test("Finanzas queda pendiente cuando no hay cuentas bancarias activas", () => {
+  const datos = base();
+  datos.bancos = { disponible: true, valor: { cuentas: [], saldoTotal: null, completo: false } };
+  const finanzas = resumirActivacionOperativa(datos).modulos.find((item) => item.id === "finanzas");
+  assert.equal(finanzas.estado, "PENDIENTE");
+  assert.match(finanzas.detalle, /No hay cuentas bancarias activas/);
+});
+
+test("Finanzas nombra la sucursal cuyo reporte de proveedores falta", () => {
+  const datos = base();
+  datos.proveedores = fuente([
+    { branchId: "s1", sucursal: "Centro", disponible: true, importacion: { created_at: "2026-10-16" } },
+    { branchId: "s2", sucursal: "General Anaya", disponible: true, importacion: null },
+  ]);
+  const finanzas = resumirActivacionOperativa(datos).modulos.find((item) => item.id === "finanzas");
+  assert.equal(finanzas.estado, "PENDIENTE");
+  assert.match(finanzas.detalle, /General Anaya/);
+});
+
+test("Finanzas no usa como vigente un reporte de proveedores antiguo", () => {
+  const datos = base();
+  datos.proveedores = fuente([{
+    branchId: "s1",
+    sucursal: "Centro",
+    disponible: true,
+    importacion: { created_at: "2026-08-06" },
+  }]);
+  const finanzas = resumirActivacionOperativa(datos).modulos.find((item) => item.id === "finanzas");
+  assert.equal(finanzas.estado, "PENDIENTE");
+  assert.match(finanzas.detalle, /más de 7 días/);
+});
+
+test("Flotilla vacía queda pendiente y no se presenta como lista", () => {
+  const datos = base();
+  datos.rutas = fuente([]);
+  const flotilla = resumirActivacionOperativa(datos).modulos.find((item) => item.id === "flotilla");
+  assert.equal(flotilla.estado, "PENDIENTE");
+  assert.match(flotilla.detalle, /sin registros no se puede declarar lista/i);
 });
 
 test("detecta tareas vencidas del equipo y de Marketing", () => {

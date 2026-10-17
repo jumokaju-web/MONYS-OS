@@ -1,0 +1,77 @@
+.direction-areas {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #eadde4;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.direction-areas > div:first-child > span {
+  color: #8b315d;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+
+.direction-areas h2 {
+  margin: 7px 0;
+  color: #332731;
+  font-size: clamp(19px, 4vw, 25px);
+}
+
+.direction-areas p {
+  margin: 0;
+  color: #756570;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.direction-areas__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.direction-areas__grid button {
+  min-width: 0;
+  min-height: 84px;
+  padding: 12px;
+  border: 1px solid #e7d6df;
+  border-radius: 13px;
+  background: #fff9fc;
+  color: #4b3341;
+  text-align: left;
+  cursor: pointer;
+}
+
+.direction-areas__grid button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.direction-areas__grid button > span,
+.direction-areas__grid button > strong,
+.direction-areas__grid button > small {
+  display: block;
+}
+
+.direction-areas__grid button > strong {
+  margin: 6px 0 3px;
+  font-size: 13px;
+}
+
+.direction-areas__grid button > small {
+  color: #82717b;
+  font-size: 10px;
+}
+
+@media (max-width: 620px) {
+  .direction-areas {
+    padding: 15px;
+  }
+
+  .direction-areas__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

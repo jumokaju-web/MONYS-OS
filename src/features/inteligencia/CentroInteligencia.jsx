@@ -1,5 +1,6 @@
 import JuntaDirectiva from './components/JuntaDirectiva';
 import CentroMando from "./components/CentroMando";
+import "./CentroInteligencia.css";
 import {
   useEffect,
   useState,
@@ -564,6 +565,10 @@ const analisisRH =
     );
   };
 
+  // La Junta actual sustituye la sala anterior; conservar el bloque apagado evita
+  // ejecutar dos consejos y permite retirarlo por completo en una limpieza posterior.
+  const mostrarConsejoAnterior = false;
+
   return (
     <main
       className="centro-inteligencia"
@@ -597,6 +602,30 @@ const analisisRH =
         ← Volver al Dashboard
       </button>
 
+      <section className="direction-areas" aria-labelledby="direction-areas-title">
+        <div>
+          <span>ANÁLISIS ESPECIALIZADO</span>
+          <h2 id="direction-areas-title">Profundiza solo cuando la Junta lo indique</h2>
+          <p>La Junta es la entrada principal. Estos directores conservan el detalle de cada área sin repetir otra sala de consejo.</p>
+        </div>
+        <div className="direction-areas__grid">
+          {directores.map((director) => (
+            <button
+              type="button"
+              key={director.id}
+              disabled={!director.disponible}
+              onClick={() => setDirectorAbierto(director.id)}
+            >
+              <span>{director.icono}</span>
+              <strong>{director.nombre}</strong>
+              <small>{director.disponible ? director.estado : "Próximamente"}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {mostrarConsejoAnterior && (
+      <div aria-hidden="true">
       {directorAbierto ? (
         <div
           style={{
@@ -965,6 +994,8 @@ const analisisRH =
             decisionCEO
           }
         />
+      )}
+      </div>
       )}
 
        <details

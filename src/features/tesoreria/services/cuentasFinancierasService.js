@@ -8,6 +8,7 @@ function numeroONulo(valor) {
 
 export async function obtenerCuentasBancariasParaConfirmar({
   organizationId = null,
+  businessId = null,
 } = {}) {
   let consultaCuentas = supabase
     .from("accounts")
@@ -18,6 +19,9 @@ export async function obtenerCuentasBancariasParaConfirmar({
 
   if (organizationId) {
     consultaCuentas = consultaCuentas.eq("organization_id", organizationId);
+  }
+  if (businessId) {
+    consultaCuentas = consultaCuentas.eq("business_id", businessId);
   }
 
   const { data: cuentas, error: errorCuentas } = await consultaCuentas;

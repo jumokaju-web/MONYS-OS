@@ -1394,6 +1394,7 @@ export default function OperacionEmpleado({
 
       {/* CALENDARIO SEMANAL DEL PERFIL ACTIVO */}
 
+      {semanaAbierta && (
       <div
         style={{
           marginBottom: semanaAbierta ? 0 : "20px",
@@ -1948,6 +1949,7 @@ export default function OperacionEmpleado({
           })}
         </div>
       </div>
+      )}
 
       {error && (
         <div

@@ -109,7 +109,7 @@ export default function ActivacionOperativa({
       </div>
 
       <footer>
-        REAL: registros consultados · PENDIENTE: fuente no disponible · ATENCIÓN: existe trabajo vencido o sin comprobar.
+        REAL: registros consultados · PENDIENTE: falta una fuente o dato indispensable · ATENCIÓN: existe trabajo vencido o sin comprobar.
       </footer>
     </section>
   );

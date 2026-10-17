@@ -19,6 +19,15 @@ function esAntes(valor, hoy) {
   return Boolean(fecha && hoy && fecha < hoy);
 }
 
+function antiguedadDias(valor, hoy) {
+  const fecha = fechaCivilValida(valor);
+  if (!fecha || !hoy) return null;
+  const inicio = new Date(`${fecha}T12:00:00Z`).getTime();
+  const fin = new Date(`${hoy}T12:00:00Z`).getTime();
+  if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return null;
+  return Math.floor((fin - inicio) / 86400000);
+}
+
 function resultadoRegistrado(resultado) {
   if (!resultado || typeof resultado !== "object") return false;
   const historial = Array.isArray(resultado.historial) ? resultado.historial : [];
@@ -41,6 +50,8 @@ function moduloPendiente(id, nombre, accion, motivo) {
 export function resumirActivacionOperativa({
   hoy,
   finanzas = {},
+  bancos,
+  proveedores,
   empleados,
   perfiles,
   horarios,
@@ -61,35 +72,80 @@ export function resumirActivacionOperativa({
   const filasIncidencias = filasFuente(incidenciasFlotilla);
   const filasPnr = filasFuente(pnr);
   const filasMovimientosFlotilla = filasFuente(movimientosFlotilla);
+  const filasProveedores = filasFuente(proveedores);
+  const resumenBancos = bancos?.disponible === true ? bancos.valor : null;
 
   const modulos = [];
 
-  if (finanzas.disponible !== true) {
+  if (finanzas.disponible !== true || !resumenBancos || !filasProveedores) {
     modulos.push(moduloPendiente(
       "finanzas",
       "Finanzas",
       "Abrir Finanzas",
-      finanzas.motivo || "Falta confirmar el corte y los movimientos financieros.",
+      finanzas.disponible !== true
+        ? finanzas.motivo || "Falta confirmar el corte y los movimientos financieros."
+        : !resumenBancos
+          ? "No fue posible comprobar las cuentas bancarias y sus saldos."
+          : "No fue posible comprobar los reportes de deuda con proveedores.",
     ));
   } else {
-    const pendientes = Number(finanzas.movimientosPendientes);
-    const valorPendientes = Number.isFinite(pendientes) ? pendientes : null;
-    const vigente = finanzas.datosVigentes === true;
-    modulos.push({
-      id: "finanzas",
-      nombre: "Finanzas",
-      estado: vigente && valorPendientes === 0 ? "LISTO" : "ATENCION",
-      cifra: valorPendientes,
-      etiquetaCifra: valorPendientes === null
-        ? "Movimientos por confirmar"
-        : `${valorPendientes} movimiento${valorPendientes === 1 ? "" : "s"} por revisar`,
-      detalle: !vigente
-        ? "El corte no está vigente; no debe usarse para autorizar salidas."
-        : valorPendientes > 0
-          ? "Primero concilia las salidas antes de pagar, comprar o invertir."
-          : "Corte vigente y sin movimientos pendientes detectados.",
-      accion: valorPendientes > 0 ? "Abrir Tesorería" : "Abrir Finanzas",
+    const cuentas = Array.isArray(resumenBancos.cuentas) ? resumenBancos.cuentas : [];
+    const saldosPendientes = cuentas.filter((cuenta) => cuenta?.saldo == null).length;
+    const proveedoresNoDisponibles = filasProveedores.filter((item) => item?.disponible !== true);
+    const sucursalesSinReporte = filasProveedores.filter((item) =>
+      item?.disponible === true && !item?.importacion?.created_at
+    );
+    const reportesVencidos = filasProveedores.filter((item) => {
+      if (!item?.importacion?.created_at) return false;
+      const antiguedad = antiguedadDias(item.importacion.created_at, fechaHoy);
+      return antiguedad === null || antiguedad < 0 || antiguedad > 7;
     });
+
+    if (cuentas.length === 0) {
+      modulos.push(moduloPendiente(
+        "finanzas", "Finanzas", "Abrir Finanzas",
+        "No hay cuentas bancarias activas registradas; falta el saldo real para autorizar pagos o compras.",
+      ));
+    } else if (saldosPendientes > 0) {
+      modulos.push(moduloPendiente(
+        "finanzas", "Finanzas", "Abrir Finanzas",
+        `${saldosPendientes} cuenta${saldosPendientes === 1 ? "" : "s"} bancaria${saldosPendientes === 1 ? "" : "s"} sin saldo confirmado.`,
+      ));
+    } else if (proveedoresNoDisponibles.length > 0) {
+      modulos.push(moduloPendiente(
+        "finanzas", "Finanzas", "Abrir Finanzas",
+        `No fue posible comprobar proveedores en ${proveedoresNoDisponibles.map((item) => item.sucursal).join(", ")}.`,
+      ));
+    } else if (sucursalesSinReporte.length > 0) {
+      modulos.push(moduloPendiente(
+        "finanzas", "Finanzas", "Abrir Finanzas",
+        `Falta el reporte de deuda con proveedores de ${sucursalesSinReporte.map((item) => item.sucursal).join(", ")}.`,
+      ));
+    } else if (reportesVencidos.length > 0) {
+      modulos.push(moduloPendiente(
+        "finanzas", "Finanzas", "Abrir Finanzas",
+        `El reporte de proveedores de ${reportesVencidos.map((item) => item.sucursal).join(", ")} tiene más de 7 días; actualízalo antes de comprometer efectivo.`,
+      ));
+    } else {
+      const pendientes = Number(finanzas.movimientosPendientes);
+      const valorPendientes = Number.isFinite(pendientes) ? pendientes : null;
+      const vigente = finanzas.datosVigentes === true;
+      modulos.push({
+        id: "finanzas",
+        nombre: "Finanzas",
+        estado: vigente && valorPendientes === 0 ? "LISTO" : "ATENCION",
+        cifra: valorPendientes,
+        etiquetaCifra: valorPendientes === null
+          ? "Movimientos por confirmar"
+          : `${valorPendientes} movimiento${valorPendientes === 1 ? "" : "s"} por revisar`,
+        detalle: !vigente
+          ? "El corte no está vigente; no debe usarse para autorizar salidas."
+          : valorPendientes > 0
+            ? "Primero concilia las salidas antes de pagar, comprar o invertir."
+            : "Corte, bancos y proveedores vigentes; no hay movimientos pendientes detectados.",
+        accion: valorPendientes > 0 ? "Abrir Tesorería" : "Abrir Finanzas",
+      });
+    }
   }
 
   if (!filasEmpleados || !filasPerfiles || !filasHorarios || !filasTareas) {
@@ -175,6 +231,15 @@ export function resumirActivacionOperativa({
       "Flotilla",
       "Abrir Flotilla",
       "No fue posible comprobar rutas, incidencias, PNR y dinero de Flotilla.",
+    ));
+  } else if (
+    filasRutas.length + filasIncidencias.length + filasPnr.length + filasMovimientosFlotilla.length === 0
+  ) {
+    modulos.push(moduloPendiente(
+      "flotilla",
+      "Flotilla",
+      "Abrir Flotilla",
+      "Flotilla aún no tiene rutas, incidencias, PNR ni movimientos conectados; sin registros no se puede declarar lista.",
     ));
   } else {
     const rutasActivas = filasRutas.filter((item) =>
