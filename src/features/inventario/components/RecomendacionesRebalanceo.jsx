@@ -4,7 +4,7 @@ import {
 } from "react";
 
 import {
-  generarRecomendacionesRebalanceo,
+  generarAnalisisRebalanceo,
 } from "../services/rebalanceoInventarioService";
 
 import {
@@ -47,6 +47,11 @@ function RecomendacionesRebalanceo({ organizationId = null, businessId = null })
   ] = useState([]);
 
   const [
+    pendientesValidacion,
+    setPendientesValidacion,
+  ] = useState([]);
+
+  const [
     cargando,
     setCargando,
   ] = useState(true);
@@ -76,10 +81,14 @@ const [
       setError("");
 
       const resultado =
-        await generarRecomendacionesRebalanceo();
+        await generarAnalisisRebalanceo();
 
       setRecomendaciones(
-        resultado ?? []
+        resultado?.recomendaciones ?? []
+      );
+
+      setPendientesValidacion(
+        resultado?.pendientesValidacion ?? []
       );
     } catch (error) {
       console.error(
@@ -539,27 +548,24 @@ async function crearTareasDesdeRebalanceo() {
             borderRadius:
               "999px",
             backgroundColor:
-              recomendaciones.length >
-              0
+              recomendaciones.length > 0 ||
+              pendientesValidacion.length > 0
                 ? "#fff8df"
                 : "#eefbf3",
             color:
-              recomendaciones.length >
-              0
+              recomendaciones.length > 0 ||
+              pendientesValidacion.length > 0
                 ? "#8a6800"
                 : "#207a4a",
             border:
-              recomendaciones.length >
-              0
+              recomendaciones.length > 0 ||
+              pendientesValidacion.length > 0
                 ? "1px solid #f2dc8b"
                 : "1px solid #b8e5ca",
             fontWeight: "800",
           }}
         >
-          {
-            recomendaciones.length
-          }{" "}
-          recomendaciones
+          {recomendaciones.length} propuestas · {pendientesValidacion.length} por verificar
         </div>
       </div>
 
@@ -571,6 +577,57 @@ async function crearTareasDesdeRebalanceo() {
       >
         MONYS compara ventas y existencias reales y propone qué revisar en cada sucursal. Una empleada confirma el conteo físico y si de verdad sobra o hace falta. El resultado queda para Dirección; esta tarea nunca mueve inventario.
       </p>
+
+      {(recomendaciones.length > 0 || pendientesValidacion.length > 0) && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: "10px",
+            marginTop: "16px",
+          }}
+        >
+          {[
+            ["Centro", "General Anaya"],
+            ["General Anaya", "Centro"],
+          ].map(([origen, destino]) => {
+            const lista = recomendaciones.filter(
+              (item) =>
+                item.sucursalOrigen === origen &&
+                item.sucursalDestino === destino
+            );
+            const piezas = lista.reduce(
+              (total, item) => total + Number(item.cantidadSugerida || 0),
+              0
+            );
+            const pendientes = pendientesValidacion.filter(
+              (item) =>
+                item.sucursalOrigen === origen &&
+                item.sucursalDestino === destino
+            ).length;
+
+            return (
+              <div
+                key={`${origen}-${destino}`}
+                style={{
+                  padding: "12px",
+                  border: "1px solid #d9e7ef",
+                  borderRadius: "12px",
+                  background: "#fff",
+                }}
+              >
+                <strong>{origen} → {destino}</strong>
+                <div style={{ marginTop: "5px" }}>
+                  {lista.length} propuestas · {piezas} piezas
+                </div>
+                {pendientes > 0 && (
+                  <small>{pendientes} existencias destino por verificar</small>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {error && (
         <div
@@ -592,8 +649,8 @@ async function crearTareasDesdeRebalanceo() {
       )}
 
       {!error &&
-        recomendaciones.length ===
-          0 && (
+        recomendaciones.length === 0 &&
+        pendientesValidacion.length === 0 && (
           <div
             style={{
               marginTop: "18px",
@@ -765,10 +822,11 @@ async function crearTareasDesdeRebalanceo() {
                         }
                       </strong>
                       <br />
-                      {
-                        recomendacion.existenciaOrigen
-                      }{" "}
-                      piezas
+                      {recomendacion.existenciaOrigen} reportadas →{" "}
+                      {recomendacion.existenciaOrigenTrasPropuesta} piezas
+                      {recomendacion.fechaExistenciaOrigen
+                        ? ` · corte ${recomendacion.fechaExistenciaOrigen}`
+                        : " · fecha de corte pendiente"}
                     </div>
 
                     <div>
@@ -778,10 +836,11 @@ async function crearTareasDesdeRebalanceo() {
                         }
                       </strong>
                       <br />
-                      {
-                        recomendacion.existenciaDestino
-                      }{" "}
-                      piezas
+                      {recomendacion.existenciaDestino} reportadas →{" "}
+                      {recomendacion.existenciaDestinoTrasPropuesta} piezas
+                      {recomendacion.fechaExistenciaDestino
+                        ? ` · corte ${recomendacion.fechaExistenciaDestino}`
+                        : " · fecha de corte pendiente"}
                     </div>
 
                     <div>
@@ -795,12 +854,80 @@ async function crearTareasDesdeRebalanceo() {
                       piezas
                     </div>
                   </div>
+
+                  <small style={{ display: "block", marginTop: "10px", color: "#675a60" }}>
+                    Evidencia: ventas SICAR {recomendacion.periodoEvidencia}. Existencias: corte {recomendacion.fechaExistenciaOrigen || "sin fecha"} en origen y {recomendacion.fechaExistenciaDestino || "sin fecha"} en destino. Confirma físicamente ambas sucursales. El objetivo de 14 días es una estimación basada en ese corte, no una garantía de demanda.
+                  </small>
                 </article>
               );
             }
           )}
         </div>
       )}
+
+      {!error &&
+        pendientesValidacion.length >
+          0 && (
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "16px",
+              borderRadius: "14px",
+              backgroundColor: "#fff8df",
+              border: "1px solid #f2dc8b",
+            }}
+          >
+            <strong style={{ color: "#765400" }}>
+              🔎 {pendientesValidacion.length} productos con venta y existencia destino pendiente
+            </strong>
+            <p style={{ margin: "8px 0 12px", lineHeight: 1.5 }}>
+              No aparecen en el reporte de existencias de la sucursal que vendió. Podrían ser faltantes, pero también un corte SICAR incompleto. MONYS no los toma como cero ni recomienda cantidad hasta confirmar.
+            </p>
+            {["Centro", "General Anaya"].map((sucursalDestino) => {
+              const items = pendientesValidacion
+                .filter((item) => item.sucursalDestino === sucursalDestino)
+                .slice(0, 5);
+
+              const totalRuta = pendientesValidacion.filter(
+                (item) => item.sucursalDestino === sucursalDestino
+              ).length;
+
+              if (!totalRuta) return null;
+
+              const sucursalOrigen =
+                sucursalDestino === "Centro"
+                  ? "General Anaya"
+                  : "Centro";
+
+              return (
+                <details key={sucursalDestino} style={{ marginTop: "10px" }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+                    Revisar {sucursalOrigen} → {sucursalDestino}: {totalRuta} productos
+                  </summary>
+                  <ul style={{ paddingLeft: "20px", lineHeight: 1.55 }}>
+                    {items.map((item) => (
+                      <li key={`${item.productId}-${item.branchDestinoId}`}>
+                        <strong>{item.producto}</strong>
+                        {item.codigo ? ` · ${item.codigo}` : ""} — {item.ventasDestino} vendidos del {item.periodoInicio?.slice(0, 10)} al {item.periodoFin?.slice(0, 10)}; origen reportó {item.existenciaOrigen} el {item.fechaExistenciaOrigen || "sin fecha"}. Destino no aparece en el corte {item.fechaExistenciaDestino || "sin fecha"}; confirmar físicamente y en SICAR.
+                      </li>
+                    ))}
+                  </ul>
+                  {totalRuta > items.length && (
+                    <small>Se muestran los {items.length} de mayor venta; {totalRuta - items.length} más requieren la misma revisión.</small>
+                  )}
+                </details>
+              );
+            })}
+          </div>
+        )}
+
+      {!error &&
+        recomendaciones.length === 0 &&
+        pendientesValidacion.length > 0 && (
+          <div style={{ marginTop: "14px", color: "#675a60" }}>
+            Todavía no hay traspasos calculables con existencia confirmada en ambas sucursales.
+          </div>
+        )}
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "20px" }}>
         <button

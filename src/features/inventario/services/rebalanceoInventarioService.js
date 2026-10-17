@@ -7,6 +7,8 @@ import {
   obtenerUltimasVentasPorSucursal,
 } from "../../dashboard/services/dashboardDataService";
 import { leerExistenciaReportada } from "../shared/existenciaReportada";
+import { crearPendienteExistenciaDestino } from "../shared/pendienteExistenciaDestino";
+import { calcularUnidadesParaDias } from "../shared/calcularUnidadesParaDias";
 
 const DIAS_OBJETIVO_DESTINO = 14;
 const DIAS_RESERVA_ORIGEN = 30;
@@ -122,6 +124,15 @@ function convertirFecha(valor) {
   }
 
   return fecha;
+}
+
+function obtenerFechaCorteExistencia(inventario) {
+  const fecha =
+    inventario?.importacion?.created_at;
+
+  return fecha
+    ? String(fecha).slice(0, 10)
+    : null;
 }
 
 function diferenciaDias(
@@ -385,16 +396,17 @@ function calcularPlanTransferencia({
     DESTINO
 
     Intentamos dejar aproximadamente
-    30 días de inventario según
+    14 días de inventario según
     su velocidad real de venta.
   */
   const objetivoDestino =
     Math.max(
       1,
-      Math.ceil(
-        ventaDiariaDestino *
-          DIAS_OBJETIVO_DESTINO
-      )
+      calcularUnidadesParaDias({
+        unidadesVendidas: ventasDestino,
+        diasAnalizados,
+        diasObjetivo: DIAS_OBJETIVO_DESTINO,
+      })
     );
 
   const necesidadDestino =
@@ -418,10 +430,11 @@ function calcularPlanTransferencia({
   */
   const reservaPorVentas =
     ventasOrigen > 0
-      ? Math.ceil(
-          ventaDiariaOrigen *
-            DIAS_RESERVA_ORIGEN
-        )
+      ? calcularUnidadesParaDias({
+          unidadesVendidas: ventasOrigen,
+          diasAnalizados,
+          diasObjetivo: DIAS_RESERVA_ORIGEN,
+        })
       : 0;
 
   /*
@@ -527,7 +540,7 @@ function calcularPrioridad({
   return "BAJA";
 }
 
-export async function generarRecomendacionesRebalanceo() {
+export async function generarAnalisisRebalanceo() {
   const [
     inventariosPorSucursal,
     ventasPorSucursal,
@@ -545,7 +558,10 @@ export async function generarRecomendacionesRebalanceo() {
     inventariosPorSucursal.length <
       2
   ) {
-    return [];
+    return {
+      recomendaciones: [],
+      pendientesValidacion: [],
+    };
   }
 
   const inventariosPreparados =
@@ -576,7 +592,13 @@ export async function generarRecomendacionesRebalanceo() {
   const recomendaciones =
     [];
 
+  const pendientesValidacion =
+    [];
+
   const recomendacionesUnicas =
+    new Set();
+
+  const pendientesUnicos =
     new Set();
 
   for (
@@ -658,10 +680,6 @@ export async function generarRecomendacionesRebalanceo() {
             clave
           );
 
-        if (!productoDestino) {
-          continue;
-        }
-
         const ventasProductoOrigen =
           mapaVentasOrigen.get(
             clave
@@ -694,16 +712,119 @@ export async function generarRecomendacionesRebalanceo() {
               .existencia
           );
 
+        const datoOrigenSospechoso =
+          existenciaOrigen < 0 ||
+          existenciaOrigen >
+            EXISTENCIA_MAXIMA_CONFIABLE;
+
+        if (
+          datoOrigenSospechoso ||
+          existenciaOrigen <= 0 ||
+          cantidadVendidaDestino <= 0
+        ) {
+          continue;
+        }
+
+        if (!productoDestino) {
+          const clavePendiente =
+            `${clave}-${origen.branch_id}-${destino.branch_id}`;
+
+          if (
+            pendientesUnicos.has(
+              clavePendiente
+            )
+          ) {
+            continue;
+          }
+
+          pendientesUnicos.add(
+            clavePendiente
+          );
+
+          const fechaInicioTexto =
+            periodoComparable.fechaInicio
+              .toISOString()
+              .slice(0, 10);
+
+          const fechaFinTexto =
+            periodoComparable.fechaFin
+              .toISOString()
+              .slice(0, 10);
+
+          pendientesValidacion.push(
+            crearPendienteExistenciaDestino({
+              productId:
+                productoOrigen.codigo ||
+                clave,
+
+              codigo:
+                productoOrigen.codigo,
+
+              producto:
+                productoOrigen.descripcion,
+
+              branchOrigenId:
+                origen.branch_id,
+
+              sucursalOrigen:
+                obtenerNombreSucursal(
+                  sucursales,
+                  origen.branch_id
+                ),
+
+              branchDestinoId:
+                destino.branch_id,
+
+              sucursalDestino:
+                obtenerNombreSucursal(
+                  sucursales,
+                  destino.branch_id
+                ),
+
+              existenciaOrigen,
+
+              fechaExistenciaOrigen:
+                obtenerFechaCorteExistencia(origen),
+
+              fechaExistenciaDestino:
+                obtenerFechaCorteExistencia(destino),
+
+              ventasOrigen:
+                cantidadVendidaOrigen,
+
+              ventasDestino:
+                cantidadVendidaDestino,
+
+              periodoInicio:
+                periodoComparable
+                  .fechaInicio
+                  .toISOString(),
+
+              periodoFin:
+                periodoComparable
+                  .fechaFin
+                  .toISOString(),
+
+              diasAnalizados:
+                periodoComparable
+                  .diasAnalizados,
+
+              motivo:
+                `El reporte de existencias de ${obtenerNombreSucursal(sucursales, destino.branch_id)} no muestra este código. En el periodo ${fechaInicioTexto} al ${fechaFinTexto}, esa sucursal vendió ${cantidadVendidaDestino} piezas; ${obtenerNombreSucursal(sucursales, origen.branch_id)} reporta ${existenciaOrigen} piezas. La existencia destino está pendiente: MONYS no la toma como cero ni calcula piezas por traspasar.`,
+
+              recomendacion:
+                `Verificar existencia física y registro SICAR en ${obtenerNombreSucursal(sucursales, destino.branch_id)}.`,
+            })
+          );
+
+          continue;
+        }
+
         const existenciaDestino =
           convertirNumero(
             productoDestino
               .existencia
           );
-
-        const datoOrigenSospechoso =
-          existenciaOrigen < 0 ||
-          existenciaOrigen >
-            EXISTENCIA_MAXIMA_CONFIABLE;
 
         const datoDestinoSospechoso =
           existenciaDestino < 0 ||
@@ -791,6 +912,22 @@ export async function generarRecomendacionesRebalanceo() {
           ventaDiariaDestino,
         } = plan;
 
+        const periodoInicioTexto =
+          periodoComparable.fechaInicio
+            .toISOString()
+            .slice(0, 10);
+
+        const periodoFinTexto =
+          periodoComparable.fechaFin
+            .toISOString()
+            .slice(0, 10);
+
+        const fechaExistenciaOrigen =
+          obtenerFechaCorteExistencia(origen);
+
+        const fechaExistenciaDestino =
+          obtenerFechaCorteExistencia(destino);
+
         const claveRecomendacion =
           `${clave}-${origen.branch_id}-${destino.branch_id}`;
 
@@ -855,6 +992,9 @@ export async function generarRecomendacionesRebalanceo() {
           existenciaOrigen,
           existenciaDestino,
 
+          fechaExistenciaOrigen,
+          fechaExistenciaDestino,
+
           ventasOrigen:
             cantidadVendidaOrigen,
 
@@ -908,15 +1048,24 @@ export async function generarRecomendacionesRebalanceo() {
 
           cantidadSugerida,
 
+          existenciaOrigenTrasPropuesta:
+            existenciaOrigen -
+            cantidadSugerida,
+
+          existenciaDestinoTrasPropuesta:
+            existenciaDestino +
+            cantidadSugerida,
+
+          periodoEvidencia:
+            `${periodoInicioTexto}–${periodoFinTexto}`,
+
           prioridad,
 
           motivo:
-            `${sucursalDestino} tiene ${existenciaDestino} piezas y vendió ${cantidadVendidaDestino}; ` +
-            `${sucursalOrigen} tiene ${existenciaOrigen} piezas y vendió ${cantidadVendidaOrigen}. ` +
-            `MONYS OS protege aproximadamente ${DIAS_RESERVA_ORIGEN} días de venta en origen antes de sugerir el traspaso.`,
+            `Ventas SICAR ${periodoInicioTexto}–${periodoFinTexto}: ${sucursalDestino} vendió ${cantidadVendidaDestino} piezas y ${sucursalOrigen} ${cantidadVendidaOrigen}. Existencias SICAR (${fechaExistenciaDestino || "fecha pendiente"}): ${sucursalDestino} ${existenciaDestino}, ${sucursalOrigen} ${existenciaOrigen} (${fechaExistenciaOrigen || "fecha pendiente"}). La propuesta busca hasta ${DIAS_OBJETIVO_DESTINO} días estimados en destino y deja ${existenciaOrigen - cantidadSugerida} piezas en origen; la reserva mínima es el mayor entre ${DIAS_RESERVA_ORIGEN} días de venta, 40% del stock o ${RESERVA_MINIMA_PIEZAS} piezas.`,
 
           recomendacion:
-            `Mover ${cantidadSugerida} piezas de ${sucursalOrigen} a ${sucursalDestino}.`,
+            `Verificar si conviene enviar ${cantidadSugerida} piezas de ${sucursalOrigen} a ${sucursalDestino}.`,
         });
       }
     }
@@ -966,5 +1115,21 @@ export async function generarRecomendacionesRebalanceo() {
     }
   );
 
-  return recomendaciones;
+  pendientesValidacion.sort(
+    (a, b) =>
+      b.ventasDestino -
+      a.ventasDestino
+  );
+
+  return {
+    recomendaciones,
+    pendientesValidacion,
+  };
+}
+
+export async function generarRecomendacionesRebalanceo() {
+  const analisis =
+    await generarAnalisisRebalanceo();
+
+  return analisis.recomendaciones;
 }
