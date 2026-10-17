@@ -14,9 +14,6 @@ import {
   ejecutarEvaluacionTareaIA,
 } from "../services/tareasOperativasService";
 
-import {
-  limpiarYBalancearOperacion,
-} from "../services/limpiezaOperacionService";
 import RutinaTienda from "./RutinaTienda";
 import ControlDiarioSucursal from "./ControlDiarioSucursal";
 import { fechaActualMexico } from "../services/asistenciaOperativaService";
@@ -476,38 +473,6 @@ export default function OperacionHoy({
 }
 
 
-  async function organizarOperacionConMonys() {
-    try {
-      setError("");
-      setMensaje("");
-
-      const resultado =
-        await limpiarYBalancearOperacion({
-          branchId,
-          fecha: fechaHoy,
-        });
-
-      await cargarTareas();
-
-      setMensaje(
-        resultado?.mensaje ||
-          "MONYS organizó las tareas de hoy."
-      );
-    } catch (errorOrganizacion) {
-      console.error(
-        "Error al organizar Operación de Hoy:",
-        errorOrganizacion
-      );
-
-      setError(
-        errorOrganizacion?.message ||
-          "MONYS no pudo organizar las tareas."
-      );
-    }
-  }
-
-
-
   return (
     <section
       style={{
@@ -552,15 +517,6 @@ export default function OperacionHoy({
             flexWrap: "wrap",
           }}
         >
-          <button
-            type="button"
-            onClick={
-              organizarOperacionConMonys
-            }
-          >
-            🧹 Organizar tareas con MONYS
-          </button>
-
           <button
             type="button"
             onClick={

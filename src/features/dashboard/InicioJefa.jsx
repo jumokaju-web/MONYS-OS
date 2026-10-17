@@ -10,6 +10,7 @@ import TendenciaSemanalSucursales from "../inteligencia/components/director-fina
 import PulsoVentasDireccion from "./components/PulsoVentasDireccion";
 import CentroDireccionCEO from "./components/CentroDireccionCEO";
 import ActivacionOperativa from "./components/ActivacionOperativa";
+import HigieneBacklogOperativo from "./components/HigieneBacklogOperativo";
 import {
   obtenerRecordatoriosJefa,
 } from "./services/recordatoriosJefaService";
@@ -478,6 +479,12 @@ const utilidadConsolidada =
           onAbrirEquipo={abrirEmpleados}
           onAbrirMarketing={abrirMarketing}
           onAbrirFlotilla={abrirFlotilla}
+        />
+        <HigieneBacklogOperativo
+          organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
+          businessId={datosDashboard?.business_id || usuario?.business_id || null}
+          sucursales={sucursalesDashboard}
+          onAbrirEquipo={abrirEmpleados}
         />
         <CentroDireccionCEO
           datosDashboard={datosDashboard}

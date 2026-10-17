@@ -1,0 +1,27 @@
+.backlog-hygiene{margin:16px 0;padding:18px;border:1px solid #dacdd5;border-radius:16px;background:#fff;color:#382b34;box-shadow:0 8px 24px rgba(67,43,61,.05)}
+.backlog-hygiene>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.backlog-hygiene>header span{font-size:10px;letter-spacing:1.5px;font-weight:900;color:#8a4e70}
+.backlog-hygiene h2{margin:6px 0;font-size:21px;line-height:1.25}
+.backlog-hygiene>header p{max-width:690px;margin:0;color:#796975;font-size:12px;line-height:1.5}
+.backlog-hygiene button{min-height:42px;border:0;border-radius:10px;padding:10px 13px;background:#713657;color:#fff;font-weight:800;cursor:pointer}
+.backlog-hygiene button:disabled{opacity:.5;cursor:not-allowed}
+.backlog-hygiene__notice{margin:12px 0 0;padding:10px 12px;border-radius:10px;font-size:12px;font-weight:700}
+.backlog-hygiene__notice.is-error{background:#fff0f0;color:#963527}.backlog-hygiene__notice.is-success{background:#edf9f1;color:#226742}
+.backlog-hygiene__metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:15px}
+.backlog-hygiene__metrics article{padding:12px;border:1px solid #eadfe5;border-radius:12px;background:#fdfbfc}
+.backlog-hygiene__metrics small,.backlog-hygiene__metrics span{display:block;font-size:8px;letter-spacing:1px;font-weight:900;color:#8b7382}
+.backlog-hygiene__metrics strong{display:block;margin:5px 0;font-size:25px;line-height:1;color:#472d3f}
+.backlog-hygiene__metrics span{color:#9b5b7e}
+.backlog-hygiene__priority{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:13px;border-radius:12px;background:#432b3d;color:#fff}
+.backlog-hygiene__priority small,.backlog-hygiene__priority strong{display:block}.backlog-hygiene__priority small{color:#dab7cc;font-size:8px;letter-spacing:1.2px}.backlog-hygiene__priority strong{margin-top:4px;font-size:15px}
+.backlog-hygiene__priority button{background:#f0d8e5;color:#573349}
+.backlog-hygiene__duplicates{margin-top:12px;border:1px solid #e4d6de;border-radius:12px;overflow:hidden}
+.backlog-hygiene__duplicates>summary{padding:13px;cursor:pointer;font-size:13px;font-weight:900;background:#fbf6f9;color:#623b52}
+.backlog-hygiene__rule{margin:0;padding:10px 13px;border-top:1px solid #eee4e9;color:#796975;font-size:10px;line-height:1.5}
+.backlog-hygiene__list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 12px 12px}
+.backlog-hygiene__list article{padding:12px;border:1px solid #ece3e8;border-radius:11px;background:#fff}
+.backlog-hygiene__list article>small{color:#8e7182;font-size:9px;font-weight:800}.backlog-hygiene__list h3{margin:5px 0;font-size:14px}.backlog-hygiene__list p{margin:0 0 10px;color:#746570;font-size:10px;line-height:1.45}.backlog-hygiene__list article>button{width:100%;font-size:11px;text-align:left}
+.backlog-hygiene__confirm{padding:10px;border-radius:10px;background:#f8f2f5}.backlog-hygiene__confirm label{display:block;font-size:10px;line-height:1.4}.backlog-hygiene__confirm input{box-sizing:border-box;width:100%;min-height:42px;margin-top:6px;padding:9px;border:1px solid #cbbbc4;border-radius:9px;font:inherit}.backlog-hygiene__confirm>div{display:flex;gap:7px;margin-top:8px}.backlog-hygiene__confirm button{flex:1;font-size:10px}.backlog-hygiene__confirm button.is-secondary{background:#eadfe5;color:#5c4654}
+.backlog-hygiene__empty{margin:12px 0 0;padding:12px;border-radius:10px;background:#f7f3f5;color:#6e5b67;font-size:11px}
+.backlog-hygiene footer{margin-top:11px;color:#877680;font-size:9px;line-height:1.5}
+@media(max-width:560px){.backlog-hygiene{margin:12px 0;padding:13px}.backlog-hygiene>header{align-items:stretch}.backlog-hygiene h2{font-size:18px}.backlog-hygiene__refresh{flex:0 0 auto}.backlog-hygiene__metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.backlog-hygiene__metrics strong{font-size:22px}.backlog-hygiene__priority{align-items:flex-start;flex-direction:column}.backlog-hygiene__priority button{width:100%;text-align:left}.backlog-hygiene__list{grid-template-columns:1fr}.backlog-hygiene__list article>button{min-height:44px}}
