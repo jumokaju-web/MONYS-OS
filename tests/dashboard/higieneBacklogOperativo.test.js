@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analizarBacklogOperativo,
+  construirColaRescateBacklog,
+  construirInstruccionesReprogramadas,
   firmaDuplicadoExacto,
   normalizarTextoBacklog,
   validarCancelacionDuplicados,
+  validarReprogramacionTarea,
 } from "../../src/features/dashboard/utils/higieneBacklogOperativo.js";
 
 function tarea(id, cambios = {}) {
@@ -34,6 +37,52 @@ function tarea(id, cambios = {}) {
 
 test("normaliza acentos, signos, mayúsculas y espacios sin inventar contenido", () => {
   assert.equal(normalizarTextoBacklog("  REVISIÓN: física  "), "revision fisica");
+});
+
+test("prioriza vencidas sin incluir copias exactas y protege tareas iniciadas", () => {
+  const datos = [
+    tarea("t1", { fecha: "2026-10-01", prioridad: "alta", responsable_usuario_id: null }),
+    tarea("t2", { fecha: "2026-10-01", prioridad: "alta", responsable_usuario_id: null }),
+    tarea("t3", { fecha: "2026-09-20", estado: "en_proceso" }),
+    tarea("t4", { fecha: "2026-10-16", prioridad: "baja" }),
+  ];
+  const cola = construirColaRescateBacklog(datos, { hoy: "2026-10-17" });
+  assert.equal(cola.total, 3);
+  assert.deepEqual(cola.candidatas.map((item) => item.id), ["t1", "t4"]);
+  assert.equal(cola.requierenRevision[0].id, "t3");
+  assert.equal(cola.sinUsuarioVinculado, 1);
+});
+
+test("reprogramar exige fecha vigente, responsable conectado, motivo, criterio y autorización", () => {
+  const base = {
+    tarea: tarea("t1"),
+    hoy: "2026-10-17",
+    nuevaFecha: "2026-10-18",
+    responsableEmpleadoId: "e1",
+    responsableUsuarioId: "u1",
+    criterioExito: "Conteo físico confirmado",
+    motivo: "La tarea no se asignó a una cuenta activa.",
+    confirmacion: "REPROGRAMAR",
+  };
+  assert.equal(validarReprogramacionTarea(base).valida, true);
+  assert.equal(validarReprogramacionTarea({ ...base, nuevaFecha: "2026-10-16" }).valida, false);
+  assert.equal(validarReprogramacionTarea({ ...base, responsableUsuarioId: null }).valida, false);
+  assert.equal(validarReprogramacionTarea({ ...base, confirmacion: "SI" }).valida, false);
+  assert.equal(validarReprogramacionTarea({ ...base, tarea: tarea("t1", { estado: "en_proceso" }) }).valida, false);
+});
+
+test("la reprogramación agrega auditoría sin borrar instrucciones anteriores", () => {
+  const texto = construirInstruccionesReprogramadas({
+    instruccionesAnteriores: "Contar y fotografiar.",
+    fechaAnterior: "2026-10-10",
+    nuevaFecha: "2026-10-18",
+    motivo: "No tenía responsable vinculado.",
+    autorizadoPor: "u-direccion",
+    autorizadoAt: "2026-10-17T20:00:00Z",
+  });
+  assert.match(texto, /Contar y fotografiar/);
+  assert.match(texto, /Fecha anterior: 2026-10-10/);
+  assert.match(texto, /Autorizó usuario: u-direccion/);
 });
 
 test("propone solo copias exactas del mismo alcance y fecha", () => {

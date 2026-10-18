@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fechaActualMexico } from "../../inteligencia/services/asistenciaOperativaService";
-import { analizarBacklogOperativo } from "../utils/higieneBacklogOperativo";
-import { cancelarCopiasExactas, obtenerBacklogOperativo } from "../services/higieneBacklogService";
+import { analizarBacklogOperativo, construirColaRescateBacklog } from "../utils/higieneBacklogOperativo";
+import {
+  cancelarCopiasExactas,
+  obtenerBacklogOperativo,
+  obtenerResponsablesRescate,
+  reprogramarTareaVencida,
+} from "../services/higieneBacklogService";
 import "./HigieneBacklogOperativo.css";
 
 function nombreSucursal(branchId, sucursales) {
@@ -16,6 +21,12 @@ function fechaVisible(valor) {
     : fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function sumarDias(fechaIso, dias) {
+  const fecha = new Date(`${fechaIso}T12:00:00Z`);
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+}
+
 export default function HigieneBacklogOperativo({
   organizationId,
   businessId,
@@ -23,12 +34,16 @@ export default function HigieneBacklogOperativo({
   onAbrirEquipo,
 }) {
   const [tareas, setTareas] = useState([]);
+  const [responsables, setResponsables] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [grupoActivo, setGrupoActivo] = useState(null);
   const [confirmacion, setConfirmacion] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [errorResponsables, setErrorResponsables] = useState("");
+  const [tareaRescate, setTareaRescate] = useState(null);
+  const [borradorRescate, setBorradorRescate] = useState(null);
 
   const cargar = useCallback(async () => {
     if (!organizationId || !businessId) {
@@ -39,7 +54,19 @@ export default function HigieneBacklogOperativo({
     setCargando(true);
     setError("");
     try {
-      setTareas(await obtenerBacklogOperativo({ organizationId, businessId }));
+      const [resultadoTareas, resultadoResponsables] = await Promise.allSettled([
+        obtenerBacklogOperativo({ organizationId, businessId }),
+        obtenerResponsablesRescate({ organizationId, businessId }),
+      ]);
+      if (resultadoTareas.status === "rejected") throw resultadoTareas.reason;
+      setTareas(resultadoTareas.value);
+      if (resultadoResponsables.status === "fulfilled") {
+        setResponsables(resultadoResponsables.value);
+        setErrorResponsables("");
+      } else {
+        setResponsables([]);
+        setErrorResponsables("No fue posible comprobar qué empleadas tienen acceso. La reprogramación queda bloqueada; el resto de la bandeja continúa disponible.");
+      }
     } catch (fallo) {
       setTareas([]);
       setError(fallo?.message || "No fue posible revisar el trabajo abierto.");
@@ -53,6 +80,51 @@ export default function HigieneBacklogOperativo({
   const analisis = useMemo(() => analizarBacklogOperativo(tareas, {
     hoy: fechaActualMexico(),
   }), [tareas]);
+  const colaRescate = useMemo(() => construirColaRescateBacklog(tareas, {
+    hoy: fechaActualMexico(),
+  }), [tareas]);
+
+  function abrirRescate(tarea) {
+    const disponibles = responsables.filter((item) =>
+      item.branch_id === tarea.branch_id && item.accesoConfirmado,
+    );
+    const responsableActual = disponibles.find((item) =>
+      item.responsable_usuario_id === tarea.responsable_usuario_id,
+    ) || disponibles.find((item) => item.nombre === tarea.responsable) || null;
+    setTareaRescate(tarea);
+    setBorradorRescate({
+      nuevaFecha: sumarDias(fechaActualMexico(), 1),
+      responsableEmpleadoId: responsableActual?.id || "",
+      criterioExito: tarea.criterio_exito || "",
+      motivo: "",
+      confirmacion: "",
+    });
+    setError("");
+    setMensaje("");
+  }
+
+  async function guardarRescate() {
+    setGuardando(true);
+    setError("");
+    setMensaje("");
+    try {
+      const actualizada = await reprogramarTareaVencida({
+        organizationId,
+        businessId,
+        tareaId: tareaRescate.id,
+        versionOriginal: tareaRescate.updated_at,
+        ...borradorRescate,
+      });
+      setMensaje(`Tarea reprogramada para ${fechaVisible(actualizada.fecha)} y asignada a ${actualizada.responsable}. La fecha anterior quedó en el historial.`);
+      setTareaRescate(null);
+      setBorradorRescate(null);
+      await cargar();
+    } catch (fallo) {
+      setError(fallo?.message || "No fue posible reprogramar la tarea.");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   async function confirmarGrupo(grupo) {
     setGuardando(true);
@@ -102,9 +174,62 @@ export default function HigieneBacklogOperativo({
 
       {!cargando && (
         <div className="backlog-hygiene__priority">
-          <div><small>SIGUIENTE DECISIÓN</small><strong>{analisis.prioridad}</strong></div>
-          <button type="button" onClick={onAbrirEquipo}>Reprogramar en Equipo →</button>
+          <div><small>SIGUIENTE DECISIÓN</small><strong>{analisis.prioridad}</strong><span>{colaRescate.sinUsuarioVinculado} vencida{colaRescate.sinUsuarioVinculado === 1 ? "" : "s"} sin usuario vinculado.</span></div>
+          <button type="button" onClick={() => {
+            const panel = document.getElementById("backlog-rescue-plan");
+            if (panel) {
+              panel.open = true;
+              panel.scrollIntoView({ behavior: "smooth", block: "start" });
+            } else {
+              onAbrirEquipo?.();
+            }
+          }}>Revisar plan de rescate ↓</button>
         </div>
+      )}
+
+      {!cargando && colaRescate.total > 0 && (
+        <details id="backlog-rescue-plan" className="backlog-hygiene__rescue">
+          <summary>Plan de rescate · {colaRescate.total} tarea{colaRescate.total === 1 ? "" : "s"} por decidir</summary>
+          <p className="backlog-hygiene__rule">REAL: se priorizan antigüedad, prioridad registrada, falta de usuario y evidencia. MONYS no cierra ni reasigna automáticamente.</p>
+          {errorResponsables && <p className="backlog-hygiene__notice is-error">{errorResponsables}</p>}
+          {colaRescate.requierenRevision.length > 0 && (
+            <p className="backlog-hygiene__review-lock">PENDIENTE: {colaRescate.requierenRevision.length} tarea{colaRescate.requierenRevision.length === 1 ? " ya fue iniciada" : "s ya fueron iniciadas"}; primero debe revisarse su avance.</p>
+          )}
+          <div className="backlog-hygiene__rescue-list">
+            {colaRescate.candidatas.slice(0, 6).map((tarea) => {
+              const responsablesSucursal = responsables.filter((item) =>
+                item.branch_id === tarea.branch_id && item.accesoConfirmado,
+              );
+              const formularioAbierto = tareaRescate?.id === tarea.id && borradorRescate;
+              return (
+                <article key={`rescate-${tarea.id}`} data-nivel={tarea.nivel}>
+                  <div className="backlog-hygiene__rescue-head">
+                    <span>{tarea.nivel}</span>
+                    <small>{tarea.diasVencida} día{tarea.diasVencida === 1 ? "" : "s"} vencida</small>
+                  </div>
+                  <h3>{tarea.titulo}</h3>
+                  <p>{nombreSucursal(tarea.branch_id, sucursales)} · {tarea.responsable || "Sin responsable"}</p>
+                  {tarea.faltantes.length > 0 && <small>Falta: {tarea.faltantes.join(", ")}.</small>}
+                  {responsablesSucursal.length === 0 && <small>PENDIENTE: no hay una empleada activa con acceso confirmado en esta sucursal.</small>}
+
+                  {formularioAbierto ? (
+                    <div className="backlog-hygiene__rescue-form">
+                      <label>Nueva fecha<input type="date" min={fechaActualMexico()} value={borradorRescate.nuevaFecha} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, nuevaFecha: evento.target.value }))} /></label>
+                      <label>Responsable con acceso<select value={borradorRescate.responsableEmpleadoId} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, responsableEmpleadoId: evento.target.value }))}><option value="">Seleccionar</option>{responsablesSucursal.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {item.puesto || "Sin puesto"}</option>)}</select></label>
+                      <label>Resultado que comprobará el cierre<textarea rows={2} maxLength={400} value={borradorRescate.criterioExito} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, criterioExito: evento.target.value }))} /></label>
+                      <label>Por qué se reprograma<textarea rows={2} maxLength={400} value={borradorRescate.motivo} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, motivo: evento.target.value }))} /></label>
+                      <label>Para autorizar escribe <b>REPROGRAMAR</b><input autoComplete="off" value={borradorRescate.confirmacion} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, confirmacion: evento.target.value.toUpperCase() }))} /></label>
+                      <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Volver</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR"}>{guardando ? "Guardando…" : "Autorizar rescate"}</button></div>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => abrirRescate(tarea)} disabled={responsablesSucursal.length === 0}>Preparar rescate →</button>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+          {colaRescate.candidatas.length > 6 && <p className="backlog-hygiene__limit">Se muestran las 6 prioridades mayores de {colaRescate.candidatas.length}. Al resolver una, MONYS carga la siguiente.</p>}
+        </details>
       )}
 
       {!cargando && analisis.gruposDuplicados.length > 0 && (
@@ -143,7 +268,7 @@ export default function HigieneBacklogOperativo({
         <p className="backlog-hygiene__empty">No hay copias exactas que MONYS pueda proponer con seguridad.</p>
       )}
 
-      <footer>REAL: tareas consultadas en Supabase · PENDIENTE: dato que impide decidir · Las canceladas conservan motivo, tarea principal, usuario y fecha.</footer>
+      <footer>REAL: tareas consultadas en Supabase · PENDIENTE: dato que impide decidir · Cancelaciones y reprogramaciones conservan motivo, usuario y fecha original.</footer>
     </section>
   );
 }
