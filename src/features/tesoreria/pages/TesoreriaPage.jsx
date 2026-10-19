@@ -267,6 +267,14 @@ function TesoreriaPage({
 
   return (
     <main className="tesoreria-page">
+      <button
+        type="button"
+        className="boton-volver boton-volver--superior"
+        onClick={regresarAlDashboard}
+        disabled={guardando}
+      >
+        ← Volver al inicio
+      </button>
       <section className="tesoreria-encabezado">
         <span className="etiqueta">
           TESORERÍA
