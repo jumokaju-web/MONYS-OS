@@ -70,6 +70,7 @@ export default function FlotillaChofer({
   const [guardandoLiquidacion, setGuardandoLiquidacion] = useState(false);
   const [mensajeLiquidacion, setMensajeLiquidacion] = useState("");
   const [errorLiquidacion, setErrorLiquidacion] = useState("");
+  const [vistaChofer, setVistaChofer] = useState("INICIO");
 
   const unidad =
     unidades.find((item) => item.id === unidadId) || null;
@@ -312,6 +313,11 @@ export default function FlotillaChofer({
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function abrirVistaChofer(vista) {
+    setVistaChofer(vista);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
+
   const placasReales =
     unidad?.placas || "—";
 
@@ -539,7 +545,28 @@ export default function FlotillaChofer({
           </div>
         )}
 
-        <div id="flotilla-pnr" style={{ scrollMarginTop: "16px" }}>
+        <div
+          id="flotilla-pnr"
+          hidden={!esVistaAdministrativa && vistaChofer !== "PNR"}
+          style={{ scrollMarginTop: "16px" }}
+        >
+        {!esVistaAdministrativa && vistaChofer === "PNR" && (
+          <button
+            type="button"
+            onClick={() => abrirVistaChofer("INICIO")}
+            style={{
+              marginBottom: "10px",
+              border: "1px solid #cfe1f2",
+              borderRadius: "10px",
+              background: "#fff",
+              color: "#174b7a",
+              padding: "9px 11px",
+              fontWeight: 850,
+            }}
+          >
+            ← Volver al inicio
+          </button>
+        )}
         {esVistaAdministrativa && (
           <>
             {puedeGestionarPnr && <FlotillaPnr modoAdministracion />}
@@ -567,6 +594,7 @@ export default function FlotillaChofer({
 
         {!esVistaAdministrativa && (
         <>
+        <div hidden={vistaChofer !== "INICIO"}>
         {/* SALUDO */}
         <div
           style={{
@@ -594,7 +622,7 @@ export default function FlotillaChofer({
                 marginTop: "2px",
               }}
             >
-              Chofer · MLP
+              Chofer · {usuario?.sucursal || "Flotilla"}
             </div>
           </div>
 
@@ -625,6 +653,44 @@ export default function FlotillaChofer({
             </div>
           </div>
         </div>
+
+        <section
+          aria-label="Accesos rápidos del chofer"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: "8px",
+            marginBottom: "14px",
+          }}
+        >
+          {[
+            ["RUTA", "🗺️", "Mi ruta"],
+            ["PNR", "📦", "PNR e incidencias"],
+            ["RESUMEN", "💰", "Mi resumen"],
+          ].map(([vista, icono, texto]) => (
+            <button
+              key={vista}
+              type="button"
+              onClick={() => abrirVistaChofer(vista)}
+              style={{
+                minWidth: 0,
+                minHeight: "76px",
+                padding: "10px 6px",
+                border: "1px solid #cfe1f2",
+                borderRadius: "14px",
+                background: "#ffffff",
+                color: "#174b7a",
+                fontWeight: 850,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ display: "block", fontSize: "22px", marginBottom: "5px" }}>
+                {icono}
+              </span>
+              <span style={{ fontSize: "11px", lineHeight: 1.2 }}>{texto}</span>
+            </button>
+          ))}
+        </section>
 
         {/* UNIDAD */}
         <div
@@ -803,6 +869,7 @@ export default function FlotillaChofer({
 
 
         </div>
+        </div>
 
         {/* BOTONES PRINCIPALES */}
         <div
@@ -861,6 +928,22 @@ export default function FlotillaChofer({
         </div>
 
         {/* MI RUTA */}
+        <div hidden={vistaChofer !== "RUTA"}>
+        <button
+          type="button"
+          onClick={() => abrirVistaChofer("INICIO")}
+          style={{
+            marginBottom: "10px",
+            border: "1px solid #cfe1f2",
+            borderRadius: "10px",
+            background: "#fff",
+            color: "#174b7a",
+            padding: "9px 11px",
+            fontWeight: 850,
+          }}
+        >
+          ← Volver al inicio
+        </button>
 {cargandoRuta && (
   <p role="status">Consultando la ruta de hoy...</p>
 )}
@@ -965,6 +1048,7 @@ export default function FlotillaChofer({
 </div>
           </div>
         </section>
+        </div>
 
         {puedeCapturarLiquidacionAdministrativa && (
         <form
@@ -1123,6 +1207,7 @@ export default function FlotillaChofer({
         {/* ECONOMÍA + GASTO */}
         <div
           id="flotilla-resumen"
+          hidden={vistaChofer !== "RESUMEN"}
           style={{
             scrollMarginTop: "16px",
             display: "grid",
@@ -1130,6 +1215,21 @@ export default function FlotillaChofer({
             gap: "10px",
           }}
         >
+          <button
+            type="button"
+            onClick={() => abrirVistaChofer("INICIO")}
+            style={{
+              border: "1px solid #cfe1f2",
+              borderRadius: "10px",
+              background: "#fff",
+              color: "#174b7a",
+              padding: "9px 11px",
+              fontWeight: 850,
+              justifySelf: "start",
+            }}
+          >
+            ← Volver al inicio
+          </button>
           <section
             style={{
               background: "#ffffff",
@@ -1395,10 +1495,10 @@ export default function FlotillaChofer({
               ]
             : [
                 [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
-                ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
-                ["📦", "PNR", () => irASeccion("flotilla-pnr")],
-                ["🗺️", "Mi ruta", () => irASeccion("flotilla-ruta")],
-                ["💰", "Resumen", () => irASeccion("flotilla-resumen")],
+                ["🏠", "Inicio", () => abrirVistaChofer("INICIO")],
+                ["📦", "PNR", () => abrirVistaChofer("PNR")],
+                ["🗺️", "Mi ruta", () => abrirVistaChofer("RUTA")],
+                ["💰", "Resumen", () => abrirVistaChofer("RESUMEN")],
               ]
           ).map(([icono, texto, accion]) => (
             <button
