@@ -191,14 +191,14 @@ function DirectorComercial({
   return (
     <section
       style={{
-        marginTop: "30px",
-        padding: "28px",
-        borderRadius: "22px",
+        marginTop: "16px",
+        padding: "clamp(12px, 3vw, 20px)",
+        borderRadius: "16px",
         background:
           "linear-gradient(135deg, #ffffff 0%, #fff4fa 100%)",
         border: "1px solid #e8b9d0",
         boxShadow:
-          "0 12px 35px rgba(112, 53, 84, 0.12)",
+          "0 6px 18px rgba(112, 53, 84, 0.08)",
       }}
     >
       <div
@@ -226,7 +226,9 @@ function DirectorComercial({
           <h2
             style={{
               margin: 0,
-              fontSize: "28px",
+              fontSize: "clamp(21px, 5vw, 26px)",
+              lineHeight: 1.2,
+              color: "#352d34",
             }}
           >
             🛒 Informe Comercial IA
@@ -235,7 +237,7 @@ function DirectorComercial({
 
         <div
           style={{
-            padding: "11px 17px",
+            padding: "8px 12px",
             borderRadius: "999px",
             backgroundColor:
               estiloNivel.fondo,
@@ -243,13 +245,21 @@ function DirectorComercial({
               `1px solid ${estiloNivel.borde}`,
             color:
               estiloNivel.color,
-            fontWeight: "800",
+            fontWeight: "700",
+            fontSize: "13px",
           }}
         >
           {estiloNivel.icono}{" "}
           {nivelComercial.etiqueta}
         </div>
       </div>
+
+      <CentroCRMComercial
+        organizationId={organizationId || datosDashboard?.organization_id}
+        businessId={businessId || datosDashboard?.business_id}
+        branchId={branchId || datosDashboard?.branch_id}
+        empleados={empleados}
+      />
 
       <div
         style={{
@@ -821,13 +831,6 @@ function DirectorComercial({
           )
         )}
       </div>
-
-      <CentroCRMComercial
-        organizationId={organizationId || datosDashboard?.organization_id}
-        businessId={businessId || datosDashboard?.business_id}
-        branchId={branchId || datosDashboard?.branch_id}
-        empleados={empleados}
-      />
 
       {planAccion.length > 0 && (
         <div
