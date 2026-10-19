@@ -84,6 +84,7 @@ export default function CentroCRMComercial({
   branchId,
   empleados = [],
 }) {
+  const [seccionCRM, setSeccionCRM] = useState("RESUMEN");
   const [oportunidades, setOportunidades] = useState([]);
   const [interacciones, setInteracciones] = useState([]);
   const [borradoresInteraccion, setBorradoresInteraccion] = useState({});
@@ -297,13 +298,19 @@ export default function CentroCRMComercial({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <p style={{ margin: "0 0 3px", color: "#a83b70", fontWeight: 750, fontSize: 10, letterSpacing: ".07em" }}>MONYS OS · CRM Y VENTAS</p>
-          <h3 style={{ margin: 0, fontSize: "clamp(18px, 4.7vw, 21px)", lineHeight: 1.2, color: "#352d34", fontWeight: 750 }}>🤝 Seguimiento de clientes</h3>
-          <p style={{ margin: "4px 0 0", color: "#716a73", fontSize: 12 }}>Etapa, responsable y siguiente paso de cada oportunidad.</p>
+          <h3 style={{ margin: 0, fontSize: "clamp(16px, 4.2vw, 19px)", lineHeight: 1.2, color: "#352d34", fontWeight: 750 }}>🤝 Seguimiento de clientes</h3>
+          <p style={{ margin: "4px 0 0", color: "#716a73", fontSize: 11 }}>Etapa, responsable y siguiente paso de cada oportunidad.</p>
         </div>
-        <button type="button" onClick={() => { setMostrarFormulario((valor) => !valor); setError(""); }} style={{ border: 0, borderRadius: 9, padding: "9px 12px", background: "#a83b70", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+        <button type="button" onClick={() => { setSeccionCRM("SEGUIMIENTOS"); setMostrarFormulario((valor) => !valor); setError(""); }} style={{ border: 0, borderRadius: 9, padding: "8px 10px", background: "#a83b70", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           {mostrarFormulario ? "Cerrar captura" : "+ Registrar oportunidad"}
         </button>
       </div>
+
+      <nav aria-label="Secciones de clientes" role="tablist" style={{ display: "flex", gap: 6, overflowX: "auto", marginTop: 10, paddingBottom: 2 }}>
+        {[["RESUMEN", "Resumen"], ["SEGUIMIENTOS", "Seguimientos"], ["RESULTADOS", "Resultados"]].map(([id, nombre]) => (
+          <button key={id} type="button" role="tab" aria-selected={seccionCRM === id} onClick={() => setSeccionCRM(id)} style={{ flex: "0 0 auto", minHeight: 36, padding: "7px 10px", border: "1px solid #e6d4de", borderRadius: 999, background: seccionCRM === id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{nombre}</button>
+        ))}
+      </nav>
 
       <div style={{ ...caja, marginTop: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <strong style={{ color: "#8f315f", fontSize: 13 }}>Vista de Dirección</strong>
@@ -318,7 +325,9 @@ export default function CentroCRMComercial({
         <span style={{ color: "#697386", fontSize: 13 }}>Datos del CRM del negocio · {resumenDireccion.total} oportunidades en esta vista</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 9, marginTop: 9 }}>
+      {seccionCRM === "RESUMEN" && (
+      <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 8, marginTop: 8 }}>
         {[
           ["Sin responsable", resumenDireccion.sinResponsable],
           ["Seguimientos vencidos", resumenDireccion.vencidas],
@@ -327,35 +336,33 @@ export default function CentroCRMComercial({
           ["Sin respuesta · 3+ días", resumenDireccion.sinRespuesta],
           ["Ventas ligadas a folio SICAR", resumenDireccion.ventasSicar],
           ["Mediana primera respuesta", resumenDireccion.primeraRespuesta.medianaMinutos == null ? "Sin muestra" : `${resumenDireccion.primeraRespuesta.medianaMinutos} min`],
-        ].map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 9 }}><div style={{ color: "#706974", fontSize: 11, lineHeight: 1.35 }}>{titulo}</div><strong style={{ display: "block", marginTop: 3, color: "#8f315f", fontSize: 16, lineHeight: 1.2 }}>{valor}</strong></div>)}
+        ].slice(0, 5).map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 8 }}><div style={{ color: "#706974", fontSize: 10, lineHeight: 1.3 }}>{titulo}</div><strong style={{ display: "block", marginTop: 3, color: "#8f315f", fontSize: 15, lineHeight: 1.2 }}>{valor}</strong></div>)}
       </div>
-      <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>La primera respuesta se calcula entre marcas de tiempo guardadas en MONYS OS (n={resumenDireccion.primeraRespuesta.muestra}); no representa una medición automática de WhatsApp. “Sin respuesta” usa una regla operativa de 3 días. Tasas por responsable, sucursal, canal y producto usan oportunidades cerradas y no prueban causalidad.</p>
+      <p style={{ margin: "6px 0 0", color: "#697386", fontSize: 10 }}>Primera respuesta: marcas registradas en MONYS OS (n={resumenDireccion.primeraRespuesta.muestra}); no es medición automática de WhatsApp. “Sin respuesta” usa una regla operativa de 3 días.</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 10, marginTop: 10 }}>
         <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Siguiente acción sugerida</strong><div style={{ display: "grid", gap: 7, marginTop: 8 }}>
         {resumenDireccion.acciones.slice(0, 6).map((fila) => <div key={fila.id} style={{ padding: 9, background: fila.prioridad >= 85 ? "#fff5f8" : "#fffafd", borderRadius: 8 }}><strong>{fila.cliente}</strong><div style={{ color: "#625962", fontSize: 12, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#766d75" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => { setFiltro("TODAS"); globalThis.requestAnimationFrame?.(() => document.getElementById(`crm-oportunidad-${fila.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ border: 0, background: "transparent", padding: "5px 0 0", color: "#a83b70", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Abrir oportunidad ↓</button></div></div>)}
           {!resumenDireccion.acciones.length && <span style={{ color: "#697386" }}>No hay oportunidades abiertas que requieran acción.</span>}
         </div></div>
+      </div>
+      </>
+      )}
+
+      {seccionCRM === "RESULTADOS" && (
+      <>
         <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Motivos de pérdida documentados</strong><p style={{ margin: "6px 0", color: "#625962", fontSize: 11 }}>REAL · {resumenDireccion.razonesPerdida.length} con motivo · {resumenDireccion.perdidasSinMotivo} sin motivo estructurado</p>
           {resumenDireccion.razonesPerdida.slice(0, 5).map((fila) => <div key={fila.oportunidadId} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}>{fila.motivo}</div>)}
           <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>EVIDENCIA · {resumenDireccion.textosAsociados.length} mensajes salientes guardados en oportunidades con folio SICAR. Son ejemplos asociados a ventas registradas, no evidencia de que el mensaje causó la compra. HIPÓTESIS · todavía no hay comparación por tipo de respuesta suficiente para recomendar un texto ganador.</p>
           {resumenDireccion.textosAsociados.slice(0, 3).map((fila) => <div key={`${fila.oportunidadId}-${fila.folio}-${fila.texto}`} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}><span style={{ color: "#267044", fontWeight: 700 }}>Folio {fila.folio} · </span>{fila.texto}</div>)}
           {!resumenDireccion.textosAsociados.length && <span style={{ color: "#697386", fontSize: 13 }}>Sin mensajes salientes vinculados a una venta con folio.</span>}
         </div>
-      </div>
 
       <div style={{ ...caja, marginTop: 9, overflowX: "auto" }}><strong style={{ color: "#8f315f", fontSize: 13 }}>Conversión descriptiva por segmento</strong><p style={{ margin: "4px 0 7px", color: "#716a73", fontSize: 11 }}>Ganadas / (ganadas + perdidas). Solo ventas con folio SICAR cuentan como ganadas válidas.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(210px, 100%), 1fr))", gap: 9 }}>
           {[["Responsable asignado", resumenDireccion.porResponsable], ["Sucursal", resumenDireccion.porSucursal], ["Canal", resumenDireccion.porCanal], ["Producto", resumenDireccion.porProducto]].map(([titulo, filas]) => <div key={titulo}><strong style={{ fontSize: 13 }}>{titulo}</strong>{filas.slice(0, 5).map((fila) => <div key={fila.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid #edf0f5", fontSize: 12 }}><span>{fila.nombre} · {fila.ganadas}/{fila.cerradas} cerradas</span><b>{fila.conversion == null ? "Sin muestra" : `${fila.conversion}%`}</b></div>)}{!filas.length && <p style={{ color: "#697386", fontSize: 12 }}>Sin datos.</p>}</div>)}
         </div>
       </div>
-
-      {perdidaPendiente && <div role="dialog" aria-modal="true" aria-labelledby="crm-perdida-titulo" style={{ ...caja, marginTop: 12, borderColor: "#e3b9b9", background: "#fff8f8" }}>
-        <strong id="crm-perdida-titulo">¿Por qué se perdió la oportunidad de {perdidaPendiente.cliente}?</strong>
-        <p style={{ margin: "6px 0", color: "#697386", fontSize: 13 }}>Registra el motivo comunicado o conocido. No elijas una causa supuesta.</p>
-        <textarea rows={2} value={motivoPerdida} onChange={(e) => setMotivoPerdida(e.target.value)} style={{ ...campo, marginTop: 4 }} placeholder="Ej.: encontró el producto a menor precio, no hubo existencia…" />
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}><button type="button" onClick={confirmarPerdida} style={{ border: 0, borderRadius: 9, padding: "10px 13px", background: "#8c3541", color: "white", fontWeight: 700 }}>Guardar motivo y cerrar</button><button type="button" onClick={() => setPerdidaPendiente(null)} style={{ border: "1px solid #d9dce5", borderRadius: 9, padding: "10px 13px", background: "white" }}>Cancelar</button></div>
-      </div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 9, marginTop: 14 }}>
         {[
@@ -391,10 +398,20 @@ export default function CentroCRMComercial({
           })}
         </div>
       </div>
+      </>
+      )}
 
       {aviso && <p role="status" style={{ ...caja, marginTop: 14, borderColor: "#b9e5c9", color: "#226b3d", background: "#f1fff5" }}>{aviso}</p>}
       {error && <p role="alert" style={{ ...caja, marginTop: 14, borderColor: "#efb8b8", color: "#982d2d", background: "#fff4f4" }}>{error}</p>}
 
+      {seccionCRM === "SEGUIMIENTOS" && (
+      <>
+      {perdidaPendiente && <div role="dialog" aria-modal="true" aria-labelledby="crm-perdida-titulo" style={{ ...caja, marginTop: 12, borderColor: "#e3b9b9", background: "#fff8f8" }}>
+        <strong id="crm-perdida-titulo">¿Por qué se perdió la oportunidad de {perdidaPendiente.cliente}?</strong>
+        <p style={{ margin: "6px 0", color: "#697386", fontSize: 12 }}>Registra el motivo comunicado o conocido. No elijas una causa supuesta.</p>
+        <textarea rows={2} value={motivoPerdida} onChange={(e) => setMotivoPerdida(e.target.value)} style={{ ...campo, marginTop: 4 }} placeholder="Ej.: encontró el producto a menor precio, no hubo existencia…" />
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}><button type="button" onClick={confirmarPerdida} style={{ border: 0, borderRadius: 8, padding: "9px 11px", background: "#8c3541", color: "white", fontSize: 12, fontWeight: 700 }}>Guardar motivo y cerrar</button><button type="button" onClick={() => setPerdidaPendiente(null)} style={{ border: "1px solid #e4d9e0", borderRadius: 8, padding: "9px 11px", background: "white", fontSize: 12 }}>Cancelar</button></div>
+      </div>}
       {mostrarFormulario && (
         <form onSubmit={guardar} style={{ ...caja, marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
           <label style={{ display: "grid", gap: 6 }}>Cliente *
@@ -436,7 +453,6 @@ export default function CentroCRMComercial({
           </div>
         </form>
       )}
-
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12, marginBottom: 9 }}>
         {[["ABIERTAS", "Abiertas"], ["TODAS", "Todas"], ["CERRADAS", "Ganadas / perdidas"]].map(([id, etiqueta]) => (
           <button key={id} type="button" onClick={() => setFiltro(id)} style={{ border: "1px solid #e6d4de", borderRadius: 999, padding: "7px 11px", background: filtro === id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{etiqueta}</button>
@@ -512,6 +528,8 @@ export default function CentroCRMComercial({
             );
           })}
         </div>
+      )}
+      </>
       )}
     </section>
   );

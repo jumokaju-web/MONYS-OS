@@ -6,6 +6,46 @@
   background: #fff;
 }
 
+.inteligencia-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 0 8px;
+  border-bottom: 1px solid #eadde4;
+  background: rgba(255, 249, 252, .97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.inteligencia-topbar button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #e2c8d5;
+  border-radius: 10px;
+  background: #fff;
+  color: #70274c;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.inteligencia-topbar button:focus-visible,
+.direction-areas__grid button:focus-visible {
+  outline: 3px solid #b34a7c;
+  outline-offset: 2px;
+}
+
+.inteligencia-topbar .inteligencia-topbar__primary {
+  border-color: #a83b70;
+  background: #a83b70;
+  color: #fff;
+}
+
 .direction-areas > div:first-child > span {
   color: #8b315d;
   font-size: 10px;
@@ -56,6 +96,46 @@
   display: block;
 }
 
+.direction-areas--quick {
+  margin: 8px 0 14px;
+  padding: 13px;
+  border-radius: 13px;
+}
+
+.direction-areas--quick h2 {
+  margin: 4px 0 2px;
+  font-size: clamp(16px, 4vw, 19px);
+}
+
+.direction-areas--quick p {
+  font-size: 12px;
+}
+
+.direction-areas--quick .direction-areas__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.direction-areas--quick .direction-areas__grid button {
+  min-height: 64px;
+  padding: 8px 9px;
+  border-radius: 10px;
+}
+
+.direction-areas--quick .direction-areas__grid button > span {
+  font-size: 16px;
+}
+
+.direction-areas--quick .direction-areas__grid button > strong {
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.direction-areas--quick .direction-areas__grid button > small {
+  font-size: 10px;
+}
+
 .direction-areas__grid button > strong {
   margin: 6px 0 3px;
   font-size: 13px;
@@ -67,11 +147,21 @@
 }
 
 @media (max-width: 620px) {
+  .inteligencia-topbar {
+    padding-top: max(44px, calc(env(safe-area-inset-top, 0px) + 8px));
+  }
+
   .direction-areas {
     padding: 15px;
   }
 
   .direction-areas__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inteligencia-topbar {
+    margin: 0 -3.2vw;
+    padding-left: 3.2vw;
+    padding-right: 3.2vw;
   }
 }

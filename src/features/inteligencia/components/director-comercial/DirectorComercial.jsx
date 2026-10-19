@@ -3,6 +3,7 @@
 // Director Comercial IA 3.0
 // ======================================================
 
+import { useState } from "react";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import { directorComercialIA } from "../../directores/directorComercialIA";
 import CentroCRMComercial from "./CentroCRMComercial";
@@ -17,6 +18,7 @@ function DirectorComercial({
   branchId = null,
   empleados = [],
 }) {
+  const [vistaComercial, setVistaComercial] = useState("inicio");
   const analisis = directorComercialIA(
     datosDashboard
   );
@@ -201,6 +203,44 @@ function DirectorComercial({
           "0 6px 18px rgba(112, 53, 84, 0.08)",
       }}
     >
+      {vistaComercial === "inicio" && (
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: "clamp(8px, 2vw, 16px) 0" }}>
+          <p style={{ margin: "0 0 5px", color: "#a83b70", fontWeight: 800, fontSize: 11, letterSpacing: ".08em" }}>MONYS OS · CENTRO COMERCIAL</p>
+          <h2 style={{ margin: 0, color: "#352d34", fontSize: "clamp(20px, 5vw, 25px)", lineHeight: 1.2 }}>¿Qué quieres revisar?</h2>
+          <p style={{ margin: "6px 0 14px", color: "#716a73", fontSize: 13 }}>Entra directo a clientes o consulta el informe de ventas.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 10 }}>
+            <button type="button" onClick={() => setVistaComercial("crm")} style={{ minHeight: 94, padding: 14, border: "1px solid #e2bfd0", borderRadius: 12, background: "linear-gradient(135deg, #fff2f8, #fff)", color: "#713552", textAlign: "left", cursor: "pointer" }}>
+              <span style={{ display: "block", fontSize: 19 }}>🤝</span>
+              <strong style={{ display: "block", marginTop: 5, fontSize: 14 }}>CRM y seguimiento</strong>
+              <small style={{ display: "block", marginTop: 3, fontSize: 11, color: "#786b73" }}>Conversaciones, cotizaciones y siguiente acción</small>
+            </button>
+            <button type="button" onClick={() => setVistaComercial("informe")} style={{ minHeight: 94, padding: 14, border: "1px solid #e2bfd0", borderRadius: 12, background: "#fff", color: "#713552", textAlign: "left", cursor: "pointer" }}>
+              <span style={{ display: "block", fontSize: 19 }}>📊</span>
+              <strong style={{ display: "block", marginTop: 5, fontSize: 14 }}>Informe de ventas</strong>
+              <small style={{ display: "block", marginTop: 3, fontSize: 11, color: "#786b73" }}>Productos, sucursales y análisis comercial</small>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {vistaComercial === "crm" && (
+        <>
+          <div style={{ margin: "0 0 10px" }}>
+            <button type="button" onClick={() => setVistaComercial("inicio")} style={{ minHeight: 40, padding: "8px 11px", border: "1px solid #e2c8d5", borderRadius: 9, background: "#fff", color: "#70274c", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>← Director Comercial</button>
+            <h2 style={{ margin: "9px 0 0", color: "#352d34", fontSize: "clamp(19px, 4.8vw, 24px)" }}>CRM y seguimiento</h2>
+          </div>
+          <CentroCRMComercial
+            organizationId={organizationId || datosDashboard?.organization_id}
+            businessId={businessId || datosDashboard?.business_id}
+            branchId={branchId || datosDashboard?.branch_id}
+            empleados={empleados}
+          />
+        </>
+      )}
+
+      {vistaComercial === "informe" && (
+        <>
+          <button type="button" onClick={() => setVistaComercial("inicio")} style={{ minHeight: 40, marginBottom: 10, padding: "8px 11px", border: "1px solid #e2c8d5", borderRadius: 9, background: "#fff", color: "#70274c", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>← Director Comercial</button>
       <div
         style={{
           display: "flex",
@@ -253,13 +293,6 @@ function DirectorComercial({
           {nivelComercial.etiqueta}
         </div>
       </div>
-
-      <CentroCRMComercial
-        organizationId={organizationId || datosDashboard?.organization_id}
-        businessId={businessId || datosDashboard?.business_id}
-        branchId={branchId || datosDashboard?.branch_id}
-        empleados={empleados}
-      />
 
       <div
         style={{
@@ -873,6 +906,8 @@ function DirectorComercial({
             )
           )}
         </div>
+      )}
+        </>
       )}
     </section>
   );
