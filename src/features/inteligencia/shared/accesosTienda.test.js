@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolverAccesosTienda } from "./accesosTienda.js";
+import {
+  crearRutaTurnoTienda,
+  resolverAccesosTienda,
+} from "./accesosTienda.js";
 
 test("una vendedora sin responsabilidad de caja no puede abrir el cierre", () => {
   const acceso = resolverAccesosTienda({
@@ -36,4 +39,30 @@ test("un permiso de producto aislado no convierte otro puesto en vendedora", () 
   });
 
   assert.equal(acceso.puedeRegistrarProducto, false);
+});
+
+test("la ruta de una vendedora sin caja no le pide completar el cierre", () => {
+  const ruta = crearRutaTurnoTienda({
+    puedeRegistrarProducto: true,
+    puedeRegistrarIncidencias: true,
+    puedeCaja: false,
+  });
+
+  assert.deepEqual(ruta[2], {
+    titulo: "Lo que pasó",
+    descripcion: "Deja solicitudes e incidencias con datos claros.",
+  });
+  assert.deepEqual(ruta[3], {
+    titulo: "Cierre de turno",
+    descripcion: "Revisa pendientes y deja tu trabajo actualizado.",
+  });
+});
+
+test("la ruta conserva caja y cierre cuando la responsabilidad está habilitada", () => {
+  const ruta = crearRutaTurnoTienda({ puedeCaja: true });
+
+  assert.deepEqual(ruta[3], {
+    titulo: "Caja y cierre",
+    descripcion: "Completa caja antes de terminar.",
+  });
 });
