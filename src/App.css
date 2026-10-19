@@ -397,3 +397,19 @@ h1 {
     text-align: left;
   }
 }
+.boton-regreso-fijo {
+  position: sticky;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  z-index: 50;
+  display: block;
+  margin: 10px 14px 12px;
+  padding: 10px 14px;
+  border: 1px solid #dfc9d4;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #6f294c;
+  font-size: 14px;
+  font-weight: 850;
+  box-shadow: 0 6px 18px rgba(94, 48, 72, 0.08);
+  cursor: pointer;
+}

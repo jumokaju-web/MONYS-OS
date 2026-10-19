@@ -361,6 +361,11 @@ export default function FlotillaChofer({
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "14px",
+            position: "sticky",
+            top: "env(safe-area-inset-top, 0px)",
+            zIndex: 30,
+            padding: "10px 0",
+            background: "rgba(238, 248, 255, 0.96)",
           }}
         >
           <div>
@@ -560,6 +565,8 @@ export default function FlotillaChofer({
         )}
         </div>
 
+        {!esVistaAdministrativa && (
+        <>
         {/* SALUDO */}
         <div
           style={{
@@ -1362,6 +1369,8 @@ export default function FlotillaChofer({
             </button>
           </section>
         </div>
+        </>
+        )}
 
         {/* MENÚ INFERIOR */}
         <div
@@ -1378,13 +1387,20 @@ export default function FlotillaChofer({
             zIndex: 20,
           }}
         >
-          {[
-            [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
-            ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
-            ["📦", "PNR", () => irASeccion("flotilla-pnr")],
-            ["🗺️", "Mi ruta", () => irASeccion("flotilla-ruta")],
-            ["💰", "Resumen", () => irASeccion("flotilla-resumen")],
-          ].map(([icono, texto, accion]) => (
+          {(esVistaAdministrativa
+            ? [
+                [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
+                ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
+                ["📦", "Control", () => irASeccion("flotilla-pnr")],
+              ]
+            : [
+                [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
+                ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
+                ["📦", "PNR", () => irASeccion("flotilla-pnr")],
+                ["🗺️", "Mi ruta", () => irASeccion("flotilla-ruta")],
+                ["💰", "Resumen", () => irASeccion("flotilla-resumen")],
+              ]
+          ).map(([icono, texto, accion]) => (
             <button
               type="button"
               key={texto}

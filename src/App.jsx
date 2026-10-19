@@ -22,6 +22,7 @@ import SicarResumen from "./features/dashboard/components/SicarResumen";
 import OperacionHoy from "./features/inteligencia/components/OperacionHoy";
 import InicioEmpleado from "./features/inteligencia/components/InicioEmpleado";
 import InicioJefa from "./features/dashboard/InicioJefa";
+import InicioAdministrador from "./features/dashboard/InicioAdministrador";
 import HigieneBacklogOperativo from "./features/dashboard/components/HigieneBacklogOperativo";
 import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
@@ -597,6 +598,22 @@ const disponible =
       metricasVentas.totalPiezas
     ) || 0;
 
+  const ventasTotalesDisponibles =
+    metricasVentas.ventasTotales !== null &&
+    metricasVentas.ventasTotales !== undefined &&
+    String(metricasVentas.ventasTotales).trim() !== "" &&
+    Number.isFinite(Number(metricasVentas.ventasTotales))
+      ? Number(metricasVentas.ventasTotales)
+      : null;
+
+  const utilidadTotalDisponible =
+    metricasVentas.utilidadTotal !== null &&
+    metricasVentas.utilidadTotal !== undefined &&
+    String(metricasVentas.utilidadTotal).trim() !== "" &&
+    Number.isFinite(Number(metricasVentas.utilidadTotal))
+      ? Number(metricasVentas.utilidadTotal)
+      : null;
+
   const formatoDinero =
     (cantidad) =>
       new Intl.NumberFormat(
@@ -792,6 +809,14 @@ const disponible =
       }
 
       if (
+        nombre === "Problemas e incidencias" ||
+        nombre === "Ideas y oportunidades"
+      ) {
+        setPantallaActual("operacion");
+        return;
+      }
+
+      if (
         nombre ===
         "Usuarios"
       ) {
@@ -940,6 +965,51 @@ const disponible =
           }}
         />
       </>
+    );
+  }
+
+  if (pantallaActual === "operacion") {
+    return (
+      <main className="app">
+        <Header />
+        <button
+          type="button"
+          className="boton-regreso-fijo"
+          onClick={() => setPantallaActual("dashboard")}
+        >
+          ← Volver al inicio
+        </button>
+        <div id="operacion-equipo">
+          <OperacionHoy
+            organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
+            businessId={datosDashboard?.business_id || usuario?.business_id || null}
+            branchId={datosDashboard?.branch_id || usuario?.branch_id || null}
+            datosDashboard={datosDashboard}
+          />
+        </div>
+        <CierreTurno branchId={usuario?.branch_id || null} usuario={usuario} />
+      </main>
+    );
+  }
+
+  if (pantallaActual === "ventas") {
+    if (!puedeVerVentas) return mostrarAccesoDenegado("Ventas");
+    return (
+      <main className="app">
+        <Header />
+        <button
+          type="button"
+          className="boton-regreso-fijo"
+          onClick={() => setPantallaActual("dashboard")}
+        >
+          ← Volver al inicio
+        </button>
+        <SicarResumen
+          datosDashboard={datosDashboard}
+          cargandoDashboard={cargandoDashboard}
+          errorDashboard={errorDashboard}
+        />
+      </main>
     );
   }
 
@@ -1236,6 +1306,24 @@ if (
     />
   );
 }
+
+  if (esAdmin) {
+    return (
+      <>
+        <Header />
+        <InicioAdministrador
+          usuario={usuario}
+          modulos={modulosVisibles}
+          abrirModulo={abrirModulo}
+          abrirOperacion={() => setPantallaActual("operacion")}
+          abrirVentas={() => setPantallaActual("ventas")}
+          ventasTotales={ventasTotalesDisponibles}
+          utilidadTotal={utilidadTotalDisponible}
+          formatoDinero={formatoDinero}
+        />
+      </>
+    );
+  }
 
 if (esOwner) {
   return (

@@ -108,6 +108,18 @@
   cursor: pointer;
 }
 
+.boton-volver--superior {
+  position: sticky;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  z-index: 30;
+  width: fit-content;
+  margin: 0 0 14px;
+  border: 1px solid #e2ccd7;
+  background: rgba(255, 255, 255, 0.96);
+  color: #6f294c;
+  box-shadow: 0 6px 18px rgba(94, 48, 72, 0.08);
+}
+
 .boton-volver:hover {
   background: rgba(111, 22, 63, 0.06);
   color: #7d1d4b;

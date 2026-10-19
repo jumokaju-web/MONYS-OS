@@ -49,6 +49,7 @@ export default function CentroUsuarios({
   volverAlDashboard,
 }) {
   const { usuario: usuarioActual } = useUser();
+  const esPropietaria = usuarioActual?.role === "owner";
   const [usuarios, setUsuarios] =
     useState([]);
 
@@ -607,25 +608,27 @@ async function guardarCambiosPermisos() {
             : "s"}
         </strong>
 
-        <button
-          type="button"
-          onClick={
-            abrirFormulario
-          }
-          style={{
-            padding:
-              "11px 18px",
-            borderRadius: "10px",
-            border: "none",
-            background:
-              "#5e3048",
-            color: "#ffffff",
-            fontWeight: "800",
-            cursor: "pointer",
-          }}
-        >
-          ＋ Nuevo usuario
-        </button>
+        {esPropietaria ? (
+          <button
+            type="button"
+            onClick={abrirFormulario}
+            style={{
+              padding: "11px 18px",
+              borderRadius: "10px",
+              border: "none",
+              background: "#5e3048",
+              color: "#ffffff",
+              fontWeight: "800",
+              cursor: "pointer",
+            }}
+          >
+            ＋ Nuevo usuario
+          </button>
+        ) : (
+          <span style={{ color: "#766a70", fontSize: "13px", fontWeight: 700 }}>
+            Consulta de accesos · Mónica autoriza los cambios
+          </span>
+        )}
       </div>
 
       {mostrarFormulario && (
@@ -1212,7 +1215,7 @@ async function guardarCambiosPermisos() {
                     </span>
                   </div>
 
-                  {usuario.role !==
+                  {esPropietaria && usuario.role !==
                     "owner" && (
                     <div
                       style={{
@@ -1222,8 +1225,7 @@ async function guardarCambiosPermisos() {
                         marginTop: "18px",
                       }}
                     >
-                      {usuarioActual?.role === "owner" && (
-                        <button
+                      <button
                           type="button"
                           onClick={() => abrirEditorPermisos(usuario)}
                           style={{
@@ -1238,7 +1240,6 @@ async function guardarCambiosPermisos() {
                         >
                           🔐 Editar permisos
                         </button>
-                      )}
                       <button
                         type="button"
                         onClick={() =>
