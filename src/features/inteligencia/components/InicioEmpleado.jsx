@@ -11,9 +11,10 @@ import {
   detalleResponsabilidadesEmpleado,
   resolverResponsabilidadesEmpleado,
 } from "../shared/responsabilidadesEmpleado";
+import { resolverAccesosTienda } from "../shared/accesosTienda";
 import "./InicioEmpleado.css";
 
-export default function InicioEmpleado({ usuario, datosDashboard }) {
+export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] }) {
   const branchId = usuario?.branch_id || datosDashboard?.branch_id || null;
 
   const nombre = usuario?.nombre || "Equipo MONYS";
@@ -23,11 +24,12 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
   const esMarketing = esPerfilGrowth({ ...usuario, puesto });
   const responsabilidades = resolverResponsabilidadesEmpleado(usuario);
   const responsabilidadesDetalle = detalleResponsabilidadesEmpleado(usuario);
-  const puedeRegistrarProducto = responsabilidades.some((item) =>
-    ["VENTA_TIENDA", "VENTA_WHATSAPP", "INVENTARIO_APOYO"].includes(item)
-  );
-  const puedeCaja = responsabilidades.includes("CAJA_CORTE");
-  const puedeWhatsApp = responsabilidades.includes("VENTA_WHATSAPP");
+  const {
+    puedeCaja,
+    puedeWhatsApp,
+    puedeRegistrarIncidencias,
+    puedeRegistrarProducto,
+  } = resolverAccesosTienda({ responsabilidades, permisos });
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
   const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
   const [nombrePreferido, setNombrePreferido] = useState("");
@@ -120,7 +122,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
     }, 80);
   }
 
-  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} puedeWhatsApp={puedeWhatsApp} cerrarSesion={cerrarSesion}/>;
+  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} puedeWhatsApp={puedeWhatsApp} puedeRegistrarIncidencias={puedeRegistrarIncidencias} puedeCaja={puedeCaja} cerrarSesion={cerrarSesion}/>;
 
   return (
     <main

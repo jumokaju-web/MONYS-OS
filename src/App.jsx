@@ -1313,6 +1313,7 @@ if (
     <InicioEmpleado
       usuario={usuario}
       datosDashboard={datosDashboard}
+      permisos={permisos}
     />
   );
 }
