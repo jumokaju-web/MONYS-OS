@@ -1,5 +1,6 @@
 import { supabase } from "../../../supabase";
 import { crearTareaOperativa } from "./tareasOperativasService";
+import { normalizarTelefonoWhatsApp } from "../shared/vendedorExpertoWhatsApp";
 
 const ETAPAS_CRM = new Set(["NUEVO", "CONTACTADO", "COTIZANDO", "GANADO", "PERDIDO"]);
 const CANALES_CRM = new Set(["MOSTRADOR", "WHATSAPP", "FACEBOOK", "INSTAGRAM", "TIKTOK", "TIKTOK_SHOP", "MERCADO_LIBRE", "OTRO"]);
@@ -21,6 +22,23 @@ export async function listarInteraccionesCRM({ businessId } = {}) {
   const { data, error } = await supabase.from("crm_interacciones").select("*").eq("business_id", businessId).order("ocurrio_at", { ascending: false });
   if (error) throw error;
   return Array.isArray(data) ? data : [];
+}
+
+export async function buscarOportunidadWhatsAppAbierta({ businessId, telefono } = {}) {
+  const numero = normalizarTelefonoWhatsApp(telefono);
+  if (!businessId || numero.length < 10) return null;
+  const { data, error } = await supabase
+    .from("crm_oportunidades")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("canal", "WHATSAPP")
+    .in("etapa", ["NUEVO", "CONTACTADO", "COTIZANDO"])
+    .not("telefono", "is", null)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []).find(
+    (item) => normalizarTelefonoWhatsApp(item.telefono) === numero,
+  ) || null;
 }
 
 export async function registrarInteraccionCRM({ oportunidadId, organizationId, businessId, branchId = null, canal, direccion, mensaje } = {}) {
@@ -134,6 +152,28 @@ export async function actualizarEtapaCRM({ id, etapa, folioVentaSicar } = {}) {
   const folio = String(folioVentaSicar || "").trim();
   if (etapa === "GANADO" && !folio) throw new Error("Captura el folio SICAR para atribuir la comisión a quien atendió a la clienta.");
   const { data, error } = await supabase.from("crm_oportunidades").update({ etapa, folio_venta_sicar: folio || null, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function confirmarRespuestaEnviadaCRM({ id, etapa, resultado, proximoSeguimiento = null } = {}) {
+  const detalle = String(resultado || "").trim();
+  if (!id || !["CONTACTADO", "COTIZANDO"].includes(etapa) || !detalle) {
+    throw new Error("Falta la oportunidad, la etapa o el resultado real del contacto.");
+  }
+  const ahora = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("crm_oportunidades")
+    .update({
+      etapa,
+      ultimo_resultado: detalle,
+      ultimo_seguimiento_at: ahora,
+      proximo_seguimiento: proximoSeguimiento || null,
+      updated_at: ahora,
+    })
     .eq("id", id)
     .select()
     .single();
