@@ -124,7 +124,7 @@ export default function HigieneBacklogOperativo({
       alcanceExacto: expediente.alcanceSugerido,
       pasos: expediente.pasos,
       evidencias: expediente.evidencias,
-      criterioExito: tarea.criterio_exito || expediente.criterioExitoSugerido,
+      criterioExito: expediente.criterioExitoSugerido,
       motivo: "La tarea venció y se convierte en un plan verificable antes de reasignarla.",
       confirmacion: "",
     });
@@ -202,6 +202,9 @@ export default function HigieneBacklogOperativo({
     const expedienteActual = tareaActual ? construirExpedienteRescate(tareaActual, {
       sucursal: nombreSucursal(tareaActual.branch_id, sucursales),
     }) : null;
+    const alcancePlanCompleto = Boolean(
+      formularioAbierto && String(borradorRescate.alcanceExacto || "").trim().length >= 12,
+    );
 
     return (
       <main className="backlog-page">
@@ -237,33 +240,33 @@ export default function HigieneBacklogOperativo({
 
                 {formularioAbierto ? (
                   <div className="backlog-hygiene__rescue-form">
-                    <section className="backlog-plan__truth">
-                      <span>REAL · INFORMACIÓN REGISTRADA</span>
+                    <details className="backlog-plan__truth">
+                      <summary>REAL · INFORMACIÓN REGISTRADA <small>Ver fuente</small></summary>
                       <ul>{expedienteActual.hechos.map((hecho) => <li key={hecho}>{hecho}</li>)}</ul>
-                    </section>
+                    </details>
                     <section className="backlog-plan__proposal">
                       <span>PLAN PROPUESTO · REQUIERE TU AUTORIZACIÓN</span>
                       <p>{expedienteActual.advertencia}</p>
                     </section>
                     <label className="backlog-plan__scope">Alcance exacto que atenderá la empleada
-                      <textarea rows={3} maxLength={700} value={borradorRescate.alcanceExacto} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, alcanceExacto: evento.target.value }))} placeholder="Producto, código, folio, documento o situación exacta." />
-                      {expedienteActual.faltantesPlan.length > 0 && <small>PENDIENTE: {expedienteActual.faltantesPlan.join(", ")}.</small>}
+                      <textarea rows={3} maxLength={700} value={borradorRescate.alcanceExacto} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, alcanceExacto: evento.target.value }))} placeholder="Ejemplo: productos ABC y XYZ, códigos 123 y 456; comparar cierre del 18 de octubre contra SICAR." />
+                      {!alcancePlanCompleto && <small>PENDIENTE: {expedienteActual.faltantesPlan.join(", ") || "especifica el producto, código, folio, documento o situación exacta"}. Este texto debe completarse antes de autorizar.</small>}
                     </label>
-                    <section className="backlog-plan__steps">
-                      <span>QUÉ HARÁ · PASO A PASO</span>
+                    <details className="backlog-plan__steps" open>
+                      <summary>QUÉ HARÁ · PASO A PASO <small>{borradorRescate.pasos.length} pasos</small></summary>
                       <ol>{borradorRescate.pasos.map((paso) => <li key={paso}>{paso}</li>)}</ol>
-                    </section>
-                    <section className="backlog-plan__evidence">
-                      <span>EVIDENCIA PARA CERRAR</span>
+                    </details>
+                    <details className="backlog-plan__evidence">
+                      <summary>EVIDENCIA PARA CERRAR <small>{borradorRescate.evidencias.length} requisitos</small></summary>
                       <ul>{borradorRescate.evidencias.map((evidencia) => <li key={evidencia}>{evidencia}</li>)}</ul>
-                    </section>
+                    </details>
                     <label>Nueva fecha<input type="date" min={fechaActualMexico()} value={borradorRescate.nuevaFecha} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, nuevaFecha: evento.target.value }))} /></label>
                     <label>Responsable con acceso<select value={borradorRescate.responsableEmpleadoId} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, responsableEmpleadoId: evento.target.value }))}><option value="">Seleccionar</option>{responsablesSucursal.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {item.puesto || "Sin puesto"}</option>)}</select></label>
                     <label className="backlog-plan__wide">Resultado que comprobará el cierre<textarea rows={2} maxLength={400} value={borradorRescate.criterioExito} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, criterioExito: evento.target.value }))} /></label>
                     <label className="backlog-plan__wide">Por qué se reprograma<textarea rows={2} maxLength={400} value={borradorRescate.motivo} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, motivo: evento.target.value }))} /></label>
                     <label className="backlog-plan__wide">Para autorizar escribe <b>REPROGRAMAR</b><input autoComplete="off" value={borradorRescate.confirmacion} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, confirmacion: evento.target.value.toUpperCase() }))} /></label>
                     {responsablesSucursal.length === 0 && <p className="backlog-plan__authorization-lock">Puedes revisar y completar el plan, pero no enviarlo hasta vincular una empleada activa de esta sucursal.</p>}
-                    <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Cancelar</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR" || responsablesSucursal.length === 0}>{guardando ? "Guardando…" : "Autorizar y enviar"}</button></div>
+                    <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Cancelar</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR" || responsablesSucursal.length === 0 || !alcancePlanCompleto}>{guardando ? "Guardando…" : "Autorizar y enviar"}</button></div>
                   </div>
                 ) : (
                   <button type="button" className="backlog-page__primary" onClick={() => abrirRescate(tareaActual)}>Convertir en plan exacto →</button>
@@ -271,7 +274,7 @@ export default function HigieneBacklogOperativo({
               </article>
             )}
 
-            {colaRescate.candidatas.length > 1 && <div className="backlog-page__pager"><button type="button" onClick={() => cambiarTarea(-1)} disabled={indiceRescate === 0}>← Anterior</button><span>{indiceRescate + 1} / {colaRescate.candidatas.length}</span><button type="button" onClick={() => cambiarTarea(1)} disabled={indiceRescate >= colaRescate.candidatas.length - 1}>Siguiente →</button></div>}
+            {colaRescate.candidatas.length > 1 && !formularioAbierto && <div className="backlog-page__pager"><button type="button" onClick={() => cambiarTarea(-1)} disabled={indiceRescate === 0}>← Anterior</button><span>{indiceRescate + 1} / {colaRescate.candidatas.length}</span><button type="button" onClick={() => cambiarTarea(1)} disabled={indiceRescate >= colaRescate.candidatas.length - 1}>Siguiente →</button></div>}
           </section>
         )}
 

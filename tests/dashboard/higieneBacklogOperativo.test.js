@@ -94,7 +94,7 @@ test("convierte un traspaso registrado en un plan verificable sin tratar la cant
 test("una alerta genérica exige el alcance exacto antes de poder enviarse", () => {
   const expediente = construirExpedienteRescate(tarea("t1", {
     titulo: "Discrepancias en inventario y facturación requieren atención inmediata",
-    descripcion: null,
+    descripcion: "Alerta detectada por repetición de señales en cierres de turno. Confianza del análisis: 85%.",
     instrucciones: null,
     area: "operacion",
   }), { sucursal: "Centro" });
@@ -146,6 +146,7 @@ test("el plan móvil abre otra vista y deja de desplegar una lista larga en el d
   assert.match(componente, /REAL · INFORMACIÓN REGISTRADA/);
   assert.match(componente, /PLAN PROPUESTO · REQUIERE TU AUTORIZACIÓN/);
   assert.match(componente, /Convertir en plan exacto/);
+  assert.match(componente, /colaRescate\.candidatas\.length > 1 && !formularioAbierto/);
   assert.doesNotMatch(componente, /onClick=\{\(\) => abrirRescate\(tareaActual\)\} disabled=/);
   assert.doesNotMatch(componente, /scrollIntoView/);
   assert.doesNotMatch(componente, /candidatas\.slice\(0, 6\)/);

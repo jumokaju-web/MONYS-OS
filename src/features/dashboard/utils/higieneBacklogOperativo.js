@@ -154,6 +154,23 @@ function detalleDespuesDeDosPuntos(titulo) {
   return partes.length > 1 ? partes.slice(1).join(":").trim() : "";
 }
 
+function alcanceEspecificoRegistrado(tarea, tipo) {
+  const detalleTitulo = detalleDespuesDeDosPuntos(tarea?.titulo);
+  if (normalizarTextoBacklog(detalleTitulo).length >= 5) return detalleTitulo;
+
+  const descripcion = String(tarea?.descripcion || "").trim();
+  const normalizada = normalizarTextoBacklog(descripcion);
+  if (normalizada.length < 12) return "";
+  const marcadoresPorTipo = {
+    inventario: ["producto", "codigo", "clave", "sku", "folio"],
+    finanzas: ["folio", "factura", "movimiento", "cuenta", "proveedor", "importe"],
+    marketing: ["producto", "campana", "canal", "publicacion", "periodo"],
+    operacion: ["producto", "folio", "documento", "movimiento", "incidencia", "sucursal"],
+  };
+  const marcadores = marcadoresPorTipo[tipo] || marcadoresPorTipo.operacion;
+  return marcadores.some((marcador) => normalizada.includes(marcador)) ? descripcion : "";
+}
+
 function detectarTipoRescate(tarea) {
   const texto = normalizarTextoBacklog(textoRegistrado(
     tarea?.titulo,
@@ -194,7 +211,7 @@ export function construirExpedienteRescate(tarea = {}, { sucursal = "Sucursal id
     contexto ? `Contexto registrado: ${contexto}` : null,
   ].filter(Boolean);
 
-  let alcanceSugerido = contexto || detalleDespuesDeDosPuntos(tarea.titulo);
+  let alcanceSugerido = alcanceEspecificoRegistrado(tarea, tipo);
   let pasos;
   let evidencias;
   let criterioExitoSugerido;
