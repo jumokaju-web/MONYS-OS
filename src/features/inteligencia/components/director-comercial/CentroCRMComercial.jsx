@@ -98,6 +98,8 @@ export default function CentroCRMComercial({
   const [formulario, setFormulario] = useState(inicial);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [filtro, setFiltro] = useState("ABIERTAS");
+  const [colaActiva, setColaActiva] = useState("PRIORIDAD");
+  const [oportunidadEnFoco, setOportunidadEnFoco] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -161,18 +163,46 @@ export default function CentroCRMComercial({
     });
     return analizarCentroDireccionCRM({ oportunidades: oportunidadesConResponsable, interacciones, sucursales: sucursalesCRM, hoy: fechaHoyLocal(), sucursalId: filtroSucursal });
   }, [equipoCompletoCRM, equipoCRM, empleados, filtroSucursal, interacciones, oportunidades, sucursalesCRM]);
+  const accesosTrabajo = useMemo(() => [
+    { id: "RESPONDER", icono: "💬", titulo: "Responder ahora", detalle: "Último mensaje recibido", cantidad: resumenDireccion.colas?.RESPONDER?.length || 0 },
+    { id: "SIN_RESPONSABLE", icono: "👤", titulo: "Asignar responsable", detalle: "Conversaciones sin dueña", cantidad: resumenDireccion.sinResponsable },
+    { id: "VENCIDAS", icono: "⏰", titulo: "Seguimientos vencidos", detalle: "Requieren contacto", cantidad: resumenDireccion.vencidas },
+    { id: "HOY", icono: "📅", titulo: "Para hoy", detalle: "Agenda comercial", cantidad: resumenDireccion.hoy },
+    { id: "COTIZACIONES", icono: "🧾", titulo: "Cotizaciones", detalle: "Pendientes de decisión", cantidad: resumenDireccion.cotizaciones },
+    { id: "SIN_RESPUESTA", icono: "↩️", titulo: "Recuperar clientas", detalle: "Sin respuesta por 3+ días", cantidad: resumenDireccion.sinRespuesta },
+  ], [resumenDireccion]);
   const visibles = useMemo(() => {
     const lista = filtro === "ABIERTAS"
       ? oportunidadesFiltradas.filter((item) => !["GANADO", "PERDIDO"].includes(item.etapa))
       : filtro === "CERRADAS"
         ? oportunidadesFiltradas.filter((item) => ["GANADO", "PERDIDO"].includes(item.etapa))
         : oportunidadesFiltradas;
-    return [...lista].sort((a, b) => {
+    const idsCola = resumenDireccion.colas?.[colaActiva];
+    const porCola = colaActiva === "TODAS" || !Array.isArray(idsCola)
+      ? lista
+      : lista.filter((item) => idsCola.includes(item.id));
+    return [...porCola].sort((a, b) => {
       const aa = a.proximo_seguimiento || "9999-12-31";
       const bb = b.proximo_seguimiento || "9999-12-31";
       return aa.localeCompare(bb);
     });
-  }, [filtro, oportunidadesFiltradas]);
+  }, [colaActiva, filtro, oportunidadesFiltradas, resumenDireccion.colas]);
+
+  useEffect(() => {
+    if (seccionCRM !== "SEGUIMIENTOS" || !oportunidadEnFoco) return undefined;
+    const frame = globalThis.requestAnimationFrame?.(() => {
+      document.getElementById(`crm-oportunidad-${oportunidadEnFoco}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setOportunidadEnFoco("");
+    });
+    return () => { if (frame != null) globalThis.cancelAnimationFrame?.(frame); };
+  }, [oportunidadEnFoco, seccionCRM, visibles]);
+
+  function abrirCola(cola, oportunidadId = "") {
+    setColaActiva(cola);
+    setFiltro(cola === "TODAS" ? "TODAS" : "ABIERTAS");
+    setSeccionCRM("SEGUIMIENTOS");
+    setOportunidadEnFoco(oportunidadId);
+  }
 
   function cambiar(campoNombre, valor) {
     setFormulario((anterior) => ({ ...anterior, [campoNombre]: valor }));
@@ -322,35 +352,49 @@ export default function CentroCRMComercial({
             {oportunidades.some((fila) => !fila.branch_id) && <option value="SIN_SUCURSAL">Sucursal sin registrar</option>}
           </select>
         </label>
-        <span style={{ color: "#697386", fontSize: 13 }}>Datos del CRM del negocio · {resumenDireccion.total} oportunidades en esta vista</span>
+        <span style={{ color: "#697386", fontSize: 12 }}>{resumenDireccion.estadoDatos === "SIN_DATOS" ? "PENDIENTE · Sin oportunidades registradas" : `REAL · ${resumenDireccion.total} oportunidades en esta vista`}</span>
       </div>
 
       {seccionCRM === "RESUMEN" && (
       <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 8, marginTop: 8 }}>
-        {[
-          ["Sin responsable", resumenDireccion.sinResponsable],
-          ["Seguimientos vencidos", resumenDireccion.vencidas],
-          ["Para hoy", resumenDireccion.hoy],
-          ["Cotizaciones pendientes", resumenDireccion.cotizaciones],
-          ["Sin respuesta · 3+ días", resumenDireccion.sinRespuesta],
-          ["Ventas ligadas a folio SICAR", resumenDireccion.ventasSicar],
-          ["Mediana primera respuesta", resumenDireccion.primeraRespuesta.medianaMinutos == null ? "Sin muestra" : `${resumenDireccion.primeraRespuesta.medianaMinutos} min`],
-        ].slice(0, 5).map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 8 }}><div style={{ color: "#706974", fontSize: 10, lineHeight: 1.3 }}>{titulo}</div><strong style={{ display: "block", marginTop: 3, color: "#8f315f", fontSize: 15, lineHeight: 1.2 }}>{valor}</strong></div>)}
-      </div>
-      <p style={{ margin: "6px 0 0", color: "#697386", fontSize: 10 }}>Primera respuesta: marcas registradas en MONYS OS (n={resumenDireccion.primeraRespuesta.muestra}); no es medición automática de WhatsApp. “Sin respuesta” usa una regla operativa de 3 días.</p>
+      {resumenDireccion.estadoDatos === "SIN_DATOS" ? (
+        <div style={{ ...caja, marginTop: 10, padding: 14, background: "#fffafd" }}>
+          <strong style={{ display: "block", color: "#8f315f", fontSize: 15 }}>Aún no hay historial comercial</strong>
+          <p style={{ margin: "5px 0 11px", color: "#697386", fontSize: 12 }}>No presentamos ceros como resultados. Registra la primera clienta para empezar a medir seguimientos y cierres reales.</p>
+          <button type="button" onClick={() => { abrirCola("TODAS"); setMostrarFormulario(true); }} style={{ border: 0, borderRadius: 9, padding: "10px 12px", background: "#a83b70", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Registrar primera oportunidad</button>
+        </div>
+      ) : (
+        <>
+          <div style={{ marginTop: 10 }}>
+            <strong style={{ color: "#8f315f", fontSize: 13 }}>¿Qué necesita atención?</strong>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(145px, 100%), 1fr))", gap: 8, marginTop: 7 }}>
+              {accesosTrabajo.filter((acceso) => acceso.cantidad > 0).map((acceso) => (
+                <button key={acceso.id} type="button" onClick={() => abrirCola(acceso.id)} style={{ ...caja, display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 7, textAlign: "left", cursor: "pointer", color: "#352d34" }}>
+                  <span aria-hidden="true">{acceso.icono}</span><span><strong style={{ display: "block", fontSize: 12 }}>{acceso.titulo}</strong><small style={{ color: "#716a73", fontSize: 10 }}>{acceso.detalle}</small></span><b style={{ color: "#a83b70", fontSize: 17 }}>{acceso.cantidad}</b>
+                </button>
+              ))}
+              {!accesosTrabajo.some((acceso) => acceso.cantidad > 0) && <div style={{ ...caja, color: "#267044", fontSize: 12 }}>Sin alertas abiertas en esta vista.</div>}
+            </div>
+          </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 10, marginTop: 10 }}>
-        <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Siguiente acción sugerida</strong><div style={{ display: "grid", gap: 7, marginTop: 8 }}>
-        {resumenDireccion.acciones.slice(0, 6).map((fila) => <div key={fila.id} style={{ padding: 9, background: fila.prioridad >= 85 ? "#fff5f8" : "#fffafd", borderRadius: 8 }}><strong>{fila.cliente}</strong><div style={{ color: "#625962", fontSize: 12, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#766d75" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => { setFiltro("TODAS"); globalThis.requestAnimationFrame?.(() => document.getElementById(`crm-oportunidad-${fila.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ border: 0, background: "transparent", padding: "5px 0 0", color: "#a83b70", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Abrir oportunidad ↓</button></div></div>)}
-          {!resumenDireccion.acciones.length && <span style={{ color: "#697386" }}>No hay oportunidades abiertas que requieran acción.</span>}
-        </div></div>
-      </div>
+          <div style={{ ...caja, marginTop: 10 }}><strong style={{ color: "#8f315f", fontSize: 13 }}>Siguiente acción exacta</strong><div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+            {resumenDireccion.acciones.slice(0, 3).map((fila) => <div key={fila.id} style={{ padding: 9, background: fila.prioridad >= 85 ? "#fff5f8" : "#fffafd", borderRadius: 8 }}><strong>{fila.cliente}</strong><div style={{ color: "#625962", fontSize: 12, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#766d75" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => abrirCola("TODAS", fila.id)} style={{ border: 0, background: "transparent", padding: "5px 0 0", color: "#a83b70", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Abrir oportunidad →</button></div></div>)}
+            {!resumenDireccion.acciones.length && <span style={{ color: "#697386" }}>No hay oportunidades abiertas que requieran acción.</span>}
+          </div></div>
+          <button type="button" onClick={() => abrirCola("TODAS")} style={{ width: "100%", marginTop: 9, border: "1px solid #e6d4de", borderRadius: 9, padding: "9px 11px", background: "#fff", color: "#8f315f", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Ver todas las oportunidades →</button>
+        </>
+      )}
       </>
       )}
 
       {seccionCRM === "RESULTADOS" && (
       <>
+        {resumenDireccion.estadoDatos === "SIN_DATOS" ? (
+          <div style={{ ...caja, marginTop: 10, padding: 14 }}>
+            <strong style={{ color: "#8f315f", fontSize: 14 }}>PENDIENTE · Faltan datos del CRM</strong>
+            <p style={{ margin: "5px 0 0", color: "#697386", fontSize: 12 }}>Todavía no hay oportunidades para calcular conversión, pérdidas o mensajes asociados a ventas. Esta decisión queda bloqueada hasta registrar casos reales.</p>
+          </div>
+        ) : <>
         <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Motivos de pérdida documentados</strong><p style={{ margin: "6px 0", color: "#625962", fontSize: 11 }}>REAL · {resumenDireccion.razonesPerdida.length} con motivo · {resumenDireccion.perdidasSinMotivo} sin motivo estructurado</p>
           {resumenDireccion.razonesPerdida.slice(0, 5).map((fila) => <div key={fila.oportunidadId} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}>{fila.motivo}</div>)}
           <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>EVIDENCIA · {resumenDireccion.textosAsociados.length} mensajes salientes guardados en oportunidades con folio SICAR. Son ejemplos asociados a ventas registradas, no evidencia de que el mensaje causó la compra. HIPÓTESIS · todavía no hay comparación por tipo de respuesta suficiente para recomendar un texto ganador.</p>
@@ -398,6 +442,7 @@ export default function CentroCRMComercial({
           })}
         </div>
       </div>
+      </>}
       </>
       )}
 
@@ -453,14 +498,27 @@ export default function CentroCRMComercial({
           </div>
         </form>
       )}
+      {!mostrarFormulario && resumenDireccion.estadoDatos !== "SIN_DATOS" && (
+        <div style={{ ...caja, marginTop: 12, padding: 9 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <strong style={{ color: "#8f315f", fontSize: 13 }}>Vista de trabajo</strong>
+            <button type="button" onClick={() => setSeccionCRM("RESUMEN")} style={{ border: 0, background: "transparent", color: "#a83b70", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>← Volver al resumen</button>
+          </div>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingTop: 8, paddingBottom: 2 }}>
+            {[...accesosTrabajo.filter((acceso) => acceso.cantidad > 0), { id: "TODAS", titulo: "Todas", cantidad: resumenDireccion.total }].map((acceso) => (
+              <button key={acceso.id} type="button" onClick={() => { setColaActiva(acceso.id); setFiltro(acceso.id === "TODAS" ? "TODAS" : "ABIERTAS"); }} aria-pressed={colaActiva === acceso.id} style={{ flex: "0 0 auto", border: "1px solid #e6d4de", borderRadius: 999, padding: "7px 10px", background: colaActiva === acceso.id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{acceso.titulo} · {acceso.cantidad}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12, marginBottom: 9 }}>
         {[["ABIERTAS", "Abiertas"], ["TODAS", "Todas"], ["CERRADAS", "Ganadas / perdidas"]].map(([id, etiqueta]) => (
-          <button key={id} type="button" onClick={() => setFiltro(id)} style={{ border: "1px solid #e6d4de", borderRadius: 999, padding: "7px 11px", background: filtro === id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{etiqueta}</button>
+          <button key={id} type="button" onClick={() => { setFiltro(id); if (id !== "ABIERTAS") setColaActiva("TODAS"); }} style={{ border: "1px solid #e6d4de", borderRadius: 999, padding: "7px 11px", background: filtro === id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{etiqueta}</button>
         ))}
       </div>
 
       {cargando ? <p>Cargando oportunidades…</p> : visibles.length === 0 ? (
-        <div style={{ ...caja, textAlign: "center", color: "#697386" }}>{oportunidades.length ? "No hay oportunidades en este filtro." : "Todavía no hay clientes en el CRM. Registra el próximo seguimiento para empezar a construir el embudo."}</div>
+        <div style={{ ...caja, textAlign: "center", color: "#697386" }}>{oportunidades.length ? "No hay oportunidades en esta vista de trabajo." : "Todavía no hay clientes en el CRM. Usa Registrar oportunidad para iniciar el historial real."}</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(255px, 100%), 1fr))", gap: 9 }}>
           {visibles.map((item) => {
