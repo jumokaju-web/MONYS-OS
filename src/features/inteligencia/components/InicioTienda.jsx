@@ -8,7 +8,7 @@ import IncidenciaTienda from './IncidenciaTienda';
 import AsistenteWhatsAppTienda from './AsistenteWhatsAppTienda';
 import { borrarBorradoresUsuario } from '../utils/borradorCorte';
 
-export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, cerrarSesion }) {
+export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, puedeRegistrarIncidencias = false, puedeCaja = false, cerrarSesion }) {
   const [vista, setVista] = useState('HOY');
   const [visitadas, setVisitadas] = useState(['HOY']);
   const destino = useRef(null);
@@ -17,8 +17,8 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     ['HOY', '⌂', 'Mi día'],
     ...(puedeWhatsApp ? [['WHATSAPP', 'W', 'WhatsApp']] : []),
     ...(puedeRegistrarProducto ? [['PRODUCTO', 'S', 'Solicitudes']] : []),
-    ['INCIDENCIAS', '!', 'Incidencias'],
-    ['CAJA', '$', 'Cierre'],
+    ...(puedeRegistrarIncidencias ? [['INCIDENCIAS', '!', 'Incidencias']] : []),
+    ...(puedeCaja ? [['CAJA', '$', 'Cierre']] : []),
   ];
   const detalleVista = {
     WHATSAPP: {
@@ -87,8 +87,8 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
       </header>}
       {visitadas.includes('PRODUCTO') && <section hidden={vista!=='PRODUCTO'} aria-label="Registrar solicitud"><RegistroProductoSolicitado branchId={branchId} usuario={usuario}/></section>}
       {visitadas.includes('WHATSAPP') && <section hidden={vista!=='WHATSAPP'} aria-label="Asistente de WhatsApp"><AsistenteWhatsAppTienda usuario={usuario} organizationId={usuario?.organization_id || datosDashboard?.organization_id || null} businessId={usuario?.business_id || datosDashboard?.business_id || null} branchId={branchId}/></section>}
-      {visitadas.includes('INCIDENCIAS') && <section hidden={vista!=='INCIDENCIAS'} aria-label="Registrar incidencia"><IncidenciaTienda branchId={branchId} usuario={usuario}/></section>}
-      {visitadas.includes('CAJA') && <section hidden={vista!=='CAJA'} aria-label="Caja y cierre"><CierreTurno key={`${usuario?.auth_user_id || usuario?.id}:${branchId}`} branchId={branchId} usuario={usuario} modoEmpleado/></section>}
+      {puedeRegistrarIncidencias && visitadas.includes('INCIDENCIAS') && <section hidden={vista!=='INCIDENCIAS'} aria-label="Registrar incidencia"><IncidenciaTienda branchId={branchId} usuario={usuario}/></section>}
+      {puedeCaja && visitadas.includes('CAJA') && <section hidden={vista!=='CAJA'} aria-label="Caja y cierre"><CierreTurno key={`${usuario?.auth_user_id || usuario?.id}:${branchId}`} branchId={branchId} usuario={usuario} modoEmpleado/></section>}
     </div>
     <nav className="tienda-nav" aria-label="Navegación de tienda">{opciones.map(([id,icono,titulo])=><button key={id} type="button" onClick={()=>abrir(id)} aria-current={vista===id?'page':undefined}><span aria-hidden="true">{icono}</span><b>{titulo}</b></button>)}</nav>
   </main>;
