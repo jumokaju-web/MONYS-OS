@@ -533,12 +533,12 @@ const analisisRH =
     }[directorAbierto];
 
     return (
-      <main className="centro-inteligencia" style={{ width: "min(1180px, 94%)", minWidth: 0, margin: "0 auto", padding: "12px 0 32px", boxSizing: "border-box" }}>
-        <header style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
-          <button type="button" onClick={() => setDirectorAbierto(null)} style={{ minHeight: 42, padding: "9px 13px", borderRadius: 11, border: "1px solid #e2c8d5", background: "#fff", color: "#70274c", fontWeight: 800, cursor: "pointer" }}>← Todos los Directores IA</button>
-          <button type="button" onClick={abrirDashboardDireccion} style={{ minHeight: 42, padding: "9px 13px", borderRadius: 11, border: "1px solid #e2c8d5", background: "#fff", color: "#70274c", fontWeight: 800, cursor: "pointer" }}>Inicio de Dirección</button>
+      <main className="centro-inteligencia" style={{ width: "min(1180px, 94%)", minWidth: 0, margin: "0 auto", padding: "0 0 32px", boxSizing: "border-box" }}>
+        <header className="inteligencia-topbar" aria-label="Navegación de Dirección">
+          <button type="button" onClick={() => setDirectorAbierto(null)}>← Directores</button>
+          <button type="button" className="inteligencia-topbar__primary" onClick={abrirDashboardDireccion}>⌂ Dashboard</button>
         </header>
-        <h1 style={{ margin: "8px 0 16px", fontSize: "clamp(23px, 5vw, 34px)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{directorActivo?.icono} {directorActivo?.nombre || "Área de Dirección"}</h1>
+        <h1 style={{ margin: "8px 0 12px", fontSize: "clamp(20px, 4.8vw, 27px)", lineHeight: 1.15, overflowWrap: "anywhere" }}>{directorActivo?.icono} {directorActivo?.nombre || "Área de Dirección"}</h1>
         {vistaDirector || <p>Esta área aún no está disponible.</p>}
       </main>
     );
@@ -574,56 +574,38 @@ const analisisRH =
       className="centro-inteligencia"
       style={{
         width: "min(1180px, 94%)",
+        minWidth: 0,
         margin: "0 auto",
-        padding: "24px 0 50px",
+        padding: "0 0 36px",
       }}
     >
 
+      <header className="inteligencia-topbar" aria-label="Navegación de Dirección">
+        <button type="button" onClick={abrirDashboardDireccion}>← Dashboard</button>
+        <button type="button" className="inteligencia-topbar__primary" onClick={() => setDirectorAbierto("comercial")}>🛒 Comercial</button>
+      </header>
 
+      <section className="direction-areas direction-areas--quick" aria-labelledby="direction-areas-title">
+        <div>
+          <span>ACCESO DIRECTO</span>
+          <h2 id="direction-areas-title">Abrir un área de Dirección</h2>
+          <p>Entra directamente al análisis que necesitas.</p>
+        </div>
+        <div className="direction-areas__grid">
+          {directores.map((director) => (
+            <button type="button" key={director.id} disabled={!director.disponible} onClick={() => setDirectorAbierto(director.id)}>
+              <span>{director.icono}</span>
+              <strong>{director.nombre.replace("Director ", "").replace(" IA", "")}</strong>
+              <small>{director.disponible ? "Abrir →" : "Próximamente"}</small>
+            </button>
+          ))}
+        </div>
+      </section>
       <CentroMando sucursales={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => {
         setDirectorAbierto(id);
       }} />
       {typeof onAbrirValor === "function" && <section className="junta"><span className="junta-label">DIRECCIÓN · EJECUCIÓN · VALOR ECONÓMICO</span><h2>¿Qué cambió gracias a nuestras acciones?</h2><p>Registra pruebas con línea base y evidencia, revisa resultados y consulta por separado los ingresos por vender MONYS OS.</p><button type="button" onClick={onAbrirValor}>Abrir Centro de Valor →</button></section>}
       <JuntaDirectiva analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => setDirectorAbierto(id)} />
-      <button
-        type="button"
-        onClick={volverAlDashboard}
-        style={{
-          padding: "10px 18px",
-          borderRadius: "10px",
-          border:
-            "1px solid #d8b8c8",
-          backgroundColor:
-            "#ffffff",
-          cursor: "pointer",
-          fontSize: "16px",
-        }}
-      >
-        ← Volver al Dashboard
-      </button>
-
-      <section className="direction-areas" aria-labelledby="direction-areas-title">
-        <div>
-          <span>ANÁLISIS ESPECIALIZADO</span>
-          <h2 id="direction-areas-title">Profundiza solo cuando la Junta lo indique</h2>
-          <p>La Junta es la entrada principal. Estos directores conservan el detalle de cada área sin repetir otra sala de consejo.</p>
-        </div>
-        <div className="direction-areas__grid">
-          {directores.map((director) => (
-            <button
-              type="button"
-              key={director.id}
-              disabled={!director.disponible}
-              onClick={() => setDirectorAbierto(director.id)}
-            >
-              <span>{director.icono}</span>
-              <strong>{director.nombre}</strong>
-              <small>{director.disponible ? director.estado : "Próximamente"}</small>
-            </button>
-          ))}
-        </div>
-      </section>
-
       {mostrarConsejoAnterior && (
       <div aria-hidden="true">
       {directorAbierto ? (
