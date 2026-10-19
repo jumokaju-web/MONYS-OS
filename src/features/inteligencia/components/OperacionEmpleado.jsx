@@ -2941,17 +2941,22 @@ function ChecklistTarea({
   instrucciones,
   checklistInicial = [],
 }) {
-  const pasos = String(
-    instrucciones || ""
-  )
-    .split("\n")
-    .map((paso) =>
-      paso
-        .replace(/^☐\s*/, "")
-        .replace(/^-\s*/, "")
-        .trim()
-    )
-    .filter(Boolean);
+  const pasosGuardados = Array.isArray(checklistInicial)
+    ? checklistInicial
+      .map((paso) => String(paso?.texto || "").trim())
+      .filter(Boolean)
+    : [];
+  const pasos = pasosGuardados.length > 0
+    ? pasosGuardados
+    : String(instrucciones || "")
+      .split("\n")
+      .map((paso) =>
+        paso
+          .replace(/^☐\s*/, "")
+          .replace(/^-\s*/, "")
+          .trim()
+      )
+      .filter(Boolean);
 
   const claveStorage =
     `monys-checklist-${tareaId}`;

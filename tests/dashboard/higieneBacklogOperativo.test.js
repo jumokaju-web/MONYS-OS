@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import {
   analizarBacklogOperativo,
   construirColaRescateBacklog,
+  construirExpedienteRescate,
+  construirInstruccionesRescate,
   construirInstruccionesReprogramadas,
   firmaDuplicadoExacto,
   normalizarTextoBacklog,
@@ -64,12 +66,58 @@ test("reprogramar exige fecha vigente, responsable conectado, motivo, criterio y
     criterioExito: "Conteo físico confirmado",
     motivo: "La tarea no se asignó a una cuenta activa.",
     confirmacion: "REPROGRAMAR",
+    alcanceExacto: "Producto ABC, código 123, anaquel y bodega.",
+    pasos: ["Localizar el producto en SICAR.", "Contar producto en anaquel y bodega.", "Registrar la diferencia encontrada."],
+    evidencias: ["Foto legible del conteo físico."],
   };
   assert.equal(validarReprogramacionTarea(base).valida, true);
   assert.equal(validarReprogramacionTarea({ ...base, nuevaFecha: "2026-10-16" }).valida, false);
   assert.equal(validarReprogramacionTarea({ ...base, responsableUsuarioId: null }).valida, false);
   assert.equal(validarReprogramacionTarea({ ...base, confirmacion: "SI" }).valida, false);
   assert.equal(validarReprogramacionTarea({ ...base, tarea: tarea("t1", { estado: "en_proceso" }) }).valida, false);
+});
+
+test("convierte un traspaso registrado en un plan verificable sin tratar la cantidad como orden", () => {
+  const expediente = construirExpedienteRescate(tarea("t1", {
+    titulo: "Preparar traspaso de COLAGENO LABIOS XYBEIBI BIOAQUA: 38 pzas de General Anaya a Centro",
+    descripcion: null,
+    instrucciones: null,
+  }), { sucursal: "General Anaya" });
+  assert.equal(expediente.tipo, "traspaso");
+  assert.match(expediente.alcanceSugerido, /38 piezas/);
+  assert.match(expediente.advertencia, /no una orden automática/i);
+  assert.ok(expediente.pasos.some((paso) => /contar físicamente/i.test(paso)));
+  assert.ok(expediente.pasos.some((paso) => /no mover producto/i.test(paso)));
+  assert.equal(expediente.faltantesPlan.length, 0);
+});
+
+test("una alerta genérica exige el alcance exacto antes de poder enviarse", () => {
+  const expediente = construirExpedienteRescate(tarea("t1", {
+    titulo: "Discrepancias en inventario y facturación requieren atención inmediata",
+    descripcion: null,
+    instrucciones: null,
+    area: "operacion",
+  }), { sucursal: "Centro" });
+  assert.equal(expediente.alcanceSugerido, "");
+  assert.ok(expediente.faltantesPlan.length > 0);
+});
+
+test("el plan autorizado separa pasos, evidencia, contexto original y auditoría", () => {
+  const instrucciones = construirInstruccionesRescate({
+    alcanceExacto: "Producto ABC, código 123.",
+    pasos: ["Contar producto.", "Comparar con SICAR.", "Reportar diferencia."],
+    evidencias: ["Foto del conteo."],
+    instruccionesAnteriores: "Revisar inventario.",
+    fechaAnterior: "2026-10-10",
+    nuevaFecha: "2026-10-20",
+    motivo: "Se convirtió en plan exacto.",
+    autorizadoPor: "u-direccion",
+    autorizadoAt: "2026-10-19T00:00:00Z",
+  });
+  assert.match(instrucciones, /PLAN AUTORIZADO DE RESCATE/);
+  assert.match(instrucciones, /EVIDENCIA OBLIGATORIA/);
+  assert.match(instrucciones, /CONTEXTO ORIGINAL CONSERVADO/);
+  assert.match(instrucciones, /HISTORIAL DE DIRECCIÓN/);
 });
 
 test("la reprogramación agrega auditoría sin borrar instrucciones anteriores", () => {
@@ -95,10 +143,23 @@ test("el plan móvil abre otra vista y deja de desplegar una lista larga en el d
   assert.match(componente, /vista === "pagina"/);
   assert.match(componente, /onVolverDashboard/);
   assert.match(componente, /backlog-page__pager/);
+  assert.match(componente, /REAL · INFORMACIÓN REGISTRADA/);
+  assert.match(componente, /PLAN PROPUESTO · REQUIERE TU AUTORIZACIÓN/);
+  assert.match(componente, /Convertir en plan exacto/);
+  assert.doesNotMatch(componente, /onClick=\{\(\) => abrirRescate\(tareaActual\)\} disabled=/);
   assert.doesNotMatch(componente, /scrollIntoView/);
   assert.doesNotMatch(componente, /candidatas\.slice\(0, 6\)/);
   assert.match(app, /pantallaActual === "rescate-backlog"/);
   assert.match(app, /scrollDashboardAntesRescate/);
+});
+
+test("la empleada recibe como checklist únicamente los pasos autorizados", () => {
+  const operacionEmpleado = readFileSync(
+    new URL("../../src/features/inteligencia/components/OperacionEmpleado.jsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(operacionEmpleado, /const pasosGuardados = Array\.isArray\(checklistInicial\)/);
+  assert.match(operacionEmpleado, /pasosGuardados\.length > 0/);
 });
 
 test("propone solo copias exactas del mismo alcance y fecha", () => {

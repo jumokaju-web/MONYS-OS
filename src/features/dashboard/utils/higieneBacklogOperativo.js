@@ -142,6 +142,184 @@ function puntosPrioridad(valor) {
   return 15;
 }
 
+function textoRegistrado(...valores) {
+  return valores
+    .map((valor) => String(valor || "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function detalleDespuesDeDosPuntos(titulo) {
+  const partes = String(titulo || "").split(":");
+  return partes.length > 1 ? partes.slice(1).join(":").trim() : "";
+}
+
+function detectarTipoRescate(tarea) {
+  const texto = normalizarTextoBacklog(textoRegistrado(
+    tarea?.titulo,
+    tarea?.descripcion,
+    tarea?.area,
+  ));
+  if (texto.includes("traspas")) return "traspaso";
+  if (texto.includes("inventario") || texto.includes("existencia") || texto.includes("conteo")) return "inventario";
+  if (texto.includes("factur") || texto.includes("caja") || texto.includes("pago") || texto.includes("deuda")) return "finanzas";
+  if (texto.includes("campana") || texto.includes("publicacion") || texto.includes("marketing")) return "marketing";
+  return "operacion";
+}
+
+function extraerTraspaso(titulo) {
+  const original = String(titulo || "").trim();
+  const coincidencia = original.match(/traspaso\s+de\s+(.+?):\s*(\d+)\s*(?:pzas?|piezas?)\s+de\s+(.+?)\s+a\s+(.+)$/i);
+  if (!coincidencia) return null;
+  return {
+    producto: coincidencia[1].trim(),
+    cantidad: Number(coincidencia[2]),
+    origen: coincidencia[3].trim(),
+    destino: coincidencia[4].trim(),
+  };
+}
+
+/**
+ * Convierte una tarea antigua en un borrador operativo. Los pasos son una
+ * propuesta explícita; los hechos se limitan a campos ya registrados.
+ */
+export function construirExpedienteRescate(tarea = {}, { sucursal = "Sucursal identificada" } = {}) {
+  const tipo = detectarTipoRescate(tarea);
+  const traspaso = tipo === "traspaso" ? extraerTraspaso(tarea.titulo) : null;
+  const contexto = textoRegistrado(tarea.descripcion);
+  const hechos = [
+    tarea.titulo ? `Tarea registrada: ${String(tarea.titulo).trim()}.` : null,
+    tarea.fecha ? `Fecha original registrada: ${String(tarea.fecha).slice(0, 10)}.` : null,
+    tarea.branch_id ? `Sucursal registrada: ${sucursal}.` : null,
+    contexto ? `Contexto registrado: ${contexto}` : null,
+  ].filter(Boolean);
+
+  let alcanceSugerido = contexto || detalleDespuesDeDosPuntos(tarea.titulo);
+  let pasos;
+  let evidencias;
+  let criterioExitoSugerido;
+  let faltantesPlan = [];
+  let advertencia = "PROPUESTA: Dirección debe revisar este procedimiento antes de enviarlo a una empleada.";
+
+  if (traspaso) {
+    alcanceSugerido = `${traspaso.producto}: propuesta registrada de ${traspaso.cantidad} piezas, ${traspaso.origen} → ${traspaso.destino}.`;
+    pasos = [
+      `Contar físicamente ${traspaso.producto} en ${traspaso.origen}; separar anaquel y bodega.`,
+      `Contar físicamente ${traspaso.producto} en ${traspaso.destino}; separar anaquel y bodega.`,
+      "Comparar ambos conteos contra la existencia de SICAR del mismo día y anotar cualquier diferencia.",
+      `Confirmar con Dirección si continúan autorizadas ${traspaso.cantidad} piezas; no mover producto si el conteo no respalda esa cantidad.`,
+      "Si Dirección autoriza, registrar la salida en origen, trasladar el producto y registrar la entrada en destino.",
+      "Contar la recepción y reportar las existencias finales de ambas sucursales.",
+    ];
+    evidencias = [
+      "Foto del conteo en origen y destino.",
+      "Capturas o folios de SICAR antes del movimiento.",
+      "Folio de salida y entrada del traspaso autorizado.",
+      "Foto de recepción y conteos finales.",
+    ];
+    criterioExitoSugerido = `Traspaso de ${traspaso.producto} confirmado por Dirección, con cantidad respaldada por conteo físico, salida y entrada registradas en SICAR, y recepción comprobada sin diferencias.`;
+    advertencia = `PROPUESTA: ${traspaso.cantidad} piezas es la cantidad registrada en la tarea, no una orden automática. Debe validarse con conteo físico y SICAR antes de mover producto.`;
+  } else if (tipo === "inventario") {
+    pasos = [
+      "Identificar por nombre, código o folio cada producto incluido en el alcance autorizado.",
+      "Consultar en SICAR la existencia registrada de esos productos y guardar la referencia del reporte.",
+      "Contar físicamente cada producto en anaquel y bodega, sin ajustar SICAR.",
+      "Registrar por producto: existencia SICAR, existencia física y diferencia encontrada.",
+      "Enviar las diferencias y su evidencia a Dirección; no corregir inventario sin autorización.",
+      "Después de la decisión de Dirección, comprobar y documentar el resultado final.",
+    ];
+    evidencias = [
+      "Captura o folio del reporte SICAR revisado.",
+      "Foto legible del conteo físico por producto.",
+      "Relación producto–existencia SICAR–existencia física–diferencia.",
+    ];
+    criterioExitoSugerido = "Productos del alcance identificados, conteo físico documentado, diferencia contra SICAR registrada y cualquier ajuste sometido a autorización de Dirección.";
+    if (normalizarTextoBacklog(alcanceSugerido).length < 12) {
+      alcanceSugerido = "";
+      faltantesPlan = ["productos, códigos o folios exactos que deben revisarse"];
+    }
+  } else if (tipo === "finanzas") {
+    pasos = [
+      "Identificar los movimientos, documentos o folios incluidos en el alcance autorizado.",
+      "Reunir el registro del sistema y el comprobante externo correspondiente al mismo periodo.",
+      "Comparar importe, fecha, concepto y responsable sin convertir datos ausentes en cero.",
+      "Registrar cada diferencia y separar dato real, dato pendiente e hipótesis.",
+      "Entregar la conciliación a Dirección para autorizar la corrección o el pago.",
+      "Comprobar que la decisión autorizada quedó registrada y conservar la evidencia.",
+    ];
+    evidencias = ["Folio o captura del registro revisado.", "Comprobante externo legible.", "Relación de diferencias y decisión de Dirección."];
+    criterioExitoSugerido = "Alcance conciliado con documentos del mismo periodo, diferencias identificadas y decisión final registrada con autorización de Dirección.";
+    if (normalizarTextoBacklog(alcanceSugerido).length < 12) faltantesPlan = ["movimientos, documentos o folios exactos que deben revisarse"];
+  } else if (tipo === "marketing") {
+    pasos = [
+      "Confirmar el producto, canal, sucursal y periodo incluidos en el alcance autorizado.",
+      "Registrar la línea base disponible antes de ejecutar: venta, inventario y gasto; dejar pendiente lo que no exista.",
+      "Preparar la pieza o acción y enviarla a Dirección para autorización.",
+      "Ejecutar únicamente la versión autorizada y guardar enlace o captura.",
+      "Registrar el resultado real del mismo periodo y separarlo de atribuciones no comprobadas.",
+      "Entregar aprendizaje y recomendación de continuar, ajustar o detener.",
+    ];
+    evidencias = ["Captura de la autorización.", "Enlace o captura de la acción publicada.", "Resultado del canal y venta SICAR del periodo comparable."];
+    criterioExitoSugerido = "Acción autorizada ejecutada, costo y resultado real documentados para el mismo periodo, con aprendizaje y siguiente decisión.";
+    if (normalizarTextoBacklog(alcanceSugerido).length < 12) faltantesPlan = ["producto, canal, sucursal y periodo exactos"];
+  } else {
+    pasos = [
+      "Confirmar el alcance exacto y la fuente donde se detectó el problema.",
+      "Reunir la evidencia inicial sin modificar registros ni inventario.",
+      "Ejecutar únicamente la acción autorizada en este plan.",
+      "Documentar el resultado real y cualquier diferencia encontrada.",
+      "Enviar evidencia a Dirección para revisión.",
+      "Cerrar solo cuando Dirección confirme el criterio de éxito.",
+    ];
+    evidencias = ["Referencia de la fuente original.", "Foto, folio o documento de la ejecución.", "Resultado final verificable."];
+    criterioExitoSugerido = "Acción autorizada ejecutada dentro del alcance, resultado real documentado y evidencia suficiente para revisión de Dirección.";
+    if (normalizarTextoBacklog(alcanceSugerido).length < 12) faltantesPlan = ["objeto, folio, producto o situación exacta que debe atenderse"];
+  }
+
+  return {
+    tipo,
+    hechos,
+    alcanceSugerido,
+    pasos,
+    evidencias,
+    criterioExitoSugerido,
+    faltantesPlan,
+    advertencia,
+  };
+}
+
+export function construirInstruccionesRescate({
+  alcanceExacto,
+  pasos = [],
+  evidencias = [],
+  instruccionesAnteriores,
+  fechaAnterior,
+  nuevaFecha,
+  motivo,
+  autorizadoPor,
+  autorizadoAt,
+} = {}) {
+  const secciones = [
+    "PLAN AUTORIZADO DE RESCATE",
+    `Alcance exacto: ${String(alcanceExacto || "").trim()}`,
+    "PASOS",
+    ...pasos.map((paso, indice) => `${indice + 1}. ${String(paso).trim()}`),
+    "EVIDENCIA OBLIGATORIA",
+    ...evidencias.map((evidencia) => `- ${String(evidencia).trim()}`),
+  ];
+  const anterior = String(instruccionesAnteriores || "").trim();
+  if (anterior) secciones.push("CONTEXTO ORIGINAL CONSERVADO", anterior);
+  secciones.push(
+    "HISTORIAL DE DIRECCIÓN",
+    `Fecha anterior: ${fechaAnterior}`,
+    `Nueva fecha: ${nuevaFecha}`,
+    `Motivo: ${String(motivo || "").trim()}`,
+    `Autorizó usuario: ${autorizadoPor}`,
+    `Registrado: ${autorizadoAt}`,
+  );
+  return secciones.join("\n");
+}
+
 export function construirColaRescateBacklog(tareas = [], { hoy } = {}) {
   const analisis = analizarBacklogOperativo(tareas, { hoy });
   const copiasExactas = new Set(
@@ -201,6 +379,9 @@ export function validarReprogramacionTarea({
   criterioExito,
   motivo,
   confirmacion,
+  alcanceExacto,
+  pasos,
+  evidencias,
 } = {}) {
   if (!tarea?.id || String(tarea?.estado || "").toLowerCase() !== "pendiente") {
     return { valida: false, motivo: "Solo puede reprogramarse una tarea que continúa pendiente." };
@@ -225,6 +406,15 @@ export function validarReprogramacionTarea({
   }
   if (normalizarTextoBacklog(motivo).length < 10) {
     return { valida: false, motivo: "Explica por qué se reprograma en al menos 10 caracteres." };
+  }
+  if (normalizarTextoBacklog(alcanceExacto).length < 12) {
+    return { valida: false, motivo: "Define el producto, folio, documento o situación exacta que se atenderá." };
+  }
+  if (!Array.isArray(pasos) || pasos.length < 3 || pasos.some((paso) => normalizarTextoBacklog(paso).length < 10)) {
+    return { valida: false, motivo: "El plan necesita al menos tres pasos concretos y completos." };
+  }
+  if (!Array.isArray(evidencias) || evidencias.length === 0 || evidencias.some((item) => normalizarTextoBacklog(item).length < 8)) {
+    return { valida: false, motivo: "Define al menos una evidencia verificable para poder cerrar la tarea." };
   }
   if (confirmacion !== "REPROGRAMAR") {
     return { valida: false, motivo: 'Escribe exactamente "REPROGRAMAR" para autorizar.' };

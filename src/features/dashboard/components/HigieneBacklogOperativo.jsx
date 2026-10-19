@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fechaActualMexico } from "../../inteligencia/services/asistenciaOperativaService";
-import { analizarBacklogOperativo, construirColaRescateBacklog } from "../utils/higieneBacklogOperativo";
+import {
+  analizarBacklogOperativo,
+  construirColaRescateBacklog,
+  construirExpedienteRescate,
+} from "../utils/higieneBacklogOperativo";
 import {
   cancelarCopiasExactas,
   obtenerBacklogOperativo,
@@ -110,12 +114,18 @@ export default function HigieneBacklogOperativo({
     const responsableActual = disponibles.find((item) =>
       item.responsable_usuario_id === tarea.responsable_usuario_id,
     ) || disponibles.find((item) => item.nombre === tarea.responsable) || null;
+    const expediente = construirExpedienteRescate(tarea, {
+      sucursal: nombreSucursal(tarea.branch_id, sucursales),
+    });
     setTareaRescate(tarea);
     setBorradorRescate({
       nuevaFecha: sumarDias(fechaActualMexico(), 1),
       responsableEmpleadoId: responsableActual?.id || "",
-      criterioExito: tarea.criterio_exito || "",
-      motivo: "",
+      alcanceExacto: expediente.alcanceSugerido,
+      pasos: expediente.pasos,
+      evidencias: expediente.evidencias,
+      criterioExito: tarea.criterio_exito || expediente.criterioExitoSugerido,
+      motivo: "La tarea venció y se convierte en un plan verificable antes de reasignarla.",
       confirmacion: "",
     });
     setError("");
@@ -189,6 +199,9 @@ export default function HigieneBacklogOperativo({
       ? responsables.filter((item) => item.branch_id === tareaActual.branch_id && item.accesoConfirmado)
       : [];
     const formularioAbierto = tareaActual && tareaRescate?.id === tareaActual.id && borradorRescate;
+    const expedienteActual = tareaActual ? construirExpedienteRescate(tareaActual, {
+      sucursal: nombreSucursal(tareaActual.branch_id, sucursales),
+    }) : null;
 
     return (
       <main className="backlog-page">
@@ -224,15 +237,36 @@ export default function HigieneBacklogOperativo({
 
                 {formularioAbierto ? (
                   <div className="backlog-hygiene__rescue-form">
+                    <section className="backlog-plan__truth">
+                      <span>REAL · INFORMACIÓN REGISTRADA</span>
+                      <ul>{expedienteActual.hechos.map((hecho) => <li key={hecho}>{hecho}</li>)}</ul>
+                    </section>
+                    <section className="backlog-plan__proposal">
+                      <span>PLAN PROPUESTO · REQUIERE TU AUTORIZACIÓN</span>
+                      <p>{expedienteActual.advertencia}</p>
+                    </section>
+                    <label className="backlog-plan__scope">Alcance exacto que atenderá la empleada
+                      <textarea rows={3} maxLength={700} value={borradorRescate.alcanceExacto} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, alcanceExacto: evento.target.value }))} placeholder="Producto, código, folio, documento o situación exacta." />
+                      {expedienteActual.faltantesPlan.length > 0 && <small>PENDIENTE: {expedienteActual.faltantesPlan.join(", ")}.</small>}
+                    </label>
+                    <section className="backlog-plan__steps">
+                      <span>QUÉ HARÁ · PASO A PASO</span>
+                      <ol>{borradorRescate.pasos.map((paso) => <li key={paso}>{paso}</li>)}</ol>
+                    </section>
+                    <section className="backlog-plan__evidence">
+                      <span>EVIDENCIA PARA CERRAR</span>
+                      <ul>{borradorRescate.evidencias.map((evidencia) => <li key={evidencia}>{evidencia}</li>)}</ul>
+                    </section>
                     <label>Nueva fecha<input type="date" min={fechaActualMexico()} value={borradorRescate.nuevaFecha} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, nuevaFecha: evento.target.value }))} /></label>
                     <label>Responsable con acceso<select value={borradorRescate.responsableEmpleadoId} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, responsableEmpleadoId: evento.target.value }))}><option value="">Seleccionar</option>{responsablesSucursal.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {item.puesto || "Sin puesto"}</option>)}</select></label>
-                    <label>Resultado que comprobará el cierre<textarea rows={2} maxLength={400} value={borradorRescate.criterioExito} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, criterioExito: evento.target.value }))} /></label>
-                    <label>Por qué se reprograma<textarea rows={2} maxLength={400} value={borradorRescate.motivo} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, motivo: evento.target.value }))} /></label>
-                    <label>Para autorizar escribe <b>REPROGRAMAR</b><input autoComplete="off" value={borradorRescate.confirmacion} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, confirmacion: evento.target.value.toUpperCase() }))} /></label>
-                    <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Cancelar</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR"}>{guardando ? "Guardando…" : "Autorizar rescate"}</button></div>
+                    <label className="backlog-plan__wide">Resultado que comprobará el cierre<textarea rows={2} maxLength={400} value={borradorRescate.criterioExito} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, criterioExito: evento.target.value }))} /></label>
+                    <label className="backlog-plan__wide">Por qué se reprograma<textarea rows={2} maxLength={400} value={borradorRescate.motivo} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, motivo: evento.target.value }))} /></label>
+                    <label className="backlog-plan__wide">Para autorizar escribe <b>REPROGRAMAR</b><input autoComplete="off" value={borradorRescate.confirmacion} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, confirmacion: evento.target.value.toUpperCase() }))} /></label>
+                    {responsablesSucursal.length === 0 && <p className="backlog-plan__authorization-lock">Puedes revisar y completar el plan, pero no enviarlo hasta vincular una empleada activa de esta sucursal.</p>}
+                    <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Cancelar</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR" || responsablesSucursal.length === 0}>{guardando ? "Guardando…" : "Autorizar y enviar"}</button></div>
                   </div>
                 ) : (
-                  <button type="button" className="backlog-page__primary" onClick={() => abrirRescate(tareaActual)} disabled={responsablesSucursal.length === 0}>Preparar rescate →</button>
+                  <button type="button" className="backlog-page__primary" onClick={() => abrirRescate(tareaActual)}>Convertir en plan exacto →</button>
                 )}
               </article>
             )}

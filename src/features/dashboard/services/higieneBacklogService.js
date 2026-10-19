@@ -1,7 +1,7 @@
 import { supabase } from "../../../supabase";
 import { fechaActualMexico } from "../../inteligencia/services/asistenciaOperativaService";
 import {
-  construirInstruccionesReprogramadas,
+  construirInstruccionesRescate,
   validarCancelacionDuplicados,
   validarReprogramacionTarea,
 } from "../utils/higieneBacklogOperativo";
@@ -72,6 +72,9 @@ export async function reprogramarTareaVencida({
   criterioExito,
   motivo,
   confirmacion,
+  alcanceExacto,
+  pasos,
+  evidencias,
 } = {}) {
   if (!organizationId || !businessId || !tareaId || !versionOriginal) {
     throw new Error("Falta el alcance o la versión original de la tarea.");
@@ -127,11 +130,17 @@ export async function reprogramarTareaVencida({
     criterioExito,
     motivo,
     confirmacion,
+    alcanceExacto,
+    pasos,
+    evidencias,
   });
   if (!validacion.valida) throw new Error(validacion.motivo);
 
   const ahora = new Date().toISOString();
-  const instrucciones = construirInstruccionesReprogramadas({
+  const instrucciones = construirInstruccionesRescate({
+    alcanceExacto,
+    pasos,
+    evidencias,
     instruccionesAnteriores: tarea.instrucciones,
     fechaAnterior: validacion.fechaAnterior,
     nuevaFecha: validacion.fechaNueva,
@@ -149,6 +158,11 @@ export async function reprogramarTareaVencida({
       criterio_exito: String(criterioExito).trim(),
       requiere_evidencia: true,
       instrucciones,
+      checklist: pasos.map((paso, indice) => ({
+        id: indice,
+        texto: String(paso).trim(),
+        completado: false,
+      })),
       updated_at: ahora,
     })
     .eq("id", tarea.id)
