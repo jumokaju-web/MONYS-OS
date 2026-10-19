@@ -32,16 +32,16 @@ const ETIQUETAS = {
 };
 const caja = {
   background: "#fff",
-  border: "1px solid #eadce3",
-  borderRadius: 14,
-  padding: 14,
+  border: "1px solid #eddde5",
+  borderRadius: 10,
+  padding: 10,
 };
 const campo = {
   width: "100%",
   boxSizing: "border-box",
-  border: "1px solid #d9dce5",
-  borderRadius: 10,
-  padding: "11px 12px",
+  border: "1px solid #e4d9e0",
+  borderRadius: 8,
+  padding: "8px 10px",
   font: "inherit",
   background: "#fff",
 };
@@ -292,23 +292,24 @@ export default function CentroCRMComercial({
     finally { setRegistrandoInteraccionId(""); }
   }
 
-  return (    <section style={{ marginTop: 28, padding: 22, borderRadius: 18, background: "linear-gradient(135deg, #fff 0%, #f5f8ff 100%)", border: "1px solid #c9d7ff", boxShadow: "0 12px 30px rgba(50, 80, 150, .09)" }}>
+  return (
+    <section style={{ marginTop: 12, padding: "clamp(11px, 3vw, 16px)", borderRadius: 13, background: "linear-gradient(145deg, #fff 0%, #fff9fc 100%)", border: "1px solid #ead5e0", boxShadow: "0 4px 14px rgba(112, 53, 84, .06)", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 13, lineHeight: 1.4, color: "#352d34" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <p style={{ margin: "0 0 6px", color: "#385bc7", fontWeight: 800, letterSpacing: ".08em" }}>MONYS OS · CRM Y VENTAS</p>
-          <h3 style={{ margin: 0, fontSize: 24 }}>🤝 Seguimiento de clientes</h3>
-          <p style={{ margin: "8px 0 0", color: "#586174" }}>Cada oportunidad tiene etapa, responsable, monto estimado y siguiente paso.</p>
+          <p style={{ margin: "0 0 3px", color: "#a83b70", fontWeight: 750, fontSize: 10, letterSpacing: ".07em" }}>MONYS OS · CRM Y VENTAS</p>
+          <h3 style={{ margin: 0, fontSize: "clamp(18px, 4.7vw, 21px)", lineHeight: 1.2, color: "#352d34", fontWeight: 750 }}>🤝 Seguimiento de clientes</h3>
+          <p style={{ margin: "4px 0 0", color: "#716a73", fontSize: 12 }}>Etapa, responsable y siguiente paso de cada oportunidad.</p>
         </div>
-        <button type="button" onClick={() => { setMostrarFormulario((valor) => !valor); setError(""); }} style={{ border: 0, borderRadius: 11, padding: "12px 16px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+        <button type="button" onClick={() => { setMostrarFormulario((valor) => !valor); setError(""); }} style={{ border: 0, borderRadius: 9, padding: "9px 12px", background: "#a83b70", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           {mostrarFormulario ? "Cerrar captura" : "+ Registrar oportunidad"}
         </button>
       </div>
 
-      <div style={{ ...caja, marginTop: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <strong style={{ color: "#253d91" }}>Vista de Dirección</strong>
+      <div style={{ ...caja, marginTop: 9, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <strong style={{ color: "#8f315f", fontSize: 13 }}>Vista de Dirección</strong>
         <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#586174", fontSize: 14 }}>
           Sucursal
-          <select aria-label="Filtrar oportunidades por sucursal" value={filtroSucursal} onChange={(e) => setFiltroSucursal(e.target.value)} style={{ ...campo, width: "auto", minWidth: 190 }}>
+          <select aria-label="Filtrar oportunidades por sucursal" value={filtroSucursal} onChange={(e) => setFiltroSucursal(e.target.value)} style={{ ...campo, width: "min(220px, 58vw)", minWidth: 0, fontSize: 14 }}>
             <option value="TODAS">Todas las sucursales</option>
             {sucursalesCRM.map((fila) => <option key={fila.id} value={fila.id}>{fila.name}</option>)}
             {oportunidades.some((fila) => !fila.branch_id) && <option value="SIN_SUCURSAL">Sucursal sin registrar</option>}
@@ -317,7 +318,7 @@ export default function CentroCRMComercial({
         <span style={{ color: "#697386", fontSize: 13 }}>Datos del CRM del negocio · {resumenDireccion.total} oportunidades en esta vista</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10, marginTop: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 9, marginTop: 9 }}>
         {[
           ["Sin responsable", resumenDireccion.sinResponsable],
           ["Seguimientos vencidos", resumenDireccion.vencidas],
@@ -326,16 +327,16 @@ export default function CentroCRMComercial({
           ["Sin respuesta · 3+ días", resumenDireccion.sinRespuesta],
           ["Ventas ligadas a folio SICAR", resumenDireccion.ventasSicar],
           ["Mediana primera respuesta", resumenDireccion.primeraRespuesta.medianaMinutos == null ? "Sin muestra" : `${resumenDireccion.primeraRespuesta.medianaMinutos} min`],
-        ].map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 12 }}><div style={{ color: "#697386", fontSize: 12 }}>{titulo}</div><strong style={{ display: "block", marginTop: 4, color: "#253d91", fontSize: 20 }}>{valor}</strong></div>)}
+        ].map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 9 }}><div style={{ color: "#706974", fontSize: 11, lineHeight: 1.35 }}>{titulo}</div><strong style={{ display: "block", marginTop: 3, color: "#8f315f", fontSize: 16, lineHeight: 1.2 }}>{valor}</strong></div>)}
       </div>
       <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>La primera respuesta se calcula entre marcas de tiempo guardadas en MONYS OS (n={resumenDireccion.primeraRespuesta.muestra}); no representa una medición automática de WhatsApp. “Sin respuesta” usa una regla operativa de 3 días. Tasas por responsable, sucursal, canal y producto usan oportunidades cerradas y no prueban causalidad.</p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginTop: 12 }}>
-        <div style={caja}><strong style={{ color: "#253d91" }}>Siguiente acción sugerida</strong><div style={{ display: "grid", gap: 9, marginTop: 10 }}>
-          {resumenDireccion.acciones.slice(0, 6).map((fila) => <div key={fila.id} style={{ padding: 10, background: fila.prioridad >= 85 ? "#fff5f3" : "#f6f8fc", borderRadius: 10 }}><strong>{fila.cliente}</strong><div style={{ color: "#5d6676", fontSize: 13, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#747d8c" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => { setFiltro("TODAS"); globalThis.requestAnimationFrame?.(() => document.getElementById(`crm-oportunidad-${fila.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ border: 0, background: "transparent", padding: "6px 0 0", color: "#365bd6", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Abrir oportunidad ↓</button></div></div>)}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 10, marginTop: 10 }}>
+        <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Siguiente acción sugerida</strong><div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+        {resumenDireccion.acciones.slice(0, 6).map((fila) => <div key={fila.id} style={{ padding: 9, background: fila.prioridad >= 85 ? "#fff5f8" : "#fffafd", borderRadius: 8 }}><strong>{fila.cliente}</strong><div style={{ color: "#625962", fontSize: 12, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#766d75" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => { setFiltro("TODAS"); globalThis.requestAnimationFrame?.(() => document.getElementById(`crm-oportunidad-${fila.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ border: 0, background: "transparent", padding: "5px 0 0", color: "#a83b70", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Abrir oportunidad ↓</button></div></div>)}
           {!resumenDireccion.acciones.length && <span style={{ color: "#697386" }}>No hay oportunidades abiertas que requieran acción.</span>}
         </div></div>
-        <div style={caja}><strong style={{ color: "#253d91" }}>Motivos de pérdida documentados</strong><p style={{ margin: "8px 0", color: "#5d6676", fontSize: 13 }}>REAL · {resumenDireccion.razonesPerdida.length} con motivo · {resumenDireccion.perdidasSinMotivo} sin motivo estructurado</p>
+        <div style={caja}><strong style={{ color: "#8f315f", fontSize: 13 }}>Motivos de pérdida documentados</strong><p style={{ margin: "6px 0", color: "#625962", fontSize: 11 }}>REAL · {resumenDireccion.razonesPerdida.length} con motivo · {resumenDireccion.perdidasSinMotivo} sin motivo estructurado</p>
           {resumenDireccion.razonesPerdida.slice(0, 5).map((fila) => <div key={fila.oportunidadId} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}>{fila.motivo}</div>)}
           <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>EVIDENCIA · {resumenDireccion.textosAsociados.length} mensajes salientes guardados en oportunidades con folio SICAR. Son ejemplos asociados a ventas registradas, no evidencia de que el mensaje causó la compra. HIPÓTESIS · todavía no hay comparación por tipo de respuesta suficiente para recomendar un texto ganador.</p>
           {resumenDireccion.textosAsociados.slice(0, 3).map((fila) => <div key={`${fila.oportunidadId}-${fila.folio}-${fila.texto}`} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}><span style={{ color: "#267044", fontWeight: 700 }}>Folio {fila.folio} · </span>{fila.texto}</div>)}
@@ -343,8 +344,8 @@ export default function CentroCRMComercial({
         </div>
       </div>
 
-      <div style={{ ...caja, marginTop: 12, overflowX: "auto" }}><strong style={{ color: "#253d91" }}>Conversión descriptiva por segmento</strong><p style={{ margin: "6px 0 10px", color: "#697386", fontSize: 12 }}>Ganadas / (ganadas + perdidas). Solo ventas con folio SICAR cuentan como ganadas válidas.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+      <div style={{ ...caja, marginTop: 9, overflowX: "auto" }}><strong style={{ color: "#8f315f", fontSize: 13 }}>Conversión descriptiva por segmento</strong><p style={{ margin: "4px 0 7px", color: "#716a73", fontSize: 11 }}>Ganadas / (ganadas + perdidas). Solo ventas con folio SICAR cuentan como ganadas válidas.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(210px, 100%), 1fr))", gap: 9 }}>
           {[["Responsable asignado", resumenDireccion.porResponsable], ["Sucursal", resumenDireccion.porSucursal], ["Canal", resumenDireccion.porCanal], ["Producto", resumenDireccion.porProducto]].map(([titulo, filas]) => <div key={titulo}><strong style={{ fontSize: 13 }}>{titulo}</strong>{filas.slice(0, 5).map((fila) => <div key={fila.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid #edf0f5", fontSize: 12 }}><span>{fila.nombre} · {fila.ganadas}/{fila.cerradas} cerradas</span><b>{fila.conversion == null ? "Sin muestra" : `${fila.conversion}%`}</b></div>)}{!filas.length && <p style={{ color: "#697386", fontSize: 12 }}>Sin datos.</p>}</div>)}
         </div>
       </div>
@@ -356,7 +357,7 @@ export default function CentroCRMComercial({
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}><button type="button" onClick={confirmarPerdida} style={{ border: 0, borderRadius: 9, padding: "10px 13px", background: "#8c3541", color: "white", fontWeight: 700 }}>Guardar motivo y cerrar</button><button type="button" onClick={() => setPerdidaPendiente(null)} style={{ border: "1px solid #d9dce5", borderRadius: 9, padding: "10px 13px", background: "white" }}>Cancelar</button></div>
       </div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginTop: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 9, marginTop: 14 }}>
         {[
           ["Embudo abierto", resumen.abiertas],
           ["Seguimientos vencidos / hoy", resumen.seguimientosPendientes],
@@ -364,25 +365,25 @@ export default function CentroCRMComercial({
           ["Oportunidades registradas", resumen.total],
           ["Tasa de cierre", resumen.tasaCierre == null ? "Pendiente" : `${resumen.tasaCierre}%`],
         ].map(([titulo, valor]) => (
-          <div key={titulo} style={{ ...caja, background: "#fff", padding: 13 }}>
-            <div style={{ color: "#6b7280", fontSize: 13 }}>{titulo}</div>
-            <strong style={{ display: "block", marginTop: 5, fontSize: 21, color: "#253d91" }}>{valor}</strong>
+          <div key={titulo} style={{ ...caja, background: "#fff", padding: 10 }}>
+            <div style={{ color: "#716a73", fontSize: 12 }}>{titulo}</div>
+          <strong style={{ display: "block", marginTop: 4, fontSize: 16, color: "#8f315f" }}>{valor}</strong>
           </div>
         ))}
       </div>
-      <p style={{ margin: "10px 0 0", color: "#6b7280", fontSize: 13 }}>El monto es una estimación capturada por el equipo; no se suma a ventas ni a utilidad SICAR. La tasa de cierre usa solo oportunidades marcadas como ganadas o perdidas.</p>
+      <p style={{ margin: "8px 0 0", color: "#716a73", fontSize: 11 }}>El monto es una estimación capturada por el equipo; no se suma a ventas ni a utilidad SICAR. La tasa de cierre usa solo oportunidades marcadas como ganadas o perdidas.</p>
 
       <div style={{ ...caja, marginTop: 14 }}>
-        <strong style={{ color: "#253d91" }}>Embudo por etapa</strong>
-        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+        <strong style={{ color: "#8f315f", fontSize: 13 }}>Embudo por etapa</strong>
+        <div style={{ display: "grid", gap: 8, marginTop: 9 }}>
           {ETAPAS_CRM.map((etapa) => {
             const cantidad = resumen.porEtapa[etapa] || 0;
             const ancho = resumen.total ? Math.max((cantidad / resumen.total) * 100, cantidad ? 4 : 0) : 0;
             return (
               <div key={etapa} style={{ display: "grid", gridTemplateColumns: "92px 1fr 32px", alignItems: "center", gap: 10 }}>
                 <span style={{ color: "#586174", fontSize: 13 }}>{ETIQUETAS[etapa]}</span>
-                <div style={{ height: 10, borderRadius: 999, background: "#eef1f6", overflow: "hidden" }}>
-                  <div style={{ width: `${ancho}%`, height: "100%", borderRadius: 999, background: ["GANADO", "PERDIDO"].includes(etapa) ? "#8b6ab8" : "#4265d5" }} />
+                <div style={{ height: 8, borderRadius: 999, background: "#f1e9ed", overflow: "hidden" }}>
+                  <div style={{ width: `${ancho}%`, height: "100%", borderRadius: 999, background: ["GANADO", "PERDIDO"].includes(etapa) ? "#bd6a96" : "#b44178" }} />
                 </div>
                 <strong style={{ textAlign: "right" }}>{cantidad}</strong>
               </div>
@@ -430,30 +431,30 @@ export default function CentroCRMComercial({
             <textarea rows={3} value={formulario.notas} onChange={(e) => cambiar("notas", e.target.value)} style={{ ...campo, resize: "vertical" }} />
           </label>
           <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <button disabled={guardando} type="submit" style={{ border: 0, borderRadius: 10, padding: "12px 18px", background: guardando ? "#9aa8d8" : "#365bd6", color: "#fff", fontWeight: 800, cursor: guardando ? "wait" : "pointer" }}>{guardando ? "Guardando…" : "Guardar y programar"}</button>
+            <button disabled={guardando} type="submit" style={{ border: 0, borderRadius: 9, padding: "10px 14px", background: guardando ? "#d7a9be" : "#a83b70", color: "#fff", fontWeight: 700, cursor: guardando ? "wait" : "pointer" }}>{guardando ? "Guardando…" : "Guardar y programar"}</button>
             <span style={{ color: "#697386", fontSize: 13 }}>{empleadosAsignables.length ? "Con empleada y fecha, MONYS crea una tarea operativa para su agenda." : "Falta vincular una cuenta activa de empleada para crear tareas asignadas."}</span>
           </div>
         </form>
       )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 12, marginBottom: 9 }}>
         {[["ABIERTAS", "Abiertas"], ["TODAS", "Todas"], ["CERRADAS", "Ganadas / perdidas"]].map(([id, etiqueta]) => (
-          <button key={id} type="button" onClick={() => setFiltro(id)} style={{ border: "1px solid #ccd3e2", borderRadius: 999, padding: "8px 13px", background: filtro === id ? "#eaf0ff" : "#fff", color: "#253d91", fontWeight: 700, cursor: "pointer" }}>{etiqueta}</button>
+          <button key={id} type="button" onClick={() => setFiltro(id)} style={{ border: "1px solid #e6d4de", borderRadius: 999, padding: "7px 11px", background: filtro === id ? "#faedf3" : "#fff", color: "#8f315f", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{etiqueta}</button>
         ))}
       </div>
 
       {cargando ? <p>Cargando oportunidades…</p> : visibles.length === 0 ? (
         <div style={{ ...caja, textAlign: "center", color: "#697386" }}>{oportunidades.length ? "No hay oportunidades en este filtro." : "Todavía no hay clientes en el CRM. Registra el próximo seguimiento para empezar a construir el embudo."}</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(255px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(255px, 100%), 1fr))", gap: 9 }}>
           {visibles.map((item) => {
             const vencida = item.proximo_seguimiento && item.proximo_seguimiento <= fechaHoyLocal() && !["GANADO", "PERDIDO"].includes(item.etapa);
             const persona = empleados.find((fila) => fila.id === item.empleado_id);
             return (
-              <article id={`crm-oportunidad-${item.id}`} key={item.id} style={{ ...caja, borderColor: vencida ? "#efb8b8" : "#e2e6ef", background: vencida ? "#fff8f8" : "#fff", scrollMarginTop: 20 }}>
+              <article id={`crm-oportunidad-${item.id}`} key={item.id} style={{ ...caja, borderColor: vencida ? "#efb8b8" : "#eadfe5", background: vencida ? "#fff8f8" : "#fff", scrollMarginTop: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
-                  <strong style={{ fontSize: 17, overflowWrap: "anywhere" }}>{item.cliente}</strong>
-                  <span style={{ borderRadius: 999, background: vencida ? "#ffe3e3" : "#edf1ff", color: vencida ? "#962c2c" : "#3652ad", padding: "5px 9px", fontSize: 12, whiteSpace: "nowrap" }}>{vencida ? "Seguimiento pendiente" : ETIQUETAS[item.etapa]}</span>
+                  <strong style={{ fontSize: 15, overflowWrap: "anywhere" }}>{item.cliente}</strong>
+                  <span style={{ borderRadius: 999, background: vencida ? "#fff0f0" : "#faedf3", color: vencida ? "#962c2c" : "#8f315f", padding: "4px 8px", fontSize: 11, whiteSpace: "nowrap" }}>{vencida ? "Seguimiento pendiente" : ETIQUETAS[item.etapa]}</span>
                 </div>
                 <div style={{ marginTop: 10, color: "#556071", lineHeight: 1.6 }}>
                   <div>{CANALES.find(([id]) => id === item.canal)?.[1] || "Otro"} · {item.producto_interes || "Interés por definir"}</div>
@@ -475,7 +476,7 @@ export default function CentroCRMComercial({
                         {empleadosAsignables.map((persona) => <option key={persona.id} value={persona.id}>{persona.nombre}{persona.branch_id && persona.branch_id !== item.branch_id ? " · otra sucursal" : ""}</option>)}
                       </select>
                     </label>
-                    <button type="button" disabled={programandoId === item.id || !empleadosAsignables.length} onClick={() => programarSiguiente(item)} style={{ border: 0, borderRadius: 10, padding: "11px 12px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer", opacity: programandoId === item.id ? .65 : 1 }}>{programandoId === item.id ? "Programando…" : "Agendar"}</button>
+                    <button type="button" disabled={programandoId === item.id || !empleadosAsignables.length} onClick={() => programarSiguiente(item)} style={{ border: 0, borderRadius: 8, padding: "9px 10px", background: "#a83b70", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", opacity: programandoId === item.id ? .65 : 1 }}>{programandoId === item.id ? "Programando…" : "Agendar"}</button>
                   </div>
                 )}
                 <label style={{ display: "grid", gap: 6, marginTop: 12, color: "#556071", fontSize: 13 }}>Folio de venta SICAR
@@ -486,7 +487,7 @@ export default function CentroCRMComercial({
                   <select value={item.etapa} onChange={(e) => cambiarEtapa(item, e.target.value)} style={campo}>{ETAPAS_CRM.map((etapa) => <option key={etapa} value={etapa}>{ETIQUETAS[etapa]}</option>)}</select>
                 </label>
                 <details style={{ marginTop: 12, borderTop: "1px solid #e8ebf2", paddingTop: 10 }}>
-                  <summary style={{ cursor: "pointer", color: "#253d91", fontWeight: 800 }}>Conversaciones ({interacciones.filter((fila) => fila.oportunidad_id === item.id).length})</summary>
+                  <summary style={{ cursor: "pointer", color: "#8f315f", fontWeight: 700 }}>Conversaciones ({interacciones.filter((fila) => fila.oportunidad_id === item.id).length})</summary>
                   <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                     {interacciones.filter((fila) => fila.oportunidad_id === item.id).map((fila) => (
                       <div key={fila.id} style={{ padding: 9, borderRadius: 9, background: "#f6f8fc", fontSize: 13 }}>
@@ -504,7 +505,7 @@ export default function CentroCRMComercial({
                       </label>
                     </div>
                     <textarea rows={2} value={borradoresInteraccion[item.id]?.mensaje || ""} onChange={(e) => setBorradoresInteraccion((prev) => ({ ...prev, [item.id]: { ...prev[item.id], mensaje: e.target.value } }))} style={{ ...campo, resize: "vertical" }} placeholder="Resumen o contenido del mensaje" />
-                    <button type="button" disabled={registrandoInteraccionId === item.id} onClick={() => guardarInteraccion(item)} style={{ border: 0, borderRadius: 9, padding: "10px 12px", background: "#365bd6", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{registrandoInteraccionId === item.id ? "Guardando…" : "Guardar conversación"}</button>
+                    <button type="button" disabled={registrandoInteraccionId === item.id} onClick={() => guardarInteraccion(item)} style={{ border: 0, borderRadius: 8, padding: "9px 11px", background: "#a83b70", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{registrandoInteraccionId === item.id ? "Guardando…" : "Guardar conversación"}</button>
                   </div>
                 </details>
               </article>
