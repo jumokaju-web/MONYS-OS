@@ -10,15 +10,16 @@ function TarjetaIndicador({
   subtitulo = "",
   icono = "📊",
   color = "#f8f8f8",
+  compacto = false,
 }) {
   return (
     <article
       style={{
-        padding: "20px",
-        borderRadius: "16px",
+        padding: compacto ? "11px" : "20px",
+        borderRadius: compacto ? "11px" : "16px",
         backgroundColor: color,
         border: "1px solid #f1dce6",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+        boxShadow: compacto ? "none" : "0 4px 12px rgba(0,0,0,0.05)",
 
         // Evita que textos largos ensanchen la tarjeta.
         minWidth: 0,
@@ -31,14 +32,14 @@ function TarjetaIndicador({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "10px",
-          marginBottom: "12px",
+          gap: compacto ? "6px" : "10px",
+          marginBottom: compacto ? "6px" : "12px",
           minWidth: 0,
         }}
       >
         <span
           style={{
-            fontSize: "24px",
+            fontSize: compacto ? "17px" : "24px",
             flexShrink: 0,
           }}
         >
@@ -50,6 +51,8 @@ function TarjetaIndicador({
             margin: 0,
             color: "#766a70",
             fontWeight: "600",
+            fontSize: compacto ? "12px" : "inherit",
+            lineHeight: compacto ? "1.25" : "normal",
 
             // Permite títulos largos.
             minWidth: 0,
@@ -67,7 +70,7 @@ function TarjetaIndicador({
 
           // Mantiene números grandes,
           // pero se adapta mejor en pantallas pequeñas.
-          fontSize: "clamp(22px, 3vw, 30px)",
+          fontSize: compacto ? "clamp(17px, 4.6vw, 22px)" : "clamp(22px, 3vw, 30px)",
           lineHeight: "1.2",
 
           // Evita desbordamiento de nombres largos.
@@ -83,10 +86,11 @@ function TarjetaIndicador({
       {subtitulo && (
         <p
           style={{
-            marginTop: "10px",
+            marginTop: compacto ? "5px" : "10px",
             marginBottom: 0,
             color: "#666",
             lineHeight: "1.5",
+            fontSize: compacto ? "11px" : "inherit",
 
             maxWidth: "100%",
             overflowWrap: "anywhere",
