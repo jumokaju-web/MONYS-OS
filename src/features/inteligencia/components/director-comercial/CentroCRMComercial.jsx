@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   actualizarEtapaCRM,
   crearOportunidadCRM,
   listarInteraccionesCRM,
   registrarInteraccionCRM,
   listarEmpleadosAsignablesCRM,
+  listarEmpleadosCRM,
+  listarSucursalesCRM,
   listarOportunidadesCRM,
   programarSeguimientoCRM,
 } from "../../services/crmService";
 import { ETAPAS_CRM, resumirCRM } from "../../shared/resumenCRM";
+import { analizarCentroDireccionCRM } from "../../shared/centroDireccionCRM";
 
 const CANALES = [
   ["MOSTRADOR", "Mostrador"],
@@ -86,6 +89,9 @@ export default function CentroCRMComercial({
   const [borradoresInteraccion, setBorradoresInteraccion] = useState({});
   const [registrandoInteraccionId, setRegistrandoInteraccionId] = useState("");
   const [equipoCRM, setEquipoCRM] = useState(empleados);
+  const [equipoCompletoCRM, setEquipoCompletoCRM] = useState(empleados);
+  const [sucursalesCRM, setSucursalesCRM] = useState([]);
+  const [filtroSucursal, setFiltroSucursal] = useState("TODAS");
   const [edicionesSeguimiento, setEdicionesSeguimiento] = useState({});
   const [programandoId, setProgramandoId] = useState("");
   const [formulario, setFormulario] = useState(inicial);
@@ -95,6 +101,8 @@ export default function CentroCRMComercial({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
+  const [perdidaPendiente, setPerdidaPendiente] = useState(null);
+  const [motivoPerdida, setMotivoPerdida] = useState("");
 
   const empleadosAsignables = useMemo(
     () => {
@@ -104,49 +112,66 @@ export default function CentroCRMComercial({
     [equipoCRM, empleados],
   );
 
-  async function cargar() {
+  const cargar = useCallback(async () => {
     if (!businessId) {
       setOportunidades([]);
       setInteracciones([]);
       setEquipoCRM([]);
+      setEquipoCompletoCRM([]);
+      setSucursalesCRM([]);
       setCargando(false);
       return;
     }
     setCargando(true);
     setError("");
     try {
-      const [oportunidadesCargadas, equipoCargado, interaccionesCargadas] = await Promise.all([
+      const [oportunidadesCargadas, equipoCargado, equipoCompletoCargado, interaccionesCargadas, sucursalesCargadas] = await Promise.all([
         listarOportunidadesCRM({ businessId }),
         listarEmpleadosAsignablesCRM({ businessId }),
+        listarEmpleadosCRM({ businessId }),
         listarInteraccionesCRM({ businessId }),
+        listarSucursalesCRM({ businessId }),
       ]);
       setOportunidades(oportunidadesCargadas);
       setEquipoCRM(equipoCargado);
+      setEquipoCompletoCRM(equipoCompletoCargado);
       setInteracciones(interaccionesCargadas);
+      setSucursalesCRM(sucursalesCargadas);
     } catch (err) {
       setError(err?.message || "No se pudo cargar el CRM.");
     } finally {
       setCargando(false);
     }
-  }
+  }, [businessId]);
 
   useEffect(() => {
     cargar();
-  }, [businessId]);
+  }, [cargar]);
 
-  const resumen = useMemo(() => resumirCRM(oportunidades), [oportunidades]);
+  const oportunidadesFiltradas = useMemo(() => filtroSucursal === "TODAS"
+    ? oportunidades
+    : oportunidades.filter((item) => String(item.branch_id || "SIN_SUCURSAL") === filtroSucursal), [filtroSucursal, oportunidades]);
+  const resumen = useMemo(() => resumirCRM(oportunidadesFiltradas), [oportunidadesFiltradas]);
+  const resumenDireccion = useMemo(() => {
+    const equipo = equipoCompletoCRM.length ? equipoCompletoCRM : (empleados.length ? empleados : equipoCRM);
+    const oportunidadesConResponsable = oportunidades.map((item) => {
+      const persona = equipo.find((fila) => fila.id === item.empleado_id || fila.usuario_id === item.asignado_a);
+      return { ...item, responsable_nombre: persona?.nombre || "" };
+    });
+    return analizarCentroDireccionCRM({ oportunidades: oportunidadesConResponsable, interacciones, sucursales: sucursalesCRM, hoy: fechaHoyLocal(), sucursalId: filtroSucursal });
+  }, [equipoCompletoCRM, equipoCRM, empleados, filtroSucursal, interacciones, oportunidades, sucursalesCRM]);
   const visibles = useMemo(() => {
     const lista = filtro === "ABIERTAS"
-      ? oportunidades.filter((item) => !["GANADO", "PERDIDO"].includes(item.etapa))
+      ? oportunidadesFiltradas.filter((item) => !["GANADO", "PERDIDO"].includes(item.etapa))
       : filtro === "CERRADAS"
-        ? oportunidades.filter((item) => ["GANADO", "PERDIDO"].includes(item.etapa))
-        : oportunidades;
+        ? oportunidadesFiltradas.filter((item) => ["GANADO", "PERDIDO"].includes(item.etapa))
+        : oportunidadesFiltradas;
     return [...lista].sort((a, b) => {
       const aa = a.proximo_seguimiento || "9999-12-31";
       const bb = b.proximo_seguimiento || "9999-12-31";
       return aa.localeCompare(bb);
     });
-  }, [filtro, oportunidades]);
+  }, [filtro, oportunidadesFiltradas]);
 
   function cambiar(campoNombre, valor) {
     setFormulario((anterior) => ({ ...anterior, [campoNombre]: valor }));
@@ -222,11 +247,34 @@ export default function CentroCRMComercial({
       setError("Captura primero el folio real de SICAR para registrar la venta ganada y asignar la comisión.");
       return;
     }
+    if (etapa === "PERDIDO") {
+      setPerdidaPendiente(item);
+      setMotivoPerdida("");
+      return;
+    }
     try {
       const actualizado = await actualizarEtapaCRM({ id: item.id, etapa, folioVentaSicar });
       setOportunidades((anterior) => anterior.map((fila) => fila.id === actualizado.id ? actualizado : fila));
     } catch (err) {
       setError(err?.message || "No se pudo cambiar la etapa.");
+    }
+  }
+
+  async function confirmarPerdida() {
+    const motivo = motivoPerdida.trim();
+    if (!perdidaPendiente?.id || motivo.length < 4) {
+      setError("Registra el motivo real de pérdida con al menos 4 caracteres.");
+      return;
+    }
+    try {
+      setError("");
+      const actualizado = await actualizarEtapaCRM({ id: perdidaPendiente.id, etapa: "PERDIDO", motivoPerdida: motivo });
+      setOportunidades((anterior) => anterior.map((fila) => fila.id === actualizado.id ? actualizado : fila));
+      setAviso("Oportunidad cerrada como perdida con motivo documentado.");
+      setPerdidaPendiente(null);
+      setMotivoPerdida("");
+    } catch (err) {
+      setError(err?.message || "No se pudo registrar el motivo de pérdida.");
     }
   }
 
@@ -255,6 +303,58 @@ export default function CentroCRMComercial({
           {mostrarFormulario ? "Cerrar captura" : "+ Registrar oportunidad"}
         </button>
       </div>
+
+      <div style={{ ...caja, marginTop: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <strong style={{ color: "#253d91" }}>Vista de Dirección</strong>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#586174", fontSize: 14 }}>
+          Sucursal
+          <select aria-label="Filtrar oportunidades por sucursal" value={filtroSucursal} onChange={(e) => setFiltroSucursal(e.target.value)} style={{ ...campo, width: "auto", minWidth: 190 }}>
+            <option value="TODAS">Todas las sucursales</option>
+            {sucursalesCRM.map((fila) => <option key={fila.id} value={fila.id}>{fila.name}</option>)}
+            {oportunidades.some((fila) => !fila.branch_id) && <option value="SIN_SUCURSAL">Sucursal sin registrar</option>}
+          </select>
+        </label>
+        <span style={{ color: "#697386", fontSize: 13 }}>Datos del CRM del negocio · {resumenDireccion.total} oportunidades en esta vista</span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10, marginTop: 10 }}>
+        {[
+          ["Sin responsable", resumenDireccion.sinResponsable],
+          ["Seguimientos vencidos", resumenDireccion.vencidas],
+          ["Para hoy", resumenDireccion.hoy],
+          ["Cotizaciones pendientes", resumenDireccion.cotizaciones],
+          ["Sin respuesta · 3+ días", resumenDireccion.sinRespuesta],
+          ["Ventas ligadas a folio SICAR", resumenDireccion.ventasSicar],
+          ["Mediana primera respuesta", resumenDireccion.primeraRespuesta.medianaMinutos == null ? "Sin muestra" : `${resumenDireccion.primeraRespuesta.medianaMinutos} min`],
+        ].map(([titulo, valor]) => <div key={titulo} style={{ ...caja, padding: 12 }}><div style={{ color: "#697386", fontSize: 12 }}>{titulo}</div><strong style={{ display: "block", marginTop: 4, color: "#253d91", fontSize: 20 }}>{valor}</strong></div>)}
+      </div>
+      <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>La primera respuesta se calcula entre marcas de tiempo guardadas en MONYS OS (n={resumenDireccion.primeraRespuesta.muestra}); no representa una medición automática de WhatsApp. “Sin respuesta” usa una regla operativa de 3 días. Tasas por responsable, sucursal, canal y producto usan oportunidades cerradas y no prueban causalidad.</p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginTop: 12 }}>
+        <div style={caja}><strong style={{ color: "#253d91" }}>Siguiente acción sugerida</strong><div style={{ display: "grid", gap: 9, marginTop: 10 }}>
+          {resumenDireccion.acciones.slice(0, 6).map((fila) => <div key={fila.id} style={{ padding: 10, background: fila.prioridad >= 85 ? "#fff5f3" : "#f6f8fc", borderRadius: 10 }}><strong>{fila.cliente}</strong><div style={{ color: "#5d6676", fontSize: 13, marginTop: 3 }}>{fila.accion}</div><small style={{ color: "#747d8c" }}>{sucursalesCRM.find((s) => s.id === fila.branch_id)?.name || "Sucursal no identificada"} · {fila.responsable_nombre || "Sin responsable"}</small><div><button type="button" onClick={() => { setFiltro("TODAS"); globalThis.requestAnimationFrame?.(() => document.getElementById(`crm-oportunidad-${fila.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); }} style={{ border: 0, background: "transparent", padding: "6px 0 0", color: "#365bd6", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Abrir oportunidad ↓</button></div></div>)}
+          {!resumenDireccion.acciones.length && <span style={{ color: "#697386" }}>No hay oportunidades abiertas que requieran acción.</span>}
+        </div></div>
+        <div style={caja}><strong style={{ color: "#253d91" }}>Motivos de pérdida documentados</strong><p style={{ margin: "8px 0", color: "#5d6676", fontSize: 13 }}>REAL · {resumenDireccion.razonesPerdida.length} con motivo · {resumenDireccion.perdidasSinMotivo} sin motivo estructurado</p>
+          {resumenDireccion.razonesPerdida.slice(0, 5).map((fila) => <div key={fila.oportunidadId} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}>{fila.motivo}</div>)}
+          <p style={{ margin: "8px 0 0", color: "#697386", fontSize: 12 }}>EVIDENCIA · {resumenDireccion.textosAsociados.length} mensajes salientes guardados en oportunidades con folio SICAR. Son ejemplos asociados a ventas registradas, no evidencia de que el mensaje causó la compra. HIPÓTESIS · todavía no hay comparación por tipo de respuesta suficiente para recomendar un texto ganador.</p>
+          {resumenDireccion.textosAsociados.slice(0, 3).map((fila) => <div key={`${fila.oportunidadId}-${fila.folio}-${fila.texto}`} style={{ padding: "7px 0", borderTop: "1px solid #edf0f5", fontSize: 13 }}><span style={{ color: "#267044", fontWeight: 700 }}>Folio {fila.folio} · </span>{fila.texto}</div>)}
+          {!resumenDireccion.textosAsociados.length && <span style={{ color: "#697386", fontSize: 13 }}>Sin mensajes salientes vinculados a una venta con folio.</span>}
+        </div>
+      </div>
+
+      <div style={{ ...caja, marginTop: 12, overflowX: "auto" }}><strong style={{ color: "#253d91" }}>Conversión descriptiva por segmento</strong><p style={{ margin: "6px 0 10px", color: "#697386", fontSize: 12 }}>Ganadas / (ganadas + perdidas). Solo ventas con folio SICAR cuentan como ganadas válidas.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+          {[["Responsable asignado", resumenDireccion.porResponsable], ["Sucursal", resumenDireccion.porSucursal], ["Canal", resumenDireccion.porCanal], ["Producto", resumenDireccion.porProducto]].map(([titulo, filas]) => <div key={titulo}><strong style={{ fontSize: 13 }}>{titulo}</strong>{filas.slice(0, 5).map((fila) => <div key={fila.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid #edf0f5", fontSize: 12 }}><span>{fila.nombre} · {fila.ganadas}/{fila.cerradas} cerradas</span><b>{fila.conversion == null ? "Sin muestra" : `${fila.conversion}%`}</b></div>)}{!filas.length && <p style={{ color: "#697386", fontSize: 12 }}>Sin datos.</p>}</div>)}
+        </div>
+      </div>
+
+      {perdidaPendiente && <div role="dialog" aria-modal="true" aria-labelledby="crm-perdida-titulo" style={{ ...caja, marginTop: 12, borderColor: "#e3b9b9", background: "#fff8f8" }}>
+        <strong id="crm-perdida-titulo">¿Por qué se perdió la oportunidad de {perdidaPendiente.cliente}?</strong>
+        <p style={{ margin: "6px 0", color: "#697386", fontSize: 13 }}>Registra el motivo comunicado o conocido. No elijas una causa supuesta.</p>
+        <textarea rows={2} value={motivoPerdida} onChange={(e) => setMotivoPerdida(e.target.value)} style={{ ...campo, marginTop: 4 }} placeholder="Ej.: encontró el producto a menor precio, no hubo existencia…" />
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}><button type="button" onClick={confirmarPerdida} style={{ border: 0, borderRadius: 9, padding: "10px 13px", background: "#8c3541", color: "white", fontWeight: 700 }}>Guardar motivo y cerrar</button><button type="button" onClick={() => setPerdidaPendiente(null)} style={{ border: "1px solid #d9dce5", borderRadius: 9, padding: "10px 13px", background: "white" }}>Cancelar</button></div>
+      </div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginTop: 18 }}>
         {[
@@ -350,7 +450,7 @@ export default function CentroCRMComercial({
             const vencida = item.proximo_seguimiento && item.proximo_seguimiento <= fechaHoyLocal() && !["GANADO", "PERDIDO"].includes(item.etapa);
             const persona = empleados.find((fila) => fila.id === item.empleado_id);
             return (
-              <article key={item.id} style={{ ...caja, borderColor: vencida ? "#efb8b8" : "#e2e6ef", background: vencida ? "#fff8f8" : "#fff" }}>
+              <article id={`crm-oportunidad-${item.id}`} key={item.id} style={{ ...caja, borderColor: vencida ? "#efb8b8" : "#e2e6ef", background: vencida ? "#fff8f8" : "#fff", scrollMarginTop: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
                   <strong style={{ fontSize: 17, overflowWrap: "anywhere" }}>{item.cliente}</strong>
                   <span style={{ borderRadius: 999, background: vencida ? "#ffe3e3" : "#edf1ff", color: vencida ? "#962c2c" : "#3652ad", padding: "5px 9px", fontSize: 12, whiteSpace: "nowrap" }}>{vencida ? "Seguimiento pendiente" : ETIQUETAS[item.etapa]}</span>

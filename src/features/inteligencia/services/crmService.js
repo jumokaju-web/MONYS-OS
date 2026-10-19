@@ -147,11 +147,18 @@ export async function crearOportunidadCRM({
   return { oportunidad: data, tarea, errorTarea };
 }
 
-export async function actualizarEtapaCRM({ id, etapa, folioVentaSicar } = {}) {
+export async function actualizarEtapaCRM({ id, etapa, folioVentaSicar, motivoPerdida } = {}) {
   if (!id || !ETAPAS_CRM.has(etapa)) throw new Error("La oportunidad o etapa no es válida.");
   const folio = String(folioVentaSicar || "").trim();
   if (etapa === "GANADO" && !folio) throw new Error("Captura el folio SICAR para atribuir la comisión a quien atendió a la clienta.");
-  const { data, error } = await supabase.from("crm_oportunidades").update({ etapa, folio_venta_sicar: folio || null, updated_at: new Date().toISOString() })
+  const motivo = String(motivoPerdida || "").trim();
+  if (etapa === "PERDIDO" && motivo.length < 4) throw new Error("Registra el motivo real antes de cerrar como perdida.");
+  const { data, error } = await supabase.from("crm_oportunidades").update({
+    etapa,
+    folio_venta_sicar: folio || null,
+    ...(etapa === "PERDIDO" ? { ultimo_resultado: `Motivo de pérdida: ${motivo}` } : {}),
+    updated_at: new Date().toISOString(),
+  })
     .eq("id", id)
     .select()
     .single();
@@ -190,6 +197,28 @@ export async function listarEmpleadosAsignablesCRM({ businessId } = {}) {
     .eq("active", true)
     .not("usuario_id", "is", null)
     .order("nombre", { ascending: true });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function listarEmpleadosCRM({ businessId } = {}) {
+  if (!businessId) return [];
+  const { data, error } = await supabase
+    .from("empleados")
+    .select("id, nombre, puesto, usuario_id, branch_id, active")
+    .eq("business_id", businessId)
+    .order("nombre", { ascending: true });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function listarSucursalesCRM({ businessId } = {}) {
+  if (!businessId) return [];
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id, name, active")
+    .eq("business_id", businessId)
+    .order("name", { ascending: true });
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
