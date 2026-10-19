@@ -298,12 +298,13 @@ function DirectorComercial({
         style={{
           display: "grid",
           gridTemplateColumns:
-            "repeat(auto-fit, minmax(210px, 1fr))",
-          gap: "16px",
-          marginTop: "24px",
+            "repeat(auto-fit, minmax(min(145px, 100%), 1fr))",
+          gap: "9px",
+          marginTop: "14px",
         }}
       >
         <TarjetaIndicador
+          compacto
           icono="💰"
           titulo="Ventas totales"
           valor={formatearDinero(
@@ -312,6 +313,7 @@ function DirectorComercial({
         />
 
         <TarjetaIndicador
+          compacto
           icono="📈"
           titulo="Utilidad total"
           valor={formatearDinero(
@@ -320,6 +322,7 @@ function DirectorComercial({
         />
 
         <TarjetaIndicador
+          compacto
           icono="📊"
           titulo="Margen de utilidad"
           valor={`${indicadores.margenUtilidad.toFixed(
@@ -328,6 +331,7 @@ function DirectorComercial({
         />
 
         <TarjetaIndicador
+          compacto
           icono="📦"
           titulo="Productos analizados"
           valor={
@@ -336,6 +340,7 @@ function DirectorComercial({
         />
 
         <TarjetaIndicador
+          compacto
           icono="🛒"
           titulo="Piezas vendidas"
           valor={
@@ -344,6 +349,7 @@ function DirectorComercial({
         />
 
         <TarjetaIndicador
+          compacto
           icono="⭐"
           titulo="Producto líder"
           valor={
