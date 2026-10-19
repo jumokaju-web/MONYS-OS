@@ -94,7 +94,7 @@ function obtenerPeriodoDesdeDetalles(
   return null;
 }
 
-export function useDashboardData() {
+export function useDashboardData({ enabled = true } = {}) {
   const {
     usuario,
   } = useUser();
@@ -125,8 +125,9 @@ export function useDashboardData() {
       setDatosDashboard(null);
       try {
 
-      if (!branchId) {
+      if (!enabled || !branchId) {
   setDatosDashboard(null);
+  setErrorDashboard("");
   setCargandoDashboard(false);
   return;
 }
@@ -346,7 +347,7 @@ export function useDashboardData() {
       } finally {
         if (solicitud === solicitudActual.current) setCargandoDashboard(false);
       }
-    }, [branchId, usuario?.organization_id, usuario?.business_id]);
+    }, [branchId, enabled, usuario?.organization_id, usuario?.business_id]);
 
   useEffect(() => {
     cargarDatosDashboard();

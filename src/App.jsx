@@ -41,6 +41,7 @@ import {
 import {
   useDashboardSucursales,
 } from "./features/dashboard/hooks/useDashboardSucursales";
+import { puedeCargarDatosDeDireccion } from "./features/dashboard/utils/accesoDashboard";
 
 import HistorialMovimientos from "./features/tesoreria/components/HistorialMovimientos";
 
@@ -123,17 +124,19 @@ function App() {
 
 
 
+  const puedeCargarDireccion = puedeCargarDatosDeDireccion(usuario?.role);
+
   const {
     datosDashboard,
     cargandoDashboard,
     errorDashboard,
-  } = useDashboardData();
+  } = useDashboardData({ enabled: puedeCargarDireccion });
 
   const {
   sucursalesDashboard,
   cargandoSucursales,
   errorSucursales,
-} = useDashboardSucursales();
+} = useDashboardSucursales({ enabled: puedeCargarDireccion });
 
   const importacionId = datosDashboard?.branch_id === usuario?.branch_id ? datosDashboard?.importacion?.id || null : null;
 
@@ -361,8 +364,15 @@ receiptStatus:
     };
 
   useEffect(() => {
+    if (!puedeCargarDireccion) {
+      setMovimientos([]);
+      setErrorMovimientos(false);
+      setCargandoMovimientos(false);
+      return;
+    }
+
     cargarMovimientos();
-  }, []);
+  }, [puedeCargarDireccion]);
 
   const cambiarEstadoMovimiento =
     async (

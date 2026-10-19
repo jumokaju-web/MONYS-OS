@@ -1,3 +1,5 @@
 export function debeAbrirFlotillaComoInicio({ role, puedeVerLogistica }) {
-  return role === "consulta" && puedeVerLogistica === true;
+  const rol = String(role || "").trim().toLowerCase();
+
+  return ["chofer", "consulta"].includes(rol) && puedeVerLogistica === true;
 }

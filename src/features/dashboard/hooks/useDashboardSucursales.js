@@ -538,7 +538,7 @@ const resumenInventario =
     };
 }
 
-export function useDashboardSucursales() {
+export function useDashboardSucursales({ enabled = true } = {}) {
   const {
     usuario,
   } = useUser();
@@ -573,6 +573,7 @@ export function useDashboardSucursales() {
           null;
 
         if (
+          !enabled ||
           !organizationId ||
           !businessId
         ) {
@@ -646,6 +647,7 @@ export function useDashboardSucursales() {
         );
       }
     }, [
+      enabled,
       usuario?.organization_id,
       usuario?.business_id,
     ]);
