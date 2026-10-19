@@ -103,7 +103,12 @@ export function analizarCentroDireccionCRM({ oportunidades = [], interacciones =
     return { ...fila, prioridad, categoria, accion };
   }).sort((a, b) => b.prioridad - a.prioridad || String(a.proximo_seguimiento || "9999-12-31").localeCompare(String(b.proximo_seguimiento || "9999-12-31")));
 
+  const idsDe = (filas) => filas.map((fila) => fila.id);
+  const responder = abiertas.filter((fila) => interaccionesOrdenadas(fila).at(-1)?.direccion === "ENTRANTE");
+  const sinFecha = abiertas.filter((fila) => !fila.proximo_seguimiento);
+
   return {
+    estadoDatos: seleccionadas.length ? "CON_DATOS" : "SIN_DATOS",
     total: seleccionadas.length,
     abiertas: abiertas.length,
     sinResponsable: sinResponsable.length,
@@ -121,5 +126,16 @@ export function analizarCentroDireccionCRM({ oportunidades = [], interacciones =
     perdidasSinMotivo: sinMotivo.length,
     textosAsociados,
     acciones: prioridades,
+    colas: {
+      PRIORIDAD: idsDe(prioridades),
+      RESPONDER: idsDe(responder),
+      SIN_RESPONSABLE: idsDe(sinResponsable),
+      VENCIDAS: idsDe(vencidas),
+      HOY: idsDe(hoySeguimiento),
+      COTIZACIONES: idsDe(cotizaciones),
+      SIN_RESPUESTA: idsDe(sinRespuesta),
+      SIN_FECHA: idsDe(sinFecha),
+      TODAS: idsDe(seleccionadas),
+    },
   };
 }
