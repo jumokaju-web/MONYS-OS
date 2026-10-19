@@ -56,8 +56,8 @@ export async function guardarConfiguracionOperativa({
     throw new Error("Selecciona tu día de descanso semanal.");
   }
   const areas = [...new Set(Array.isArray(areasAsignadas) ? areasAsignadas : [areaAsignada].filter(Boolean))];
-  if (areas.length < 1 || areas.length > 3 || areas.some((id) => !AREAS_OPERATIVAS.some((area) => area.id === id))) {
-    throw new Error("Elige de una a tres áreas de trabajo.");
+  if (areas.length < 1 || areas.length > AREAS_OPERATIVAS.length || areas.some((id) => !AREAS_OPERATIVAS.some((area) => area.id === id))) {
+    throw new Error(`Elige de una a ${AREAS_OPERATIVAS.length} áreas de trabajo.`);
   }
   if (!["PRIMERO", "SEGUNDO", "AMBOS"].includes(turnoAsignado)) {
     throw new Error("Selecciona tu turno asignado.");

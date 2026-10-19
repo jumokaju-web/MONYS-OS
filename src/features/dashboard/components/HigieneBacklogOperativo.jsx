@@ -236,7 +236,7 @@ export default function HigieneBacklogOperativo({
                 <h2 id="rescate-pagina-titulo">{tareaActual.titulo}</h2>
                 <p className="backlog-page__meta">{nombreSucursal(tareaActual.branch_id, sucursales)} · {tareaActual.area || "Área pendiente"} · {tareaActual.responsable || "Sin responsable"}</p>
                 {tareaActual.faltantes.length > 0 && <p className="backlog-page__missing">Falta: {tareaActual.faltantes.join(", ")}.</p>}
-                {responsablesSucursal.length === 0 && <p className="backlog-page__blocked">PENDIENTE: no hay una empleada activa con acceso confirmado en esta sucursal. La tarea no puede reasignarse todavía.</p>}
+                {responsablesSucursal.length === 0 && <div className="backlog-page__blocked"><p>PENDIENTE: no hay una empleada activa con acceso confirmado en esta sucursal. La tarea no puede reasignarse todavía.</p>{onAbrirEquipo && <button type="button" onClick={onAbrirEquipo}>Configurar responsable de {nombreSucursal(tareaActual.branch_id, sucursales)} →</button>}</div>}
 
                 {formularioAbierto ? (
                   <div className="backlog-hygiene__rescue-form">
@@ -265,7 +265,7 @@ export default function HigieneBacklogOperativo({
                     <label className="backlog-plan__wide">Resultado que comprobará el cierre<textarea rows={2} maxLength={400} value={borradorRescate.criterioExito} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, criterioExito: evento.target.value }))} /></label>
                     <label className="backlog-plan__wide">Por qué se reprograma<textarea rows={2} maxLength={400} value={borradorRescate.motivo} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, motivo: evento.target.value }))} /></label>
                     <label className="backlog-plan__wide">Para autorizar escribe <b>REPROGRAMAR</b><input autoComplete="off" value={borradorRescate.confirmacion} onChange={(evento) => setBorradorRescate((actual) => ({ ...actual, confirmacion: evento.target.value.toUpperCase() }))} /></label>
-                    {responsablesSucursal.length === 0 && <p className="backlog-plan__authorization-lock">Puedes revisar y completar el plan, pero no enviarlo hasta vincular una empleada activa de esta sucursal.</p>}
+                    {responsablesSucursal.length === 0 && <div className="backlog-plan__authorization-lock"><p>Puedes revisar y completar el plan, pero no enviarlo hasta vincular una empleada activa de esta sucursal.</p>{onAbrirEquipo && <button type="button" onClick={onAbrirEquipo}>Configurar responsable →</button>}</div>}
                     <div><button type="button" className="is-secondary" onClick={() => { setTareaRescate(null); setBorradorRescate(null); }} disabled={guardando}>Cancelar</button><button type="button" onClick={guardarRescate} disabled={guardando || borradorRescate.confirmacion !== "REPROGRAMAR" || responsablesSucursal.length === 0 || !alcancePlanCompleto}>{guardando ? "Guardando…" : "Autorizar y enviar"}</button></div>
                   </div>
                 ) : (

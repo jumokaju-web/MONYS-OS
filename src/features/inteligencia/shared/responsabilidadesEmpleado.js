@@ -64,9 +64,9 @@ export function resolverResponsabilidadesEmpleado(usuario = {}) {
 
 export function resolverAreasPerfilEmpleado(usuario = {}) {
   // El perfil operativo usa los mismos identificadores que las
-  // responsabilidades de RH. Precargamos hasta tres para que la empleada
-  // no tenga que volver a capturar lo que Dirección ya asignó.
-  return resolverResponsabilidadesEmpleado(usuario).slice(0, 3);
+  // responsabilidades de RH. Conservamos todas las funciones autorizadas:
+  // una sucursal atendida por una sola persona puede requerir más de tres.
+  return resolverResponsabilidadesEmpleado(usuario);
 }
 
 export function detalleResponsabilidadesEmpleado(usuario = {}) {

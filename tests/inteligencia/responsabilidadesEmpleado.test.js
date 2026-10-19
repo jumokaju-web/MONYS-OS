@@ -53,7 +53,7 @@ test("precarga en el perfil operativo las áreas ya asignadas desde RH", () => {
   );
 });
 
-test("limita las áreas iniciales a tres y conserva el orden definido en RH", () => {
+test("conserva todas las áreas iniciales y el orden definido en RH", () => {
   assert.deepEqual(
     resolverAreasPerfilEmpleado({
       responsabilidades: [
@@ -63,6 +63,6 @@ test("limita las áreas iniciales a tres y conserva el orden definido en RH", ()
         "CAJA_CORTE",
       ],
     }),
-    ["VENTA_TIENDA", "VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP"],
+    ["VENTA_TIENDA", "VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP", "CAJA_CORTE"],
   );
 });

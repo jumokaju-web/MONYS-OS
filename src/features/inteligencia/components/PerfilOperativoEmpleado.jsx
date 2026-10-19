@@ -75,8 +75,8 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
 
   function alternarArea(areaId) {
     const seleccionadas = formulario.areasAsignadas || [];
-    if (!seleccionadas.includes(areaId) && seleccionadas.length >= 3) {
-      setError("Puedes elegir hasta tres áreas.");
+    if (!seleccionadas.includes(areaId) && seleccionadas.length >= AREAS_OPERATIVAS.length) {
+      setError(`Puedes elegir hasta ${AREAS_OPERATIVAS.length} áreas.`);
       return;
     }
     setError("");
@@ -138,19 +138,19 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
           </select>
         </label>
         <fieldset style={{ display: "grid", gap: "8px", padding: 0, border: 0, margin: 0 }}>
-          <legend style={labelStyle}>Áreas de trabajo · hasta tres</legend>
+          <legend style={labelStyle}>Funciones de trabajo</legend>
           <span style={{ color: "#71636b", fontSize: "12px" }}>
             MONYS precargó las áreas que Dirección te asignó. Puedes ajustarlas para organizar tus tareas.
           </span>
           {AREAS_OPERATIVAS.map((area) => {
             const seleccionada = (formulario.areasAsignadas || []).includes(area.id);
-            const maximoAlcanzado = (formulario.areasAsignadas || []).length >= 3;
+            const maximoAlcanzado = (formulario.areasAsignadas || []).length >= AREAS_OPERATIVAS.length;
             return <label key={area.id} style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "42px", padding: "8px 10px", border: `1px solid ${seleccionada ? "#c12c70" : "#e2ccd7"}`, borderRadius: "10px", background: seleccionada ? "#fff5fa" : "#fff", color: "#4c3944", fontSize: "14px", fontWeight: 650, opacity: !seleccionada && maximoAlcanzado ? 0.58 : 1 }}>
               <input type="checkbox" checked={seleccionada} disabled={guardando || (!seleccionada && maximoAlcanzado)} onChange={() => alternarArea(area.id)} style={{ width: "18px", height: "18px", accentColor: "#c12c70" }} />
               {area.nombre}
             </label>;
           })}
-          <span style={{ color: "#71636b", fontSize: "12px" }}>{(formulario.areasAsignadas || []).length} de 3 áreas seleccionadas</span>
+          <span style={{ color: "#71636b", fontSize: "12px" }}>{(formulario.areasAsignadas || []).length} de {AREAS_OPERATIVAS.length} funciones seleccionadas</span>
         </fieldset>
         <label style={labelStyle}>¿En qué turno trabajas?
           <select required value={formulario.turnoAsignado} onChange={(event) => cambiar("turnoAsignado", event.target.value)} style={inputStyle}>

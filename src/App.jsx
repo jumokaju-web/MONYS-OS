@@ -929,6 +929,11 @@ const disponible =
           organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
           businessId={datosDashboard?.business_id || usuario?.business_id || null}
           sucursales={sucursalesDashboard}
+          onAbrirEquipo={() => {
+            setDirectorInicial("rh");
+            setPantallaActual("inteligencia");
+            window.scrollTo({ top: 0, behavior: "auto" });
+          }}
           onVolverDashboard={() => {
             setPantallaActual("dashboard");
             requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: scrollDashboardAntesRescate })));

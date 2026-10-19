@@ -10,7 +10,7 @@ export function areasSugeridasParaEmpleado(empleado = {}) {
     "INVENTARIO_APOYO",
   ]);
   const desdeResponsabilidades = responsabilidades.filter((area) => permitidas.has(area));
-  if (desdeResponsabilidades.length) return [...new Set(desdeResponsabilidades)].slice(0, 3);
+  if (desdeResponsabilidades.length) return [...new Set(desdeResponsabilidades)];
 
   const puesto = String(empleado.puesto || "").toLocaleLowerCase("es-MX");
   if (puesto.includes("marketing")) return ["PUBLICAR_GRUPOS_WHATSAPP", "VENTA_WHATSAPP"];

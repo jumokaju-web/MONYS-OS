@@ -27,6 +27,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
     ["VENTA_TIENDA", "VENTA_WHATSAPP", "INVENTARIO_APOYO"].includes(item)
   );
   const puedeCaja = responsabilidades.includes("CAJA_CORTE");
+  const puedeWhatsApp = responsabilidades.includes("VENTA_WHATSAPP");
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
   const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
   const [nombrePreferido, setNombrePreferido] = useState("");
@@ -119,7 +120,7 @@ export default function InicioEmpleado({ usuario, datosDashboard }) {
     }, 80);
   }
 
-  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} cerrarSesion={cerrarSesion}/>;
+  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} puedeWhatsApp={puedeWhatsApp} cerrarSesion={cerrarSesion}/>;
 
   return (
     <main

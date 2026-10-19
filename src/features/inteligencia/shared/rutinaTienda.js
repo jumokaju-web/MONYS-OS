@@ -60,6 +60,16 @@ function esVendedoraTienda(empleado, configuracion) {
     resolverResponsabilidadesEmpleado(empleado).includes("VENTA_TIENDA");
 }
 
+function tieneFuncionOperativa(empleado, configuracion, funcion) {
+  const areas = Array.isArray(configuracion?.areas_asignadas) && configuracion.areas_asignadas.length
+    ? configuracion.areas_asignadas
+    : [configuracion?.area_asignada].filter(Boolean);
+  // La configuración operativa es la asignación explícita de Dirección.
+  // Las responsabilidades de RH sirven para precargarla, pero no deben
+  // invalidar después una función multifunción que Dirección ya confirmó.
+  return Boolean(empleado) && areas.includes(funcion);
+}
+
 function coincideTurno(configuracion, turno, horario = null) {
   const turnoReal = horario?.turno || configuracion?.turno_asignado;
   return turnoReal === turno || turnoReal === "AMBOS";
@@ -154,6 +164,9 @@ export function construirRutinaInteligente({
     esVendedoraTienda(empleado, perfiles.get(String(empleado.id))),
   );
   const tareas = [];
+  const operacionUnipersonal = disponibles.length === 1 && personalTienda.length === 1;
+  const responsableUnica = operacionUnipersonal ? disponibles[0] : null;
+  let productosAsignadosConteo = 0;
 
   const sinPerfil = lista.filter((empleado) => !perfiles.has(String(empleado.id)));
   if (sinPerfil.length) {
@@ -172,17 +185,56 @@ export function construirRutinaInteligente({
     avisos.push("No hay vendedoras de tienda disponibles con perfil y responsabilidades configurados para esta fecha.");
   }
 
-  for (const empleado of personalTienda) {
-    const configuracion = perfiles.get(String(empleado.id));
+  if (operacionUnipersonal) {
     tareas.push(crearTarea({
       fecha,
-      empleado,
-      configuracion,
-      titulo: "Limpiar su mueble y exhibidor",
-      descripcion: "Mantener limpio y ordenado el mueble asignado a la vendedora.",
-      instrucciones: "Limpia y ordena tu mueble y exhibidor. Acomoda los productos en su lugar y reporta cualquier producto dañado o faltante.",
-      criterioExito: "Mueble y exhibidor asignados limpios, ordenados y con faltantes reportados.",
+      empleado: responsableUnica,
+      titulo: "Rutina esencial de sucursal",
+      descripcion: "Mantener lista la tienda sin interrumpir la atención presencial ni dejar desatendido el punto de venta.",
+      instrucciones: "Prioridad 1: atiende y cobra a la clienta presente. Cuando la tienda esté libre, limpia mostrador, piso, exhibidor y baño por bloques cortos. Reporta faltantes, daños o una limpieza profunda pendiente; no abandones la atención para completar esta tarea.",
+      criterioExito: "Áreas críticas limpias y tienda atendida; cualquier pendiente de limpieza o mantenimiento quedó reportado.",
     }));
+
+    const configuracionUnica = perfiles.get(String(responsableUnica.id));
+    if (tieneFuncionOperativa(responsableUnica, configuracionUnica, "VENTA_WHATSAPP")) {
+      tareas.push(crearTarea({
+        fecha,
+        empleado: responsableUnica,
+        area: "whatsapp",
+        prioridad: "alta",
+        titulo: "Atender WhatsApp sin descuidar la tienda",
+        descripcion: "Responder y dar seguimiento en bloques breves, pausando cuando llegue una clienta presencial.",
+        instrucciones: "Revisa mensajes al iniciar, durante espacios sin clientas y antes de cerrar. Atiende primero intención de compra y pedidos en seguimiento. Registra producto solicitado y resultado; relaciona el folio SICAR cuando exista. Si no existe folio o importe, déjalo PENDIENTE y no lo conviertas en una venta de $0.",
+        criterioExito: "Conversaciones atendidas y resultados registrados; pedidos vendidos relacionados con su folio SICAR cuando exista.",
+      }));
+    }
+
+    if (tieneFuncionOperativa(responsableUnica, configuracionUnica, "PUBLICAR_GRUPOS_WHATSAPP")) {
+      tareas.push(crearTarea({
+        fecha,
+        empleado: responsableUnica,
+        area: "marketing",
+        titulo: "Publicar la promoción autorizada en grupos",
+        descripcion: "Compartir contenido aprobado cuando la atención de tienda y WhatsApp esté controlada.",
+        instrucciones: "Publica únicamente el material y precio autorizados por Dirección. Registra en qué grupos se compartió y las respuestas recibidas. Si no existe contenido autorizado, no improvises: reporta PENDIENTE.",
+        criterioExito: "Publicación autorizada documentada con grupos y respuesta, o falta de material reportada como PENDIENTE.",
+      }));
+    }
+
+    avisos.push("MODO SUCURSAL UNIPERSONAL: clienta presente y cobro tienen prioridad; WhatsApp, limpieza, publicaciones e inventario se trabajan en bloques sin dejar sola la tienda.");
+  } else {
+    for (const empleado of personalTienda) {
+      const configuracion = perfiles.get(String(empleado.id));
+      tareas.push(crearTarea({
+        fecha,
+        empleado,
+        configuracion,
+        titulo: "Limpiar su mueble y exhibidor",
+        descripcion: "Mantener limpio y ordenado el mueble asignado a la vendedora.",
+        instrucciones: "Limpia y ordena tu mueble y exhibidor. Acomoda los productos en su lugar y reporta cualquier producto dañado o faltante.",
+        criterioExito: "Mueble y exhibidor asignados limpios, ordenados y con faltantes reportados.",
+      }));
+    }
   }
 
   const candidatosTurno = (turno) => personalTienda.filter((empleado) =>
@@ -196,7 +248,7 @@ export function construirRutinaInteligente({
     { turno: "PRIMERO", titulo: "Barrer y trapear al iniciar el primer turno" },
     { turno: "SEGUNDO", titulo: "Barrer y trapear al iniciar el segundo turno" },
   ];
-  for (const item of barrer) {
+  for (const item of operacionUnipersonal ? [] : barrer) {
     const responsable = elegirConMenorCarga(candidatosTurno(item.turno), [...trabajoPrevio, ...asignacionesHoy], fecha, perfiles);
     if (!responsable) {
       avisos.push(`No hay una persona disponible configurada para el ${item.turno === "PRIMERO" ? "primer" : "segundo"} turno; esa limpieza quedó sin asignar.`);
@@ -214,7 +266,7 @@ export function construirRutinaInteligente({
     asignacionesHoy.push({ responsable: responsable.nombre, fecha });
   }
 
-  const responsablesComunes = disponibles;
+  const responsablesComunes = operacionUnipersonal ? [] : disponibles;
   const historialBano = trabajoPrevio.filter((tarea) => /baño/i.test(tarea.titulo || ""));
   const responsableBano = elegirConMenorCarga(
     responsablesComunes,
@@ -240,7 +292,7 @@ export function construirRutinaInteligente({
 
   const historialBodega = trabajoPrevio.filter((tarea) => /ordenar y revisar bodega/i.test(tarea.titulo || ""));
   const responsableBodega = elegirConMenorCarga(
-    disponibles,
+    operacionUnipersonal ? [] : disponibles,
     [...historialBodega, ...asignacionesHoy],
     fecha,
     perfiles,
@@ -266,12 +318,16 @@ export function construirRutinaInteligente({
     avisos.push("El último reporte SICAR no detectó productos críticos o bajos; no se generó conteo de bodega.");
   } else {
       const historialInventario = trabajoPrevio.filter((tarea) => /lote \d+ de \d+/i.test(tarea.titulo || ""));
-      const elegiblesInventario = ordenarPorMenorCarga(disponibles, historialInventario, fecha);
+      const disponiblesInventario = disponibles.filter((empleado) =>
+        tieneFuncionOperativa(empleado, perfiles.get(String(empleado.id)), "INVENTARIO_APOYO"),
+      );
+      const elegiblesInventario = ordenarPorMenorCarga(disponiblesInventario, historialInventario, fecha);
     if (!elegiblesInventario.length) {
       avisos.push("Hay productos SICAR que necesitan conteo, pero no hay personal programado con perfil completo.");
     } else {
-      const limitePorPersona = 30;
+      const limitePorPersona = operacionUnipersonal ? 8 : 30;
       const productosAsignados = Math.min(inventarioCritico.length, elegiblesInventario.length * limitePorPersona);
+      productosAsignadosConteo = productosAsignados;
       const personasConLote = Math.ceil(productosAsignados / limitePorPersona);
       for (let indice = 0; indice < personasConLote; indice += 1) {
         const empleado = elegiblesInventario[indice];
@@ -297,7 +353,7 @@ export function construirRutinaInteligente({
         }));
       }
       if (inventarioCritico.length > productosAsignados) {
-        avisos.push(`Se asignaron ${productosAsignados} de ${inventarioCritico.length} productos urgentes: el equipo disponible puede contar hasta ${limitePorPersona} cada persona. Los restantes quedan para la siguiente ronda.`);
+        avisos.push(`Se asignaron ${productosAsignados} de ${inventarioCritico.length} productos urgentes: ${operacionUnipersonal ? "la responsable única recibe un bloque prudente de" : "el equipo disponible puede contar hasta"} ${limitePorPersona} por persona. Los restantes quedan para la siguiente ronda.`);
       }
     }
   }
@@ -314,7 +370,8 @@ export function construirRutinaInteligente({
     }),
     personasPresentes: idsPresentes ? disponibles.length : null,
     productosUrgentes: inventarioCritico.length,
-    productosAsignados: Math.min(inventarioCritico.length, disponibles.length * 30),
+    productosAsignados: productosAsignadosConteo,
+    modoOperacion: operacionUnipersonal ? "SUCURSAL_UNIPERSONAL" : "EQUIPO",
   };
 }
 

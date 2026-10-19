@@ -5,20 +5,27 @@ import RegistroProductoSolicitado from './RegistroProductoSolicitado';
 import RegistroEntradaOperativa from './RegistroEntradaOperativa';
 import PerfilOperativoEmpleado from './PerfilOperativoEmpleado';
 import IncidenciaTienda from './IncidenciaTienda';
+import AsistenteWhatsAppTienda from './AsistenteWhatsAppTienda';
 import { borrarBorradoresUsuario } from '../utils/borradorCorte';
 
-export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, cerrarSesion }) {
+export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, cerrarSesion }) {
   const [vista, setVista] = useState('HOY');
   const [visitadas, setVisitadas] = useState(['HOY']);
   const destino = useRef(null);
   const primeraVista = useRef(true);
   const opciones = [
     ['HOY', '⌂', 'Mi día'],
+    ...(puedeWhatsApp ? [['WHATSAPP', 'W', 'WhatsApp']] : []),
     ...(puedeRegistrarProducto ? [['PRODUCTO', 'S', 'Solicitudes']] : []),
     ['INCIDENCIAS', '!', 'Incidencias'],
     ['CAJA', '$', 'Cierre'],
   ];
   const detalleVista = {
+    WHATSAPP: {
+      kicker: 'AYUDA PARA CONVERTIR MENSAJES EN VENTAS',
+      titulo: 'Responder WhatsApp',
+      descripcion: 'Prepara una respuesta clara sin inventar precio ni existencia. Tú la revisas, copias y envías.',
+    },
     PRODUCTO: {
       kicker: 'LO QUE PIDIÓ LA CLIENTA',
       titulo: 'Registrar solicitud',
@@ -66,7 +73,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
             <li><span>4</span><div><strong>Cierre</strong><small>Completa caja antes de terminar.</small></div></li>
           </ol>
         </div>
-        <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':'Producto que pidió una clienta'}</small></button>)}</div></section>
+        <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
         <RegistroEntradaOperativa usuario={usuario}/>
         <div className="tienda-trabajo-titulo"><p className="tienda-kicker">TRABAJO ASIGNADO</p><h2>Tu día en una sola vista</h2><p>Empieza por lo pendiente y actualiza cada tarea cuando cambie su estado.</p></div>
         <OperacionEmpleado branchId={branchId} usuario={usuario} datosDashboard={datosDashboard}/>
@@ -79,6 +86,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
         <p>{vistaActual.descripcion}</p>
       </header>}
       {visitadas.includes('PRODUCTO') && <section hidden={vista!=='PRODUCTO'} aria-label="Registrar solicitud"><RegistroProductoSolicitado branchId={branchId} usuario={usuario}/></section>}
+      {visitadas.includes('WHATSAPP') && <section hidden={vista!=='WHATSAPP'} aria-label="Asistente de WhatsApp"><AsistenteWhatsAppTienda usuario={usuario} organizationId={usuario?.organization_id || datosDashboard?.organization_id || null} businessId={usuario?.business_id || datosDashboard?.business_id || null} branchId={branchId}/></section>}
       {visitadas.includes('INCIDENCIAS') && <section hidden={vista!=='INCIDENCIAS'} aria-label="Registrar incidencia"><IncidenciaTienda branchId={branchId} usuario={usuario}/></section>}
       {visitadas.includes('CAJA') && <section hidden={vista!=='CAJA'} aria-label="Caja y cierre"><CierreTurno key={`${usuario?.auth_user_id || usuario?.id}:${branchId}`} branchId={branchId} usuario={usuario} modoEmpleado/></section>}
     </div>

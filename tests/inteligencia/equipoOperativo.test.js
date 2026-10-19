@@ -25,12 +25,12 @@ test("no declara listo el equipo mientras falte completar los siete días", () =
   );
 });
 
-test("sugiere áreas desde responsabilidades y limita el perfil a tres", () => {
+test("sugiere todas las funciones reales de una empleada multifunción", () => {
   const areas = areasSugeridasParaEmpleado({
     puesto: "Vendedora",
     responsabilidades: ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO", "VENTA_WHATSAPP"],
   });
-  assert.deepEqual(areas, ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO"]);
+  assert.deepEqual(areas, ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO", "VENTA_WHATSAPP"]);
 });
 
 test("sugiere un inicio prudente según el puesto cuando faltan responsabilidades", () => {

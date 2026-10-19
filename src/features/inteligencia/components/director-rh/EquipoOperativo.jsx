@@ -105,7 +105,7 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
   function alternarArea(areaId) {
     setFormulario((actual) => {
       const contiene = actual.areasAsignadas.includes(areaId);
-      if (!contiene && actual.areasAsignadas.length >= 3) return actual;
+      if (!contiene && actual.areasAsignadas.length >= AREAS_OPERATIVAS.length) return actual;
       return {
         ...actual,
         areasAsignadas: contiene
@@ -223,7 +223,7 @@ export default function EquipoOperativo({ branchId, empleados = [] }) {
                   </select>
                 </label>
                 <fieldset>
-                  <legend>Áreas de trabajo · elige de 1 a 3</legend>
+                  <legend>Funciones de trabajo · elige las que realmente realiza</legend>
                   <div className="equipo-operativo__areas">
                     {AREAS_OPERATIVAS.map((area) => <label className="equipo-operativo__area" key={area.id}>
                       <input type="checkbox" checked={formulario.areasAsignadas.includes(area.id)} onChange={() => alternarArea(area.id)} />

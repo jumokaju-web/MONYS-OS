@@ -33,7 +33,7 @@ test("respeta descansos y turno; reparte muebles, limpieza y conteo SICAR", () =
   assert.equal(resultado.tareas.some((tarea) => tarea.responsable === "Ana López"), false);
   assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("primer turno")), undefined);
   assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("segundo turno")).responsable, "Karla Ruiz");
-  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("lote 1 de 1")).responsable, "Luz");
+  assert.equal(resultado.tareas.find((tarea) => tarea.titulo.includes("lote 1 de 1")).responsable, "Majo");
   assert.ok(resultado.tareas.find((tarea) => tarea.titulo.includes("lote 1 de 1")).instrucciones.includes("Crema rosa"));
   assert.ok(resultado.avisos.some((aviso) => aviso.includes("primer turno")));
 });
@@ -89,11 +89,11 @@ test("las tareas se dirigen al ID de autenticación aunque RH guarde el ID del p
     empleados: [{ ...empleados[0], usuario_id: "perfil-monys-ana", auth_user_id: "auth-ana" }],
     configuraciones: [configuraciones[0]],
   });
-  const tareaMueble = resultado.tareas.find((tarea) => tarea.titulo === "Limpiar su mueble y exhibidor");
-  assert.equal(tareaMueble.responsableUsuarioId, "auth-ana");
+  const tareaRutina = resultado.tareas.find((tarea) => tarea.titulo === "Rutina esencial de sucursal");
+  assert.equal(tareaRutina.responsableUsuarioId, "auth-ana");
 });
 
-test("reparte lotes de 30 a todo el personal programado y prioriza negativos", () => {
+test("asigna conteos solo a personal de inventario y prioriza negativos", () => {
   const productos = Array.from({ length: 75 }, (_, index) => ({
     codigo: `P-${index + 1}`,
     descripcion: `Producto ${index + 1}`,
@@ -111,14 +111,14 @@ test("reparte lotes de 30 a todo el personal programado y prioriza negativos", (
     fuenteInventario: { fecha: "2026-10-12" },
   });
   const lotes = resultado.tareas.filter((tarea) => tarea.titulo.includes("lote"));
-  assert.deepEqual(lotes.map((tarea) => tarea.responsable), ["Karla Ruiz", "Majo", "Luz"]);
-  assert.deepEqual(lotes.map((tarea) => (tarea.instrucciones.match(/^• /gm) || []).length), [30, 30, 15]);
+  assert.deepEqual(lotes.map((tarea) => tarea.responsable), ["Majo"]);
+  assert.deepEqual(lotes.map((tarea) => (tarea.instrucciones.match(/^• /gm) || []).length), [30]);
   assert.ok(lotes[0].instrucciones.includes("P-46")); // existencia negativa sube al primer lote
-  assert.equal(resultado.productosAsignados, 75);
-  assert.equal(resultado.avisos.some((aviso) => aviso.includes("restantes")), false);
+  assert.equal(resultado.productosAsignados, 30);
+  assert.equal(resultado.avisos.some((aviso) => aviso.includes("restantes")), true);
 });
 
-test("limita el conteo a 30 productos por persona y avisa lo que queda pendiente", () => {
+test("limita el conteo a 30 por cada persona asignada a inventario", () => {
   const resultado = construirRutinaInteligente({
     fecha: "2026-10-13",
     empleados,
@@ -127,10 +127,10 @@ test("limita el conteo a 30 productos por persona y avisa lo que queda pendiente
     fuenteInventario: { fecha: "2026-10-12" },
   });
   const lotes = resultado.tareas.filter((tarea) => tarea.titulo.includes("lote"));
-  assert.equal(lotes.length, 4); // solo 4 personas tienen perfil completo y no descansan el martes
+  assert.equal(lotes.length, 1); // solo Majo tiene inventario como función confirmada
   assert.ok(lotes.every((tarea) => (tarea.instrucciones.match(/^• /gm) || []).length <= 30));
-  assert.equal(resultado.productosAsignados, 120);
-  assert.ok(resultado.avisos.some((aviso) => aviso.includes("120 de 150")));
+  assert.equal(resultado.productosAsignados, 30);
+  assert.ok(resultado.avisos.some((aviso) => aviso.includes("30 de 150")));
 });
 
 test("para hoy asigna solo a quien registró entrada y sigue respetando descanso", () => {
@@ -196,6 +196,37 @@ test("muestra Dirección quién está presente, quién no registró y quién des
   assert.equal(equipo.get("v2").turno, "SEGUNDO");
   assert.equal(equipo.get("w1").estado, "SIN_ENTRADA");
   assert.equal(equipo.get("sin-perfil").estado, "PERFIL_PENDIENTE");
+});
+
+test("una sucursal con una sola responsable protege tienda y divide funciones en bloques", () => {
+  const empleada = {
+    id: "ga-1",
+    nombre: "Responsable General Anaya",
+    auth_user_id: "auth-ga",
+    responsabilidades: ["VENTA_TIENDA", "VENTA_WHATSAPP", "PUBLICAR_GRUPOS_WHATSAPP", "CAJA_CORTE", "INVENTARIO_APOYO"],
+  };
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-10-19",
+    empleados: [empleada],
+    configuraciones: [{
+      empleado_id: "ga-1",
+      nombre_preferido: "Encargada GA",
+      dia_descanso: 2,
+      turno_asignado: "AMBOS",
+      areas_asignadas: empleada.responsabilidades,
+    }],
+    asistenciaRegistrada: [{ empleado_id: "ga-1", entrada_at: "2026-10-19T16:00:00Z" }],
+    productosCriticos: Array.from({ length: 20 }, (_, index) => ({ codigo: `GA-${index + 1}`, existencia: 1, nivelInventario: "CRITICO" })),
+    fuenteInventario: { fecha: "2026-10-18" },
+  });
+
+  assert.equal(resultado.modoOperacion, "SUCURSAL_UNIPERSONAL");
+  assert.equal(resultado.tareas.filter((tarea) => /Rutina esencial/.test(tarea.titulo)).length, 1);
+  assert.equal(resultado.tareas.filter((tarea) => /barrer|baño|Ordenar y revisar bodega/i.test(tarea.titulo)).length, 0);
+  assert.ok(resultado.tareas.some((tarea) => /Atender WhatsApp/.test(tarea.titulo)));
+  assert.ok(resultado.tareas.some((tarea) => /promoción autorizada/.test(tarea.titulo)));
+  assert.equal(resultado.productosAsignados, 8);
+  assert.ok(resultado.avisos.some((aviso) => aviso.includes("SUCURSAL UNIPERSONAL")));
 });
 
 test("rechaza fecha inválida", () => {
