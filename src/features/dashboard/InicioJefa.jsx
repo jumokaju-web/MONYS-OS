@@ -49,6 +49,7 @@ movimientos = [],
   abrirUsuarios,
   abrirImportador,
   abrirFlotilla,
+  abrirRescateBacklog,
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
@@ -485,6 +486,7 @@ const utilidadConsolidada =
           businessId={datosDashboard?.business_id || usuario?.business_id || null}
           sucursales={sucursalesDashboard}
           onAbrirEquipo={abrirEmpleados}
+          onAbrirRescate={abrirRescateBacklog}
         />
         <CentroDireccionCEO
           datosDashboard={datosDashboard}

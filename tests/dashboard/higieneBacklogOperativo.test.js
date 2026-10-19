@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   analizarBacklogOperativo,
   construirColaRescateBacklog,
@@ -83,6 +84,21 @@ test("la reprogramación agrega auditoría sin borrar instrucciones anteriores",
   assert.match(texto, /Contar y fotografiar/);
   assert.match(texto, /Fecha anterior: 2026-10-10/);
   assert.match(texto, /Autorizó usuario: u-direccion/);
+});
+
+test("el plan móvil abre otra vista y deja de desplegar una lista larga en el dashboard", () => {
+  const componente = readFileSync(
+    new URL("../../src/features/dashboard/components/HigieneBacklogOperativo.jsx", import.meta.url),
+    "utf8",
+  );
+  const app = readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
+  assert.match(componente, /vista === "pagina"/);
+  assert.match(componente, /onVolverDashboard/);
+  assert.match(componente, /backlog-page__pager/);
+  assert.doesNotMatch(componente, /scrollIntoView/);
+  assert.doesNotMatch(componente, /candidatas\.slice\(0, 6\)/);
+  assert.match(app, /pantallaActual === "rescate-backlog"/);
+  assert.match(app, /scrollDashboardAntesRescate/);
 });
 
 test("propone solo copias exactas del mismo alcance y fecha", () => {

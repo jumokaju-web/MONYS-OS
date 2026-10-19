@@ -22,6 +22,7 @@ import SicarResumen from "./features/dashboard/components/SicarResumen";
 import OperacionHoy from "./features/inteligencia/components/OperacionHoy";
 import InicioEmpleado from "./features/inteligencia/components/InicioEmpleado";
 import InicioJefa from "./features/dashboard/InicioJefa";
+import HigieneBacklogOperativo from "./features/dashboard/components/HigieneBacklogOperativo";
 import CierreTurno from "./features/inteligencia/components/CierreTurno";
 import CentroOrdenes from "./features/ordenes/components/CentroOrdenes";
 import CentroFinanciero from "./features/finanzas/CentroFinanciero";
@@ -111,6 +112,8 @@ function App() {
   ] = useState("dashboard");
   const [directorInicial, setDirectorInicial] = useState(null);
   const [iniciativaValorInicial, setIniciativaValorInicial] = useState(null);
+  const [seccionRescateBacklog, setSeccionRescateBacklog] = useState("vencidas");
+  const [scrollDashboardAntesRescate, setScrollDashboardAntesRescate] = useState(0);
 
   const abrirCentroValor = (iniciativa = null) => {
     setIniciativaValorInicial(iniciativa);
@@ -915,6 +918,26 @@ const disponible =
     );
   }
 
+  if (pantallaActual === "rescate-backlog") {
+    if (!esOwner) return mostrarAccesoDenegado("Plan de rescate");
+    return (
+      <>
+        <Header />
+        <HigieneBacklogOperativo
+          vista="pagina"
+          seccionInicial={seccionRescateBacklog}
+          organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
+          businessId={datosDashboard?.business_id || usuario?.business_id || null}
+          sucursales={sucursalesDashboard}
+          onVolverDashboard={() => {
+            setPantallaActual("dashboard");
+            requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: scrollDashboardAntesRescate })));
+          }}
+        />
+      </>
+    );
+  }
+
   if (pantallaActual === "finanzas") {
     if (!puedeVerFinanzas) return mostrarAccesoDenegado("Finanzas");
     return <CentroFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos.filter(m => m.organization_id === usuario?.organization_id && m.business_id === usuario?.business_id)} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
@@ -1212,6 +1235,7 @@ if (
 if (esOwner) {
   return (
     <InicioJefa usuario={usuario} movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
+      abrirRescateBacklog={(seccion = "vencidas") => { setScrollDashboardAntesRescate(window.scrollY); setSeccionRescateBacklog(seccion); setPantallaActual("rescate-backlog"); window.scrollTo({ top: 0 }); }}
 
       datosDashboard={
         datosDashboard
