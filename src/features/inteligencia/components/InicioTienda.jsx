@@ -7,6 +7,7 @@ import PerfilOperativoEmpleado from './PerfilOperativoEmpleado';
 import IncidenciaTienda from './IncidenciaTienda';
 import AsistenteWhatsAppTienda from './AsistenteWhatsAppTienda';
 import { borrarBorradoresUsuario } from '../utils/borradorCorte';
+import { crearRutaTurnoTienda } from '../shared/accesosTienda';
 
 export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, puedeRegistrarIncidencias = false, puedeCaja = false, cerrarSesion }) {
   const [vista, setVista] = useState('HOY');
@@ -20,6 +21,12 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     ...(puedeRegistrarIncidencias ? [['INCIDENCIAS', '!', 'Incidencias']] : []),
     ...(puedeCaja ? [['CAJA', '$', 'Cierre']] : []),
   ];
+  const rutaTurno = crearRutaTurnoTienda({
+    puedeRegistrarProducto,
+    puedeWhatsApp,
+    puedeRegistrarIncidencias,
+    puedeCaja,
+  });
   const detalleVista = {
     WHATSAPP: {
       kicker: 'AYUDA PARA CONVERTIR MENSAJES EN VENTAS',
@@ -67,10 +74,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
           <h2>Haz lo importante y deja evidencia</h2>
           <p>Esta es tu ruta del día. MONYS conserva lo que registras para que Dirección pueda decidir con datos reales.</p>
           <ol className="tienda-ruta" aria-label="Ruta del turno">
-            <li><span>1</span><div><strong>Entrada</strong><small>Confirma que ya comenzaste.</small></div></li>
-            <li><span>2</span><div><strong>Tareas y ventas</strong><small>Atiende lo asignado y registra el resultado.</small></div></li>
-            <li><span>3</span><div><strong>Lo que pasó</strong><small>Deja solicitudes e incidencias con datos claros.</small></div></li>
-            <li><span>4</span><div><strong>Cierre</strong><small>Completa caja antes de terminar.</small></div></li>
+            {rutaTurno.map((paso, indice) => <li key={paso.titulo}><span>{indice + 1}</span><div><strong>{paso.titulo}</strong><small>{paso.descripcion}</small></div></li>)}
           </ol>
         </div>
         <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
