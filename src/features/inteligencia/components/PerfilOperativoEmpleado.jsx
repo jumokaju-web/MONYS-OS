@@ -73,18 +73,6 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
     setMensaje("");
   }
 
-  function alternarArea(areaId) {
-    const seleccionadas = formulario.areasAsignadas || [];
-    if (!seleccionadas.includes(areaId) && seleccionadas.length >= AREAS_OPERATIVAS.length) {
-      setError(`Puedes elegir hasta ${AREAS_OPERATIVAS.length} áreas.`);
-      return;
-    }
-    setError("");
-    cambiar("areasAsignadas", seleccionadas.includes(areaId)
-      ? seleccionadas.filter((id) => id !== areaId)
-      : [...seleccionadas, areaId]);
-  }
-
   async function guardar(event) {
     event.preventDefault();
     setError("");
@@ -114,6 +102,9 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
     .map((id) => AREAS_OPERATIVAS.find((item) => item.id === id)?.nombre)
     .filter(Boolean)
     .join(" · ");
+  const areasAsignadas = AREAS_OPERATIVAS.filter((area) =>
+    (formulario.areasAsignadas || []).includes(area.id),
+  );
   const turnoNombre = TURNOS.find((item) => item.id === formulario.turnoAsignado)?.nombre;
 
   return (
@@ -140,17 +131,17 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
         <fieldset style={{ display: "grid", gap: "8px", padding: 0, border: 0, margin: 0 }}>
           <legend style={labelStyle}>Funciones de trabajo</legend>
           <span style={{ color: "#71636b", fontSize: "12px" }}>
-            MONYS precargó las áreas que Dirección te asignó. Puedes ajustarlas para organizar tus tareas.
+            Dirección asigna estas funciones. Si algo cambió, solicita que actualicen tu perfil.
           </span>
-          {AREAS_OPERATIVAS.map((area) => {
-            const seleccionada = (formulario.areasAsignadas || []).includes(area.id);
-            const maximoAlcanzado = (formulario.areasAsignadas || []).length >= AREAS_OPERATIVAS.length;
-            return <label key={area.id} style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "42px", padding: "8px 10px", border: `1px solid ${seleccionada ? "#c12c70" : "#e2ccd7"}`, borderRadius: "10px", background: seleccionada ? "#fff5fa" : "#fff", color: "#4c3944", fontSize: "14px", fontWeight: 650, opacity: !seleccionada && maximoAlcanzado ? 0.58 : 1 }}>
-              <input type="checkbox" checked={seleccionada} disabled={guardando || (!seleccionada && maximoAlcanzado)} onChange={() => alternarArea(area.id)} style={{ width: "18px", height: "18px", accentColor: "#c12c70" }} />
-              {area.nombre}
-            </label>;
-          })}
-          <span style={{ color: "#71636b", fontSize: "12px" }}>{(formulario.areasAsignadas || []).length} de {AREAS_OPERATIVAS.length} funciones seleccionadas</span>
+          {areasAsignadas.length ? areasAsignadas.map((area) => (
+            <div key={area.id} style={{ minHeight: "42px", display: "flex", alignItems: "center", padding: "8px 10px", border: "1px solid #c12c70", borderRadius: "10px", background: "#fff5fa", color: "#4c3944", fontSize: "14px", fontWeight: 650 }}>
+              ✓ {area.nombre}
+            </div>
+          )) : (
+            <p role="status" style={{ margin: 0, color: "#8a5b31", fontSize: "13px" }}>
+              Dirección todavía debe asignar tus funciones antes de guardar el perfil.
+            </p>
+          )}
         </fieldset>
         <label style={labelStyle}>¿En qué turno trabajas?
           <select required value={formulario.turnoAsignado} onChange={(event) => cambiar("turnoAsignado", event.target.value)} style={inputStyle}>
@@ -161,7 +152,7 @@ export default function PerfilOperativoEmpleado({ usuario, onActualizado }) {
         {error && <p role="alert" style={{ margin: 0, color: "#a52d2d", fontSize: "13px" }}>{error}</p>}
         {mensaje && <p role="status" style={{ margin: 0, color: "#2b7550", fontSize: "13px" }}>{mensaje}</p>}
         {cargando && <p role="status" style={{ margin: 0, color: "#71636b", fontSize: "13px" }}>Cargando tu perfil…</p>}
-        <button type="submit" disabled={guardando || cargando} style={{ minHeight: "44px", border: 0, borderRadius: "11px", background: "#c12c70", color: "#fff", fontWeight: 850 }}>
+        <button type="submit" disabled={guardando || cargando || !areasAsignadas.length} style={{ minHeight: "44px", border: 0, borderRadius: "11px", background: "#c12c70", color: "#fff", fontWeight: 850 }}>
           {guardando ? "Guardando…" : guardado ? "Guardar cambios" : "Guardar mi perfil"}
         </button>
       </form>
