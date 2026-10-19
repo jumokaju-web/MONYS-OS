@@ -19,6 +19,9 @@ test("Dirección prioriza oportunidades sin responsable, entrantes pendientes y 
   assert.equal(resultado.cotizaciones, 1);
   assert.deepEqual(resultado.acciones.slice(0, 3).map((fila) => fila.categoria), ["SIN_RESPONSABLE", "RESPONDER", "COTIZACION"]);
   assert.match(resultado.acciones[0].accion, /Asignar/);
+  assert.deepEqual(resultado.colas.RESPONDER, ["responder"]);
+  assert.deepEqual(resultado.colas.COTIZACIONES, ["cotizar"]);
+  assert.equal(resultado.estadoDatos, "CON_DATOS");
 });
 
 test("mide primera respuesta usando marcas registradas y excluye notas", () => {
@@ -69,4 +72,28 @@ test("marca cotizaciones sin respuesta tras tres días como regla operativa", ()
   });
   assert.equal(resultado.sinRespuesta, 1);
   assert.match(resultado.acciones[0].accion, /3 días/);
+});
+
+test("distingue un CRM sin datos de indicadores reales en cero", () => {
+  const resultado = analizarCentroDireccionCRM({ oportunidades: [], interacciones: [] });
+  assert.equal(resultado.estadoDatos, "SIN_DATOS");
+  assert.equal(resultado.total, 0);
+  assert.deepEqual(resultado.colas.TODAS, []);
+  assert.deepEqual(resultado.colas.PRIORIDAD, []);
+});
+
+test("las colas de trabajo conservan cruces útiles sin duplicar oportunidades dentro de cada cola", () => {
+  const resultado = analizarCentroDireccionCRM({
+    hoy: "2026-10-19",
+    ahora,
+    oportunidades: [
+      { id: "urgente", etapa: "COTIZANDO", proximo_seguimiento: "2026-10-18", asignado_a: "u1" },
+      { id: "sin-fecha", etapa: "CONTACTADO", asignado_a: "u1" },
+    ],
+    interacciones: [{ oportunidad_id: "urgente", direccion: "ENTRANTE", ocurrio_at: "2026-10-19T17:00:00Z" }],
+  });
+  assert.deepEqual(resultado.colas.RESPONDER, ["urgente"]);
+  assert.deepEqual(resultado.colas.VENCIDAS, ["urgente"]);
+  assert.deepEqual(resultado.colas.COTIZACIONES, ["urgente"]);
+  assert.deepEqual(resultado.colas.SIN_FECHA, ["sin-fecha"]);
 });
