@@ -29,6 +29,7 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
   const [operaciones, setOperaciones] = useState([]);
   const [rutasPendientes, setRutasPendientes] = useState([]);
   const [duplicadasIgnoradas, setDuplicadasIgnoradas] = useState([]);
+  const [rutasPruebaIgnoradas, setRutasPruebaIgnoradas] = useState([]);
   const [descuentosPnr, setDescuentosPnr] = useState([]);
   const [ajustes, setAjustes] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -66,6 +67,7 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
     setOperaciones(datos.operaciones);
     setRutasPendientes(datos.rutasPendientes || []);
     setDuplicadasIgnoradas(datos.duplicadasIgnoradas || []);
+    setRutasPruebaIgnoradas(datos.rutasPruebaIgnoradas || []);
     setDescuentosPnr(datos.descuentosPnr);
     setAjustes(datos.ajustes);
   }
@@ -194,6 +196,7 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
               ? "Selecciona una semana completa de lunes a domingo."
               : "No hay rutas cerradas para revisar en esta semana."}
       {duplicadasIgnoradas.length > 0 && <small style={{ display: "block", marginTop: 4 }}>Se ignoraron {duplicadasIgnoradas.length} reintento(s) duplicado(s); no se cobran dos veces.</small>}
+      {rutasPruebaIgnoradas.length > 0 && <small style={{ display: "block", marginTop: 4 }}>Se excluyeron {rutasPruebaIgnoradas.length} ruta(s) de usuarios TEST; no afectan pagos.</small>}
     </div>}
     {consultado && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(135px,1fr))", gap: 8, marginTop: 11 }}>
       {[["Rutas", prefactura.totales.rutas], ["Total prefactura", moneda(prefactura.totales.importePrefactura)], ["Gasolina aprobada", moneda(prefactura.totales.gasolinaAprobada)], ["Préstamo por gasolina", moneda(prefactura.totales.prestamosGasolina)], ["Saldo choferes", moneda(prefactura.totales.saldoChoferes)]].map(([etiqueta, valor]) => <div key={etiqueta} style={{ padding: 9, borderRadius: 9, background: "#fff", border: "1px solid #bfd5e8" }}><small>{etiqueta}</small><b style={{ display: "block" }}>{valor}</b></div>)}

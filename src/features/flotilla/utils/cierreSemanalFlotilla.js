@@ -38,8 +38,15 @@ export function separarRutasPorCierre(operaciones = []) {
   const finalizadas = [];
   const pendientes = [];
   const duplicadasIgnoradas = [];
+  const rutasPruebaIgnoradas = [];
   const grupos = new Map();
   (Array.isArray(operaciones) ? operaciones : []).forEach((ruta, indice) => {
+    const placas = String(ruta.unidad?.placas || ruta.placas || "").trim().toUpperCase();
+    const chofer = String(ruta.chofer_nombre || "").trim().toUpperCase();
+    if (placas.startsWith("TEST-") || chofer.startsWith("PRUEBA ")) {
+      rutasPruebaIgnoradas.push(ruta);
+      return;
+    }
     const identidad = [ruta.fecha, ruta.unidad_id || ruta.unidad?.placas, ruta.driver_auth_user_id || ruta.chofer_nombre, ruta.codigo_ruta]
       .map((valor) => String(valor || "").trim().toLowerCase())
       .join("::");
@@ -59,11 +66,11 @@ export function separarRutasPorCierre(operaciones = []) {
     pendientes.push(ordenadas[0]);
     duplicadasIgnoradas.push(...ordenadas.slice(1));
   });
-  return { finalizadas, pendientes, duplicadasIgnoradas };
+  return { finalizadas, pendientes, duplicadasIgnoradas, rutasPruebaIgnoradas };
 }
 
 export function evaluarCierreSemanal(operaciones = [], periodo = {}, fechaHoy = "") {
-  const { finalizadas, pendientes, duplicadasIgnoradas } = separarRutasPorCierre(operaciones);
+  const { finalizadas, pendientes, duplicadasIgnoradas, rutasPruebaIgnoradas } = separarRutasPorCierre(operaciones);
   const semana = semanaOperativa(periodo.desde);
   const periodoLunesDomingo = semana.desde === periodo.desde && semana.hasta === periodo.hasta;
   const hoy = fechaValida(fechaHoy);
@@ -85,6 +92,7 @@ export function evaluarCierreSemanal(operaciones = [], periodo = {}, fechaHoy = 
     finalizadas,
     pendientes,
     duplicadasIgnoradas,
+    rutasPruebaIgnoradas,
     listaParaRevision: estado === "LISTA_REVISION",
   };
 }

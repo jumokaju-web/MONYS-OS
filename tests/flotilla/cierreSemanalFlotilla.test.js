@@ -39,6 +39,16 @@ test("un reintento abierto no bloquea una ruta que sí terminó", () => {
   assert.deepEqual(separadas.duplicadasIgnoradas.map((item) => item.id), ["intento"]);
 });
 
+test("las cuentas de prueba nunca entran al dinero ni bloquean el cierre", () => {
+  const separadas = separarRutasPorCierre([
+    { id: "test", estado: "EN_RUTA", chofer_nombre: "PRUEBA CHORY", unidad: { placas: "TEST-001" } },
+    { id: "real", estado: "FINALIZADA", hora_fin_ruta: "2026-10-18T22:00:00Z", chofer_nombre: "Iván", unidad: { placas: "JY13117" } },
+  ]);
+  assert.deepEqual(separadas.finalizadas.map((item) => item.id), ["real"]);
+  assert.equal(separadas.pendientes.length, 0);
+  assert.deepEqual(separadas.rutasPruebaIgnoradas.map((item) => item.id), ["test"]);
+});
+
 test("la semana sólo queda lista cuando terminó y todas las rutas están cerradas", () => {
   const periodo = { desde: "2026-10-12", hasta: "2026-10-18" };
   const cerrada = { estado: "FINALIZADA", hora_fin_ruta: "2026-10-18T22:00:00Z" };

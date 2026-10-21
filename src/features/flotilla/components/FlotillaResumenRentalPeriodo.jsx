@@ -33,7 +33,7 @@ export default function FlotillaResumenRentalPeriodo() {
   const sugerido = useMemo(() => periodoPrefacturaSugerido(hoy), [hoy]);
   const [desde, setDesde] = useState(sugerido.desde);
   const [hasta, setHasta] = useState(sugerido.hasta);
-  const [datos, setDatos] = useState({ operaciones: [], rutasPendientes: [], duplicadasIgnoradas: [], cortes: [], liquidaciones: [], repartos: [] });
+  const [datos, setDatos] = useState({ operaciones: [], rutasPendientes: [], duplicadasIgnoradas: [], rutasPruebaIgnoradas: [], cortes: [], liquidaciones: [], repartos: [] });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [guardandoPago, setGuardandoPago] = useState("");
@@ -180,6 +180,7 @@ export default function FlotillaResumenRentalPeriodo() {
               ? "Selecciona una semana completa de lunes a domingo."
               : "No hay rutas Rental cerradas para revisar."}
       {(datos.duplicadasIgnoradas || []).length > 0 && <small style={{ display: "block", marginTop: 4 }}>Se ignoraron {datos.duplicadasIgnoradas.length} reintento(s) duplicado(s).</small>}
+      {(datos.rutasPruebaIgnoradas || []).length > 0 && <small style={{ display: "block", marginTop: 4 }}>Se excluyeron {datos.rutasPruebaIgnoradas.length} ruta(s) TEST; no afectan pagos ni utilidad.</small>}
     </div>}
 
     {error && <p role="alert" style={{ color: "#a02e2e", fontWeight: 800 }}>{error}</p>}

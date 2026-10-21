@@ -304,8 +304,8 @@ export async function obtenerDatosPrefacturaPeriodo(desde, hasta) {
     obtenerDescuentosPnrPeriodo(desde, hasta),
     obtenerAjustesPrefacturaPeriodo(desde, hasta),
   ]);
-  const { finalizadas, pendientes, duplicadasIgnoradas } = separarRutasPorCierre(operaciones);
-  return { operaciones: finalizadas, rutasPendientes: pendientes, duplicadasIgnoradas, descuentosPnr, ajustes };
+  const { finalizadas, pendientes, duplicadasIgnoradas, rutasPruebaIgnoradas } = separarRutasPorCierre(operaciones);
+  return { operaciones: finalizadas, rutasPendientes: pendientes, duplicadasIgnoradas, rutasPruebaIgnoradas, descuentosPnr, ajustes };
 }
 
 export async function guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo = null }) {
@@ -495,9 +495,9 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
   const rentalsPeriodo = (operaciones || []).filter((item) =>
     ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item.tipo_pago || item.unidad?.tipo_pago_chory)
   );
-  const { finalizadas: rentals, pendientes: rutasPendientes, duplicadasIgnoradas } = separarRutasPorCierre(rentalsPeriodo);
+  const { finalizadas: rentals, pendientes: rutasPendientes, duplicadasIgnoradas, rutasPruebaIgnoradas } = separarRutasPorCierre(rentalsPeriodo);
   const ids = rentals.map((item) => item.id);
-  if (ids.length === 0) return { operaciones: [], rutasPendientes, duplicadasIgnoradas, cortes: cortes || [], liquidaciones: liquidaciones || [], repartos: repartos || [] };
+  if (ids.length === 0) return { operaciones: [], rutasPendientes, duplicadasIgnoradas, rutasPruebaIgnoradas, cortes: cortes || [], liquidaciones: liquidaciones || [], repartos: repartos || [] };
 
   const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
     supabase
@@ -551,6 +551,7 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
     }),
     rutasPendientes,
     duplicadasIgnoradas,
+    rutasPruebaIgnoradas,
     cortes: cortes || [],
     liquidaciones: liquidaciones || [],
     repartos: repartos || [],
