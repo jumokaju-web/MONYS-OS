@@ -1,5 +1,6 @@
 import { supabase } from "../../../../supabase";
 import { resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
+import { crearNombreCanalOperacion } from "../../utils/realtimeFlotilla";
 
 export { calcularAmbulancia, calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 
@@ -659,18 +660,23 @@ export async function anularRepartoRental({ repartoId, motivo }) {
 }
 
 export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
-  const canal = supabase
-    .channel(`flotilla-operacion-en-vivo-${Date.now()}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rutas" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_movimientos_dinero" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_ambulancias" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_revision_evidencias" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_liquidaciones" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_repartos" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamos" }, onCambio)
-    .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamo_abonos" }, onCambio)
-    .subscribe(onEstado);
+  try {
+    const canal = supabase
+      .channel(crearNombreCanalOperacion())
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rutas" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_movimientos_dinero" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_ambulancias" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_revision_evidencias" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_cortes" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_liquidaciones" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_rental_repartos" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamos" }, onCambio)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flotilla_prestamo_abonos" }, onCambio)
+      .subscribe(onEstado);
 
-  return () => supabase.removeChannel(canal);
+    return () => supabase.removeChannel(canal);
+  } catch (error) {
+    onEstado?.("CHANNEL_ERROR", error);
+    return () => {};
+  }
 }
