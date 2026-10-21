@@ -7,16 +7,10 @@ import {
   guardarRepartoRental,
   obtenerOperacionRentalPeriodo,
 } from "./services/operacionFlotilla";
+import { evaluarCierreSemanal, periodoPrefacturaSugerido, semanaOperativa } from "../utils/cierreSemanalFlotilla";
 
 function hoyMexico() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
-}
-
-function lunesDeSemana(fecha) {
-  const valor = new Date(`${fecha}T12:00:00Z`);
-  const dia = valor.getUTCDay() || 7;
-  valor.setUTCDate(valor.getUTCDate() - dia + 1);
-  return valor.toISOString().slice(0, 10);
 }
 
 function moneda(valor) {
@@ -36,9 +30,10 @@ const tarjeta = {
 
 export default function FlotillaResumenRentalPeriodo() {
   const hoy = useMemo(hoyMexico, []);
-  const [desde, setDesde] = useState(() => lunesDeSemana(hoy));
-  const [hasta, setHasta] = useState(hoy);
-  const [datos, setDatos] = useState({ operaciones: [], cortes: [], liquidaciones: [], repartos: [] });
+  const sugerido = useMemo(() => periodoPrefacturaSugerido(hoy), [hoy]);
+  const [desde, setDesde] = useState(sugerido.desde);
+  const [hasta, setHasta] = useState(sugerido.hasta);
+  const [datos, setDatos] = useState({ operaciones: [], rutasPendientes: [], duplicadasIgnoradas: [], cortes: [], liquidaciones: [], repartos: [] });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [guardandoPago, setGuardandoPago] = useState("");
@@ -63,8 +58,19 @@ export default function FlotillaResumenRentalPeriodo() {
     () => calcularResumenRentalPeriodo(datos.operaciones, datos.cortes, datos.liquidaciones, datos.repartos),
     [datos]
   );
+  const cierre = useMemo(() => evaluarCierreSemanal(
+    [...datos.operaciones, ...(datos.rutasPendientes || [])],
+    { desde, hasta },
+    hoy
+  ), [datos.operaciones, datos.rutasPendientes, desde, hasta, hoy]);
+
+  function elegirPeriodo(periodo) {
+    setDesde(periodo.desde);
+    setHasta(periodo.hasta);
+  }
 
   async function registrarPago(chofer) {
+    if (!cierre.listaParaRevision) return setError("Cierra todas las rutas y usa una semana completa antes de registrar pagos Rental.");
     const confirmado = window.confirm(`Confirma únicamente si ya pagaste ${moneda(chofer.saldoPorPagar)} a ${chofer.chofer}. MONYS registrará el pago, pero no hará una transferencia bancaria.`);
     if (!confirmado) return;
     try {
@@ -96,6 +102,7 @@ export default function FlotillaResumenRentalPeriodo() {
   }
 
   async function registrarReparto(socio) {
+    if (!cierre.listaParaRevision) return setError("Cierra todas las rutas y revisa la semana antes de repartir utilidad Rental.");
     const monto = resumen.repartoSocios[socio];
     if (!window.confirm(`Confirma únicamente si ya entregaste ${moneda(monto)} a ${socio}. MONYS guardará la entrega, pero no hará una transferencia.`)) return;
     try {
@@ -154,8 +161,26 @@ export default function FlotillaResumenRentalPeriodo() {
       <label style={{ fontSize: 11, fontWeight: 800 }}>Desde<input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} style={{ width: "100%", marginTop: 4, padding: 8, borderRadius: 8, border: "1px solid #acd5b9" }} /></label>
       <label style={{ fontSize: 11, fontWeight: 800 }}>Hasta<input type="date" value={hasta} min={desde} max={hoy} onChange={(e) => setHasta(e.target.value)} style={{ width: "100%", marginTop: 4, padding: 8, borderRadius: 8, border: "1px solid #acd5b9" }} /></label>
       <button type="button" disabled={cargando || !desde || !hasta || desde > hasta} onClick={cargar} style={{ minHeight: 36 }}>{cargando ? "Calculando…" : "Actualizar corte"}</button>
-      <button type="button" disabled={cargando || resumen.rutas === 0} onClick={descargarExcel} style={{ minHeight: 36 }}>Descargar Excel</button>
+      <button type="button" disabled={cargando || !cierre.listaParaRevision || resumen.rutas === 0} onClick={descargarExcel} style={{ minHeight: 36 }}>Descargar Excel final</button>
     </div>
+
+    <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 8 }}>
+      <button type="button" onClick={() => elegirPeriodo(periodoPrefacturaSugerido(hoy))}>Semana por revisar</button>
+      <button type="button" onClick={() => elegirPeriodo(semanaOperativa(hoy))}>Ver esta semana</button>
+    </div>
+
+    {!cargando && <div role="status" style={{ marginTop: 10, padding: 10, borderRadius: 10, background: cierre.listaParaRevision ? "#e7f7ed" : "#fff4df", color: cierre.listaParaRevision ? "#17643a" : "#76551b", fontWeight: 800 }}>
+      {cierre.listaParaRevision
+        ? `Rental listo para revisión: ${cierre.rutasFinalizadas} ruta(s) cerrada(s).`
+        : cierre.estado === "PENDIENTE_CIERRES"
+          ? `Rental provisional: faltan ${cierre.rutasPendientes} ruta(s) por cerrar. Pagos y reparto permanecen bloqueados.`
+          : cierre.estado === "SEMANA_EN_CURSO"
+            ? "Rental provisional: la semana todavía no termina."
+            : cierre.estado === "PERIODO_INCOMPLETO"
+              ? "Selecciona una semana completa de lunes a domingo."
+              : "No hay rutas Rental cerradas para revisar."}
+      {(datos.duplicadasIgnoradas || []).length > 0 && <small style={{ display: "block", marginTop: 4 }}>Se ignoraron {datos.duplicadasIgnoradas.length} reintento(s) duplicado(s).</small>}
+    </div>}
 
     {error && <p role="alert" style={{ color: "#a02e2e", fontWeight: 800 }}>{error}</p>}
     {!error && !cargando && resumen.rutas === 0 && <p style={{ color: "#557063" }}>No hay rutas Rental registradas en este periodo.</p>}
@@ -190,7 +215,7 @@ export default function FlotillaResumenRentalPeriodo() {
           <div><small>Gas pagada por él</small><b style={{ display: "block" }}>{moneda(chofer.gasolinaChofer)}</b></div>
         </div>
         {(chofer.ambulanciasFavor > 0 || chofer.ambulanciasDescuento > 0) && <small style={{ display: "block", marginTop: 7, color: "#76551b" }}>Ambulancias a favor: {moneda(chofer.ambulanciasFavor)} · descontadas: {moneda(chofer.ambulanciasDescuento)}</small>}
-        {chofer.estado === "PENDIENTE" && <button type="button" disabled={guardandoPago === `${chofer.chofer}::${chofer.placas}`} onClick={() => registrarPago(chofer)} style={{ marginTop: 9 }}>{guardandoPago === `${chofer.chofer}::${chofer.placas}` ? "Registrando…" : `Registrar pago realizado · ${moneda(chofer.saldoPorPagar)}`}</button>}
+        {chofer.estado === "PENDIENTE" && <button type="button" disabled={!cierre.listaParaRevision || guardandoPago === `${chofer.chofer}::${chofer.placas}`} onClick={() => registrarPago(chofer)} style={{ marginTop: 9 }}>{guardandoPago === `${chofer.chofer}::${chofer.placas}` ? "Registrando…" : `Registrar pago realizado · ${moneda(chofer.saldoPorPagar)}`}</button>}
         {chofer.estado === "PAGADO" && chofer.liquidadoEn && <small style={{ display: "block", marginTop: 7, color: "#17643a" }}>Liquidación registrada el {new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Mexico_City" }).format(new Date(chofer.liquidadoEn))}.</small>}
         {chofer.estado === "CAMBIO_POSTERIOR" && <small role="alert" style={{ display: "block", marginTop: 7, color: "#8a2e1b", fontWeight: 800 }}>El pago guardado fue de {moneda(chofer.montoLiquidado)}, pero las rutas o movimientos cambiaron después. Revisa antes de hacer cualquier ajuste.</small>}
         {["PAGADO", "CAMBIO_POSTERIOR"].includes(chofer.estado) && <button type="button" disabled={anulando === `liquidacion:${chofer.liquidacionId}`} onClick={() => anularPago(chofer)} style={{ marginTop: 8, background: "#fff", color: "#8a2e1b", border: "1px solid #e4b7ad" }}>{anulando === `liquidacion:${chofer.liquidacionId}` ? "Anulando…" : "Anular y corregir liquidación"}</button>}
@@ -212,7 +237,7 @@ export default function FlotillaResumenRentalPeriodo() {
       {resumen.sociosDetalle.map((socio) => <div key={socio.socio} style={tarjeta}>
         <small>{socio.socio}</small><strong style={{ display: "block", color: "#08734f" }}>{moneda(socio.calculado)}</strong>
         <span style={{ display: "inline-block", marginTop: 6, padding: "4px 8px", borderRadius: 999, fontSize: 10, fontWeight: 900, background: socio.estado === "PAGADO" ? "#e7f7ed" : socio.estado === "CAMBIO_POSTERIOR" ? "#ffe7df" : "#fff4df", color: socio.estado === "PAGADO" ? "#17643a" : socio.estado === "CAMBIO_POSTERIOR" ? "#8a2e1b" : "#76551b" }}>{socio.estado === "PAGADO" ? "ENTREGADO" : socio.estado === "CAMBIO_POSTERIOR" ? "REVISAR · CAMBIÓ EL CORTE" : socio.estado === "SIN_REPARTO" ? "SIN UTILIDAD" : "PENDIENTE DE ENTREGA"}</span>
-        {socio.estado === "PENDIENTE" && <button type="button" disabled={guardandoReparto === socio.socio} onClick={() => registrarReparto(socio.socio)} style={{ marginTop: 8 }}>{guardandoReparto === socio.socio ? "Registrando…" : "Registrar entrega realizada"}</button>}
+        {socio.estado === "PENDIENTE" && <button type="button" disabled={!cierre.listaParaRevision || guardandoReparto === socio.socio} onClick={() => registrarReparto(socio.socio)} style={{ marginTop: 8 }}>{guardandoReparto === socio.socio ? "Registrando…" : "Registrar entrega realizada"}</button>}
         {["PAGADO", "CAMBIO_POSTERIOR"].includes(socio.estado) && <button type="button" disabled={anulando === `reparto:${socio.repartoId}`} onClick={() => anularReparto(socio)} style={{ marginTop: 8, background: "#fff", color: "#8a2e1b", border: "1px solid #e4b7ad" }}>{anulando === `reparto:${socio.repartoId}` ? "Anulando…" : "Anular y corregir entrega"}</button>}
       </div>)}
     </div>}
@@ -226,3 +251,4 @@ export default function FlotillaResumenRentalPeriodo() {
     <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Este corte suma las rutas y los cierres diarios guardados dentro del periodo. Los adelantos disminuyen lo pendiente del chofer, pero no reducen dos veces la utilidad. “Registrar pago” solo deja constancia administrativa; MONYS no realiza transferencias bancarias.</p>
   </section>;
 }
+

@@ -1,6 +1,7 @@
 import { supabase } from "../../../../supabase";
 import { resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 import { crearNombreCanalOperacion } from "../../utils/realtimeFlotilla";
+import { separarRutasPorCierre } from "../../utils/cierreSemanalFlotilla";
 
 export { calcularAmbulancia, calcularPagoRuta, resumirOperacionFlotilla } from "../../utils/operacionFlotilla";
 
@@ -303,7 +304,8 @@ export async function obtenerDatosPrefacturaPeriodo(desde, hasta) {
     obtenerDescuentosPnrPeriodo(desde, hasta),
     obtenerAjustesPrefacturaPeriodo(desde, hasta),
   ]);
-  return { operaciones, descuentosPnr, ajustes };
+  const { finalizadas, pendientes, duplicadasIgnoradas } = separarRutasPorCierre(operaciones);
+  return { operaciones: finalizadas, rutasPendientes: pendientes, duplicadasIgnoradas, descuentosPnr, ajustes };
 }
 
 export async function guardarRevisionEvidencia({ rutaId, evidenciaKey, tipoEvidencia, referenciaId = null, estado, motivo = null }) {
@@ -463,7 +465,7 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
     supabase
       .from("flotilla_rutas")
       .select(`
-        id, chofer_nombre, fecha, codigo_ruta, tipo_pago, estado,
+        id, unidad_id, driver_auth_user_id, chofer_nombre, fecha, codigo_ruta, tipo_pago, estado, hora_inicio_ruta, hora_fin_ruta,
         km_inicial, km_final, kilometros_ruta,
         unidad:flotilla_unidades(placas, tipo_pago_chory)
       `)
@@ -490,11 +492,12 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
 
   if (errorOperaciones || errorCortes || errorLiquidaciones || errorRepartos) throw new Error("No fue posible consultar el periodo de Rental.");
 
-  const rentals = (operaciones || []).filter((item) =>
+  const rentalsPeriodo = (operaciones || []).filter((item) =>
     ["RENTAL_SMALL", "RENTAL_LARGE"].includes(item.tipo_pago || item.unidad?.tipo_pago_chory)
   );
+  const { finalizadas: rentals, pendientes: rutasPendientes, duplicadasIgnoradas } = separarRutasPorCierre(rentalsPeriodo);
   const ids = rentals.map((item) => item.id);
-  if (ids.length === 0) return { operaciones: [], cortes: cortes || [], liquidaciones: liquidaciones || [], repartos: repartos || [] };
+  if (ids.length === 0) return { operaciones: [], rutasPendientes, duplicadasIgnoradas, cortes: cortes || [], liquidaciones: liquidaciones || [], repartos: repartos || [] };
 
   const [{ data: dinero, error: errorDinero }, { data: ambulancias, error: errorAmbulancias }] = await Promise.all([
     supabase
@@ -546,6 +549,8 @@ export async function obtenerOperacionRentalPeriodo(desde, hasta) {
         .filter((item) => item.operacion_id === operacion.id);
       return { ...operacion, movimientos, resumen: resumirOperacionFlotilla(operacion, movimientos) };
     }),
+    rutasPendientes,
+    duplicadasIgnoradas,
     cortes: cortes || [],
     liquidaciones: liquidaciones || [],
     repartos: repartos || [],
@@ -680,3 +685,4 @@ export function suscribirseAOperacionFlotilla({ onCambio, onEstado }) {
     return () => {};
   }
 }
+
