@@ -48,7 +48,7 @@ test("Finanzas queda pendiente cuando no hay cuentas bancarias activas", () => {
   datos.bancos = { disponible: true, valor: { cuentas: [], saldoTotal: null, completo: false } };
   const finanzas = resumirActivacionOperativa(datos).modulos.find((item) => item.id === "finanzas");
   assert.equal(finanzas.estado, "PENDIENTE");
-  assert.match(finanzas.detalle, /No hay cuentas bancarias activas/);
+  assert.match(finanzas.detalle, /No se encontraron cuentas bancarias activas para este negocio/);
 });
 
 test("Finanzas nombra la sucursal cuyo reporte de proveedores falta", () => {
