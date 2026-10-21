@@ -8,11 +8,6 @@ import {
   suscribirseAOperacionFlotilla,
 } from "./services/operacionFlotilla";
 import { calcularRepartoRental, evaluarGasolina, MOTIVOS_RECHAZO_EVIDENCIA, revisarEvidenciaRuta } from "../utils/operacionFlotilla";
-import FlotillaAccesosChofer from "./FlotillaAccesosChofer";
-import FlotillaAccesosSocios from "./FlotillaAccesosSocios";
-import FlotillaPrestamos from "./FlotillaPrestamos";
-import FlotillaPrefacturas from "./FlotillaPrefacturas";
-import FlotillaResumenRentalPeriodo from "./FlotillaResumenRentalPeriodo";
 import { useBorradorFlotilla } from './useBorradorFlotilla';
 import EstadoBorrador from './EstadoBorrador';
 
@@ -51,7 +46,7 @@ function ControlRevisionFoto({ revision, guardando, onGuardar }) {
   </div>;
 }
 
-export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta = false }) {
+export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta = false, seccion = 'HOY' }) {
   const [fecha, setFecha] = useState(fechaMexico);
   const [operaciones, setOperaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -156,11 +151,12 @@ export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta =
   return (
     <section style={{ marginBottom: 16, padding: 16, borderRadius: 18, background: "linear-gradient(145deg,#fff,#f1f8ff)", border: "1px solid #c9deef" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div><small style={{ color: "#3975a6", fontWeight: 900 }}>OPERACIÓN EN VIVO</small><h2 style={{ margin: "5px 0" }}>Rutas, gasolina y adelantos</h2></div>
+        <div><small style={{ color: "#3975a6", fontWeight: 900 }}>{seccion === 'RENTAL' ? 'RENTAL · CORTE DIARIO' : 'OPERACIÓN EN VIVO'}</small><h2 style={{ margin: "5px 0" }}>{seccion === 'RENTAL' ? 'Resultado del día' : 'Rutas, gasolina y adelantos'}</h2></div>
         <span style={{ alignSelf: "start", color: realtime === "SUBSCRIBED" ? "#247044" : "#805b18", fontWeight: 850 }}>{realtime === "SUBSCRIBED" ? "● En tiempo real" : "● Comprobando conexión"}</span>
       </div>
 
       <label style={{ display: "block", maxWidth: 220, fontSize: 12, fontWeight: 800 }}>Fecha<input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={{ width: "100%", marginTop: 5, padding: 9, border: "1px solid #c9deef", borderRadius: 9 }} /></label>
+      <div hidden={seccion !== 'HOY'}>
       <p role="status" style={{ padding: 10, background: '#edf5ff', borderRadius: 10 }}><b>{fecha === fechaMexico() ? 'HOY' : `DÍA · ${fecha}`} · {cargando ? 'Consultando rutas…' : error ? 'Consulta pendiente' : `${operaciones.length} rutas sincronizadas`}</b><br />Esta vista corresponde solo a la fecha elegida. Consulta la semana cerrada en Prefacturas; un día sin rutas no indica que se borró el historial.</p>
       {soloConsulta && <p role="status" style={{ padding: 9, borderRadius: 9, background: "#f8f4ff", color: "#65428a", fontWeight: 800 }}>Acceso de socio: puedes consultar tus unidades, resultados y prefacturas; no puedes aprobar ni modificar movimientos.</p>}
 
@@ -229,12 +225,9 @@ export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta =
       </div>
       <p style={{ marginBottom: 0, color: "#66798b", fontSize: 11 }}>MONYS conserva la revisión de cada foto. La gasolina exige ticket, tablero antes y tablero después, y las tres fotos deben aprobarse. Si falta una o se rechaza, el mismo importe se trata como préstamo personal del chofer y no se duplica como gasolina. Un adelanto solicitado no reduce el saldo hasta que Administración lo marca como entregado. Una ambulancia tampoco cambia pagos hasta confirmarse; entonces se descuenta al chofer apoyado y se abona al ayudante.</p>
 
-      {!soloConsulta && <FlotillaAccesosChofer />}
-      {!soloConsulta && String(usuario?.role || "").toLowerCase() === "owner" && <FlotillaAccesosSocios />}
-      <FlotillaPrestamos soloConsulta={soloConsulta} />
-      <FlotillaPrefacturas puedeGestionar={!soloConsulta} usuario={usuario} />
+      </div>
 
-      <section style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
+      <section hidden={seccion !== 'RENTAL'} style={{ ...tarjeta, marginTop: 16, background: "#f7fff9", borderColor: "#b8dfc4" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div><small style={{ color: "#237345", fontWeight: 900 }}>RENTALS · UTILIDAD DEL DÍA</small><h3 style={{ margin: "4px 0" }}>Abraham · Chory · Kary</h3></div>
           <b>{rental.rutas} rutas · {rental.rutasSmall} Small · {rental.rutasLarge} Large</b>
@@ -264,7 +257,6 @@ export default function FlotillaOperacionEnVivo({ usuario = null, soloConsulta =
         {!soloConsulta && <button type="button" disabled={guardandoRental || cargando} onClick={guardarRental} style={{ marginTop: 11 }}>{guardandoRental ? "Guardando…" : "Guardar corte rental"}</button>}
         <p style={{ marginBottom: 0, color: "#557063", fontSize: 11 }}>Small: cobra $1,100 y paga $850 al chofer. Large: cobra $1,221 y paga $1,000. Al ganado del chofer se suman o descuentan ambulancias confirmadas. Cálculo: ingreso − ganado real de choferes − gasolina pagada por la empresa − otro gasto. Los adelantos solo reducen lo pendiente por pagar; no vuelven a descontarse de la utilidad.</p>
       </section>
-      {!soloConsulta && <FlotillaResumenRentalPeriodo />}
     </section>
   );
 }
