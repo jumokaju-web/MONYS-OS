@@ -473,6 +473,10 @@ const utilidadConsolidada =
           <TendenciaSemanalSucursales
             sucursales={sucursalesDashboard}
             onAbrirImportador={abrirImportador}
+            organizationId={usuario?.organization_id || datosDashboard?.organization_id}
+            businessId={usuario?.business_id || datosDashboard?.business_id}
+            branchId={usuario?.branch_id || datosDashboard?.branch_id}
+            onAbrirValor={abrirCentroValor}
           />
         )}
         <CentroDireccionCEO

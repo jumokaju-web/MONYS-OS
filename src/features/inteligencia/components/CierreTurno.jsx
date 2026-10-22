@@ -92,6 +92,7 @@ export default function CierreTurno({
   const [avisoBorrador, setAvisoBorrador] = useState('');
   const [confirmacionCorte, setConfirmacionCorte] = useState(null);
   const [consultaCajaConfirmada, setConsultaCajaConfirmada] = useState(false);
+  const [errorConsultaCaja, setErrorConsultaCaja] = useState("");
   const [correccionCierre, setCorreccionCierre] = useState(null);
   const [guardandoCorreccion, setGuardandoCorreccion] = useState(false);
   const [
@@ -240,6 +241,7 @@ export default function CierreTurno({
     try {
       setCargandoCierres(true);
       setConsultaCajaConfirmada(false);
+      setErrorConsultaCaja("");
 
       const data =
         await obtenerCierresTurno({
@@ -257,6 +259,7 @@ export default function CierreTurno({
         "Error al cargar cierres:",
         errorCierres
       );
+      setErrorConsultaCaja("No se pudo comprobar el estado de caja. Tu captura se conserva; vuelve a consultar antes de abrir o enviar un corte.");
     } finally {
       setCargandoCierres(false);
     }
@@ -476,6 +479,7 @@ export default function CierreTurno({
 
   async function abrirCaja() {
     if (abriendoCaja || cargandoCierres) return;
+    if (!consultaCajaConfirmada) { setError('Primero vuelve a consultar el estado de caja. No se registró una apertura nueva.'); return; }
     if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de iniciar otra caja.'); return; }
     if (!branchId) { setError('No se pudo identificar la sucursal. Avisa a Dirección.'); return; }
     if (!cajaId) { setError('Selecciona Caja 1 o Caja 2 antes de iniciar.'); return; }
@@ -526,6 +530,7 @@ export default function CierreTurno({
   ) {
     event.preventDefault();
     if (envioEnCurso.current) return;
+    if (!consultaCajaConfirmada || cargandoCierres) { setError('Primero confirma el estado de caja. Conservamos tu captura sin enviar otro corte.'); return; }
     if (borradorRecuperable) { setError('Recupera o descarta el borrador anterior antes de enviar otro corte.'); return; }
 
     setError("");
@@ -1448,7 +1453,7 @@ export default function CierreTurno({
         <div style={{ color: "#8f2f5e", fontSize: "12px", fontWeight: 900, letterSpacing: ".08em" }}>
           RESPONSABILIDAD DE CAJA
         </div>
-        {cargandoCierres ? <p role="status">Consultando el estado de caja…</p> : sesionCajaActiva ? (
+        {cargandoCierres ? <p role="status">Consultando el estado de caja…</p> : !consultaCajaConfirmada ? <div role="alert"><p>{errorConsultaCaja || 'Falta comprobar el estado de caja.'}</p><button type="button" onClick={cargarCierres}>Volver a consultar caja</button></div> : sesionCajaActiva ? (
           <>
             <h3 style={{ margin: "7px 0" }}>{cajaNombre} abierta por {sesionCajaActiva.responsable}</h3>
             <p style={{ margin: 0, color: "#5f4f57" }}>

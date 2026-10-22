@@ -76,7 +76,7 @@ function RevisionCausa({ accion, organizationId, businessId, branchIdActual, onA
     setCargando(true);
     obtenerEmpleadosActivosParaAsignacion(accion.branchId)
       .then((lista) => {
-        if (vigente) setEmpleados((lista || []).filter((persona) => persona.active && persona.usuario_id && persona.branch_id === accion.branchId));
+        if (vigente) setEmpleados((lista || []).filter((persona) => persona.active && persona.auth_user_id && persona.branch_id === accion.branchId));
       })
       .catch((error) => {
         if (vigente) setMensaje(error?.message || "No fue posible consultar el equipo de esta sucursal.");
@@ -125,7 +125,7 @@ function RevisionCausa({ accion, organizationId, businessId, branchIdActual, onA
       const persona = empleados.find((empleado) => empleado.id === responsableId);
       const tarea = construirTareaCausaSemanal({
         accion,
-        responsable: persona ? { nombre: persona.nombre, usuarioId: persona.usuario_id, branchId: persona.branch_id, organizationId: persona.organization_id, businessId: persona.business_id } : null,
+        responsable: persona ? { nombre: persona.nombre, usuarioId: persona.auth_user_id, branchId: persona.branch_id, organizationId: persona.organization_id, businessId: persona.business_id } : null,
         fechaRevision,
         criterioExito: criterio,
         organizationId,
