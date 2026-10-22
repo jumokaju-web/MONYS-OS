@@ -86,6 +86,18 @@ movimientos = [],
     fechaInicial,
     fechaFinal,
   });
+
+  function abrirOperacionCompleta() {
+    const panel = document.getElementById("operacion-completa-direccion");
+    if (!panel) return;
+    let contenedor = panel.parentElement?.closest("details");
+    while (contenedor) {
+      contenedor.open = true;
+      contenedor = contenedor.parentElement?.closest("details");
+    }
+    panel.open = true;
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   const detallePeriodo =
     estadoVentasCorte === "listo"
       ? `${formatearFechaPeriodo(
@@ -453,7 +465,7 @@ const utilidadConsolidada =
       }}
     >
       <Header />
-      <aside className="owner-sidebar" aria-label="Navegación del negocio"><span>ESPACIO DE DIRECCIÓN</span><button aria-current="page" onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>◈ Resumen ejecutivo</button><button onClick={abrirJuntaDirectiva}>◉ Junta Directiva IA</button><button onClick={abrirFinanzas}>$ Finanzas</button><button onClick={abrirMarketing}>↗ Crecimiento</button><button onClick={abrirFlotilla}>◇ Flotilla</button><button onClick={abrirEmpleados}>◎ Equipo</button><button onClick={abrirInventario}>▦ Inventario</button><button onClick={abrirCentroValor}>✧ Valor generado</button><button onClick={abrirImportador}>＋ Reportes</button><small>MONYS OS<br/>Tu centro de decisión y ejecución</small></aside>
+      <aside className="owner-sidebar" aria-label="Navegación del negocio"><span>ESPACIO DE DIRECCIÓN</span><button aria-current="page" onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>◈ Resumen ejecutivo</button><button onClick={abrirJuntaDirectiva}>◉ Junta Directiva IA</button><button onClick={abrirFinanzas}>$ Finanzas</button><button onClick={abrirMarketing}>↗ Crecimiento</button><button onClick={abrirFlotilla}>◇ Flotilla</button><button onClick={abrirEmpleados}>◎ Empleados · RH</button><button onClick={abrirInventario}>▦ Inventario</button><button onClick={abrirCentroValor}>✧ Valor generado</button><button onClick={abrirImportador}>＋ Reportes</button><small>MONYS OS<br/>Tu centro de decisión y ejecución</small></aside>
 
       <section
         style={{
@@ -463,7 +475,8 @@ const utilidadConsolidada =
           textAlign: "left",
         }}
       >
-        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
+        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Ver tareas y fotos</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
+        {contenidoOperacion && <BloquePlegable id="operacion-completa-direccion" titulo="📋 Tareas y fotos del equipo">{contenidoOperacion}</BloquePlegable>}
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         <section className="owner-results" aria-label="Resultados del corte SICAR">
           <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(ventasConsolidadas || ventasTotales) : detallePeriodo}</strong><span>Venta registrada en SICAR</span></div>
@@ -495,7 +508,7 @@ const utilidadConsolidada =
           <button type="button" onClick={abrirCompraMaestra}><b>Qué comprar</b><span>Demanda, existencias y prioridad de reposición</span></button>
           <button type="button" onClick={abrirDirectorFinanciero}><b>Qué abonar</b><span>Deudas, vencimientos y capacidad por confirmar</span></button>
           <button type="button" onClick={abrirTesoreria}><b>Dónde se gasta</b><span>Clasificar salidas y distinguir gastos de retiros</span></button>
-          <button type="button" onClick={abrirEmpleados}><b>Trabajo del equipo</b><span>Accesos, responsables, tareas y evidencias</span></button>
+          <button type="button" onClick={abrirOperacionCompleta}><b>Tareas y evidencias</b><span>Ver lo que reportó el equipo y sus fotos</span></button>
         </nav>
         <ActivacionOperativa
           organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
@@ -511,6 +524,7 @@ const utilidadConsolidada =
           onAbrirFinanzas={abrirFinanzas}
           onAbrirTesoreria={abrirTesoreria}
           onAbrirEquipo={abrirEmpleados}
+          onAbrirOperacion={abrirOperacionCompleta}
           onAbrirMarketing={abrirMarketing}
           onAbrirFlotilla={abrirFlotilla}
         />
@@ -1457,14 +1471,6 @@ const utilidadConsolidada =
           </BloquePlegable>
         )}
 
-        {contenidoOperacion && (
-          <BloquePlegable
-            titulo="⚡ Operación completa"
-          >
-            {contenidoOperacion}
-          </BloquePlegable>
-        )}
-
         {contenidoSicar && (
           <BloquePlegable
             titulo="📊 Resumen SICAR"
@@ -1729,11 +1735,13 @@ function Acceso({
 }
 
 function BloquePlegable({
+  id,
   titulo,
   children,
 }) {
   return (
     <details
+      id={id}
       style={{
         background: "#ffffff",
         border:
