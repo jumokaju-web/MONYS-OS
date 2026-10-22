@@ -1,11 +1,11 @@
-import * as XLSX from "xlsx";
-
 /**
  * Lee un archivo Excel de SICAR y devuelve la primera hoja en formato JSON.
  */
 export async function leerExcel(file) {
   try {
     const buffer = await file.arrayBuffer();
+    // Excel se descarga solo cuando la persona importa un archivo; no al abrir MONYS.
+    const XLSX = await import("xlsx");
 
     const workbook = XLSX.read(buffer, {
       type: "array",

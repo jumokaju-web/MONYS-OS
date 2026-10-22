@@ -459,6 +459,36 @@ export function construirInstruccionesReprogramadas({
   return [anteriores, auditoria].filter(Boolean).join("\n\n");
 }
 
+export function validarCierreTareaAtrasada({
+  tarea,
+  hoy,
+  evidencias = [],
+  confirmacion,
+} = {}) {
+  if (!tarea?.id || String(tarea?.estado || "").toLowerCase() !== "en_proceso") {
+    return { valida: false, motivo: "Solo se puede cerrar desde esta revisión una tarea iniciada que sigue abierta." };
+  }
+
+  const fechaHoy = fechaValidaBacklog(hoy);
+  const fechaTarea = fechaValidaBacklog(tarea.fecha);
+  if (!fechaHoy || !fechaTarea || fechaTarea >= fechaHoy) {
+    return { valida: false, motivo: "La tarea ya no está vencida. Actualiza la bandeja antes de decidir." };
+  }
+
+  const evidenciaFinal = (Array.isArray(evidencias) ? evidencias : []).filter((evidencia) =>
+    evidencia?.tipo === "final" && String(evidencia?.archivo_path || "").trim(),
+  );
+  if (evidenciaFinal.length === 0) {
+    return { valida: false, motivo: "Falta una foto final guardada. La tarea permanece abierta hasta recibir evidencia." };
+  }
+
+  if (confirmacion !== "CERRAR TAREA") {
+    return { valida: false, motivo: 'Escribe exactamente "CERRAR TAREA" después de revisar la foto final.' };
+  }
+
+  return { valida: true, fechaOriginal: fechaTarea, evidenciasFinales: evidenciaFinal };
+}
+
 export function validarCancelacionDuplicados({
   tareas = [],
   principalId,

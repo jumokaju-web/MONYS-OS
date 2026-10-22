@@ -144,7 +144,10 @@ movimientos = [],
           );
 
           const resultado =
-            await obtenerRecordatoriosJefa();
+            await obtenerRecordatoriosJefa({
+              organizationId: usuario?.organization_id || datosDashboard?.organization_id,
+              businessId: usuario?.business_id || datosDashboard?.business_id,
+            });
 
           if (componenteActivo) {
             setRecordatoriosJefa(
@@ -178,7 +181,7 @@ movimientos = [],
     return () => {
       componenteActivo = false;
     };
-  }, []);
+  }, [datosDashboard?.business_id, datosDashboard?.organization_id, usuario?.business_id, usuario?.organization_id]);
 
   const movimientosPendientes =
      movimientos.filter((movimiento) => {
