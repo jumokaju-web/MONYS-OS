@@ -7,7 +7,7 @@ import {
   construirMetaRecuperacion,
   construirTendenciaSemanal,
   resumirImportacionUtilidad,
-  seleccionarCandidatosCampana,
+  seleccionarCandidatosConDemanda,
 } from "../../utils/tendenciaSemanalSucursales";
 import { analizarHistorialCausasSemanales, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../utils/causasCambioSemanal";
 import "./TendenciaSemanalSucursales.css";
@@ -248,7 +248,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
   const maximo = Math.max(...tendencia.semanas.map((semana) => Number(configuracion.valor(semana)) || 0), 1);
   const meta = construirMetaRecuperacion(tendencia.semanas, "General Anaya", 10);
   const sucursalAnaya = sucursales.find((sucursal) => String(sucursal.nombre || sucursal.name || "").toLowerCase().includes("general anaya"));
-  const candidatos = seleccionarCandidatosCampana(sucursalAnaya?.inventario || [], 3);
+  const candidatos = sucursales.flatMap(sucursal => seleccionarCandidatosConDemanda(sucursal.inventario || [], causas?.comparaciones || [], sucursal.id, 3).map(producto => ({ ...producto, branchId: sucursal.id, sucursal: sucursal.nombre || sucursal.name || "Sucursal" })));
   const ultimaSemanaAnaya = meta?.base || null;
   const centroMismoPeriodo = ultimaSemanaAnaya
     ? tendencia.semanas.find((semana) => semana.sucursal.toLowerCase().includes("centro") && semana.periodoInicio === ultimaSemanaAnaya.periodoInicio && semana.periodoFin === ultimaSemanaAnaya.periodoFin)
@@ -397,22 +397,22 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
 
       <div className="weekly-rescue__products">
         <div>
-          <span>CANDIDATOS PARA VALIDAR · NO SON “PRODUCTOS ESTRELLA” TODAVÍA</span>
-          <h4>Stock y utilidad potencial disponibles en General Anaya</h4>
-          <p>Se eligen por existencia y margen del inventario actual. El reporte “Ventas por artículo” permitirá confirmar demanda y rotación.</p>
+          <span>CANDIDATOS CON VENTA Y UTILIDAD SICAR · VALIDAR STOCK FÍSICO</span>
+          <h4>Qué promover en cada sucursal</h4>
+          <p>Se cruzan las ventas del último periodo comparable con el inventario de esta sucursal. Se ordenan por utilidad bruta registrada; confirma existencias y costo de reposición antes de lanzar una campaña.</p>
         </div>
         {candidatos.length > 0 ? (
           <div className="weekly-rescue__product-grid">
             {candidatos.map((producto, indice) => (
-              <article key={`${producto.codigo}-${producto.descripcion}`}>
-                <small>OPCIÓN {indice + 1}</small>
+              <article key={`${producto.branchId}-${producto.codigo}`}>
+                <small>{producto.sucursal} · OPCIÓN {indice + 1}</small>
                 <strong>{producto.descripcion}</strong>
-                <span>{producto.existencia} piezas · {moneda(producto.precioVenta)} · margen {porcentaje(producto.margen)}</span>
+                <span>{producto.existencia} piezas en inventario · {moneda(producto.precioVenta)} · margen de inventario {porcentaje(producto.margen)}</span><p>{producto.unidadesVendidas} unidades vendidas · venta {moneda(producto.ventaRegistrada)} · utilidad bruta {moneda(producto.utilidadRegistrada)}. Corte al {fechaEtiqueta(producto.periodoFin)}.</p>
               </article>
             ))}
           </div>
-        ) : <p className="weekly-rescue__message">No hay suficientes productos con stock, precio y utilidad completos para sugerir una prueba.</p>}
-        {onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Subir “Ventas por artículo” para elegir productos con demanda real →</button>}
+        ) : <p className="weekly-rescue__message">No hay candidatos con venta, utilidad y stock suficientes en el último periodo comparable. Revisa los datos disponibles antes de elegir una campaña.</p>}
+        {onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Revisar o actualizar reportes SICAR →</button>}
       </div>
 
       <p className="weekly-rescue__footnote">MONYS mostrará “línea base” hasta reunir una segunda semana. Después calculará automáticamente la variación semanal; una campaña no se declarará exitosa sin venta, utilidad y evidencia del canal.</p>
