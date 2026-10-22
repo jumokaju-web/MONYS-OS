@@ -3,6 +3,7 @@ import { fechaActualMexico } from "../../inteligencia/services/asistenciaOperati
 import {
   construirInstruccionesRescate,
   validarCancelacionDuplicados,
+  validarCierreTareaAtrasada,
   validarReprogramacionTarea,
 } from "../utils/higieneBacklogOperativo";
 
@@ -177,6 +178,90 @@ export async function reprogramarTareaVencida({
   if (errorActualizacion) throw errorActualizacion;
   if (!actualizada) {
     throw new Error("La tarea cambió durante la autorización. No se modificó; actualiza y revisa nuevamente.");
+  }
+  return actualizada;
+}
+
+export async function cerrarTareaVencidaConEvidencia({
+  organizationId,
+  businessId,
+  tareaId,
+  versionOriginal,
+  confirmacion,
+} = {}) {
+  if (!organizationId || !businessId || !tareaId || !versionOriginal) {
+    throw new Error("Falta el alcance o la versión original de la tarea.");
+  }
+
+  const [{ data: sesion, error: errorSesion }, { data: tarea, error: errorTarea }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from("tareas_operativas")
+      .select(COLUMNAS)
+      .eq("id", tareaId)
+      .eq("organization_id", organizationId)
+      .eq("business_id", businessId)
+      .maybeSingle(),
+  ]);
+  if (errorSesion || !sesion?.user?.id) {
+    throw new Error("La sesión no está disponible. Inicia sesión nuevamente.");
+  }
+  if (errorTarea) throw errorTarea;
+  if (!tarea || tarea.updated_at !== versionOriginal) {
+    throw new Error("La tarea cambió desde que la abriste. Actualiza antes de decidir.");
+  }
+  if (!tarea.branch_id) {
+    throw new Error("La tarea no tiene sucursal. Completa ese dato antes de cerrarla.");
+  }
+
+  const { data: evidencias, error: errorEvidencias } = await supabase
+    .from("tarea_evidencias")
+    .select("id,tipo,archivo_path")
+    .eq("tarea_id", tareaId);
+  if (errorEvidencias) throw errorEvidencias;
+
+  const validacion = validarCierreTareaAtrasada({
+    tarea,
+    hoy: fechaActualMexico(),
+    evidencias,
+    confirmacion,
+  });
+  if (!validacion.valida) throw new Error(validacion.motivo);
+
+  const ahora = new Date().toISOString();
+  const evidenciaIds = validacion.evidenciasFinales.map((evidencia) => evidencia.id).filter(Boolean);
+  const resumenRevision = [
+    "Cierre manual autorizado por Dirección tras revisar evidencia final.",
+    `Fecha original de la tarea: ${validacion.fechaOriginal}.`,
+    `Evidencia final revisada: ${evidenciaIds.join(", ") || "registro final guardado"}.`,
+    `Autorizó usuario: ${sesion.user.id}.`,
+    `Fecha de revisión: ${ahora}.`,
+    "Estado de evaluación: requiere revisión humana; el cierre no demuestra impacto económico.",
+  ].join(" ");
+
+  const { data: actualizada, error: errorActualizacion } = await supabase
+    .from("tareas_operativas")
+    .update({
+      estado: "terminada",
+      completada_por: "Dirección MONYS",
+      completada_at: ahora,
+      evaluacion_estado: "revision_humana",
+      evaluacion_resumen: resumenRevision,
+      requiere_revision: true,
+      updated_at: ahora,
+    })
+    .eq("id", tareaId)
+    .eq("organization_id", organizationId)
+    .eq("business_id", businessId)
+    .eq("branch_id", tarea.branch_id)
+    .eq("estado", "en_proceso")
+    .eq("updated_at", versionOriginal)
+    .select(COLUMNAS)
+    .maybeSingle();
+
+  if (errorActualizacion) throw errorActualizacion;
+  if (!actualizada) {
+    throw new Error("La tarea cambió durante la revisión. No se modificó; actualiza y comprueba otra vez.");
   }
   return actualizada;
 }

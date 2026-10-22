@@ -7,10 +7,12 @@ import {
 } from "../utils/higieneBacklogOperativo";
 import {
   cancelarCopiasExactas,
+  cerrarTareaVencidaConEvidencia,
   obtenerBacklogOperativo,
   obtenerResponsablesRescate,
   reprogramarTareaVencida,
 } from "../services/higieneBacklogService";
+import { obtenerEvidenciasTarea } from "../../inteligencia/services/tareasOperativasService";
 import "./HigieneBacklogOperativo.css";
 
 function nombreSucursal(branchId, sucursales) {
@@ -55,6 +57,9 @@ export default function HigieneBacklogOperativo({
   const [seccionPagina, setSeccionPagina] = useState(seccionInicial);
   const [indiceRescate, setIndiceRescate] = useState(0);
   const [indiceDuplicado, setIndiceDuplicado] = useState(0);
+  const [indiceRevision, setIndiceRevision] = useState(0);
+  const [evidenciaRevision, setEvidenciaRevision] = useState({ tareaId: null, cargando: false, error: "", evidencias: [] });
+  const [confirmacionCierre, setConfirmacionCierre] = useState("");
 
   const cargar = useCallback(async () => {
     if (!organizationId || !businessId) {
@@ -106,6 +111,59 @@ export default function HigieneBacklogOperativo({
   useEffect(() => {
     setIndiceDuplicado((actual) => Math.min(actual, Math.max(analisis.gruposDuplicados.length - 1, 0)));
   }, [analisis.gruposDuplicados.length]);
+
+  useEffect(() => {
+    setIndiceRevision((actual) => Math.min(actual, Math.max(colaRescate.requierenRevision.length - 1, 0)));
+  }, [colaRescate.requierenRevision.length]);
+
+  const tareaRevisionActual = colaRescate.requierenRevision[indiceRevision] || null;
+  const evidenciaRevisionActual = evidenciaRevision.tareaId === tareaRevisionActual?.id
+    ? evidenciaRevision
+    : { tareaId: tareaRevisionActual?.id || null, cargando: Boolean(tareaRevisionActual?.id), error: "", evidencias: [] };
+  useEffect(() => {
+    if (seccionPagina !== "iniciadas" || !tareaRevisionActual?.id) {
+      setEvidenciaRevision({ tareaId: null, cargando: false, error: "", evidencias: [] });
+      setConfirmacionCierre("");
+      return undefined;
+    }
+
+    let vigente = true;
+    const tareaId = tareaRevisionActual.id;
+    setEvidenciaRevision({ tareaId, cargando: true, error: "", evidencias: [] });
+    setConfirmacionCierre("");
+    obtenerEvidenciasTarea(tareaId)
+      .then((evidencias) => {
+        if (vigente) setEvidenciaRevision({ tareaId, cargando: false, error: "", evidencias });
+      })
+      .catch((fallo) => {
+        if (vigente) setEvidenciaRevision({ tareaId, cargando: false, error: fallo?.message || "No se pudo consultar la evidencia.", evidencias: [] });
+      });
+
+    return () => { vigente = false; };
+  }, [seccionPagina, tareaRevisionActual?.id]);
+
+  async function cerrarRevisionConEvidencia() {
+    if (!tareaRevisionActual) return;
+    setGuardando(true);
+    setError("");
+    setMensaje("");
+    try {
+      const tareaCerrada = await cerrarTareaVencidaConEvidencia({
+        organizationId,
+        businessId,
+        tareaId: tareaRevisionActual.id,
+        versionOriginal: tareaRevisionActual.updated_at,
+        confirmacion: confirmacionCierre,
+      });
+      setMensaje(`Tarea cerrada para revisión humana. La evidencia y el resultado original se conservaron: ${tareaCerrada.titulo}.`);
+      setConfirmacionCierre("");
+      await cargar();
+    } catch (fallo) {
+      setError(fallo?.message || "No se pudo cerrar la tarea.");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   function abrirRescate(tarea) {
     const disponibles = responsables.filter((item) =>
@@ -219,6 +277,7 @@ export default function HigieneBacklogOperativo({
 
         <nav className="backlog-page__tabs" aria-label="Secciones del plan de rescate">
           <button type="button" aria-current={seccionPagina === "vencidas" ? "page" : undefined} onClick={() => setSeccionPagina("vencidas")}>Vencidas <b>{colaRescate.total}</b></button>
+          <button type="button" aria-current={seccionPagina === "iniciadas" ? "page" : undefined} onClick={() => setSeccionPagina("iniciadas")}>Iniciadas <b>{colaRescate.requierenRevision.length}</b></button>
           <button type="button" aria-current={seccionPagina === "copias" ? "page" : undefined} onClick={() => setSeccionPagina("copias")}>Copias exactas <b>{analisis.gruposDuplicados.length}</b></button>
         </nav>
 
@@ -275,6 +334,37 @@ export default function HigieneBacklogOperativo({
             )}
 
             {colaRescate.candidatas.length > 1 && !formularioAbierto && <div className="backlog-page__pager"><button type="button" onClick={() => cambiarTarea(-1)} disabled={indiceRescate === 0}>← Anterior</button><span>{indiceRescate + 1} / {colaRescate.candidatas.length}</span><button type="button" onClick={() => cambiarTarea(1)} disabled={indiceRescate >= colaRescate.candidatas.length - 1}>Siguiente →</button></div>}
+          </section>
+        )}
+
+        {seccionPagina === "iniciadas" && (
+          <section className="backlog-page__decision" aria-labelledby="revision-pagina-titulo">
+            <div className="backlog-page__status"><span>REVISIÓN · NO SE BORRA NINGÚN AVANCE</span><strong>{tareaRevisionActual ? `${indiceRevision + 1} de ${colaRescate.requierenRevision.length}` : "Sin tareas iniciadas"}</strong></div>
+            {!cargando && !tareaRevisionActual && <div className="backlog-page__empty"><h2>No hay tareas iniciadas vencidas</h2><p>Las tareas pendientes se atienden en la pestaña Vencidas.</p></div>}
+            {tareaRevisionActual && <article className="backlog-page__card">
+              <div className="backlog-hygiene__rescue-head"><span>{tareaRevisionActual.nivel}</span><small>{tareaRevisionActual.diasVencida} día{tareaRevisionActual.diasVencida === 1 ? "" : "s"} vencida</small></div>
+              <h2 id="revision-pagina-titulo">{tareaRevisionActual.titulo}</h2>
+              <p className="backlog-page__meta">{nombreSucursal(tareaRevisionActual.branch_id, sucursales)} · {tareaRevisionActual.area || "Área pendiente"} · {tareaRevisionActual.responsable || "Sin responsable"}</p>
+              <p>Estado actual: <b>{String(tareaRevisionActual.estado || "pendiente").replace(/_/g, " ")}</b> · Fecha límite: {fechaVisible(tareaRevisionActual.fecha)}</p>
+              {tareaRevisionActual.resultado && <details className="backlog-review__details"><summary>Ver resultado registrado</summary><p>{typeof tareaRevisionActual.resultado === "string" ? tareaRevisionActual.resultado : JSON.stringify(tareaRevisionActual.resultado, null, 2)}</p></details>}
+              {tareaRevisionActual.instrucciones && <details className="backlog-review__details"><summary>Ver instrucciones originales</summary><p>{tareaRevisionActual.instrucciones}</p></details>}
+              <section className="backlog-review__evidence" aria-label="Evidencia final de la tarea">
+                <h3>Evidencia final</h3>
+                {evidenciaRevisionActual.cargando && <p role="status">Consultando fotos guardadas…</p>}
+                {evidenciaRevisionActual.error && <p role="alert">{evidenciaRevisionActual.error}</p>}
+                {!evidenciaRevisionActual.cargando && !evidenciaRevisionActual.error && evidenciaRevisionActual.evidencias.filter((item) => item.tipo === "final" && item.archivo_url).length === 0 && <p>No hay foto final disponible. Esta tarea sigue abierta hasta revisar evidencia.</p>}
+                {evidenciaRevisionActual.evidencias.filter((item) => item.tipo === "final" && item.archivo_url).map((evidencia) => <figure key={evidencia.id}><a href={evidencia.archivo_url} target="_blank" rel="noreferrer"><img src={evidencia.archivo_url} alt={`Evidencia final de ${tareaRevisionActual.titulo}`} loading="lazy" /></a><figcaption>{evidencia.descripcion || "Foto final guardada"} · {fechaVisible(evidencia.created_at)}</figcaption></figure>)}
+              </section>
+              {tareaRevisionActual.estado === "en_proceso" && !evidenciaRevisionActual.cargando && !evidenciaRevisionActual.error && evidenciaRevisionActual.evidencias.some((item) => item.tipo === "final" && item.archivo_path && item.archivo_url) && (
+                <div className="backlog-review__close">
+                  <p>Al cerrar, la tarea pasará a <b>revisión humana</b>. MONYS conservará las instrucciones, el resultado y todas las fotos; el cierre no confirma por sí solo impacto económico.</p>
+                  <label>Si revisaste la foto, escribe <b>CERRAR TAREA</b><input autoComplete="off" value={confirmacionCierre} onChange={(evento) => setConfirmacionCierre(evento.target.value.toUpperCase())} /></label>
+                  <button type="button" onClick={cerrarRevisionConEvidencia} disabled={guardando || confirmacionCierre !== "CERRAR TAREA"}>{guardando ? "Guardando revisión…" : "Cerrar y enviar a revisión humana"}</button>
+                </div>
+              )}
+              {tareaRevisionActual.estado !== "en_proceso" && <p className="backlog-review__protected">No se modifica: la tarea está en estado “{String(tareaRevisionActual.estado).replace(/_/g, " ")}”. Revisa el resultado registrado antes de decidir.</p>}
+            </article>}
+            {colaRescate.requierenRevision.length > 1 && <div className="backlog-page__pager"><button type="button" onClick={() => { setIndiceRevision((actual) => Math.max(actual - 1, 0)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={indiceRevision === 0}>← Anterior</button><span>{indiceRevision + 1} / {colaRescate.requierenRevision.length}</span><button type="button" onClick={() => { setIndiceRevision((actual) => Math.min(actual + 1, colaRescate.requierenRevision.length - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={indiceRevision >= colaRescate.requierenRevision.length - 1}>Siguiente →</button></div>}
           </section>
         )}
 
