@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularFlujo13Semanas, construirCalendarioTanda, importePlaneado } from '../../src/features/inteligencia/utils/flujoCaja13Semanas.js';
+import { calcularFlujo13Semanas, construirCalendarioTanda, diagnosticarFlujo13Semanas, importePlaneado } from '../../src/features/inteligencia/utils/flujoCaja13Semanas.js';
 test('Un importe ausente corta el cálculo de semanas futuras sin inventar ceros', () => {
  const filas=calcularFlujo13Semanas({saldoInicial:100,semanas:[{cobros:20,pagos:10},{cobros:'',pagos:0},{cobros:20,pagos:5}]});
  assert.equal(filas.length,13);assert.equal(filas[0].saldo,110);assert.equal(filas[1].saldo,null);assert.equal(filas[2].saldo,null);
@@ -26,4 +26,12 @@ test('El déficit se arrastra y puede recuperarse con cobros posteriores', () =>
 test('Cero confirmado es válido, ausencia y valores negativos no', () => {
  assert.equal(importePlaneado(0),0);assert.equal(importePlaneado(''),null);assert.equal(importePlaneado(false),null);assert.equal(importePlaneado(-5),null);
  assert.equal(calcularFlujo13Semanas({semanas:[{cobros:10,pagos:0} ]})[0].saldo,null);
+});
+test('El diagnóstico bloquea únicamente el dato faltante y prioriza el primer déficit', () => {
+ assert.equal(diagnosticarFlujo13Semanas({}).titulo,'Define la semana inicial');
+ assert.equal(diagnosticarFlujo13Semanas({inicio:'2026-10-19'}).titulo,'Falta la caja disponible real');
+ const semanas=Array.from({length:13},()=>({cobros:0,nomina:0,proveedores:0,rentaServicios:0,impuestos:0,creditos:0,tandaPago:0,otrosPagos:0}));
+ semanas[0].nomina=200;
+ const diagnostico=diagnosticarFlujo13Semanas({inicio:'2026-10-19',saldoInicial:100,semanas});
+ assert.equal(diagnostico.tipo,'ESTIMACIÓN');assert.equal(diagnostico.semana,1);assert.equal(diagnostico.saldo,-100);
 });
