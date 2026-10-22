@@ -1,4 +1,5 @@
 import './InicioJefa.css';
+import CortesHoyDireccion from './components/CortesHoyDireccion';
 import {
   useEffect,
   useState,
@@ -469,6 +470,7 @@ const utilidadConsolidada =
           <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(utilidadConsolidada || utilidadTotal) : "Por confirmar"}</strong><span>Antes de renta, nómina y demás gastos</span></div>
           <div><small>Dinero para decidir</small><strong>Confirmar saldos</strong><span>Ventas y movimientos no equivalen a efectivo disponible</span><button type="button" onClick={abrirFinanzas}>Revisar saldos y compromisos →</button></div>
         </section>
+        <CortesHoyDireccion usuario={usuario} sucursales={sucursalesDashboard} />
         {!cargandoSucursales && !errorSucursales && sucursalesDashboard.length > 0 && (
           <TendenciaSemanalSucursales
             sucursales={sucursalesDashboard}
