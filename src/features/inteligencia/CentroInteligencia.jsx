@@ -196,6 +196,7 @@ function CentroInteligencia({
   errorDashboard,
   volverAlDashboard,
   onAbrirImportador,
+  onAbrirTesoreria,
   importacionId,
   onAbrirValor,
 }) {
@@ -593,6 +594,7 @@ const analisisRH =
 
       <header className="inteligencia-topbar" aria-label="Navegación de Dirección">
         <button type="button" onClick={abrirDashboardDireccion}>← Dashboard</button>
+        <button type="button" className="inteligencia-topbar__primary" onClick={onAbrirTesoreria}>💰 Tesorería</button>
         <button type="button" className="inteligencia-topbar__primary" onClick={() => setDirectorAbierto("comercial")}>🛒 Comercial</button>
       </header>
 

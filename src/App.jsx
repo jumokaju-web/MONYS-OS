@@ -1274,6 +1274,7 @@ if (
 
     return (
       <CentroInteligencia directorInicial={directorInicial} onAbrirValor={abrirCentroValor}
+        onAbrirTesoreria={() => setPantallaActual("tesoreria")}
         datosDashboard={
           datosDashboard
         }
