@@ -1,5 +1,15 @@
 import { useState } from "react";
 import { supabase } from "../../../supabase";
+import {
+  CATEGORIAS_GASTO,
+  CATEGORIAS_GASTO_ANTERIORES,
+  permiteNoAplica,
+  validarMovimientoParaRevision,
+} from "../utils/validacionMovimientoTesoreria.js";
+import {
+  guardarDistribucionMovimientoTesoreria,
+  obtenerDestinosDistribucionTesoreria,
+} from "../services/tesoreriaService.js";
 
 function HistorialMovimientos({
   movimientos = [],
@@ -7,6 +17,7 @@ function HistorialMovimientos({
   onCambiarEstado,
   onEditarMovimiento,
   onEliminarMovimiento,
+  onDistribucionGuardada,
 }) {
   const [abriendoComprobante, setAbriendoComprobante] =
     useState(null);
@@ -28,6 +39,13 @@ function HistorialMovimientos({
     categoria: "",
     comportamiento: "",
   });
+
+  const [movimientoDistribuyendo, setMovimientoDistribuyendo] = useState(null);
+  const [destinosDistribucion, setDestinosDistribucion] = useState([]);
+  const [partidasDistribucion, setPartidasDistribucion] = useState([]);
+  const [cargandoDestinos, setCargandoDestinos] = useState(false);
+  const [guardandoDistribucion, setGuardandoDistribucion] = useState(false);
+  const [errorDistribucion, setErrorDistribucion] = useState("");
 
   const abrirComprobante = async (movimiento) => {
     if (!movimiento?.receiptUrl) return;
@@ -81,6 +99,10 @@ function HistorialMovimientos({
       movimiento.categoria ||
       movimiento.expense_category ||
       "";
+    const comportamientoActual =
+      movimiento.comportamiento ||
+      movimiento.expense_behavior ||
+      "";
 
     setFormularioEdicion({
       concepto: movimiento.concepto || "",
@@ -94,14 +116,75 @@ function HistorialMovimientos({
           ? ""
           : categoriaActual,
       comportamiento:
-        movimiento.comportamiento ||
-        movimiento.expense_behavior ||
-        "",
+        comportamientoActual === "no_aplica" &&
+        !permiteNoAplica(categoriaActual)
+          ? ""
+          : comportamientoActual,
     });
   };
 
   const cerrarEdicion = () => {
     setMovimientoEditando(null);
+  };
+
+  const abrirDistribucion = async (movimiento) => {
+    setMovimientoDistribuyendo(movimiento);
+    setErrorDistribucion("");
+    setCargandoDestinos(true);
+    try {
+      const destinos = await obtenerDestinosDistribucionTesoreria(
+        movimiento.organization_id,
+      );
+      setDestinosDistribucion(destinos);
+      const partidasGuardadas = movimiento.distribuciones || [];
+      setPartidasDistribucion(partidasGuardadas.length
+        ? partidasGuardadas.map((partida) => ({
+            business_id: partida.business_id,
+            branch_id: partida.branch_id,
+            amount: String(partida.amount),
+            expense_category: partida.expense_category || "",
+            expense_behavior: partida.expense_behavior || "",
+            note: partida.note || "",
+          }))
+        : [{
+            business_id: movimiento.business_id || "",
+            branch_id: movimiento.branch_id || "",
+            amount: String(movimiento.monto || ""),
+            expense_category: movimiento.expense_category || "",
+            expense_behavior: movimiento.expense_behavior || "",
+            note: "",
+          }]);
+    } catch (error) {
+      setErrorDistribucion(error?.message || "No fue posible cargar los destinos.");
+    } finally {
+      setCargandoDestinos(false);
+    }
+  };
+
+  const actualizarPartidaDistribucion = (indice, cambios) => {
+    setPartidasDistribucion((actuales) => actuales.map((partida, posicion) =>
+      posicion === indice ? { ...partida, ...cambios } : partida,
+    ));
+  };
+
+  const guardarDistribucion = async (evento) => {
+    evento.preventDefault();
+    if (!movimientoDistribuyendo) return;
+    setGuardandoDistribucion(true);
+    setErrorDistribucion("");
+    try {
+      await guardarDistribucionMovimientoTesoreria({
+        movimiento: movimientoDistribuyendo,
+        partidas: partidasDistribucion,
+        destinosValidos: destinosDistribucion,
+      });
+      await onDistribucionGuardada?.();
+      setMovimientoDistribuyendo(null);
+    } catch (error) {
+      setErrorDistribucion(error?.message || "No fue posible guardar la distribución.");
+    } finally {
+      setGuardandoDistribucion(false);
+    }
   };
 
   const guardarEdicion = async (evento) => {
@@ -250,7 +333,14 @@ function HistorialMovimientos({
 
                   <td>{movimiento.tipo}</td>
 
-                  <td>{movimiento.concepto}</td>
+                  <td>
+                    {movimiento.concepto}
+                    {(movimiento.distribuciones || []).length > 0 && (
+                      <small style={{ display: "block", color: "#6d5962" }}>
+                        Pago distribuido en {movimiento.distribuciones.length} partidas
+                      </small>
+                    )}
+                  </td>
 
                   <td align="right">
                     {formatoDinero(movimiento.monto)}
@@ -290,37 +380,47 @@ function HistorialMovimientos({
                   </td>
 
                   <td align="center">
-                    {movimiento.estado !== "Revisado" &&
-                      movimiento.estado !== "Cancelado" && (
+                    {(movimiento.estado || movimiento.status) !== "Revisado" &&
+                      (movimiento.estado || movimiento.status) !== "Cancelado" && (
                         <button
                           type="button"
-                          onClick={() =>
-                            onCambiarEstado(
-                              movimiento.id,
-                              "Revisado"
-                            )
-                          }
+                          onClick={() => {
+                            const validacion = validarMovimientoParaRevision(movimiento);
+                            if (validacion.valido) {
+                              onCambiarEstado(movimiento.id, "Revisado");
+                            } else {
+                              abrirEdicion(movimiento);
+                            }
+                          }}
                         >
-                          Marcar revisado
+                          {validarMovimientoParaRevision(movimiento).valido
+                            ? "Marcar revisado"
+                            : "Clasificar gasto"}
                         </button>
                       )}
 
-                    {movimiento.estado !== "Cancelado" && (
+                    {(movimiento.estado || movimiento.status) !== "Cancelado" && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            abrirEdicion(movimiento)
-                          }
-                          style={{
-                            marginLeft: "6px",
-                          }}
-                        >
-                          {movimiento.estado ===
-                          "Pendiente de revisión"
-                            ? "Clasificar"
-                            : "Editar"}
-                        </button>
+                        {String(movimiento.tipo || "").toLowerCase() === "salida" && (
+                          <button
+                            type="button"
+                            onClick={() => abrirDistribucion(movimiento)}
+                            style={{ marginLeft: "6px" }}
+                          >
+                            {(movimiento.distribuciones || []).length
+                              ? "Editar reparto"
+                              : "Distribuir pago"}
+                          </button>
+                        )}
+                        {(movimiento.distribuciones || []).length === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => abrirEdicion(movimiento)}
+                            style={{ marginLeft: "6px" }}
+                          >
+                            {movimiento.estado === "Pendiente de revisión" ? "Clasificar" : "Editar"}
+                          </button>
+                        )}
 
                         <button
                           type="button"
@@ -424,9 +524,14 @@ function HistorialMovimientos({
                   setFormularioEdicion({
                     ...formularioEdicion,
                     categoria: evento.target.value,
+                    comportamiento:
+                      formularioEdicion.comportamiento === "no_aplica" &&
+                      !permiteNoAplica(evento.target.value)
+                        ? ""
+                        : formularioEdicion.comportamiento,
                   })
                 }
-                required
+                required={formularioEdicion.tipo === "salida"}
                 style={{
                   width: "100%",
                   padding: "10px",
@@ -434,17 +539,9 @@ function HistorialMovimientos({
                 }}
               >
                 <option value="">Selecciona una categoría</option>
-                <option value="nomina">Nómina</option>
-                <option value="comisiones">Comisiones</option>
-                <option value="compra_mercancia">Compra de mercancía</option>
-                <option value="transporte">Transporte</option>
-                <option value="limpieza">Limpieza</option>
-                <option value="alimentos">Alimentos</option>
-                <option value="anticipo_prestamo">Anticipo o préstamo</option>
-                <option value="retiro_propietaria">Retiro de propietaria</option>
-                <option value="renta">Renta</option>
-                <option value="servicios">Servicios</option>
-                <option value="otros">Otros</option>
+                {[...CATEGORIAS_GASTO, ...CATEGORIAS_GASTO_ANTERIORES].map(([valor, etiqueta]) => (
+                  <option key={valor} value={valor}>{etiqueta}</option>
+                ))}
               </select>
             </label>
 
@@ -463,6 +560,7 @@ function HistorialMovimientos({
                     comportamiento: evento.target.value,
                   })
                 }
+                required={formularioEdicion.tipo === "salida"}
                 style={{
                   width: "100%",
                   padding: "10px",
@@ -472,8 +570,15 @@ function HistorialMovimientos({
                 <option value="">Sin definir</option>
                 <option value="fijo">Fijo</option>
                 <option value="variable">Variable</option>
-                <option value="no_aplica">No aplica</option>
+                {permiteNoAplica(formularioEdicion.categoria) && (
+                  <option value="no_aplica">No aplica</option>
+                )}
               </select>
+              {formularioEdicion.tipo === "salida" && (
+                <small style={{ display: "block", marginTop: "5px" }}>
+                  Los gastos de operación deben ser fijos o variables. “No aplica” solo se usa para préstamos, retiros o movimientos que no son gasto.
+                </small>
+              )}
             </label>
 
             <label
@@ -546,6 +651,188 @@ function HistorialMovimientos({
 
               <button type="submit">
                 Guardar y aprender
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {movimientoDistribuyendo && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Distribuir pago entre áreas"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9998,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "12px",
+            background: "rgba(20, 10, 16, 0.78)",
+            boxSizing: "border-box",
+          }}
+        >
+          <form
+            onSubmit={guardarDistribucion}
+            style={{
+              width: "100%",
+              maxWidth: "760px",
+              maxHeight: "92vh",
+              overflow: "auto",
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "20px",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2 style={{ marginTop: 0 }}>Distribuir pago</h2>
+            <p style={{ marginTop: 0, color: "#6d5962" }}>
+              {movimientoDistribuyendo.concepto} · {formatoDinero(movimientoDistribuyendo.monto)}
+            </p>
+            <p style={{ color: "#6d5962" }}>
+              Este desglose organiza el destino del pago. El total real del movimiento y el saldo de la cuenta no cambian.
+            </p>
+
+            {cargandoDestinos ? (
+              <p>Cargando negocios y sucursales…</p>
+            ) : destinosDistribucion.length === 0 ? (
+              <p role="alert">No hay sucursales activas disponibles para este movimiento.</p>
+            ) : partidasDistribucion.map((partida, indice) => {
+              const clavesDestino = destinosDistribucion.map((destino) =>
+                `${destino.business_id}:${destino.branch_id}`,
+              );
+              const claveSeleccionada = `${partida.business_id}:${partida.branch_id}`;
+              const categorias = [...CATEGORIAS_GASTO, ...CATEGORIAS_GASTO_ANTERIORES];
+              const importeDistribuido = partidasDistribucion.reduce(
+                (suma, actual) => suma + (Number(actual.amount) || 0),
+                0,
+              );
+              const restante = Number(movimientoDistribuyendo.monto) - importeDistribuido;
+              return (
+                <fieldset
+                  key={`partida-${indice}`}
+                  style={{ border: "1px solid #e6d8e0", borderRadius: "12px", padding: "12px", margin: "12px 0" }}
+                >
+                  <legend>Partida {indice + 1}</legend>
+                  <label style={{ display: "block", marginBottom: "9px" }}>
+                    Negocio y sucursal
+                    <select
+                      value={clavesDestino.includes(claveSeleccionada) ? claveSeleccionada : ""}
+                      onChange={(evento) => {
+                        const destino = destinosDistribucion.find((opcion) =>
+                          `${opcion.business_id}:${opcion.branch_id}` === evento.target.value,
+                        );
+                        actualizarPartidaDistribucion(indice, {
+                          business_id: destino?.business_id || "",
+                          branch_id: destino?.branch_id || "",
+                        });
+                      }}
+                      required
+                      style={{ display: "block", width: "100%", padding: "10px", marginTop: "4px" }}
+                    >
+                      <option value="">Selecciona destino</option>
+                      {destinosDistribucion.map((destino) => (
+                        <option key={`${destino.business_id}:${destino.branch_id}`} value={`${destino.business_id}:${destino.branch_id}`}>
+                          {destino.business_name} · {destino.branch_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "9px" }}>
+                    <label>
+                      Importe
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={partida.amount}
+                        onChange={(evento) => actualizarPartidaDistribucion(indice, { amount: evento.target.value })}
+                        required
+                        style={{ display: "block", width: "100%", padding: "10px", boxSizing: "border-box", marginTop: "4px" }}
+                      />
+                    </label>
+                    <label>
+                      Categoría
+                      <select
+                        value={partida.expense_category}
+                        onChange={(evento) => actualizarPartidaDistribucion(indice, {
+                          expense_category: evento.target.value,
+                          expense_behavior: partida.expense_behavior === "no_aplica" && !permiteNoAplica(evento.target.value)
+                            ? ""
+                            : partida.expense_behavior,
+                        })}
+                        required
+                        style={{ display: "block", width: "100%", padding: "10px", boxSizing: "border-box", marginTop: "4px" }}
+                      >
+                        <option value="">Selecciona categoría</option>
+                        {categorias.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      Comportamiento
+                      <select
+                        value={partida.expense_behavior}
+                        onChange={(evento) => actualizarPartidaDistribucion(indice, { expense_behavior: evento.target.value })}
+                        required
+                        style={{ display: "block", width: "100%", padding: "10px", boxSizing: "border-box", marginTop: "4px" }}
+                      >
+                        <option value="">Selecciona tipo</option>
+                        <option value="fijo">Fijo</option>
+                        <option value="variable">Variable</option>
+                        {permiteNoAplica(partida.expense_category) && <option value="no_aplica">No aplica</option>}
+                      </select>
+                    </label>
+                  </div>
+                  <label style={{ display: "block", marginTop: "9px" }}>
+                    Detalle (opcional)
+                    <input
+                      type="text"
+                      maxLength="500"
+                      value={partida.note}
+                      onChange={(evento) => actualizarPartidaDistribucion(indice, { note: evento.target.value })}
+                      style={{ display: "block", width: "100%", padding: "10px", boxSizing: "border-box", marginTop: "4px" }}
+                    />
+                  </label>
+                  {partidasDistribucion.length > 1 && (
+                    <button type="button" onClick={() => setPartidasDistribucion((actuales) => actuales.filter((_, posicion) => posicion !== indice))} style={{ marginTop: "9px" }}>
+                      Quitar partida
+                    </button>
+                  )}
+                  {indice === partidasDistribucion.length - 1 && (
+                    <div style={{ marginTop: "10px", padding: "10px", background: "#f8f1f5", borderRadius: "10px" }}>
+                      <strong>Falta distribuir: {formatoDinero(restante)}</strong>
+                    </div>
+                  )}
+                </fieldset>
+              );
+            })}
+
+            {!cargandoDestinos && destinosDistribucion.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPartidasDistribucion((actuales) => [...actuales, {
+                  business_id: "",
+                  branch_id: "",
+                  amount: "",
+                  expense_category: "",
+                  expense_behavior: "",
+                  note: "",
+                }])}
+                style={{ marginBottom: "12px" }}
+              >
+                + Agregar otra área
+              </button>
+            )}
+
+            {errorDistribucion && <p role="alert" style={{ color: "#a12b42" }}>{errorDistribucion}</p>}
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button type="button" disabled={guardandoDistribucion} onClick={() => setMovimientoDistribuyendo(null)}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={cargandoDestinos || guardandoDistribucion || destinosDistribucion.length === 0}>
+                {guardandoDistribucion ? "Guardando…" : "Guardar distribución"}
               </button>
             </div>
           </form>

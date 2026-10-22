@@ -270,6 +270,10 @@ const {
         )
       : [];
 
+  const movimientosDeFlujo = movimientosValidos.filter(
+    (movimiento) => movimiento?.excluirDeFlujoTesoreria !== true,
+  );
+
   const movimientosPendientes =
     movimientosValidos.filter(
       (movimiento) => {
@@ -300,7 +304,7 @@ const {
     ) === "traspaso_caja";
 
   const entradasTesoreria =
-    movimientosValidos
+    movimientosDeFlujo
       .filter(
         (movimiento) =>
           obtenerTipoMovimiento(
@@ -322,7 +326,7 @@ const {
     incluyendo los cortes de caja.
   */
   const salidasTesoreriaBrutas =
-    movimientosValidos
+    movimientosDeFlujo
       .filter(
         (movimiento) =>
           obtenerTipoMovimiento(
@@ -340,7 +344,7 @@ const {
       );
 
   const traspasosCaja =
-    movimientosValidos
+    movimientosDeFlujo
       .filter(
         (movimiento) =>
           obtenerTipoMovimiento(
@@ -391,8 +395,27 @@ const {
     se usan salidas revisadas y clasificadas
     como fijas o variables.
   */
+  const movimientosParaClasificar = movimientosValidos.flatMap((movimiento) => {
+    const partidas = Array.isArray(movimiento?.distribuciones)
+      ? movimiento.distribuciones
+      : [];
+    if (!partidas.length) {
+      return movimiento?.distribucionActiva === true ? [] : [movimiento];
+    }
+    return partidas.map((partida) => ({
+      ...movimiento,
+      monto: partida.amount,
+      amount: partida.amount,
+      expense_category: partida.expense_category,
+      expense_behavior: partida.expense_behavior,
+      business_id: partida.business_id,
+      branch_id: partida.branch_id,
+      concepto: partida.note || movimiento.concepto,
+    }));
+  });
+
   const salidasClasificadas =
-    movimientosValidos.filter(
+    movimientosParaClasificar.filter(
       (movimiento) => {
         const tipo =
           obtenerTipoMovimiento(

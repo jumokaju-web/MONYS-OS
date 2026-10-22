@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CATEGORIAS_GASTO } from "../utils/validacionMovimientoTesoreria.js";
 import "./FormularioMovimiento.css";
 
 const datosIniciales = {
@@ -15,22 +16,6 @@ const datosIniciales = {
   recibidoPor: "",
   observaciones: "",
 };
-
-const categoriasGasto = [
-  ["compras_inventario", "Compra de inventario"],
-  ["renta", "Renta"],
-  ["nomina", "Nómina"],
-  ["servicios", "Servicios"],
-  ["marketing", "Marketing"],
-  ["transporte", "Transporte"],
-  ["impuestos", "Impuestos"],
-  ["mantenimiento", "Mantenimiento"],
-  ["papeleria", "Papelería"],
-  ["comisiones", "Comisiones"],
-  ["anticipo_prestamo", "Anticipo o préstamo"],
-  ["retiro_propietaria", "Retiro de propietaria"],
-  ["otro", "Otro"],
-];
 
 export default function FormularioMovimiento({
   tipoInicial = "salida",
@@ -398,7 +383,7 @@ export default function FormularioMovimiento({
                   Selecciona categoría
                 </option>
 
-                {categoriasGasto.map(
+                {CATEGORIAS_GASTO.map(
                   ([valor, etiqueta]) => (
                     <option
                       key={valor}

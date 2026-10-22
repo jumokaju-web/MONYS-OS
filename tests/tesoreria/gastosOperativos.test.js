@@ -11,3 +11,57 @@ test('inventario, préstamos y retiros afectan flujo pero no vuelven a descontar
   assert.equal(resultado.utilidadNetaEstimada, 350);
   assert.equal(resultado.salidasTesoreria, 450);
 });
+
+test('un pago mixto conserva una sola salida de caja y reparte gasto por destino', () => {
+  const movimientos = [{
+    tipo: 'salida',
+    estado: 'Revisado',
+    monto: 30000,
+    expense_category: 'otro',
+    expense_behavior: 'variable',
+    fecha: '2026-10-01',
+    distribucionActiva: true,
+    distribuciones: [
+      { business_id: 'monys', branch_id: 'centro', amount: 18000, expense_category: 'renta', expense_behavior: 'fijo' },
+      { business_id: 'flotilla', branch_id: 'no-aplica', amount: 12000, expense_category: 'transporte', expense_behavior: 'variable' },
+    ],
+  }];
+  const resultado = generarAnalisisFinanciero({
+    movimientos,
+    ventasTotales: 1000,
+    costoTotal: 600,
+    utilidadTotal: 400,
+    fechaInicial: '2026-10-01',
+    fechaFinal: '2026-10-04',
+    diasAnalizados: 4,
+  });
+  assert.equal(resultado.salidasTesoreria, 30000);
+  assert.equal(resultado.gastosFijos, 18000);
+  assert.equal(resultado.gastosVariables, 12000);
+  assert.equal(resultado.utilidadNetaEstimada, -29600);
+});
+
+test('un pago distribuido a otra empresa no se vuelve a contar como salida de su caja', () => {
+  const resultado = generarAnalisisFinanciero({
+    movimientos: [{
+      tipo: 'salida',
+      estado: 'Revisado',
+      monto: 30000,
+      fecha: '2026-10-01',
+      excluirDeFlujoTesoreria: true,
+      distribucionActiva: true,
+      distribuciones: [
+        { business_id: 'flotilla', branch_id: 'no-aplica', amount: 12000, expense_category: 'transporte', expense_behavior: 'variable' },
+      ],
+    }],
+    ventasTotales: 1000,
+    costoTotal: 600,
+    utilidadTotal: 400,
+    fechaInicial: '2026-10-01',
+    fechaFinal: '2026-10-04',
+    diasAnalizados: 4,
+  });
+  assert.equal(resultado.salidasTesoreria, 0);
+  assert.equal(resultado.gastosVariables, 12000);
+  assert.equal(resultado.utilidadNetaEstimada, -11600);
+});

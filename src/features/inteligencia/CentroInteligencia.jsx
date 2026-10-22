@@ -359,7 +359,18 @@ useEffect(() => {
 
   const analisisFinancieroCEO =
     generarAnalisisFinanciero({
-      movimientos: (movimientos || []).filter(m => m.branch_id === branchId),
+      movimientos: (movimientos || []).flatMap((movimiento) => {
+        const partidasSucursal = (movimiento.distribuciones || []).filter(
+          (partida) => partida.branch_id === branchId,
+        );
+        if (movimiento.branch_id !== branchId && !partidasSucursal.length) return [];
+        return [{
+          ...movimiento,
+          excluirDeFlujoTesoreria: movimiento.branch_id !== branchId,
+          distribucionActiva: (movimiento.distribuciones || []).length > 0,
+          distribuciones: partidasSucursal,
+        }];
+      }),
 
       ventasTotales:
         metricas.ventasTotales ?? 0,

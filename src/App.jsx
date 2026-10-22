@@ -312,6 +312,9 @@ function App() {
 expense_behavior:
   registro.expense_behavior || null,
 
+              distribuciones:
+                registro.distribuciones || [],
+
               concepto:
                 registro.concept ||
                 "",
@@ -1025,7 +1028,21 @@ const disponible =
 
   if (pantallaActual === "finanzas") {
     if (!puedeVerFinanzas) return mostrarAccesoDenegado("Finanzas");
-    return <CentroFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos.filter(m => m.organization_id === usuario?.organization_id && m.business_id === usuario?.business_id)} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
+    const movimientosFinancieros = movimientos
+      .filter((movimiento) => {
+        if (movimiento.organization_id !== usuario?.organization_id) return false;
+        return movimiento.business_id === usuario?.business_id ||
+          (movimiento.distribuciones || []).some((partida) => partida.business_id === usuario?.business_id);
+      })
+      .map((movimiento) => ({
+        ...movimiento,
+        excluirDeFlujoTesoreria: movimiento.business_id !== usuario?.business_id,
+        distribucionActiva: (movimiento.distribuciones || []).length > 0,
+        distribuciones: (movimiento.distribuciones || []).filter(
+          (partida) => partida.business_id === usuario?.business_id,
+        ),
+      }));
+    return <CentroFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientosFinancieros} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
   }
 
   /*
