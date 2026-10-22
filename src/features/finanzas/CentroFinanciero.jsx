@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DirectorFinanciero from '../inteligencia/components/director-finanzas/DirectorFinanciero';
 import TesoreriaPage from '../tesoreria/pages/TesoreriaPage';
 import RevisionEstadoBancario from '../tesoreria/components/RevisionEstadoBancario';
@@ -18,6 +18,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
   const [creditos, setCreditos] = useState({ importacion: null, creditos: [], saldoTotal: 0 });
   const [errorCreditos, setErrorCreditos] = useState('');
   const [tab, setTab] = useState('equipo');
+  const areaActivaRef = useRef(null);
   const branchId = datosDashboard?.branch_id;
 
   useEffect(() => {
@@ -29,6 +30,14 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
       .catch((error) => { if (activo) setErrorCreditos(error.message || 'No se pudieron cargar los créditos.'); });
     return () => { activo = false; };
   }, [branchId]);
+
+  useEffect(() => {
+    if (tab === 'equipo') return undefined;
+    const frame = requestAnimationFrame(() => {
+      areaActivaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab]);
 
   const abrirArea = (id) => setTab(id);
   const abrirEquilibrio = () => {
@@ -66,7 +75,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
         ))}
       </nav>
 
-      <section className="finanzas-area-activa" aria-live="polite">
+      <section ref={areaActivaRef} className="finanzas-area-activa" aria-live="polite">
         {tab === 'equipo' && <>
           <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} />
           <div className="finanzas-fuentes">
