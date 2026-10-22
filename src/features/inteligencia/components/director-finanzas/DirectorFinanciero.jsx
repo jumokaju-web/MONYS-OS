@@ -93,6 +93,8 @@ const [
   setResultadosEjecucion,
 ] = useState({});
 
+const [vistaFinanciera, setVistaFinanciera] = useState("inicio");
+
   const consolidacion = consolidarFinanzasSucursales(sucursalesDashboard);
   const hayDatosConsolidados = consolidacion.disponible;
   const ventasConsolidadas = consolidacion.ventas;
@@ -578,6 +580,60 @@ const historial =
       }
     };
 
+  const accesosFinancieros = [
+    { id: "equilibrio", icono: "⚖️", titulo: "Meta diaria", descripcion: "Punto de equilibrio y venta mínima" },
+    { id: "caja", icono: "🗓️", titulo: "Flujo de caja", descripcion: "Próximas 13 semanas y tanda" },
+    { id: "cierre", icono: "✅", titulo: "Cierre semanal", descripcion: "Revisar si la semana está completa" },
+    { id: "panorama", icono: "📊", titulo: "Panorama", descripcion: "Ventas, utilidad y tendencia" },
+    { id: "rescate", icono: "🛟", titulo: "Plan de rescate", descripcion: "Prioridades y acciones financieras" },
+    { id: "proveedores", icono: "💳", titulo: "Proveedores", descripcion: "Deudas y próximos vencimientos" },
+    { id: "informe", icono: "📋", titulo: "Informe completo", descripcion: "Consulta detallada de todos los datos" },
+  ];
+
+  function encabezadoCentroFinanciero() {
+    return <>
+      <div className="finanzas-barra">
+        {vistaFinanciera !== "inicio" && <button type="button" onClick={() => setVistaFinanciera("inicio")}>← Centro financiero</button>}
+        <strong>💰 Director Financiero</strong>
+        {onAbrirImportador && <button type="button" onClick={onAbrirImportador}>Subir reportes</button>}
+      </div>
+      {vistaFinanciera === "inicio" && <div className="finanzas-inicio">
+        <span className="junta-label">MONYS OS · FINANZAS</span>
+        <h2>¿Qué necesitas revisar?</h2>
+        <p>Abre solo una herramienta. Ya no necesitas recorrer todo el informe.</p>
+        <div className="finanzas-accesos">{accesosFinancieros.map((acceso) => <button type="button" key={acceso.id} onClick={() => setVistaFinanciera(acceso.id)}><span>{acceso.icono}</span><strong>{acceso.titulo}</strong><small>{acceso.descripcion}</small><b>Abrir →</b></button>)}</div>
+      </div>}
+    </>;
+  }
+
+  if (vistaFinanciera === "inicio") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}</section>;
+  }
+
+  if (vistaFinanciera === "equilibrio") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} /></section>;
+  }
+
+  if (vistaFinanciera === "caja") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<FlujoCaja13Semanas metricas={metricas} /></section>;
+  }
+
+  if (vistaFinanciera === "cierre") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CierreSemanalFinanciero onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} /></section>;
+  }
+
+  if (vistaFinanciera === "panorama") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<TableroVisualFinanciero ventas={ventasTotales} costos={costoTotal} utilidadBruta={utilidadTotal} gastosFijos={gastosFijos} gastosVariables={gastosVariables} gastosSinClasificar={gastosSinClasificar} utilidadNeta={utilidadNetaEstimada} margenBruto={margenUtilidad} margenNeto={margenConGastos} puntoEquilibrio={puntoEquilibrioVentas} diasAnalizados={metricas.diasAnalizados} fechaInicial={metricas.fechaInicial} entradas={entradasTesoreria} salidas={salidasTesoreria} disponible={dineroDisponible} reserva={reservaRecomendada} movimientosPendientes={movimientosPendientes} vencimientos={[{ etiqueta: "7 días", valor: vencimientos7Dias }, { etiqueta: "15 días", valor: vencimientos15Dias }, { etiqueta: "30 días", valor: vencimientos30Dias }, { etiqueta: "60 días", valor: vencimientos60Dias }, { etiqueta: "90 días", valor: vencimientos90Dias }]} sucursales={sucursalesDashboard} baseVigente={ventasVigentes} fechaCorte={metricas.fechaFinal || null} /><TendenciaSemanalSucursales sucursales={sucursalesDashboard} onAbrirImportador={onAbrirImportador} organizationId={organizationId} businessId={businessId} branchId={branchId} onAbrirValor={onAbrirValor} /></section>;
+  }
+
+  if (vistaFinanciera === "rescate") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={dineroDisponible} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
+  }
+
+  if (vistaFinanciera === "proveedores") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ObligacionesProveedores reporte={creditosProveedores} />{!creditosProveedores?.importacion && onAbrirImportador && <button className="finanzas-accion" type="button" onClick={onAbrirImportador}>Subir créditos de proveedores →</button>}</section>;
+  }
+
   if (sucursalesDashboard.length > 0 && !consolidacion.disponible) {
     return <section style={{ padding: 24, background: "#fff7fb", borderRadius: 20, marginTop: 24 }}>
       <EquilibrioDiario alcance={branchId} /><h3>Finanzas · Revisa la base del negocio</h3>
@@ -614,6 +670,7 @@ const historial =
           "0 12px 35px rgba(180, 120, 40, 0.12)",
       }}
     >
+      {encabezadoCentroFinanciero()}
       <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <FlujoCaja13Semanas metricas={metricas} />
       <CierreSemanalFinanciero onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
