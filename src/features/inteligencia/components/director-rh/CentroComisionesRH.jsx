@@ -1,3 +1,4 @@
+import { normalizarFechaSicar } from "../../../importador/utils/periodoSicar.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   guardarUsuarioSicarEmpleado,
@@ -111,7 +112,14 @@ export default function CentroComisionesRH({ businessId, branchId, empleados = [
       setCargandoDetalle(true);
       try {
         const filas = await leerDetalleImportacionVentas(importacionId, importacionSeleccionada?.total_filas);
-        if (activo) setDetalle(filas);
+        if (activo) {
+          setDetalle(filas);
+          const fechas = filas.map(fila => normalizarFechaSicar((fila.datos_originales || fila).fecha)).filter(Boolean).sort();
+          const periodos = filas.map(fila => fila.datos_originales || fila);
+          const inicio = periodos.find(fila => fila.periodoInicio)?.periodoInicio || fechas[0];
+          const fin = periodos.find(fila => fila.periodoFin)?.periodoFin || fechas.at(-1);
+          if (inicio && fin) { setDesde(inicio); setHasta(fin); }
+        }
       } catch (err) {
         if (activo) {
           setDetalle([]);

@@ -7,6 +7,16 @@ const empleados = [
   { id: "2", nombre: "Kary", usuario_sicar: "kary jimenez" },
 ];
 
+test("las ventas del domingo por la tarde permanecen en su semana y no generan comisión el lunes", () => {
+  const filas = [{ datos_originales: { fecha: 46313.8, folio: "DOM-1", usuario: "Karla", ventaTotal: 1000 } }];
+  const anterior = resumirComisionesSicar({ filas, empleados, desde: "2026-10-12", hasta: "2026-10-18" });
+  const siguiente = resumirComisionesSicar({ filas, empleados, desde: "2026-10-19", hasta: "2026-10-25" });
+  assert.equal(anterior.ventasPeriodo, 1000);
+  assert.equal(anterior.comisionTotal, 10);
+  assert.equal(siguiente.ventasPeriodo, 0);
+  assert.equal(siguiente.comisionTotal, 0);
+});
+
 test("calcula 1% por empleada solo con usuario SICAR asignado y folio único", () => {
   const resumen = resumirComisionesSicar({
     desde: "2026-10-05",
