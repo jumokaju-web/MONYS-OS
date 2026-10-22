@@ -287,6 +287,7 @@ export default function OperacionEmpleado({
   branchId = null,
   usuario = null,
   datosDashboard = null,
+  revisionAsistencia = 0,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
 
@@ -665,6 +666,7 @@ export default function OperacionEmpleado({
     branchIdActivo,
     fechaHoy,
     nombreEmpleado,
+    revisionAsistencia,
     diasSemana,
     esCentroGrowth,
   ]);

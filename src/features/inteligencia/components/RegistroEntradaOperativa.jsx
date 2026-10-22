@@ -8,7 +8,7 @@ import {
 
 import HorarioDelDiaEmpleado from "./HorarioDelDiaEmpleado";
 
-export default function RegistroEntradaOperativa({ usuario }) {
+export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada }) {
   const [entrada, setEntrada] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -46,11 +46,13 @@ export default function RegistroEntradaOperativa({ usuario }) {
     try {
       const nueva = await registrarEntradaOperativa({ usuario, fecha });
       setEntrada(nueva);
+      onEntradaRegistrada?.();
     } catch (errorGuardar) {
       const mensaje = errorGuardar?.message || "No pudimos registrar tu entrada.";
       if (mensaje.includes("ya quedó registrada")) {
         try {
           setEntrada(await obtenerEntradaEmpleado({ usuarioId: usuario?.auth_user_id, fecha }));
+          onEntradaRegistrada?.();
           return;
         } catch { /* conserva el aviso de error original */ }
       }
@@ -83,7 +85,7 @@ export default function RegistroEntradaOperativa({ usuario }) {
         </div>
       ) : (
         <>
-          <p style={{ margin: 0, color: "#6f5d66", fontSize: "14px", lineHeight: 1.45 }}>Confirma tu llegada real. Dirección podrá ver que estás presente y asignarte el trabajo del día. Registrar entrada no crea tareas automáticamente.</p>
+          <p style={{ margin: 0, color: "#6f5d66", fontSize: "14px", lineHeight: 1.45 }}>Confirma tu llegada real. Dirección podrá ver que estás presente y asignarte el trabajo del día. Al registrar tu entrada, MONYS prepara tu rutina básica según tus responsabilidades. Las tareas adicionales las asigna Dirección.</p>
           <button type="button" disabled={cargando || guardando || !usuario?.empleado_id} onClick={registrar} style={{ minHeight: "44px", border: 0, borderRadius: "11px", background: "#a82c68", color: "white", fontWeight: 850, cursor: guardando ? "wait" : "pointer" }}>
             {cargando ? "Revisando…" : guardando ? "Registrando…" : "Registrar mi entrada"}
           </button>
