@@ -101,3 +101,25 @@ export function calcularFlujo13Semanas({ saldoInicial, semanas = [] }) {
     return { semana: i + 1, inicio, cobros, cobrosOperativos, tandaCobro, pagos, saldo, completa, deficit: saldo !== null && saldo < 0 };
   });
 }
+
+export function diagnosticarFlujo13Semanas({ saldoInicial, inicio, semanas = [] } = {}) {
+  if (!fechaISOValida(inicio)) {
+    return { tipo: "PENDIENTE", titulo: "Define la semana inicial", accion: "Selecciona la fecha en que comienza este escenario de 13 semanas." };
+  }
+  if (importePlaneado(saldoInicial) === null) {
+    return { tipo: "PENDIENTE", titulo: "Falta la caja disponible real", accion: "Confirma el saldo conciliado de bancos y efectivo antes de proyectar." };
+  }
+
+  const filas = calcularFlujo13Semanas({ saldoInicial, semanas });
+  const primeraIncompleta = filas.find((fila) => !fila.completa);
+  if (primeraIncompleta) {
+    return { tipo: "PENDIENTE", titulo: `Completa la semana ${primeraIncompleta.semana}`, accion: "Captura cada cobro y pago; escribe 0 únicamente cuando confirmes que ese rubro no tendrá movimiento." };
+  }
+
+  const primerDeficit = filas.find((fila) => fila.deficit);
+  if (primerDeficit) {
+    return { tipo: "ESTIMACIÓN", titulo: `Riesgo de caja en semana ${primerDeficit.semana}`, accion: "Revisa primero cobros recuperables y pagos negociables. No autorices movimientos hasta confirmar fechas e importes reales.", semana: primerDeficit.semana, saldo: primerDeficit.saldo };
+  }
+
+  return { tipo: "ESTIMACIÓN", titulo: "Escenario completo sin déficit previsto", accion: "Confirma semanalmente los importes reales y actualiza cualquier cambio; esta proyección no garantiza disponibilidad futura." };
+}
