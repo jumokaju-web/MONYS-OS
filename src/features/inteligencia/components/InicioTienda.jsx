@@ -20,7 +20,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     ...(puedeWhatsApp ? [['WHATSAPP', 'W', 'WhatsApp']] : []),
     ...(puedeRegistrarProducto ? [['PRODUCTO', 'S', 'Solicitudes']] : []),
     ...(puedeRegistrarIncidencias ? [['INCIDENCIAS', '!', 'Incidencias']] : []),
-    ...(puedeCaja ? [['CAJA', '$', 'Cierre']] : []),
+    ...(puedeCaja ? [['CAJA', '$', 'Caja y corte']] : []),
   ];
   const rutaTurno = crearRutaTurnoTienda({
     puedeRegistrarProducto,
@@ -46,7 +46,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     },
     CAJA: {
       kicker: 'ANTES DE TERMINAR',
-      titulo: 'Caja y cierre',
+      titulo: 'Caja y corte',
       descripcion: 'Deja completo el resultado del turno. Si falta un dato, se conserva como pendiente y no se convierte en cero.',
     },
   };
@@ -70,6 +70,12 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>Hola, {usuario?.nombre || 'equipo'}</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
     <div className={`tienda-contenido${vista !== 'HOY' ? ' tienda-contenido--subvista' : ''}`}>
       <section className="tienda-home" hidden={vista !== 'HOY'} ref={vista === 'HOY' ? destino : null} tabIndex={-1} aria-label="Trabajo de hoy">
+        {puedeCaja && <section aria-label="Acceso directo a caja y corte" style={{ display: 'grid', gap: 8, padding: '16px', marginBottom: 14, border: '1px solid #dfbfd2', borderRadius: 16, background: '#fff' }}>
+          <strong style={{ color: '#76254f' }}>Caja y corte de mi turno</strong>
+          <p style={{ margin: 0, lineHeight: 1.45 }}>Aquí registras los importes y la foto del corte. Cambiar el estado de la tarea no envía el corte.</p>
+          <button type="button" onClick={() => abrir('CAJA')} style={{ minHeight: 48, padding: '12px 16px', border: 0, borderRadius: 12, background: '#a82c68', color: '#fff', fontWeight: 850 }}>Abrir caja y corte →</button>
+          <small>Elige la caja que utilizaste. Si ya vas a cerrar y no registraste apertura, usa “Registrar cierre de hoy sin apertura previa”.</small>
+        </section>}
         <RegistroEntradaOperativa usuario={usuario} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)}/>
         <div className="tienda-home-intro">
           <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
