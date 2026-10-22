@@ -1,4 +1,6 @@
 import { supabase } from "../../../supabase";
+import { validarMovimientoParaRevision } from "../utils/validacionMovimientoTesoreria.js";
+import { validarDistribucionMovimiento } from "../utils/distribucionMovimientoTesoreria.js";
 
 /*
   Convierte un texto para poder comparar nombres
@@ -524,8 +526,86 @@ export const obtenerMovimientosTesoreria =
       );
     }
 
-    return data || [];
+    const movimientos = data || [];
+    if (!movimientos.length) return movimientos;
+
+    const { data: partidas, error: errorPartidas } = await supabase
+      .from("cash_movement_allocations")
+      .select("id,distribution_id,cash_movement_id,organization_id,business_id,branch_id,amount,expense_category,expense_behavior,note,status,created_at")
+      .in("cash_movement_id", movimientos.map((movimiento) => movimiento.id))
+      .eq("status", "ACTIVA")
+      .order("created_at", { ascending: true });
+
+    if (errorPartidas) {
+      throw new Error(`No fue posible consultar el desglose de los pagos: ${errorPartidas.message}`);
+    }
+
+    const partidasPorMovimiento = new Map();
+    for (const partida of partidas || []) {
+      const anteriores = partidasPorMovimiento.get(partida.cash_movement_id) || [];
+      anteriores.push(partida);
+      partidasPorMovimiento.set(partida.cash_movement_id, anteriores);
+    }
+
+    return movimientos.map((movimiento) => ({
+      ...movimiento,
+      distribuciones: partidasPorMovimiento.get(movimiento.id) || [],
+    }));
   };
+
+export async function obtenerDestinosDistribucionTesoreria(organizationId) {
+  if (!organizationId) throw new Error("No encontramos la organización del movimiento.");
+  const { data: negocios, error: errorNegocios } = await supabase
+    .from("businesses")
+    .select("id,name,organization_id")
+    .eq("organization_id", organizationId)
+    .eq("active", true)
+    .order("name", { ascending: true });
+  if (errorNegocios) throw new Error(`No fue posible consultar los negocios: ${errorNegocios.message}`);
+
+  const idsNegocios = (negocios || []).map((negocio) => negocio.id);
+  if (!idsNegocios.length) return [];
+
+  const { data: sucursales, error: errorSucursales } = await supabase
+    .from("branches")
+    .select("id,name,business_id,active")
+    .in("business_id", idsNegocios)
+    .eq("active", true)
+    .order("name", { ascending: true });
+  if (errorSucursales) throw new Error(`No fue posible consultar las sucursales: ${errorSucursales.message}`);
+
+  const negociosPorId = new Map((negocios || []).map((negocio) => [negocio.id, negocio]));
+  return (sucursales || []).flatMap((sucursal) => {
+    const negocio = negociosPorId.get(sucursal.business_id);
+    return negocio ? [{
+      business_id: negocio.id,
+      business_name: negocio.name,
+      branch_id: sucursal.id,
+      branch_name: sucursal.name,
+    }] : [];
+  });
+}
+
+export async function guardarDistribucionMovimientoTesoreria({
+  movimiento,
+  partidas,
+  destinosValidos,
+}) {
+  if (!movimiento?.id) throw new Error("No encontramos el movimiento a distribuir.");
+  const validacion = validarDistribucionMovimiento({
+    montoTotal: movimiento.monto ?? movimiento.amount,
+    partidas,
+    destinosValidos,
+  });
+  if (!validacion.valida) throw new Error(validacion.motivo);
+
+  const { data, error } = await supabase.rpc("guardar_distribucion_cash_movement", {
+    p_cash_movement_id: movimiento.id,
+    p_partidas: validacion.partidas,
+  });
+  if (error) throw new Error(`No fue posible guardar la distribución: ${error.message}`);
+  return data;
+}
 
 /*
   Actualiza el estado de revisión de un movimiento.
@@ -556,6 +636,20 @@ export const actualizarEstadoMovimientoTesoreria =
       throw new Error(
         "El estado seleccionado no es válido."
       );
+    }
+
+    if (nuevoEstado === "Revisado") {
+      const { data: movimiento, error: errorConsulta } = await supabase
+        .from("cash_movements")
+        .select("movement_type,expense_category,expense_behavior")
+        .eq("id", movimientoId)
+        .maybeSingle();
+      if (errorConsulta) {
+        throw new Error(`No fue posible validar el movimiento: ${errorConsulta.message}`);
+      }
+      if (!movimiento) throw new Error("No encontramos el movimiento para revisar.");
+      const validacion = validarMovimientoParaRevision(movimiento);
+      if (!validacion.valido) throw new Error(validacion.motivo);
     }
 
     const {
@@ -762,6 +856,14 @@ export const actualizarMovimientoTesoreria =
       throw new Error(
         "No se recibieron cambios para guardar."
       );
+    }
+
+    if (actualizacion.status === "Revisado") {
+      const validacion = validarMovimientoParaRevision({
+        ...movimientoActual,
+        ...actualizacion,
+      });
+      if (!validacion.valido) throw new Error(validacion.motivo);
     }
 
     const {

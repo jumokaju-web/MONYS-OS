@@ -403,6 +403,7 @@ function TesoreriaPage({
               onEditarMovimiento={
                 editarMovimiento
               }
+              onDistribucionGuardada={onMovimientoGuardado}
               onEliminarMovimiento={
                 eliminarMovimiento
               }
