@@ -1338,7 +1338,7 @@ if (
 
 if (esOwner) {
   return (
-    <InicioJefa usuario={usuario} movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
+    <InicioJefa usuario={usuario} movimientosFlujo={movimientosDelPeriodo} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoDashboard={cargandoDashboard} errorDashboard={errorDashboard} abrirMarketing={() => { setDirectorInicial("marketing"); setPantallaActual("inteligencia"); }} abrirEmpleados={() => { setDirectorInicial("rh"); setPantallaActual("inteligencia"); }} onAbrirOperacion={() => setPantallaActual("operacion")} abrirFinanzas={() => setPantallaActual("finanzas")} abrirCentroValor={abrirCentroValor}
       abrirRescateBacklog={(seccion = "vencidas") => { setScrollDashboardAntesRescate(window.scrollY); setSeccionRescateBacklog(seccion); setPantallaActual("rescate-backlog"); window.scrollTo({ top: 0 }); }}
 
       datosDashboard={
