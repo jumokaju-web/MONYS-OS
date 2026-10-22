@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useUser } from "../../../../context/UserContext";
-import { CAMPOS_PAGOS_FLUJO, calcularFlujo13Semanas, construirCalendarioTanda } from "../../utils/flujoCaja13Semanas";
+import { CAMPOS_PAGOS_FLUJO, calcularFlujo13Semanas, construirCalendarioTanda, diagnosticarFlujo13Semanas } from "../../utils/flujoCaja13Semanas";
 import "../JuntaDirectiva.css";
 
 const ETIQUETAS = { nomina: "Nómina", proveedores: "Proveedores", rentaServicios: "Renta y servicios", impuestos: "Impuestos", creditos: "Créditos", tandaPago: "Aportación de tanda", otrosPagos: "Otros pagos" };
@@ -27,6 +27,7 @@ export default function FlujoCaja13Semanas({ metricas = {} }) {
   const filas = calcularFlujo13Semanas(plan);
   const deficit = filas.find((fila) => fila.deficit);
   const completas = filas.filter((fila) => fila.completa).length;
+  const diagnostico = diagnosticarFlujo13Semanas(plan);
 
   function actualizar(cambio) {
     const nuevo = normalizarPlan({ ...plan, ...cambio });
@@ -57,6 +58,11 @@ export default function FlujoCaja13Semanas({ metricas = {} }) {
     <header><div><span className="junta-label">PLANEACIÓN FINANCIERA</span><h2>Caja · próximas 13 semanas</h2><p>Dinero esperado, compromisos y riesgo semanal. No mezcla financiamiento con ventas.</p></div><span className="junta-pill">{completas}/13 completas</span></header>
     <div className="flujo-navegacion" role="tablist">{[["resumen","Resumen"],["captura","Capturar semana"],["tanda","Configurar tanda"]].map(([id, texto]) => <button type="button" role="tab" aria-selected={vista === id} key={id} onClick={() => setVista(id)}>{texto}</button>)}</div>
     <div className="junta-columns"><label>Inicio de la primera semana<input type="date" value={plan.inicio} onChange={(evento) => actualizar({ inicio: evento.target.value })}/></label><label>Saldo conciliado inicial (MXN)<input type="number" min="0" step="0.01" placeholder="Pendiente" value={plan.saldoInicial} onChange={(evento) => actualizar({ saldoInicial: evento.target.value })}/></label></div>
+    <div className={`flujo-decision ${diagnostico.tipo === "PENDIENTE" ? "pendiente" : deficit ? "riesgo" : "estimacion"}`}>
+      <span>{diagnostico.tipo}</span><strong>{diagnostico.titulo}</strong><p>{diagnostico.accion}</p>
+      {diagnostico.semana && <button type="button" onClick={() => { setSemanaActiva(diagnostico.semana - 1); setVista("captura"); }}>Revisar semana {diagnostico.semana}</button>}
+      {!diagnostico.semana && diagnostico.tipo === "PENDIENTE" && completas < 13 && <button type="button" onClick={() => { const indice = filas.findIndex((fila) => !fila.completa); setSemanaActiva(Math.max(0, indice)); setVista("captura"); }}>Completar siguiente dato</button>}
+    </div>
     <p className="flujo-aviso" role="status">{deficit ? `Atención: déficit previsto en semana ${deficit.semana}, ${moneda(deficit.saldo)}.` : completas === 13 ? "El escenario no presenta déficit si los cobros se cumplen." : "PENDIENTE: completa los importes. Un dato ausente no se convierte en cero."}</p>
     {vista === "resumen" && <><div className="flujo-semanas">{filas.map((fila, indice) => <button type="button" key={fila.semana} className={fila.deficit ? "flujo-semana deficit" : "flujo-semana"} onClick={() => { setSemanaActiva(indice); setVista("captura"); }}><span>Semana {fila.semana} · {fechaSemana(fila.semana)}</span><strong>{moneda(fila.saldo)}</strong><small>{fila.completa ? `${moneda(fila.cobros)} entra · ${moneda(fila.pagos)} sale` : "Toca para completar"}</small></button>)}</div><button type="button" onClick={exportar}>Descargar escenario detallado</button></>}
     {vista === "captura" && <><label className="flujo-selector">Semana a completar<select value={semanaActiva} onChange={(evento) => setSemanaActiva(Number(evento.target.value))}>{filas.map((fila, indice) => <option value={indice} key={fila.semana}>Semana {fila.semana} · {fechaSemana(fila.semana)}</option>)}</select></label><div className="flujo-captura"><label>Cobros operativos esperados<input type="number" min="0" step="0.01" placeholder="Pendiente" value={semana.cobros} onChange={(evento) => actualizarSemana(semanaActiva, "cobros", evento.target.value)}/><small>No incluyas préstamos ni tanda.</small></label>{CAMPOS_PAGOS_FLUJO.map((campo) => <label key={campo}>{ETIQUETAS[campo]}<input type="number" min="0" step="0.01" placeholder="Pendiente" value={semana[campo]} onChange={(evento) => actualizarSemana(semanaActiva, campo, evento.target.value)}/></label>)}</div><p><b>Caja final calculable:</b> {moneda(filas[semanaActiva].saldo)}. Captura 0 solo si confirmas que no habrá importe.</p><button type="button" onClick={() => setVista("resumen")}>Guardar y volver al resumen</button></>}
