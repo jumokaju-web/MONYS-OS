@@ -26,7 +26,7 @@ export async function obtenerAsistenciaOperativa({ branchId, fecha } = {}) {
   if (!branchId || !fecha) return [];
   const { data, error } = await supabase
     .from("asistencia_operativa")
-    .select("empleado_id, usuario_id, fecha, entrada_at")
+    .select("empleado_id, usuario_id, fecha, entrada_at, salida_at")
     .eq("branch_id", branchId)
     .eq("fecha", fecha)
     .order("entrada_at", { ascending: true });
@@ -38,7 +38,7 @@ export async function obtenerEntradaEmpleado({ usuarioId, fecha } = {}) {
   if (!usuarioId || !fecha) return null;
   const { data, error } = await supabase
     .from("asistencia_operativa")
-    .select("id, fecha, entrada_at")
+    .select("id, fecha, entrada_at, salida_at")
     .eq("usuario_id", usuarioId)
     .eq("fecha", fecha)
     .maybeSingle();
@@ -60,8 +60,19 @@ export async function registrarEntradaOperativa({ usuario, fecha = fechaActualMe
       usuario_id: usuario.auth_user_id,
       fecha,
     })
-    .select("id, fecha, entrada_at")
+    .select("id, fecha, entrada_at, salida_at")
     .single();
   revisarError(error, "No pudimos registrar tu entrada");
+  return data;
+}
+
+export async function registrarSalidaOperativa({ entradaId, usuarioId } = {}) {
+  if (!entradaId || !usuarioId) throw new Error("Primero registra tu entrada.");
+  const { data, error } = await supabase.from("asistencia_operativa")
+    .update({ salida_at: new Date().toISOString() })
+    .eq("id", entradaId).eq("usuario_id", usuarioId).is("salida_at", null)
+    .select("id, fecha, entrada_at, salida_at").maybeSingle();
+  revisarError(error, "No pudimos registrar tu salida");
+  if (!data) throw new Error("No se confirmó la salida. Actualiza para revisar si ya quedó registrada.");
   return data;
 }

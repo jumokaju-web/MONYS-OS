@@ -1,3 +1,4 @@
+import { resolverHorarioEmpleado } from "./horarioEmpleado.js";
 function normalizarTexto(valor) {
   return String(valor || "")
     .normalize("NFD")
@@ -5,11 +6,6 @@ function normalizarTexto(valor) {
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
-}
-
-function diaSemana(fecha) {
-  const valor = new Date(`${fecha}T12:00:00`);
-  return Number.isNaN(valor.getTime()) ? null : valor.getDay();
 }
 
 function tareaPerteneceAEmpleado(tarea, empleado, configuracion) {
@@ -33,6 +29,9 @@ export function construirControlDiarioSucursal({
   configuraciones = [],
   asistencias = [],
   tareas = [],
+  horarios = [],
+  excepciones = [],
+  ahora = new Date(),
 } = {}) {
   const activos = (Array.isArray(empleados) ? empleados : [])
     .filter((empleado) => empleado?.active !== false);
@@ -43,12 +42,15 @@ export function construirControlDiarioSucursal({
     .map((asistencia) => [String(asistencia.empleado_id), asistencia]));
   const listaTareas = (Array.isArray(tareas) ? tareas : [])
     .filter((tarea) => tarea?.estado !== "cancelada");
-  const dia = diaSemana(fecha);
+
 
   const personas = activos.map((empleado) => {
     const configuracion = perfiles.get(String(empleado.id));
     const entrada = entradas.get(String(empleado.id));
-    const descansa = Boolean(configuracion && dia !== null && Number(configuracion.dia_descanso) === dia);
+    const programacion = resolverHorarioEmpleado({ fecha, empleado, perfil: configuracion, horarios, excepciones, asistenciaRegistrada: asistencias });
+    const descansa = programacion.estado === "DESCANSA";
+    const finPrevisto = programacion.horaFin ? new Date(`${fecha}T${String(programacion.horaFin).slice(0, 8)}-06:00`) : null;
+    const faltaPorConfirmar = !entrada && finPrevisto && ahora >= finPrevisto;
     const tareasEmpleado = listaTareas.filter((tarea) => tareaPerteneceAEmpleado(tarea, empleado, configuracion));
     const terminadas = tareasEmpleado.filter((tarea) => tarea.estado === "terminada").length;
     const enProceso = tareasEmpleado.filter((tarea) => tarea.estado === "en_proceso").length;
@@ -61,7 +63,7 @@ export function construirControlDiarioSucursal({
           ? "DESCANSA"
           : entrada
             ? "PRESENTE"
-            : "SIN_ENTRADA";
+            : faltaPorConfirmar ? "FALTA_POR_CONFIRMAR" : programacion.horaInicio ? "PROGRAMADA" : "SIN_ENTRADA";
     return {
       empleadoId: empleado.id,
       nombre: configuracion?.nombre_preferido || empleado.nombre || "Sin nombre",
@@ -69,6 +71,8 @@ export function construirControlDiarioSucursal({
       estado,
       presente: Boolean(entrada),
       entradaAt: entrada?.entrada_at || null,
+      salidaAt: entrada?.salida_at || null,
+      horarioPrevisto: programacion.horaInicio ? `${programacion.horaInicio.slice(0, 5)} a ${programacion.horaFin.slice(0, 5)}` : null,
       tareas: tareasEmpleado.length,
       terminadas,
       enProceso,
@@ -79,7 +83,7 @@ export function construirControlDiarioSucursal({
   // La asistencia y la configuración operativa son dos dimensiones distintas.
   // Una entrada real debe contarse aunque todavía falte turno, descanso o áreas.
   const presentes = personas.filter((persona) => persona.presente).length;
-  const sinEntrada = personas.filter((persona) => persona.estado === "SIN_ENTRADA").length;
+  const sinEntrada = personas.filter((persona) => ["SIN_ENTRADA", "FALTA_POR_CONFIRMAR"].includes(persona.estado)).length;
   const sinPerfil = personas.filter((persona) => persona.estado === "SIN_PERFIL").length;
   const sinAcceso = personas.filter((persona) => persona.estado === "SIN_ACCESO").length;
   const descansan = personas.filter((persona) => persona.estado === "DESCANSA").length;

@@ -67,8 +67,8 @@ export function resolverHorarioEmpleado({
 
   if (entrada) {
     return {
-      disponible: true,
-      estado: "PRESENTE",
+      disponible: !entrada.salida_at,
+      estado: entrada.salida_at ? "JORNADA_FINALIZADA" : "PRESENTE",
       fuente: "ASISTENCIA_REAL",
       entradaAt: entrada.entrada_at || null,
       branchId: entrada.branch_id || programacion?.branch_id || perfil?.branch_id || empleado?.branch_id || null,

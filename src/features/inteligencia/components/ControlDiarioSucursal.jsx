@@ -3,17 +3,21 @@ import { obtenerEmpleadosRH } from "../services/empleadosRHService";
 import { obtenerConfiguracionesOperativasSucursal } from "../services/empleadoConfiguracionOperativaService";
 import { obtenerAsistenciaOperativa } from "../services/asistenciaOperativaService";
 import { construirControlDiarioSucursal } from "../shared/controlDiarioSucursal";
+import { obtenerHorariosEmpleados, obtenerExcepcionesHorario } from "../services/horarioEmpleadoService";
 import "./ControlDiarioSucursal.css";
 
 const ESTADOS = {
   PRESENTE: ["Presente", "is-presente"],
-  SIN_ENTRADA: ["Sin entrada", "is-alerta"],
+  SIN_ENTRADA: ["Falta de registro", "is-alerta"],
+  FALTA_POR_CONFIRMAR: ["Falta por confirmar", "is-alerta"],
+  PROGRAMADA: ["Programada · sin entrada", ""],
   DESCANSA: ["Descansa", ""],
   SIN_PERFIL: ["Perfil pendiente", "is-alerta"],
   SIN_ACCESO: ["Sin acceso", "is-alerta"],
 };
 
 function estadoVisible(persona) {
+  if (persona?.salidaAt) return ["Jornada finalizada", "is-presente"];
   if (persona?.presente && persona?.estado === "SIN_PERFIL") {
     return ["Presente · perfil pendiente", "is-presente-pendiente"];
   }
@@ -41,6 +45,8 @@ export default function ControlDiarioSucursal({
   const [empleados, setEmpleados] = useState([]);
   const [configuraciones, setConfiguraciones] = useState([]);
   const [asistencias, setAsistencias] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [excepciones, setExcepciones] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [actualizadoAt, setActualizadoAt] = useState(null);
@@ -60,6 +66,12 @@ export default function ControlDiarioSucursal({
         obtenerConfiguracionesOperativasSucursal(branchId),
         obtenerAsistenciaOperativa({ branchId, fecha }),
       ]);
+      const ids = equipo.map((persona) => persona.id);
+      const [semanales, cambios] = await Promise.all([
+        obtenerHorariosEmpleados(ids),
+        obtenerExcepcionesHorario({ empleadoIds: ids, fechaDesde: fecha, fechaHasta: fecha }),
+      ]);
+      setHorarios(semanales); setExcepciones(cambios);
       setEmpleados(equipo);
       setConfiguraciones(perfiles);
       setAsistencias(entradas);
@@ -87,8 +99,8 @@ export default function ControlDiarioSucursal({
     empleados,
     configuraciones,
     asistencias,
-    tareas,
-  }), [fecha, empleados, configuraciones, asistencias, tareas]);
+    tareas, horarios, excepciones, ahora: actualizadoAt ? new Date(actualizadoAt) : new Date(),
+  }), [fecha, empleados, configuraciones, asistencias, tareas, horarios, excepciones, actualizadoAt]);
 
   function irAlReparto() {
     document.getElementById("reparto-trabajo-dia")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -133,7 +145,8 @@ export default function ControlDiarioSucursal({
           return <article className="control-diario__persona" key={persona.empleadoId}>
             <div>
               <h3>{persona.nombre}</h3>
-              <p>{persona.puesto}{horaEntrada ? ` · entrada ${horaEntrada}` : ""}</p>
+              <p>{persona.puesto}{horaEntrada ? ` · entrada ${horaEntrada}` : ""}{persona.salidaAt ? ` · salida ${horaMexico(persona.salidaAt)}` : ""}</p>
+              {persona.horarioPrevisto && <small>Previsto: {persona.horarioPrevisto}</small>}
             </div>
             <div className="control-diario__persona-derecha">
               <span
@@ -147,6 +160,7 @@ export default function ControlDiarioSucursal({
       </div>
 
       {error && <p className="control-diario__error" role="alert">{error}</p>}
+      <p>“Falta por confirmar” indica un turno terminado sin entrada registrada; requiere revisión de Dirección.</p>
       <footer className="control-diario__pie">
         <span>{control.metricas.sinPerfil} perfiles pendientes · {control.metricas.sinAcceso} sin acceso · {control.metricas.descansan} descansan</span>
         <span>{actualizadoAt ? `Datos actualizados · ${control.metricas.presentes} entrada${control.metricas.presentes === 1 ? "" : "s"} encontrada${control.metricas.presentes === 1 ? "" : "s"} · ${horaMexico(actualizadoAt)}` : "Pendiente de actualizar"}</span>
