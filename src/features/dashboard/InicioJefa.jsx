@@ -51,6 +51,7 @@ movimientos = [],
   abrirImportador,
   abrirFlotilla,
   abrirRescateBacklog,
+  onAbrirOperacion = null,
   sucursalesDashboard = [],
   cargandoSucursales = false,
   errorSucursales = "",
@@ -64,6 +65,7 @@ movimientos = [],
   contenidoSicar = null,
   contenidoCierre = null,
 }) {
+  const [menuMasAbierto, setMenuMasAbierto] = useState(false);
 
     const formatearFechaPeriodo = (valor) => {
     if (!valor) {
@@ -88,6 +90,10 @@ movimientos = [],
   });
 
   function abrirOperacionCompleta() {
+    if (typeof onAbrirOperacion === "function") {
+      onAbrirOperacion();
+      return;
+    }
     const panel = document.getElementById("operacion-completa-direccion");
     if (!panel) return;
     let contenedor = panel.parentElement?.closest("details");
@@ -465,7 +471,25 @@ const utilidadConsolidada =
       }}
     >
       <Header />
-      <aside className="owner-sidebar" aria-label="Navegación del negocio"><span>ESPACIO DE DIRECCIÓN</span><button aria-current="page" onClick={()=>window.scrollTo({top:0,behavior:'smooth'})}>◈ Resumen ejecutivo</button><button onClick={abrirJuntaDirectiva}>◉ Junta Directiva IA</button><button onClick={abrirFinanzas}>$ Finanzas</button><button onClick={abrirMarketing}>↗ Crecimiento</button><button onClick={abrirFlotilla}>◇ Flotilla</button><button onClick={abrirEmpleados}>◎ Empleados · RH</button><button onClick={abrirInventario}>▦ Inventario</button><button onClick={abrirCentroValor}>✧ Valor generado</button><button onClick={abrirImportador}>＋ Reportes</button><small>MONYS OS<br/>Tu centro de decisión y ejecución</small></aside>
+      <nav className="owner-sidebar" aria-label="Navegación del negocio">
+        <span>ESPACIO DE DIRECCIÓN</span>
+        <button aria-current="page" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>◈ Inicio</button>
+        <button onClick={abrirOperacionCompleta}>📋 Tareas y cortes</button>
+        <button onClick={abrirFinanzas}>$ Finanzas</button>
+        <button type="button" aria-expanded={menuMasAbierto} onClick={() => setMenuMasAbierto((abierto) => !abierto)}>
+          {menuMasAbierto ? "− Menos áreas" : "+ Más áreas"}
+        </button>
+        {menuMasAbierto && <div className="owner-sidebar__more">
+          <button onClick={abrirJuntaDirectiva}>Junta Directiva IA</button>
+          <button onClick={abrirMarketing}>Crecimiento · Marketing</button>
+          <button onClick={abrirFlotilla}>Flotilla</button>
+          <button onClick={abrirEmpleados}>Personal y permisos · RH</button>
+          <button onClick={abrirInventario}>Inventario</button>
+          <button onClick={abrirCentroValor}>Valor generado</button>
+          <button onClick={abrirImportador}>Subir reportes</button>
+        </div>}
+        <small>MONYS OS<br/>Tu centro de decisión y ejecución</small>
+      </nav>
 
       <section
         style={{
@@ -475,7 +499,7 @@ const utilidadConsolidada =
           textAlign: "left",
         }}
       >
-        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Ver tareas y fotos</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
+        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas y cortes de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
         {contenidoOperacion && <BloquePlegable id="operacion-completa-direccion" titulo="📋 Tareas y fotos del equipo">{contenidoOperacion}</BloquePlegable>}
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         <section className="owner-results" aria-label="Resultados del corte SICAR">
