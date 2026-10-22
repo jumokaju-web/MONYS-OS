@@ -39,7 +39,7 @@ function fechaISO(valor) {
     return [valor.getFullYear(), String(valor.getMonth() + 1).padStart(2, "0"), String(valor.getDate()).padStart(2, "0")].join("-");
   }
   if (typeof valor === "number" && valor > 20000 && valor < 90000) {
-    const fecha = new Date(Date.UTC(1899, 11, 30) + Math.round(valor) * 86400000);
+    const fecha = new Date(Date.UTC(1899, 11, 30) + Math.floor(valor) * 86400000);
     return fecha.toISOString().slice(0, 10);
   }
   const cadena = texto(valor);

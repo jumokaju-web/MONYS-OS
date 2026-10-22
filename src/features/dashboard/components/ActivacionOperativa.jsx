@@ -72,7 +72,7 @@ export default function ActivacionOperativa({
       <header>
         <div>
           <span>OPERACIÓN REAL · HOY</span>
-          <h2 id="activation-center-title">Qué está trabajando y qué sigue detenido</h2>
+          <h2 id="activation-center-title">Pendientes para completar la operación</h2>
           <p>MONYS comprueba datos y pendientes reales. No autoriza pagos, campañas ni decisiones de personal.</p>
         </div>
         <button type="button" onClick={cargar} disabled={cargando}>
@@ -85,7 +85,7 @@ export default function ActivacionOperativa({
       <div className="activation-center__status">
         <div>
           <small>ESTADO GENERAL</small>
-          <strong>{cargando ? "Comprobando fuentes" : `${resumen.listos} de ${resumen.total} áreas listas`}</strong>
+          <strong>{cargando ? "Comprobando fuentes" : `${resumen.total - resumen.listos} áreas con pendientes por resolver`}</strong>
         </div>
         {!cargando && resumen.prioridad && (
           <button type="button" onClick={() => abrir(resumen.prioridad)}>

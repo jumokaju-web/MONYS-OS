@@ -20,7 +20,7 @@ const dinero = new Intl.NumberFormat("es-MX", {
 
 function fechaISO(valor) {
   if (typeof valor === "number" && valor > 20000) {
-    return new Date(Date.UTC(1899, 11, 30) + Math.round(valor) * 86400000).toISOString().slice(0, 10);
+    return new Date(Date.UTC(1899, 11, 30) + Math.floor(valor) * 86400000).toISOString().slice(0, 10);
   }
   const cadena = String(valor || "").trim();
   const iso = cadena.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);

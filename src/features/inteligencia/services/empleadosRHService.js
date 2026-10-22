@@ -109,9 +109,7 @@ export async function obtenerEmpleadosActivosParaAsignacion(
     throw error;
   }
 
-  return Array.isArray(data)
-    ? data
-    : [];
+  return anexarAuthUserIds(Array.isArray(data) ? data : []);
 }
 
 

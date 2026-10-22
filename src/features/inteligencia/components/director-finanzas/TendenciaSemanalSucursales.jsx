@@ -7,7 +7,7 @@ import {
   construirMetaRecuperacion,
   construirTendenciaSemanal,
   resumirImportacionUtilidad,
-  seleccionarCandidatosCampana,
+  seleccionarCandidatosConDemanda,
 } from "../../utils/tendenciaSemanalSucursales";
 import { analizarHistorialCausasSemanales, construirIniciativaValorDesdeCausa, construirTareaCausaSemanal } from "../../utils/causasCambioSemanal";
 import "./TendenciaSemanalSucursales.css";
@@ -76,7 +76,7 @@ function RevisionCausa({ accion, organizationId, businessId, branchIdActual, onA
     setCargando(true);
     obtenerEmpleadosActivosParaAsignacion(accion.branchId)
       .then((lista) => {
-        if (vigente) setEmpleados((lista || []).filter((persona) => persona.active && persona.usuario_id && persona.branch_id === accion.branchId));
+        if (vigente) setEmpleados((lista || []).filter((persona) => persona.active && persona.auth_user_id && persona.branch_id === accion.branchId));
       })
       .catch((error) => {
         if (vigente) setMensaje(error?.message || "No fue posible consultar el equipo de esta sucursal.");
@@ -125,7 +125,7 @@ function RevisionCausa({ accion, organizationId, businessId, branchIdActual, onA
       const persona = empleados.find((empleado) => empleado.id === responsableId);
       const tarea = construirTareaCausaSemanal({
         accion,
-        responsable: persona ? { nombre: persona.nombre, usuarioId: persona.usuario_id, branchId: persona.branch_id, organizationId: persona.organization_id, businessId: persona.business_id } : null,
+        responsable: persona ? { nombre: persona.nombre, usuarioId: persona.auth_user_id, branchId: persona.branch_id, organizationId: persona.organization_id, businessId: persona.business_id } : null,
         fechaRevision,
         criterioExito: criterio,
         organizationId,
@@ -248,7 +248,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
   const maximo = Math.max(...tendencia.semanas.map((semana) => Number(configuracion.valor(semana)) || 0), 1);
   const meta = construirMetaRecuperacion(tendencia.semanas, "General Anaya", 10);
   const sucursalAnaya = sucursales.find((sucursal) => String(sucursal.nombre || sucursal.name || "").toLowerCase().includes("general anaya"));
-  const candidatos = seleccionarCandidatosCampana(sucursalAnaya?.inventario || [], 3);
+  const candidatos = sucursales.flatMap(sucursal => seleccionarCandidatosConDemanda(sucursal.inventario || [], causas?.comparaciones || [], sucursal.id, 3).map(producto => ({ ...producto, branchId: sucursal.id, sucursal: sucursal.nombre || sucursal.name || "Sucursal" })));
   const ultimaSemanaAnaya = meta?.base || null;
   const centroMismoPeriodo = ultimaSemanaAnaya
     ? tendencia.semanas.find((semana) => semana.sucursal.toLowerCase().includes("centro") && semana.periodoInicio === ultimaSemanaAnaya.periodoInicio && semana.periodoFin === ultimaSemanaAnaya.periodoFin)
@@ -272,40 +272,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         ))}
       </div>
 
-      <section className="weekly-causes" aria-labelledby="weekly-causes-title">
-        <header className="weekly-causes__header">
-          <div><span>ANÁLISIS FINANCIERO POR PRODUCTO · SICAR</span><h4 id="weekly-causes-title">Causas observadas del cambio semanal</h4><p>Productos que movieron venta, utilidad y unidades; revisión de inventario y siguiente decisión.</p></div>
-          <strong>{cargandoCausas ? "Consultando revisiones…" : errorCausas ? "Revisiones pendientes" : !causas ? "Pendiente de SICAR" : `${causas.acciones.length} revisiones sugeridas`}</strong>
-        </header>
-        <p className="weekly-causes__trust"><b>Lectura observacional:</b> los reportes muestran asociación y descomposición matemática; no prueban por sí solos qué causó el resultado. Toda compra, traspaso o campaña requiere autorización de Mónica.</p>
-        {cargandoCausas ? <p className="weekly-causes__empty">Consultando los reportes SICAR disponibles…</p> : errorCausas ? <p role="alert" className="weekly-causes__empty">No se pudieron consultar las ventas e inventarios por producto: {errorCausas}</p> : !causas || causas.pendientes.some((item) => item.faltan?.some((falta) => falta.includes("dos reportes"))) ? <div className="weekly-causes__empty"><p>Pendiente: faltan dos reportes SICAR “Ventas por artículo” con fechas válidas y periodos de igual duración por sucursal. La lectura semanal ejecutiva permanece disponible arriba.</p>{onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Subir reporte SICAR para habilitar el análisis →</button>}</div> : (
-          <>
-            {causas.sucursalesMismoPeriodo.length > 0 && <p className="weekly-causes__matched">Cortes de productos comparables entre sucursales: {causas.sucursalesMismoPeriodo.map((corte) => `${corte.periodo[0]}–${corte.periodo[1]}`).join(", ")}.</p>}
-            {causas.diferenciasSucursal.length > 0 && <details className="weekly-causes__pending"><summary>Diferencias Centro / General Anaya por producto ({causas.diferenciasSucursal.length})</summary>{causas.diferenciasSucursal.slice(0, 8).map((diferencia) => <p key={`${diferencia.producto}-${diferencia.periodo.join(":")}`}><b>{diferencia.producto}</b> · venta {moneda(diferencia.diferenciaVenta)} · utilidad {moneda(diferencia.diferenciaUtilidad)} · unidades {diferencia.diferenciaUnidades === null ? "pendiente" : diferencia.diferenciaUnidades} ({diferencia.sucursales.join(" − ")}). Periodo {diferencia.periodo.join("–")}.</p>)}</details>}
-            <div className="weekly-causes__grid">
-              {causas.acciones.length === 0 ? <article className="weekly-causes__empty">No se detectaron cambios que ameriten una acción con estos reportes comparables. Consulta los datos pendientes antes de cerrar el análisis.</article> : causas.acciones.slice(0, 12).map((accion, indice) => (
-                <article key={`${accion.tipo}-${accion.sucursal}-${accion.producto}-${indice}`} className={`weekly-causes__card weekly-causes__card--${accion.tipo}`}>
-                  <div className="weekly-causes__card-title"><span>{accion.estado}</span><small>{accion.sucursal}</small></div>
-                  <h5>{accion.producto}</h5>
-                  <p>{accion.resumen}</p>
-                  <details><summary>Ver evidencia y siguiente acción</summary>
-                    <p><b>Periodo:</b> {accion.evidencia.reportes?.map((reporte) => `${reporte.inicio}–${reporte.fin}`).join(" vs ") || `Inventario SICAR al ${String(accion.evidencia.fechaCorteInventario || "sin fecha").slice(0, 10)}`}</p>
-                    {accion.evidencia.cambioVenta !== undefined && <p><b>Venta:</b> {moneda(accion.evidencia.cambioVenta)} · <b>Unidades:</b> {accion.evidencia.cambioUnidades === null ? "Pendientes" : accion.evidencia.cambioUnidades} · <b>Utilidad:</b> {moneda(accion.evidencia.cambioUtilidad)}</p>}
-                    {accion.evidencia.cambioCostoImplicito !== undefined && accion.evidencia.cambioCostoImplicito !== null && <p><b>{accion.evidencia.costoReportado ? "Variación de costo total SICAR:" : "Costo implícito estimado (venta menos utilidad):"}</b> {moneda(accion.evidencia.cambioCostoImplicito)} · <b>Variación de margen:</b> {accion.evidencia.cambioMargenPuntos === null ? "Pendiente" : `${accion.evidencia.cambioMargenPuntos.toFixed(1)} puntos`}</p>}
-                    {accion.evidencia.inventario !== null && accion.evidencia.inventario !== undefined && <p><b>Existencia SICAR:</b> {accion.evidencia.inventario} piezas · corte {String(accion.evidencia.fechaCorteInventario || "sin fecha").slice(0, 10)}</p>}
-                    {accion.evidencia.inventarioOtraSucursal && <p><b>Otra sucursal:</b> {accion.evidencia.inventarioOtraSucursal.sucursal} registra {accion.evidencia.inventarioOtraSucursal.existencia} piezas en su foto al {String(accion.evidencia.inventarioOtraSucursal.fechaCorte || "sin fecha").slice(0, 10)}. Validar antes de considerar un traspaso.</p>}
-                    <p><b>Siguiente acción:</b> {accion.accion}</p><p><b>Responsable sugerida:</b> {accion.responsable}</p><p><b>Fecha de revisión:</b> Pendiente de asignar por Dirección</p><p><b>Resultado esperado:</b> {accion.resultadoEsperado}</p>
-                    <p className="weekly-causes__approval">Recomendación de MONYS · autorización de Mónica pendiente.</p>
-                  </details>
-                  <RevisionCausa accion={accion} organizationId={organizationId} businessId={businessId} branchIdActual={branchId} onAbrirValor={onAbrirValor} />
-                </article>
-              ))}
-            </div>
-            {causas.pendientes.length > 0 && <details className="weekly-causes__pending"><summary>Datos pendientes ({causas.pendientes.length})</summary>{causas.pendientes.map((item, indice) => <p key={`${item.sucursal}-${item.producto}-${indice}`}>{item.sucursal || "Sucursales"}{item.producto ? ` · ${item.producto}` : ""}: falta {item.faltan?.join(", ") || "confirmar el periodo comparable"}.</p>)}</details>}
-            {causas.reportesSinPeriodo.length > 0 && <p className="weekly-causes__empty">{causas.reportesSinPeriodo.length} reporte(s) no tienen periodo verificable y se excluyeron de la comparación.</p>}
-          </>
-        )}
-      </section>
+
 
       {lectura.sucursales.length > 0 && (
         <section className="weekly-rescue__executive" aria-label="Lectura ejecutiva de la última semana">
@@ -365,6 +332,43 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         </div>
       )}
 
+      <details className="weekly-product-details"><summary>Qué productos cambiaron y qué acciones revisar</summary>
+      <section className="weekly-causes" aria-labelledby="weekly-causes-title">
+        <header className="weekly-causes__header">
+          <div><span>ANÁLISIS FINANCIERO POR PRODUCTO · SICAR</span><h4 id="weekly-causes-title">Causas observadas del cambio semanal</h4><p>Productos que movieron venta, utilidad y unidades; revisión de inventario y siguiente decisión.</p></div>
+          <strong>{cargandoCausas ? "Consultando revisiones…" : errorCausas ? "Revisiones pendientes" : !causas ? "Pendiente de SICAR" : `${causas.acciones.length} revisiones sugeridas`}</strong>
+        </header>
+        <p className="weekly-causes__trust"><b>Lectura observacional:</b> los reportes muestran asociación y descomposición matemática; no prueban por sí solos qué causó el resultado. Toda compra, traspaso o campaña requiere autorización de Mónica.</p>
+        {cargandoCausas ? <p className="weekly-causes__empty">Consultando los reportes SICAR disponibles…</p> : errorCausas ? <p role="alert" className="weekly-causes__empty">No se pudieron consultar las ventas e inventarios por producto: {errorCausas}</p> : !causas || causas.pendientes.some((item) => item.faltan?.some((falta) => falta.includes("dos reportes"))) ? <div className="weekly-causes__empty"><p>Pendiente: faltan dos reportes SICAR “Ventas por artículo” con fechas válidas y periodos de igual duración por sucursal. La lectura semanal ejecutiva permanece disponible arriba.</p>{onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Subir reporte SICAR para habilitar el análisis →</button>}</div> : (
+          <>
+            {causas.sucursalesMismoPeriodo.length > 0 && <p className="weekly-causes__matched">Cortes de productos comparables entre sucursales: {causas.sucursalesMismoPeriodo.map((corte) => `${corte.periodo[0]}–${corte.periodo[1]}`).join(", ")}.</p>}
+            {causas.diferenciasSucursal.length > 0 && <details className="weekly-causes__pending"><summary>Diferencias Centro / General Anaya por producto ({causas.diferenciasSucursal.length})</summary>{causas.diferenciasSucursal.slice(0, 8).map((diferencia) => <p key={`${diferencia.producto}-${diferencia.periodo.join(":")}`}><b>{diferencia.producto}</b> · venta {moneda(diferencia.diferenciaVenta)} · utilidad {moneda(diferencia.diferenciaUtilidad)} · unidades {diferencia.diferenciaUnidades === null ? "pendiente" : diferencia.diferenciaUnidades} ({diferencia.sucursales.join(" − ")}). Periodo {diferencia.periodo.join("–")}.</p>)}</details>}
+            <div className="weekly-causes__grid">
+              {causas.acciones.length === 0 ? <article className="weekly-causes__empty">No se detectaron cambios que ameriten una acción con estos reportes comparables. Consulta los datos pendientes antes de cerrar el análisis.</article> : causas.acciones.slice(0, 12).map((accion, indice) => (
+                <article key={`${accion.tipo}-${accion.sucursal}-${accion.producto}-${indice}`} className={`weekly-causes__card weekly-causes__card--${accion.tipo}`}>
+                  <div className="weekly-causes__card-title"><span>{accion.estado}</span><small>{accion.sucursal}</small></div>
+                  <h5>{accion.producto}</h5>
+                  <p>{accion.resumen}</p>
+                  <details><summary>Ver evidencia y siguiente acción</summary>
+                    <p><b>Periodo:</b> {accion.evidencia.reportes?.map((reporte) => `${reporte.inicio}–${reporte.fin}`).join(" vs ") || `Inventario SICAR al ${String(accion.evidencia.fechaCorteInventario || "sin fecha").slice(0, 10)}`}</p>
+                    {accion.evidencia.cambioVenta !== undefined && <p><b>Venta:</b> {moneda(accion.evidencia.cambioVenta)} · <b>Unidades:</b> {accion.evidencia.cambioUnidades === null ? "Pendientes" : accion.evidencia.cambioUnidades} · <b>Utilidad:</b> {moneda(accion.evidencia.cambioUtilidad)}</p>}
+                    {accion.evidencia.cambioCostoImplicito !== undefined && accion.evidencia.cambioCostoImplicito !== null && <p><b>{accion.evidencia.costoReportado ? "Variación de costo total SICAR:" : "Costo implícito estimado (venta menos utilidad):"}</b> {moneda(accion.evidencia.cambioCostoImplicito)} · <b>Variación de margen:</b> {accion.evidencia.cambioMargenPuntos === null ? "Pendiente" : `${accion.evidencia.cambioMargenPuntos.toFixed(1)} puntos`}</p>}
+                    {accion.evidencia.inventario !== null && accion.evidencia.inventario !== undefined && <p><b>Existencia SICAR:</b> {accion.evidencia.inventario} piezas · corte {String(accion.evidencia.fechaCorteInventario || "sin fecha").slice(0, 10)}</p>}
+                    {accion.evidencia.inventarioOtraSucursal && <p><b>Otra sucursal:</b> {accion.evidencia.inventarioOtraSucursal.sucursal} registra {accion.evidencia.inventarioOtraSucursal.existencia} piezas en su foto al {String(accion.evidencia.inventarioOtraSucursal.fechaCorte || "sin fecha").slice(0, 10)}. Validar antes de considerar un traspaso.</p>}
+                    <p><b>Siguiente acción:</b> {accion.accion}</p><p><b>Responsable sugerida:</b> {accion.responsable}</p><p><b>Fecha de revisión:</b> Pendiente de asignar por Dirección</p><p><b>Resultado esperado:</b> {accion.resultadoEsperado}</p>
+                    <p className="weekly-causes__approval">Recomendación de MONYS · autorización de Mónica pendiente.</p>
+                  </details>
+                  <RevisionCausa accion={accion} organizationId={organizationId} businessId={businessId} branchIdActual={branchId} onAbrirValor={onAbrirValor} />
+                </article>
+              ))}
+            </div>
+            {causas.pendientes.length > 0 && <details className="weekly-causes__pending"><summary>Datos pendientes ({causas.pendientes.length})</summary>{causas.pendientes.map((item, indice) => <p key={`${item.sucursal}-${item.producto}-${indice}`}>{item.sucursal || "Sucursales"}{item.producto ? ` · ${item.producto}` : ""}: falta {item.faltan?.join(", ") || "confirmar el periodo comparable"}.</p>)}</details>}
+            {causas.reportesSinPeriodo.length > 0 && <p className="weekly-causes__empty">{causas.reportesSinPeriodo.length} reporte(s) no tienen periodo verificable y se excluyeron de la comparación.</p>}
+          </>
+        )}
+      </section>
+      </details>
+
       {meta && (
         <div className="weekly-rescue__plan">
           <article className="weekly-rescue__target">
@@ -393,22 +397,22 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
 
       <div className="weekly-rescue__products">
         <div>
-          <span>CANDIDATOS PARA VALIDAR · NO SON “PRODUCTOS ESTRELLA” TODAVÍA</span>
-          <h4>Stock y utilidad potencial disponibles en General Anaya</h4>
-          <p>Se eligen por existencia y margen del inventario actual. El reporte “Ventas por artículo” permitirá confirmar demanda y rotación.</p>
+          <span>CANDIDATOS CON VENTA Y UTILIDAD SICAR · VALIDAR STOCK FÍSICO</span>
+          <h4>Qué promover en cada sucursal</h4>
+          <p>Se cruzan las ventas del último periodo comparable con el inventario de esta sucursal. Se ordenan por utilidad bruta registrada; confirma existencias y costo de reposición antes de lanzar una campaña.</p>
         </div>
         {candidatos.length > 0 ? (
           <div className="weekly-rescue__product-grid">
             {candidatos.map((producto, indice) => (
-              <article key={`${producto.codigo}-${producto.descripcion}`}>
-                <small>OPCIÓN {indice + 1}</small>
+              <article key={`${producto.branchId}-${producto.codigo}`}>
+                <small>{producto.sucursal} · OPCIÓN {indice + 1}</small>
                 <strong>{producto.descripcion}</strong>
-                <span>{producto.existencia} piezas · {moneda(producto.precioVenta)} · margen {porcentaje(producto.margen)}</span>
+                <span>{producto.existencia} piezas en inventario · {moneda(producto.precioVenta)} · margen de inventario {porcentaje(producto.margen)}</span><p>{producto.unidadesVendidas} unidades vendidas · venta {moneda(producto.ventaRegistrada)} · utilidad bruta {moneda(producto.utilidadRegistrada)}. Corte al {fechaEtiqueta(producto.periodoFin)}.</p>
               </article>
             ))}
           </div>
-        ) : <p className="weekly-rescue__message">No hay suficientes productos con stock, precio y utilidad completos para sugerir una prueba.</p>}
-        {onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Subir “Ventas por artículo” para elegir productos con demanda real →</button>}
+        ) : <p className="weekly-rescue__message">No hay candidatos con venta, utilidad y stock suficientes en el último periodo comparable. Revisa los datos disponibles antes de elegir una campaña.</p>}
+        {onAbrirImportador && <button type="button" className="weekly-rescue__import" onClick={onAbrirImportador}>Revisar o actualizar reportes SICAR →</button>}
       </div>
 
       <p className="weekly-rescue__footnote">MONYS mostrará “línea base” hasta reunir una segunda semana. Después calculará automáticamente la variación semanal; una campaña no se declarará exitosa sin venta, utilidad y evidencia del canal.</p>

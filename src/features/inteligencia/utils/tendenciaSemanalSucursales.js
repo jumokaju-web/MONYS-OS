@@ -239,6 +239,26 @@ export function construirMetaRecuperacion(semanas = [], nombreSucursal = "Genera
   };
 }
 
+export function seleccionarCandidatosConDemanda(inventario = [], comparaciones = [], branchId, limite = 3) {
+  const clave = (valor) => String(valor || "").trim().toLowerCase();
+  const fin = (fila) => {
+    const valor = fila?.periodoActual?.fin;
+    return valor instanceof Date ? valor.toISOString().slice(0, 10) : fechaTexto(String(valor || "").slice(0, 10));
+  };
+  const filas = comparaciones.filter((fila) => fila.branchId === branchId && fin(fila));
+  const ultimoFin = filas.map(fin).sort().at(-1);
+  if (!ultimoFin) return [];
+  const actuales = new Map(filas.filter((fila) => fin(fila) === ultimoFin && clave(fila.codigo)).map((fila) => [clave(fila.codigo), fila]));
+  return seleccionarCandidatosCampana(inventario, Infinity)
+    .flatMap((producto) => {
+      const venta = actuales.get(clave(producto.codigo));
+      if (!venta || venta.utilidadActualConfirmada !== true || !(venta.utilidadActual > 0) || !(venta.ventaActual > 0) || !(venta.unidadesActuales > 0)) return [];
+      return [{ ...producto, unidadesVendidas: venta.unidadesActuales, ventaRegistrada: venta.ventaActual, utilidadRegistrada: venta.utilidadActual, periodoFin: ultimoFin }];
+    })
+    .sort((a, b) => b.utilidadRegistrada - a.utilidadRegistrada || b.unidadesVendidas - a.unidadesVendidas)
+    .slice(0, limite);
+}
+
 export function seleccionarCandidatosCampana(inventario = [], limite = 3) {
   return inventario
     .map((detalle) => {

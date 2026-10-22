@@ -37,7 +37,7 @@ export async function obtenerExcepcionesHorario({ empleadoIds = [], fechaDesde, 
   if (!ids.length || !fechaDesde || !fechaHasta) return [];
   const { data, error } = await supabase
     .from("empleado_horario_excepcion")
-    .select("id, empleado_id, branch_id, fecha, estado, hora_inicio, hora_fin, motivo, updated_at")
+    .select("id, empleado_id, branch_id, fecha, estado, hora_inicio, hora_fin, motivo, changed_by, updated_at")
     .in("empleado_id", ids)
     .gte("fecha", fechaDesde)
     .lte("fecha", fechaHasta)
@@ -100,7 +100,7 @@ export async function guardarExcepcionHorario({ empleado, fecha, branchId, estad
       changed_by: authId,
       updated_at: new Date().toISOString(),
     }, { onConflict: "empleado_id,fecha" })
-    .select("id, empleado_id, branch_id, fecha, estado, hora_inicio, hora_fin, motivo, updated_at")
+    .select("id, empleado_id, branch_id, fecha, estado, hora_inicio, hora_fin, motivo, changed_by, updated_at")
     .single();
   revisarError(error, "No pudimos guardar el cambio de horario");
   return data;

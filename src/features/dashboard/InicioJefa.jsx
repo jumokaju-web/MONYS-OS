@@ -464,6 +464,37 @@ const utilidadConsolidada =
       >
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></header>
         <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
+        <section className="owner-results" aria-label="Resultados del corte SICAR">
+          <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(ventasConsolidadas || ventasTotales) : detallePeriodo}</strong><span>Venta registrada en SICAR</span></div>
+          <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(utilidadConsolidada || utilidadTotal) : "Por confirmar"}</strong><span>Antes de renta, nómina y demás gastos</span></div>
+          <div><small>Dinero para decidir</small><strong>Confirmar saldos</strong><span>Ventas y movimientos no equivalen a efectivo disponible</span><button type="button" onClick={abrirFinanzas}>Revisar saldos y compromisos →</button></div>
+        </section>
+        {!cargandoSucursales && !errorSucursales && sucursalesDashboard.length > 0 && (
+          <TendenciaSemanalSucursales
+            sucursales={sucursalesDashboard}
+            onAbrirImportador={abrirImportador}
+            organizationId={usuario?.organization_id || datosDashboard?.organization_id}
+            businessId={usuario?.business_id || datosDashboard?.business_id}
+            branchId={usuario?.branch_id || datosDashboard?.branch_id}
+            onAbrirValor={abrirCentroValor}
+          />
+        )}
+        <CentroDireccionCEO
+          datosDashboard={datosDashboard}
+          sucursales={sucursalesDashboard}
+          abrirFinanzas={abrirFinanzas}
+          abrirDirectorFinanciero={abrirDirectorFinanciero}
+          abrirCompraMaestra={abrirCompraMaestra}
+          abrirMarketing={abrirMarketing}
+          abrirImportador={abrirImportador}
+        />
+
+        <nav className="owner-next-actions" aria-label="Decisiones del negocio">
+          <button type="button" onClick={abrirCompraMaestra}><b>Qué comprar</b><span>Demanda, existencias y prioridad de reposición</span></button>
+          <button type="button" onClick={abrirDirectorFinanciero}><b>Qué abonar</b><span>Deudas, vencimientos y capacidad por confirmar</span></button>
+          <button type="button" onClick={abrirTesoreria}><b>Dónde se gasta</b><span>Clasificar salidas y distinguir gastos de retiros</span></button>
+          <button type="button" onClick={abrirEmpleados}><b>Trabajo del equipo</b><span>Accesos, responsables, tareas y evidencias</span></button>
+        </nav>
         <ActivacionOperativa
           organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
           businessId={datosDashboard?.business_id || usuario?.business_id || null}
@@ -487,15 +518,6 @@ const utilidadConsolidada =
           sucursales={sucursalesDashboard}
           onAbrirEquipo={abrirEmpleados}
           onAbrirRescate={abrirRescateBacklog}
-        />
-        <CentroDireccionCEO
-          datosDashboard={datosDashboard}
-          sucursales={sucursalesDashboard}
-          abrirFinanzas={abrirFinanzas}
-          abrirDirectorFinanciero={abrirDirectorFinanciero}
-          abrirCompraMaestra={abrirCompraMaestra}
-          abrirMarketing={abrirMarketing}
-          abrirImportador={abrirImportador}
         />
 
         <PulsoVentasDireccion usuario={usuario} sucursales={sucursalesDashboard} />
@@ -1297,12 +1319,7 @@ const utilidadConsolidada =
             )}
         </section>
 
-        {!cargandoSucursales && !errorSucursales && sucursalesDashboard.length > 0 && (
-          <TendenciaSemanalSucursales
-            sucursales={sucursalesDashboard}
-            onAbrirImportador={abrirImportador}
-          />
-        )}
+
 
         {/* VALOR MONYS */}
 

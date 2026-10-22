@@ -51,3 +51,10 @@ test("conserva el perfil antiguo como respaldo cuando no existe calendario", () 
   assert.equal(trabaja.turno, "SEGUNDO");
   assert.equal(descansa.estado, "DESCANSA");
 });
+
+test("una salida real impide seguir considerando disponible a la empleada", () => {
+  const horario = resolverHorarioEmpleado({ fecha: "2026-10-21", empleado: { id: "e1" },
+    asistenciaRegistrada: [{ empleado_id: "e1", entrada_at: "2026-10-21T20:00:00Z", salida_at: "2026-10-22T02:00:00Z" }] });
+  assert.equal(horario.disponible, false);
+  assert.equal(horario.estado, "JORNADA_FINALIZADA");
+});

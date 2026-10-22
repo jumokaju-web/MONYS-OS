@@ -1,0 +1,31 @@
+.flotilla-admin { color:#2f2535; padding-bottom:24px; }
+.flotilla-admin [hidden] { display:none !important; }
+.flotilla-admin-nav { display:flex; gap:6px; overflow-x:auto; padding:6px 0 12px; scrollbar-width:thin; position:sticky; top:78px; z-index:25; background:#f7f3f7; }
+.flotilla-admin-nav button { flex:none; min-height:44px; padding:10px 15px; background:white; border:1px solid #e5dce5; border-radius:12px; color:#65576b; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.flotilla-admin-nav button[aria-current] { background:#66364f; color:white; border-color:#66364f; }
+.flotilla-admin button:focus-visible { outline:3px solid #b685a3; outline-offset:3px; }
+.flotilla-admin-bienvenida { display:flex; justify-content:space-between; align-items:center; gap:20px; margin:20px 0 25px; }
+.flotilla-admin-eyebrow { font-size:10px; letter-spacing:1.7px; font-weight:800; color:#8a6179; }
+.flotilla-admin h1 { font-size:clamp(25px,4vw,36px); line-height:1.15; margin:8px 0; letter-spacing:-.8px; }
+.flotilla-admin-bienvenida p,.flotilla-admin-titulo p { font-size:14px; color:#786b7c; margin:0; line-height:1.5; }
+.flotilla-admin-alcance { display:grid; gap:3px; text-align:right; flex:none; }
+.flotilla-admin-alcance strong { font-size:26px; color:#66364f; }
+.flotilla-admin-alcance span { font-size:11px; color:#786b7c; }
+.flotilla-admin-principales { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.flotilla-admin-principales button { text-align:left; display:flex; flex-direction:column; gap:9px; border:1px solid #e8dce4; border-radius:18px; padding:22px; background:white; box-shadow:0 6px 24px #53314906; font:inherit; cursor:pointer; color:#342738; }
+.flotilla-admin-principales button:first-child { background:#66364f; color:white; border-color:#66364f; }
+.flotilla-admin-principales strong { font-size:21px; }
+.flotilla-admin-principales button>span:not(.flotilla-admin-icono) { font-size:12px; line-height:1.5; opacity:.8; }
+.flotilla-admin-principales b { margin-top:10px; font-size:12px; }
+.flotilla-admin-icono { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:#9e74931a; font-size:23px; flex:none; }
+.flotilla-admin-subtitulo { font-size:13px; margin:28px 0 12px; color:#786b7c; font-weight:700; }
+.flotilla-admin-herramientas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.flotilla-admin-herramientas button { display:flex; align-items:center; gap:12px; text-align:left; padding:15px; background:white; border:1px solid #e8dce4; border-radius:14px; font:inherit; color:#48354b; min-height:76px; cursor:pointer; }
+.flotilla-admin-herramientas button>span:nth-child(2) { flex:1; min-width:0; }
+.flotilla-admin-herramientas strong { display:block; font-size:14px; }
+.flotilla-admin-herramientas small { display:block; margin-top:4px; color:#857589; font-size:11px; line-height:1.4; }
+.flotilla-admin-nota { font-size:11px; color:#857589; margin-top:20px; line-height:1.6; }
+.flotilla-admin-titulo { display:flex; gap:16px; align-items:center; margin:15px 0 20px; }
+.flotilla-admin-titulo h1 { font-size:24px; margin:0 0 4px; }
+.flotilla-admin-titulo button { min-height:44px; border:1px solid #e5dce5; border-radius:11px; background:white; padding:10px 12px; font:inherit; font-size:12px; font-weight:700; color:#66364f; cursor:pointer; flex:none; }
+@media(max-width:600px) { .flotilla-admin-principales { grid-template-columns:1fr; gap:9px; } .flotilla-admin-principales button { display:grid; grid-template-columns:38px 1fr auto; padding:15px; gap:4px 12px; align-items:center; } .flotilla-admin-principales .flotilla-admin-icono { grid-row:1/3; } .flotilla-admin-principales strong { font-size:18px; } .flotilla-admin-principales button>span:not(.flotilla-admin-icono) { grid-column:2; font-size:11px; } .flotilla-admin-principales b { grid-column:3; grid-row:1/3; font-size:0; margin:0; } .flotilla-admin-principales b::after { content:'→'; font-size:20px; } .flotilla-admin-herramientas { grid-template-columns:1fr; } .flotilla-admin-herramientas button { min-height:66px; padding:12px; } .flotilla-admin-bienvenida { gap:12px; margin:14px 0 20px; } .flotilla-admin-alcance { max-width:85px; } .flotilla-admin-nav { margin-right:-4px; } }

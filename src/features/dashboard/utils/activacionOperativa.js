@@ -104,7 +104,7 @@ export function resumirActivacionOperativa({
     if (cuentas.length === 0) {
       modulos.push(moduloPendiente(
         "finanzas", "Finanzas", "Abrir Finanzas",
-        "No hay cuentas bancarias activas registradas; falta el saldo real para autorizar pagos o compras.",
+        "No se encontraron cuentas bancarias activas para este negocio; revisa su asignación y confirma saldos antes de programar pagos o compras.",
       ));
     } else if (saldosPendientes > 0) {
       modulos.push(moduloPendiente(

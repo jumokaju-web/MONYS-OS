@@ -81,7 +81,11 @@ function compararReportes(paquetes) {
     for (const item of lista) {
       const key = `${item.rango.inicio.toISOString()}|${item.rango.fin.toISOString()}`;
       const existente = unicas.get(key);
-      if (!existente || new Date(item.importacion?.created_at || 0) > new Date(existente.importacion?.created_at || 0)) unicas.set(key, item);
+      const financiero = item.importacion?.tipo_reporte === "Utilidad por artículos";
+      const financieroExistente = existente?.importacion?.tipo_reporte === "Utilidad por artículos";
+      // Un reporte de cantidades más reciente no sustituye los importes del mismo corte.
+      // Se elige una fuente por periodo; nunca se suman ambos reportes.
+      if (!existente || (financiero && !financieroExistente) || (financiero === financieroExistente && new Date(item.importacion?.created_at || 0) > new Date(existente.importacion?.created_at || 0))) unicas.set(key, item);
     }
     const periodosUnicos = [...unicas.values()].sort((a, b) => a.rango.fin - b.rango.fin);
     let elegido = null;

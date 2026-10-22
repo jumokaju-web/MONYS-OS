@@ -6,7 +6,24 @@ import {
   construirTendenciaSemanal,
   resumirImportacionUtilidad,
   seleccionarCandidatosCampana,
+  seleccionarCandidatosConDemanda,
 } from "../../src/features/inteligencia/utils/tendenciaSemanalSucursales.js";
+
+test("campañas priorizan utilidad vendida de la sucursal y no valor potencial del stock", () => {
+  const inventario = ["A", "B", "C"].map((codigo, i) => ({ datos_originales: { codigo, descripcion: codigo, existencia: 100 - i * 30, precioVenta: 100, precioCompra: 50, utilidadUnitaria: 50 } }));
+  const fila = (codigo, branchId, utilidadActual, fin = "2026-10-18") => ({ codigo, branchId, utilidadActual, utilidadActualConfirmada: true, ventaActual: 500, unidadesActuales: 5, periodoActual: { fin: new Date(`${fin}T12:00:00Z`) } });
+  const resultado = seleccionarCandidatosConDemanda(inventario, [fila("A", "anaya", 50), fila("B", "anaya", 200), fila("C", "centro", 10000), fila("C", "anaya", 2000, "2026-10-11")], "anaya");
+  assert.deepEqual(resultado.map(p => p.codigo), ["B", "A"]);
+  assert.equal(resultado[0].utilidadRegistrada, 200);
+  assert.equal(resultado[0].periodoFin, "2026-10-18");
+});
+
+test("una campaña no usa utilidad desconocida, pérdidas, ventas cero ni coincidencias sin código", () => {
+  const inventario = ["A", "B", "C", "D"].map(codigo => ({ codigo, descripcion: codigo, existencia: 10, precioVenta: 100, precioCompra: 50, utilidadUnitaria: 50 }));
+  const base = { branchId: "anaya", utilidadActualConfirmada: true, utilidadActual: 100, ventaActual: 200, unidadesActuales: 2, periodoActual: { fin: new Date("2026-10-18T12:00:00Z") } };
+  assert.deepEqual(seleccionarCandidatosConDemanda(inventario, [{ ...base, codigo: "A", utilidadActualConfirmada: false }, { ...base, codigo: "B", utilidadActual: -20 }, { ...base, codigo: "C", ventaActual: 0 }, { ...base, codigo: "" }], "anaya"), []);
+  assert.deepEqual(seleccionarCandidatosConDemanda(inventario, [], "anaya"), []);
+});
 
 function semana({ id, branchId, nombre, inicio, fin, ventas, costo, utilidad, recibidoAt }) {
   return resumirImportacionUtilidad({

@@ -3,6 +3,8 @@ import { anularAjustePrefactura, guardarAjustePrefactura, obtenerDatosPrefactura
 import { crearFilasPrefacturaFlotilla, crearPrefacturaFlotilla } from "../utils/operacionFlotilla";
 import { crearPrefacturasWhatsApp } from "../utils/prefacturasWhatsApp";
 import { evaluarCierreSemanal, periodoPrefacturaSugerido, semanaOperativa } from "../utils/cierreSemanalFlotilla";
+import { useBorradorFlotilla } from './useBorradorFlotilla';
+import EstadoBorrador from './EstadoBorrador';
 
 function fechaMexico() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
@@ -23,7 +25,7 @@ const CATEGORIAS_AJUSTE = [
   ["FONDO_UNIDAD", "FONDO POR UNIDAD"],
 ];
 
-export default function FlotillaPrefacturas({ puedeGestionar = true }) {
+export default function FlotillaPrefacturas({ puedeGestionar = true, usuario = null }) {
   const [periodo, setPeriodo] = useState(() => periodoPrefacturaSugerido(fechaMexico()));
   const [cedis, setCedis] = useState("STT1");
   const [operaciones, setOperaciones] = useState([]);
@@ -37,7 +39,11 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
   const [error, setError] = useState("");
   const [copiado, setCopiado] = useState("");
   const [guardandoAjuste, setGuardandoAjuste] = useState(false);
-  const [formularioAjuste, setFormularioAjuste] = useState({ grupo: "", categoria: "NO_SHOW", monto: "", observaciones: "", numeroParcialidad: "", totalParcialidades: "24" });
+  const seleccion = useBorradorFlotilla({ usuario, unidad: 'selector', fecha: `${periodo.desde}_${periodo.hasta}`, formulario: 'seleccion-ajuste' }, { grupo: '' }, false);
+  const grupoSeleccionado = seleccion.valor.grupo;
+  const borradorAjuste = useBorradorFlotilla({ usuario, unidad: grupoSeleccionado || 'sin-seleccionar', fecha: `${periodo.desde}_${periodo.hasta}`, formulario: 'ajuste-prefactura' }, { categoria: 'NO_SHOW', monto: '', observaciones: '', numeroParcialidad: '', totalParcialidades: '24' });
+  const formularioAjuste = { ...borradorAjuste.valor, grupo: grupoSeleccionado };
+  const setFormularioAjuste = borradorAjuste.controlador.cambiar;
   const prefactura = useMemo(() => crearPrefacturaFlotilla(operaciones, periodo), [operaciones, periodo]);
   const whatsapp = useMemo(() => crearPrefacturasWhatsApp({
     operaciones,
@@ -87,6 +93,7 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
   }
 
   async function guardarAjuste() {
+    const revision = borradorAjuste.revision;
     const grupo = whatsapp.prefacturas.find((item) => item.clave === formularioAjuste.grupo);
     if (!grupo) return setError("Selecciona el operador al que se aplicará el descuento.");
     if (!(Number(formularioAjuste.monto) > 0)) return setError("Escribe un importe mayor a cero.");
@@ -102,9 +109,9 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
         numeroParcialidad: formularioAjuste.numeroParcialidad,
         totalParcialidades: formularioAjuste.totalParcialidades,
       });
+      borradorAjuste.controlador.confirmar(revision);
       const datos = await obtenerDatosPrefacturaPeriodo(periodo.desde, periodo.hasta);
       aplicarDatos(datos);
-      setFormularioAjuste((actual) => ({ ...actual, monto: "", observaciones: "" }));
     } catch (errorAjuste) {
       setError(errorAjuste?.message || "No fue posible guardar el ajuste.");
     } finally {
@@ -187,7 +194,7 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
     {error && <p role="alert" style={{ color: "#9a3425", fontWeight: 800 }}>{error}</p>}
     {consultado && <div role="status" style={{ marginTop: 10, padding: 10, borderRadius: 10, background: cierre.listaParaRevision ? "#e7f7ed" : "#fff4df", color: cierre.listaParaRevision ? "#17643a" : "#76551b", fontWeight: 800 }}>
       {cierre.listaParaRevision
-        ? `Lista para revisión: ${cierre.rutasFinalizadas} ruta(s) cerrada(s).`
+        ? `SEMANA CERRADA · ${cierre.rutasFinalizadas} ruta(s) · lista para revisión, no implica pago realizado.`
         : cierre.estado === "PENDIENTE_CIERRES"
           ? `Corte provisional: faltan ${cierre.rutasPendientes} ruta(s) por cerrar. No se pueden descargar ni enviar como finales.`
           : cierre.estado === "SEMANA_EN_CURSO"
@@ -205,7 +212,8 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
       <h4 style={{ margin: "0 0 5px" }}>Agregar descuento al corte</h4>
       <p style={{ margin: "0 0 8px", fontSize: 11, color: "#6f5a2b" }}>PNR/LOST se toma automáticamente del módulo PNR. Aquí sólo captura los demás descuentos.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 7 }}>
-        <label style={{ fontSize: 11, fontWeight: 800 }}>Operador y unidad<select value={formularioAjuste.grupo} onChange={(e) => setFormularioAjuste((actual) => ({ ...actual, grupo: e.target.value }))} style={{ width: "100%", padding: 8, marginTop: 4 }}><option value="">Seleccionar…</option>{whatsapp.prefacturas.map((item) => <option key={item.clave} value={item.clave}>{item.operador} · {item.placas}</option>)}</select></label>
+        <label style={{ fontSize: 11, fontWeight: 800 }}>Operador y unidad<select disabled={guardandoAjuste} value={formularioAjuste.grupo} onChange={(e) => seleccion.controlador.cambiar({ grupo: e.target.value })} style={{ width: "100%", padding: 8, marginTop: 4 }}><option value="">Seleccionar…</option>{whatsapp.prefacturas.map((item) => <option key={item.clave} value={item.clave}>{item.operador} · {item.placas}</option>)}</select></label>
+        <fieldset disabled={!grupoSeleccionado || guardandoAjuste} style={{ display: 'contents' }}>
         <label style={{ fontSize: 11, fontWeight: 800 }}>Concepto<select value={formularioAjuste.categoria} onChange={(e) => setFormularioAjuste((actual) => ({ ...actual, categoria: e.target.value }))} style={{ width: "100%", padding: 8, marginTop: 4 }}>{CATEGORIAS_AJUSTE.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}</select></label>
         <label style={{ fontSize: 11, fontWeight: 800 }}>Importe<input type="number" min="0.01" step="0.01" value={formularioAjuste.monto} onChange={(e) => setFormularioAjuste((actual) => ({ ...actual, monto: e.target.value }))} style={{ width: "100%", padding: 8, marginTop: 4 }} /></label>
         {formularioAjuste.categoria === "FONDO_UNIDAD" && <>
@@ -213,8 +221,11 @@ export default function FlotillaPrefacturas({ puedeGestionar = true }) {
           <label style={{ fontSize: 11, fontWeight: 800 }}>Total de semanas<input type="number" min="1" value={formularioAjuste.totalParcialidades} onChange={(e) => setFormularioAjuste((actual) => ({ ...actual, totalParcialidades: e.target.value }))} style={{ width: "100%", padding: 8, marginTop: 4 }} /></label>
         </>}
         <label style={{ fontSize: 11, fontWeight: 800 }}>Nota<input value={formularioAjuste.observaciones} onChange={(e) => setFormularioAjuste((actual) => ({ ...actual, observaciones: e.target.value }))} placeholder="Motivo o referencia" style={{ width: "100%", padding: 8, marginTop: 4 }} /></label>
+        </fieldset>
       </div>
-      <button type="button" disabled={guardandoAjuste} onClick={guardarAjuste} style={{ marginTop: 8 }}>{guardandoAjuste ? "Guardando…" : "Aplicar descuento al corte"}</button>
+      <EstadoBorrador borrador={borradorAjuste} guardando={guardandoAjuste} />
+      {!grupoSeleccionado && <p>Selecciona el operador y la unidad para recuperar su borrador.</p>}
+      <button type="button" disabled={guardandoAjuste || !grupoSeleccionado} onClick={guardarAjuste} style={{ marginTop: 8 }}>{guardandoAjuste ? "Guardando…" : "Aplicar descuento al corte"}</button>
       {ajustes.filter((item) => item.estado === "APLICADO").length > 0 && <div style={{ marginTop: 9 }}>{ajustes.filter((item) => item.estado === "APLICADO").map((item) => <div key={item.id} style={{ fontSize: 11, padding: "5px 0", borderTop: "1px solid #ead09b" }}><b>{item.chofer_nombre}</b> · {CATEGORIAS_AJUSTE.find(([valor]) => valor === item.categoria)?.[1] || item.categoria} · {moneda(item.monto)} {item.categoria === "FONDO_UNIDAD" ? `(${item.numero_parcialidad}/${item.total_parcialidades})` : ""} <button type="button" disabled={guardandoAjuste} onClick={() => anularAjuste(item.id)} style={{ marginLeft: 5 }}>Anular</button></div>)}</div>}
     </div>}
     {consultado && whatsapp.prefacturas.length === 0 && <p style={{ marginTop: 11, fontSize: 12 }}>No hay rutas en este corte.</p>}

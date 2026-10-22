@@ -9,6 +9,22 @@ const reporte = (id, branchId, inicio, fin, detalles) => ({
   detalles: detalles.map((fila) => ({ codigo: fila.codigo, descripcion: fila.descripcion, cantidad: fila.cantidad, datos_originales: fila })),
 });
 
+test("importar cantidades después no borra ni duplica la utilidad del mismo corte", () => {
+  const base = reporte("base", "anaya", "2026-10-05", "2026-10-11", [{ codigo: "A", cantidad: 2, importe: 100, utilidad: 40 }]);
+  const actual = reporte("financiero", "anaya", "2026-10-12", "2026-10-18", [{ codigo: "A", cantidad: 3, importe: 150, utilidad: 60 }]);
+  actual.importacion.tipo_reporte = "Utilidad por artículos";
+  const cantidades = reporte("cantidades", "anaya", "2026-10-12", "2026-10-18", [{ codigo: "A", cantidad: 3, importe: 0, utilidad: 0, importeDisponible: false, utilidadDisponible: false }]);
+  cantidades.importacion.tipo_reporte = "Ventas por artículo";
+  cantidades.importacion.created_at = "2026-10-21T23:00:00Z";
+  for (const reportes of [[base, actual, cantidades], [cantidades, base, actual]]) {
+    const resultado = analizarCausasCambioSemanal({ reportes });
+    assert.equal(resultado.comparaciones[0].ventaActual, 150);
+    assert.equal(resultado.comparaciones[0].utilidadActual, 60);
+    assert.equal(resultado.comparaciones[0].cambioVenta, 50);
+    assert.equal(resultado.comparaciones[0].unidadesActuales, 3);
+  }
+});
+
 test("descompone venta por unidades y precio, utilidad y costo implícito, sin atribuir causalidad", () => {
   const resultado = analizarCausasCambioSemanal({
     reportes: [

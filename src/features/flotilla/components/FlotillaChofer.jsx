@@ -11,8 +11,7 @@ import {
   guardarLiquidacionFlotilla,
   obtenerLiquidacionFlotillaHoy,
 } from "./services/flotillaService";
-import ResumenFlotillaSocios from "./ResumenFlotillaSocios";
-import FlotillaOperacionEnVivo from "./FlotillaOperacionEnVivo";
+import FlotillaAdministracion from './FlotillaAdministracion';
 import FlotillaIncidencias from "./FlotillaIncidencias";
 import FlotillaPnr from "./FlotillaPnr";
 import {
@@ -309,10 +308,6 @@ export default function FlotillaChofer({
     rolActual === "owner" || accesoFlotilla?.tipo_acceso === "ADMIN_FLOTILLA";
   const regresaAMonys = ["owner", "admin", "director"].includes(rolActual);
 
-  function irASeccion(id) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function abrirVistaChofer(vista) {
     setVistaChofer(vista);
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -344,9 +339,8 @@ export default function FlotillaChofer({
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #eef8ff 0%, #ffffff 100%)",
-        padding: "calc(14px + env(safe-area-inset-top, 0px)) 12px calc(92px + env(safe-area-inset-bottom, 0px))",
+        background: esVistaAdministrativa ? '#f7f3f7' : "linear-gradient(180deg, #eef8ff 0%, #ffffff 100%)",
+        padding: esVistaAdministrativa ? 'calc(14px + env(safe-area-inset-top, 0px)) 12px 24px' : "calc(14px + env(safe-area-inset-top, 0px)) 12px calc(92px + env(safe-area-inset-bottom, 0px))",
         fontFamily:
           "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         color: "#14365a",
@@ -356,7 +350,7 @@ export default function FlotillaChofer({
         id="flotilla-inicio"
         style={{
           width: "100%",
-          maxWidth: "520px",
+          maxWidth: esVistaAdministrativa ? '1100px' : '520px',
           margin: "0 auto",
         }}
       >
@@ -371,7 +365,7 @@ export default function FlotillaChofer({
             top: "env(safe-area-inset-top, 0px)",
             zIndex: 30,
             padding: "10px 0",
-            background: "rgba(238, 248, 255, 0.96)",
+            background: esVistaAdministrativa ? '#f7f3f7' : "rgba(238, 248, 255, 0.96)",
           }}
         >
           <div>
@@ -382,7 +376,7 @@ export default function FlotillaChofer({
                 color: "#14365a",
               }}
             >
-              🚚 MONYS OS
+              {esVistaAdministrativa ? 'IMPERPAQ' : '🚚 MONYS OS'}
             </div>
 
             <div
@@ -391,7 +385,7 @@ export default function FlotillaChofer({
                 color: "#67809a",
               }}
             >
-              Flotilla Inteligente
+              {esVistaAdministrativa ? 'Control de flotilla' : 'Flotilla Inteligente'}
             </div>
           </div>
 
@@ -403,7 +397,7 @@ export default function FlotillaChofer({
               alignItems: "center",
             }}
           >
-            <span aria-label="Notificaciones">🔔</span>
+            {!esVistaAdministrativa && <span aria-label="Notificaciones">🔔</span>}
             {typeof volverAlDashboard === "function" && (
               <button
                 type="button"
@@ -462,7 +456,7 @@ export default function FlotillaChofer({
           </div>
         )}
 
-        {unidades.length > 1 && (
+        {!esVistaAdministrativa && unidades.length > 1 && (
           <label
             style={{
               display: "block",
@@ -495,7 +489,7 @@ export default function FlotillaChofer({
           </label>
         )}
 
-        {unidad?.id && (
+        {!esVistaAdministrativa && unidad?.id && (
           <div
             style={{
               display: "flex",
@@ -547,7 +541,7 @@ export default function FlotillaChofer({
 
         <div
           id="flotilla-pnr"
-          hidden={!esVistaAdministrativa && vistaChofer !== "PNR"}
+          hidden={esVistaAdministrativa || vistaChofer !== "PNR"}
           style={{ scrollMarginTop: "16px" }}
         >
         {!esVistaAdministrativa && vistaChofer === "PNR" && (
@@ -567,19 +561,6 @@ export default function FlotillaChofer({
             ← Volver al inicio
           </button>
         )}
-        {esVistaAdministrativa && (
-          <>
-            {puedeGestionarPnr && <FlotillaPnr modoAdministracion />}
-            <FlotillaOperacionEnVivo usuario={usuario} soloConsulta={esSocioConsulta} />
-            <FlotillaIncidencias
-              modoAdministracion
-              soloConsulta={esSocioConsulta}
-              unidades={unidades}
-            />
-            <ResumenFlotillaSocios unidades={unidades} />
-          </>
-        )}
-
         {!esVistaAdministrativa && unidad?.id && (
           <>
             <FlotillaPnr />
@@ -591,6 +572,8 @@ export default function FlotillaChofer({
           </>
         )}
         </div>
+
+        {esVistaAdministrativa && !cargandoUnidad && !errorUnidad && <FlotillaAdministracion usuario={usuario} unidades={unidades} soloConsulta={esSocioConsulta} puedeGestionarPnr={puedeGestionarPnr} />}
 
         {!esVistaAdministrativa && (
         <>
@@ -1473,7 +1456,7 @@ export default function FlotillaChofer({
         )}
 
         {/* MENÚ INFERIOR */}
-        <div
+        {!esVistaAdministrativa && <div
           style={{
             position: "fixed",
             bottom: 0,
@@ -1487,20 +1470,13 @@ export default function FlotillaChofer({
             zIndex: 20,
           }}
         >
-          {(esVistaAdministrativa
-            ? [
-                [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
-                ["🏠", "Inicio", () => irASeccion("flotilla-inicio")],
-                ["📦", "Control", () => irASeccion("flotilla-pnr")],
-              ]
-            : [
+          {[
                 [regresaAMonys ? "←" : "🚪", regresaAMonys ? "MONYS" : "Salir", () => volverAlDashboard?.()],
                 ["🏠", "Inicio", () => abrirVistaChofer("INICIO")],
                 ["📦", "PNR", () => abrirVistaChofer("PNR")],
                 ["🗺️", "Mi ruta", () => abrirVistaChofer("RUTA")],
                 ["💰", "Resumen", () => abrirVistaChofer("RESUMEN")],
-              ]
-          ).map(([icono, texto, accion]) => (
+              ].map(([icono, texto, accion]) => (
             <button
               type="button"
               key={texto}
@@ -1533,7 +1509,7 @@ export default function FlotillaChofer({
               {texto}
             </button>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );
