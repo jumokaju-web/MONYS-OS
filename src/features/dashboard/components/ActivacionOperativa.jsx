@@ -18,6 +18,7 @@ export default function ActivacionOperativa({
   onAbrirFinanzas,
   onAbrirTesoreria,
   onAbrirEquipo,
+  onAbrirOperacion,
   onAbrirMarketing,
   onAbrirFlotilla,
 }) {
@@ -60,7 +61,7 @@ export default function ActivacionOperativa({
   function abrir(modulo) {
     const acciones = {
       finanzas: modulo?.accion === "Abrir Tesorería" ? onAbrirTesoreria : onAbrirFinanzas,
-      equipo: onAbrirEquipo,
+      equipo: onAbrirOperacion || onAbrirEquipo,
       marketing: onAbrirMarketing,
       flotilla: onAbrirFlotilla,
     };
@@ -103,7 +104,7 @@ export default function ActivacionOperativa({
             </div>
             <strong>{modulo.etiquetaCifra}</strong>
             <p>{modulo.detalle}</p>
-            <button type="button" onClick={() => abrir(modulo)}>{modulo.accion} →</button>
+            <button type="button" onClick={() => abrir(modulo)}>{modulo.id === "equipo" ? "Ver tareas y fotos" : modulo.accion} →</button>
           </article>
         ))}
       </div>

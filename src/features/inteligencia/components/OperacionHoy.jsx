@@ -17,6 +17,7 @@ import {
 import RutinaTienda from "./RutinaTienda";
 import ControlDiarioSucursal from "./ControlDiarioSucursal";
 import { fechaActualMexico } from "../services/asistenciaOperativaService";
+import "./OperacionHoy.css";
 
 const formularioInicial = {
   titulo: "",
@@ -475,6 +476,7 @@ export default function OperacionHoy({
 
   return (
     <section
+      className="operation-today"
       style={{
         padding: "24px",
       }}
@@ -527,6 +529,33 @@ export default function OperacionHoy({
           </button>
         </div>
       </div>
+
+      <section className="operation-evidence-gallery" aria-labelledby="operation-evidence-title">
+        <div className="operation-evidence-gallery__heading">
+          <div>
+            <h3 id="operation-evidence-title">📷 Fotos recibidas hoy</h3>
+            <p>Abre una foto para verla completa.</p>
+          </div>
+          <span>{Object.values(evidenciasPorTarea).reduce((total, lista) => total + (lista?.length || 0), 0)} fotos</span>
+        </div>
+        {cargando ? <p>Consultando evidencias…</p> : (
+          <div className="operation-evidence-gallery__grid">
+            {tareas.flatMap((tarea) => (evidenciasPorTarea[tarea.id] || []).map((evidencia) => (
+              <article key={evidencia.id}>
+                <div>
+                  <strong>{tarea.titulo}</strong>
+                  <span>{tarea.responsable || "Responsable pendiente"} · {evidencia.tipo === "final" ? "Foto final" : evidencia.tipo === "inicio" ? "Foto inicial" : "Evidencia"}</span>
+                </div>
+                <a href={evidencia.archivo_url} target="_blank" rel="noreferrer" aria-label={`Abrir evidencia de ${tarea.titulo}`}>
+                  <img src={evidencia.archivo_url} alt={`Evidencia ${evidencia.tipo} de ${tarea.titulo}`} />
+                  <b>Abrir foto ↗</b>
+                </a>
+              </article>
+            )))}
+            {!tareas.some((tarea) => (evidenciasPorTarea[tarea.id] || []).length > 0) && <p>No hay fotos recibidas hoy.</p>}
+          </div>
+        )}
+      </section>
 
       <ControlDiarioSucursal
         branchId={branchId}
@@ -736,6 +765,7 @@ export default function OperacionHoy({
           tareasActivas.map(
             (tarea) => (
               <article
+                className="operation-task-card"
                 key={
                   tarea.id
                 }
@@ -842,7 +872,8 @@ export default function OperacionHoy({
                     )}
 
                         {tarea.instrucciones && (
-  <>
+  <details className="operation-task-instructions">
+    <summary>Ver instrucciones</summary>
     <p
       style={{
         marginBottom: "10px",
@@ -977,7 +1008,7 @@ export default function OperacionHoy({
           </div>
         );
       })()}
-  </>
+  </details>
 )}
 
                       {(evidenciasPorTarea[

@@ -44,3 +44,25 @@
 .owner-secondary{margin:18px 0;border:1px solid #e4d7df;border-radius:14px;background:#fff;overflow:hidden}.owner-secondary>summary{padding:16px 18px;color:#5b3a50;font-size:14px;font-weight:800;cursor:pointer}.owner-secondary__content{padding:0 14px 14px}
 
 @media(max-width:560px){.owner-sidebar{padding:8px 12px;scrollbar-width:none}.owner-sidebar::-webkit-scrollbar{display:none}.owner-sidebar button{min-height:42px;padding:9px 11px;font-size:12px}.owner-command-header{margin-top:12px}.owner-command-header button{width:100%}.owner-secondary__content{padding:0 8px 10px}}
+
+
+/* El acceso a tareas y evidencias queda al inicio para evitar buscarlas al final. */
+#operacion-completa-direccion{scroll-margin-top:12px;margin:10px 0 16px}
+#operacion-completa-direccion>summary{min-height:44px;padding:12px 14px!important;font-size:14px!important}
+.owner-command-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.owner-command-actions button{min-height:44px;padding:11px 14px}
+.owner-sidebar button{line-height:1.25}
+@media(max-width:560px){.owner-command-actions{width:100%;flex-direction:column}.owner-command-actions button{width:100%}}
+@media(max-width:600px){
+ .monys-owner>section{width:calc(100% - 24px)!important;margin:0 12px!important}
+ .owner-command-header h1{font-size:26px!important;line-height:1.15}
+ .owner-command-header p{font-size:13px}
+ .owner-sidebar{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px;padding:8px 12px!important}
+ .owner-sidebar button{min-height:40px;padding:8px 5px!important;font-size:11px!important;text-align:center;white-space:normal!important;overflow-wrap:anywhere}
+ .owner-results{gap:8px;margin:12px 0}
+ .owner-results>div{padding:13px!important}
+ .owner-next-actions{gap:7px;margin:12px 0}
+ .owner-next-actions button{padding:10px!important}
+ .owner-next-actions b{font-size:13px}
+ .owner-next-actions span{font-size:11px}
+ .owner-rescate,.owner-expanded{padding:12px!important;margin:12px 0}
+}
