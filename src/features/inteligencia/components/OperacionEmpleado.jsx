@@ -2246,7 +2246,7 @@ export default function OperacionEmpleado({
               marginBottom: "8px",
             }}
           >
-            🎉
+            {terminadas.length ? "✓" : "📋"}
           </div>
 
           <strong
@@ -2256,7 +2256,7 @@ export default function OperacionEmpleado({
               fontSize: "18px",
             }}
           >
-            Estás al día
+            {terminadas.length ? "Tareas asignadas completadas" : "Tu plan de trabajo está pendiente"}
           </strong>
 
           <div
@@ -2265,8 +2265,9 @@ export default function OperacionEmpleado({
               marginTop: "5px",
             }}
           >
-            No tienes tareas
-            pendientes asignadas.
+            {terminadas.length
+              ? "No quedan tareas abiertas en este corte. Revisa también tu cierre de turno."
+              : "No tienes tareas asignadas para hoy. Confirma tu entrada si ya comenzaste y avisa a Dirección para que te asigne el plan. Esto no significa que tu turno esté terminado."}
           </div>
         </div>
       ) : (

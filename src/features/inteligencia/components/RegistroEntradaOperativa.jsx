@@ -63,7 +63,7 @@ export default function RegistroEntradaOperativa({ usuario }) {
         <p role="status" style={{ margin: 0, color: "#327653", fontWeight: 750 }}>✅ Entrada registrada a las {hora}. MONYS te incluirá entre el personal presente de tu sucursal.</p>
       ) : (
         <>
-          <p style={{ margin: 0, color: "#6f5d66", fontSize: "14px", lineHeight: 1.45 }}>Regístrala al llegar. Así MONYS asigna las tareas del día solo a quienes sí vinieron.</p>
+          <p style={{ margin: 0, color: "#6f5d66", fontSize: "14px", lineHeight: 1.45 }}>Confirma tu llegada real. Dirección podrá ver que estás presente y asignarte el trabajo del día. Registrar entrada no crea tareas automáticamente.</p>
           <button type="button" disabled={cargando || guardando || !usuario?.empleado_id} onClick={registrar} style={{ minHeight: "44px", border: 0, borderRadius: "11px", background: "#a82c68", color: "white", fontWeight: 850, cursor: guardando ? "wait" : "pointer" }}>
             {cargando ? "Revisando…" : guardando ? "Registrando…" : "Registrar mi entrada"}
           </button>
