@@ -532,7 +532,6 @@ export const obtenerMovimientosTesoreria =
     const { data: partidas, error: errorPartidas } = await supabase
       .from("cash_movement_allocations")
       .select("id,distribution_id,cash_movement_id,organization_id,business_id,branch_id,amount,expense_category,expense_behavior,note,status,created_at")
-      .in("cash_movement_id", movimientos.map((movimiento) => movimiento.id))
       .eq("status", "ACTIVA")
       .order("created_at", { ascending: true });
 
