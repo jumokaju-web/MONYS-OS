@@ -6,8 +6,10 @@ import './CentroFinanciero.css';
 import { obtenerCreditosProveedoresActuales } from '../inteligencia/services/creditosProveedoresService';
 import BandejaCapturasEquipo from './components/BandejaCapturasEquipo';
 import DisponibilidadFinancieraHoy from './components/DisponibilidadFinancieraHoy';
+import CentroDecisionesFinancieras from './components/CentroDecisionesFinancieras';
 
 const areas = [
+  ['direccion', 'Dirección hoy', 'Prioridad, alertas y siguiente paso'],
   ['equipo', 'Capturas del equipo', 'Cortes y flotilla'],
   ['bancos', 'Bancos y aclaraciones', 'Estados, evidencia y destino'],
   ['control', 'Movimientos', 'Entradas, salidas y revisión'],
@@ -24,8 +26,9 @@ const vistasEquipo = [
 export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, movimientos, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
   const [creditos, setCreditos] = useState({ importacion: null, creditos: [], saldoTotal: 0 });
   const [errorCreditos, setErrorCreditos] = useState('');
-  const [tab, setTab] = useState('equipo');
+  const [tab, setTab] = useState('direccion');
   const [vistaEquipo, setVistaEquipo] = useState('menu');
+  const [vistaPlan, setVistaPlan] = useState('inicio');
   const areaActivaRef = useRef(null);
   const branchId = datosDashboard?.branch_id;
 
@@ -40,16 +43,17 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
   }, [branchId]);
 
   useEffect(() => {
-    if (tab === 'equipo') return undefined;
+    if (tab === 'direccion') return undefined;
     const frame = requestAnimationFrame(() => {
       areaActivaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => cancelAnimationFrame(frame);
   }, [tab]);
 
-  const abrirArea = (id) => {
+  const abrirArea = (id, vista = null) => {
     setTab(id);
-    if (id === 'equipo') setVistaEquipo('menu');
+    if (id === 'equipo') setVistaEquipo(vista || 'menu');
+    if (id === 'plan') setVistaPlan(vista || 'inicio');
   };
   const abrirVistaEquipo = (id) => {
     setVistaEquipo(id);
@@ -85,6 +89,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
       </nav>
 
       <section ref={areaActivaRef} className="finanzas-area-activa" aria-live="polite">
+        {tab === 'direccion' && <CentroDecisionesFinancieras movimientos={movimientos} creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} onAbrirArea={abrirArea} onAbrirImportador={onAbrirImportador} />}
         {tab === 'equipo' && <section className="finanzas-equipo-centro" aria-label="Capturas del equipo">
           {vistaEquipo === 'menu' ? <>
             <header className="finanzas-equipo-intro">
@@ -122,7 +127,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
         </section>}
         {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} /></section>}
         {tab === 'control' && <section aria-label="Movimientos"><TesoreriaPage ocultarRevisionBancaria volverAlDashboard={volverAlDashboard} onMovimientoGuardado={onMovimientoGuardado} movimientos={movimientos} formatoDinero={formatoDinero} onCambiarEstado={onCambiarEstado} /></section>}
-        {tab === 'plan' && <section aria-label="Planeación financiera"><DirectorFinanciero creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} /></section>}
+        {tab === 'plan' && <section aria-label="Planeación financiera"><DirectorFinanciero key={vistaPlan} vistaInicial={vistaPlan} creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} /></section>}
       </section>
     </main>
   );
