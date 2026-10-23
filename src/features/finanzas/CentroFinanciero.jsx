@@ -14,10 +14,18 @@ const areas = [
   ['plan', 'Planeación financiera', 'Equilibrio, proveedores y flujo'],
 ];
 
+const vistasEquipo = [
+  ['cierre', 'Cierre de hoy', 'Qué cajas faltan y cuáles ya quedaron'],
+  ['revision', 'Revisar cortes', 'Diferencias, evidencias y aclaraciones'],
+  ['fuentes', 'Cargar reportes', 'SICAR, banco y comprobantes'],
+  ['disponible', 'Dinero disponible', 'Cuánto puedes usar hoy'],
+];
+
 export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, movimientos, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
   const [creditos, setCreditos] = useState({ importacion: null, creditos: [], saldoTotal: 0 });
   const [errorCreditos, setErrorCreditos] = useState('');
   const [tab, setTab] = useState('equipo');
+  const [vistaEquipo, setVistaEquipo] = useState('menu');
   const areaActivaRef = useRef(null);
   const branchId = datosDashboard?.branch_id;
 
@@ -39,7 +47,14 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
     return () => cancelAnimationFrame(frame);
   }, [tab]);
 
-  const abrirArea = (id) => setTab(id);
+  const abrirArea = (id) => {
+    setTab(id);
+    if (id === 'equipo') setVistaEquipo('menu');
+  };
+  const abrirVistaEquipo = (id) => {
+    setVistaEquipo(id);
+    requestAnimationFrame(() => areaActivaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   const abrirEquilibrio = () => {
     abrirArea('plan');
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -76,8 +91,25 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
       </nav>
 
       <section ref={areaActivaRef} className="finanzas-area-activa" aria-live="polite">
-        {tab === 'equipo' && <>
-          <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} />
+        {tab === 'equipo' && <section className="finanzas-equipo-centro" aria-label="Capturas del equipo">
+          {vistaEquipo === 'menu' ? <>
+            <header className="finanzas-equipo-intro">
+              <span>CONTROL DIARIO</span>
+              <h2>¿Qué necesitas revisar?</h2>
+              <p>Abre una sola tarea. Podrás volver a este menú sin recorrer toda la página.</p>
+            </header>
+            <div className="finanzas-equipo-menu">
+              {vistasEquipo.map(([id, titulo, detalle]) => (
+                <button key={id} type="button" onClick={() => abrirVistaEquipo(id)}>
+                  <b>{titulo}</b><small>{detalle}</small><span>Abrir →</span>
+                </button>
+              ))}
+            </div>
+          </> : <button type="button" className="finanzas-volver-seccion" onClick={() => abrirVistaEquipo('menu')}>← Capturas del equipo</button>}
+
+          {vistaEquipo === 'cierre' && <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} vista="cierre" />}
+          {vistaEquipo === 'revision' && <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} vista="revision" />}
+          {vistaEquipo === 'fuentes' && <>
           <div className="finanzas-fuentes">
             <p><b>Estado de los datos:</b> los reportes enviados al chat no se importan automáticamente a MONYS. Los borradores bancarios se guardan en este dispositivo; las cifras del negocio usan las importaciones registradas.</p>
             <button onClick={onAbrirImportador}>Cargar reportes del negocio →</button>
@@ -91,8 +123,9 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
             </div>
             <p>El mismo pago puede aparecer en varias fuentes. La conciliación entre fuentes está pendiente; no se suman automáticamente para calcular utilidad.</p>
           </section>
-          <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} />
-        </>}
+          </>}
+          {vistaEquipo === 'disponible' && <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} />}
+        </section>}
         {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} /></section>}
         {tab === 'control' && <section aria-label="Movimientos"><TesoreriaPage ocultarRevisionBancaria volverAlDashboard={volverAlDashboard} onMovimientoGuardado={onMovimientoGuardado} movimientos={movimientos} formatoDinero={formatoDinero} onCambiarEstado={onCambiarEstado} /></section>}
         {tab === 'plan' && <section aria-label="Planeación financiera"><DirectorFinanciero creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} /></section>}
