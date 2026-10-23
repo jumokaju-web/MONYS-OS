@@ -581,11 +581,12 @@ const historial =
     };
 
   const accesosFinancieros = [
+    { id: "hoy", icono: "◎", titulo: "Decisión de hoy", descripcion: "Problema, dato faltante y acción exacta", destacado: true },
     { id: "equilibrio", icono: "⚖️", titulo: "Meta diaria", descripcion: "Punto de equilibrio y venta mínima" },
     { id: "caja", icono: "🗓️", titulo: "Flujo de caja", descripcion: "Próximas 13 semanas y tanda" },
     { id: "cierre", icono: "✅", titulo: "Cierre semanal", descripcion: "Revisar si la semana está completa" },
     { id: "panorama", icono: "📊", titulo: "Panorama", descripcion: "Ventas, utilidad y tendencia" },
-    { id: "rescate", icono: "🛟", titulo: "Plan de rescate", descripcion: "Prioridades y acciones financieras" },
+    { id: "rescate", icono: "🛟", titulo: "Plan de 30 días", descripcion: "Prioridades y avance del rescate" },
     { id: "proveedores", icono: "💳", titulo: "Proveedores", descripcion: "Deudas y próximos vencimientos" },
     { id: "informe", icono: "📋", titulo: "Informe completo", descripcion: "Consulta detallada de todos los datos" },
   ];
@@ -601,13 +602,17 @@ const historial =
         <span className="junta-label">MONYS OS · FINANZAS</span>
         <h2>¿Qué necesitas revisar?</h2>
         <p>Abre solo una herramienta. Ya no necesitas recorrer todo el informe.</p>
-        <div className="finanzas-accesos">{accesosFinancieros.map((acceso) => <button type="button" key={acceso.id} onClick={() => setVistaFinanciera(acceso.id)}><span>{acceso.icono}</span><strong>{acceso.titulo}</strong><small>{acceso.descripcion}</small><b>Abrir →</b></button>)}</div>
+        <div className="finanzas-accesos">{accesosFinancieros.map((acceso) => <button type="button" className={acceso.destacado ? "es-prioritario" : undefined} key={acceso.id} onClick={() => setVistaFinanciera(acceso.id)}><span>{acceso.icono}</span><strong>{acceso.titulo}</strong><small>{acceso.descripcion}</small><b>{acceso.destacado ? "Revisar prioridad →" : "Abrir →"}</b></button>)}</div>
       </div>}
     </>;
   }
 
   if (vistaFinanciera === "inicio") {
     return <section className="finanzas-centro">{encabezadoCentroFinanciero()}</section>;
+  }
+
+  if (vistaFinanciera === "hoy") {
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<RutaCEOFinanciera metricas={metricas} movimientos={movimientos} movimientosPendientes={movimientosPendientes} gastosSinClasificar={gastosSinClasificar} sucursales={sucursalesDashboard} baseVigente={ventasVigentes} onAbrirImportador={onAbrirImportador} onAbrirValor={onAbrirValor} organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
   }
 
   if (vistaFinanciera === "equilibrio") {
