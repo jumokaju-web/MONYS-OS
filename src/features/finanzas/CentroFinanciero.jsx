@@ -72,12 +72,6 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
         <h1>Tu dinero. Tus decisiones.</h1>
         <button type="button" className="finanzas-meta-diaria" onClick={abrirEquilibrio}>Ver mi punto de equilibrio diario →</button>
         <p>Revisa el banco, controla los movimientos y planea cómo sostener tu negocio.</p>
-        <div className="finanzas-ruta" aria-label="Ruta financiera">
-          <button type="button" onClick={() => abrirArea('equipo')}>01 · Recibir cortes</button>
-          <button type="button" onClick={() => abrirArea('bancos')}>02 · Verificar banco</button>
-          <button type="button" onClick={() => abrirArea('control')}>03 · Explicar destino</button>
-          <button type="button" onClick={() => abrirArea('plan')}>04 · Planear</button>
-        </div>
       </header>
 
       {errorCreditos && <p role="alert">{errorCreditos}</p>}
