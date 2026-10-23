@@ -61,6 +61,7 @@ function obtenerAntiguedadDias(fecha) {
   },
   onAbrirImportador,
   onAbrirValor,
+  vistaInicial = "inicio",
 }) {
 
     const [
@@ -93,7 +94,7 @@ const [
   setResultadosEjecucion,
 ] = useState({});
 
-const [vistaFinanciera, setVistaFinanciera] = useState("inicio");
+const [vistaFinanciera, setVistaFinanciera] = useState(vistaInicial);
 
   const consolidacion = consolidarFinanzasSucursales(sucursalesDashboard);
   const hayDatosConsolidados = consolidacion.disponible;
