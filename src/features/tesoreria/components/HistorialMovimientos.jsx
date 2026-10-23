@@ -250,17 +250,17 @@ function HistorialMovimientos({
 
   return (
     <>
-      <section className="tarjeta">
-        <h2>Últimos movimientos</h2>
+      <section className="tarjeta movimientos-bandeja">
+        <header className="movimientos-bandeja__encabezado">
+          <div>
+            <span className="movimientos-bandeja__etiqueta">TESORERÍA · BANDEJA DE TRABAJO</span>
+            <h2>Movimientos por resolver</h2>
+            <p>Revisa uno a la vez. Clasificar no cambia el importe ni borra el registro original.</p>
+          </div>
+          <strong className="movimientos-bandeja__contador">{movimientosFiltrados.length}</strong>
+        </header>
 
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "8px",
-            marginBottom: "18px",
-          }}
-        >
+        <div className="movimientos-bandeja__filtros" aria-label="Filtrar movimientos">
           {[
             ["Pendientes", "Pendiente de revisión"],
             ["Revisados", "Revisado"],
@@ -271,86 +271,59 @@ function HistorialMovimientos({
               key={valor}
               type="button"
               onClick={() => setFiltroEstado(valor)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d99ab7",
-                background:
-                  filtroEstado === valor
-                    ? "#d81b60"
-                    : "#ffffff",
-                color:
-                  filtroEstado === valor
-                    ? "#ffffff"
-                    : "#6f163f",
-                fontWeight: "700",
-                cursor: "pointer",
-              }}
+              aria-pressed={filtroEstado === valor}
             >
               {texto}
             </button>
           ))}
         </div>
 
-        <p
-          style={{
-            marginTop: 0,
-            color: "#6d5962",
-          }}
-        >
-          Mostrando {movimientosFiltrados.length} de {movimientos.length} movimientos.
+        <p className="movimientos-bandeja__resumen">
+          Mostrando {movimientosFiltrados.length} de {movimientos.length}. El historial completo permanece disponible en “Todos”.
         </p>
 
-        <div
-          style={{
-            width: "100%",
-            overflowX: "auto",
-          }}
-        >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              minWidth: "760px",
-            }}
-          >
-            <thead>
-              <tr>
-                <th align="left">Fecha</th>
-                <th align="left">Tipo</th>
-                <th align="left">Concepto</th>
-                <th align="right">Monto</th>
-                <th align="center">Estado</th>
-                <th align="center">Comprobante</th>
-                <th align="center">Acciones</th>
-              </tr>
-            </thead>
+        <div className="movimientos-bandeja__lista">
+          {movimientosFiltrados.map((movimiento) => {
+            const estado = movimiento.estado || movimiento.status;
+            const pendiente = estado !== "Revisado" && estado !== "Cancelado";
+            const requiereClasificacion = pendiente && !validarMovimientoParaRevision(movimiento).valido;
+            const esSalida = String(movimiento.tipo || "").toLowerCase() === "salida";
+            return (
+              <article className={`movimiento-card movimiento-card--${String(estado || "pendiente").toLowerCase().replaceAll(" ", "-")}`} key={movimiento.id}>
+                <div className="movimiento-card__principal">
+                  <div className="movimiento-card__meta">
+                    <span className={`movimiento-card__tipo ${esSalida ? "es-salida" : "es-entrada"}`}>{esSalida ? "Salida" : "Entrada"}</span>
+                    <time>{movimiento.fecha}</time>
+                  </div>
+                  <h3>{movimiento.concepto || "Concepto pendiente"}</h3>
+                  {(movimiento.distribuciones || []).length > 0 && (
+                    <small>Pago distribuido en {movimiento.distribuciones.length} partidas</small>
+                  )}
+                  <div className="movimiento-card__estado">
+                    <span>{estado || "Pendiente de revisión"}</span>
+                    <span>{movimiento.receiptUrl ? "Con comprobante" : "Sin comprobante"}</span>
+                  </div>
+                </div>
 
-            <tbody>
-              {movimientosFiltrados.map((movimiento) => (
-                <tr key={movimiento.id}>
-                  <td>{movimiento.fecha}</td>
+                <div className="movimiento-card__importe">{formatoDinero(movimiento.monto)}</div>
 
-                  <td>{movimiento.tipo}</td>
+                <div className="movimiento-card__acciones">
+                  {pendiente && (
+                    <button
+                      type="button"
+                      className="movimiento-card__resolver"
+                      onClick={() => {
+                        if (requiereClasificacion) abrirEdicion(movimiento);
+                        else onCambiarEstado(movimiento.id, "Revisado");
+                      }}
+                    >
+                      {requiereClasificacion ? "Resolver movimiento" : "Confirmar revisión"}
+                    </button>
+                  )}
 
-                  <td>
-                    {movimiento.concepto}
-                    {(movimiento.distribuciones || []).length > 0 && (
-                      <small style={{ display: "block", color: "#6d5962" }}>
-                        Pago distribuido en {movimiento.distribuciones.length} partidas
-                      </small>
-                    )}
-                  </td>
-
-                  <td align="right">
-                    {formatoDinero(movimiento.monto)}
-                  </td>
-
-                  <td align="center">
-                    {movimiento.estado}
-                  </td>
-
-                  <td align="center">
+                  <details className="movimiento-card__opciones">
+                    <summary>Más opciones</summary>
+                    <div>
                     {movimiento.receiptUrl ? (
                       <button
                         type="button"
@@ -362,50 +335,18 @@ function HistorialMovimientos({
                           movimiento.id
                         }
                       >
-                        {abriendoComprobante ===
-                        movimiento.id
-                          ? "Abriendo..."
-                          : "📎 Ver comprobante"}
+                        {abriendoComprobante === movimiento.id ? "Abriendo..." : "Ver comprobante"}
                       </button>
                     ) : (
-                      <span
-                        style={{
-                          color: "#999",
-                          fontSize: "13px",
-                        }}
-                      >
-                        Sin comprobante
-                      </span>
+                      <span>Sin comprobante adjunto</span>
                     )}
-                  </td>
 
-                  <td align="center">
-                    {(movimiento.estado || movimiento.status) !== "Revisado" &&
-                      (movimiento.estado || movimiento.status) !== "Cancelado" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const validacion = validarMovimientoParaRevision(movimiento);
-                            if (validacion.valido) {
-                              onCambiarEstado(movimiento.id, "Revisado");
-                            } else {
-                              abrirEdicion(movimiento);
-                            }
-                          }}
-                        >
-                          {validarMovimientoParaRevision(movimiento).valido
-                            ? "Marcar revisado"
-                            : "Clasificar gasto"}
-                        </button>
-                      )}
-
-                    {(movimiento.estado || movimiento.status) !== "Cancelado" && (
+                    {estado !== "Cancelado" && (
                       <>
-                        {String(movimiento.tipo || "").toLowerCase() === "salida" && (
+                        {esSalida && (
                           <button
                             type="button"
                             onClick={() => abrirDistribucion(movimiento)}
-                            style={{ marginLeft: "6px" }}
                           >
                             {(movimiento.distribuciones || []).length
                               ? "Editar reparto"
@@ -416,9 +357,8 @@ function HistorialMovimientos({
                           <button
                             type="button"
                             onClick={() => abrirEdicion(movimiento)}
-                            style={{ marginLeft: "6px" }}
                           >
-                            {movimiento.estado === "Pendiente de revisión" ? "Clasificar" : "Editar"}
+                            {estado === "Pendiente de revisión" ? "Clasificar manualmente" : "Editar"}
                           </button>
                         )}
 
@@ -427,19 +367,17 @@ function HistorialMovimientos({
                           onClick={() =>
                             confirmarEliminacion(movimiento)
                           }
-                          style={{
-                            marginLeft: "6px",
-                          }}
                         >
                           Cancelar
                         </button>
                       </>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </div>
+                  </details>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
