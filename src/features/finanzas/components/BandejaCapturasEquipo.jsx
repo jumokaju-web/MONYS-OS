@@ -50,7 +50,7 @@ function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
   );
 }
 
-export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
+export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista = 'todo' }) {
   const { usuario } = useUser();
   const esOwner = usuario?.role === 'owner';
   const alcanceBranchId = esOwner ? null : branchId;
@@ -166,9 +166,19 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [] }) {
     ],
   }), [capturas, sucursales, usuario?.branch_id, usuario?.sucursal]);
 
+  if (vista === 'cierre') {
+    return (
+      <section className="capturas-equipo">
+        {esOwner
+          ? <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} seguimientos={seguimientosCierre} usuario={usuario} />
+          : <p className="capturas-aviso">El cierre general de hoy está disponible para Dirección.</p>}
+      </section>
+    );
+  }
+
   return (
     <section className="capturas-equipo">
-      {esOwner && <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} seguimientos={seguimientosCierre} usuario={usuario} />}
+      {vista !== 'revision' && esOwner && <CierreHoyDireccion resumen={resumenCierreHoy} cargando={cargando} error={error} onActualizar={cargar} seguimientos={seguimientosCierre} usuario={usuario} />}
       <div className="capturas-equipo-cabecera">
         <div>
           <span>MONYS OS · CONTROL DIARIO</span>
