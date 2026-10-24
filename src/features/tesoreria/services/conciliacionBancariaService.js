@@ -17,7 +17,7 @@ export async function obtenerConciliacionesBancarias(revisionBancariaId) {
   return data || [];
 }
 
-export async function guardarConciliacionBancaria({ revisionBancariaId, banco, movimiento }) {
+export async function guardarConciliacionBancaria({ revisionBancariaId, banco, movimiento, proveedoresSugeridos = [] }) {
   if (!revisionBancariaId || !banco?.id || !movimiento?.id) throw new Error('Falta seleccionar el movimiento bancario y el registro de Tesorería.');
   const salida = Number(banco.cargo) > 0;
   const montoBanco = Number(salida ? banco.cargo : banco.abono);
@@ -51,7 +51,18 @@ export async function guardarConciliacionBancaria({ revisionBancariaId, banco, m
       direccion: salida ? 'SALIDA' : 'ENTRADA',
       estado: 'ACTIVA',
       registrado_por: usuario.id,
-      snapshot: { banco, movimiento },
+      snapshot: {
+        banco,
+        movimiento,
+        proveedores_sugeridos: (proveedoresSugeridos || []).map((proveedor) => ({
+          id: proveedor.id || null,
+          numeroProveedor: proveedor.numeroProveedor || null,
+          nombre: proveedor.nombre || null,
+          saldoReportado: proveedor.saldoReportado ?? null,
+          evidencia: proveedor.evidencia || null,
+        })),
+        alcance: 'Vínculo banco–Tesorería. No registra un abono ni liquida el saldo del proveedor.',
+      },
     })
     .select('id,revision_bancaria_id,banco_movimiento_id,cash_movement_id,cuenta,fecha_banco,monto,direccion,estado,registrado_en,snapshot')
     .single();

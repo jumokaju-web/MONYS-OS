@@ -128,7 +128,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
           </>}
           {vistaEquipo === 'disponible' && <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} />}
         </section>}
-        {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} /></section>}
+        {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} creditosProveedores={creditos} /></section>}
         {tab === 'control' && <section aria-label="Movimientos"><TesoreriaPage ocultarRevisionBancaria volverAlDashboard={volverAlDashboard} onMovimientoGuardado={onMovimientoGuardado} movimientos={movimientos} formatoDinero={formatoDinero} onCambiarEstado={onCambiarEstado} /></section>}
         {tab === 'plan' && <section aria-label="Planeación financiera"><DirectorFinanciero key={vistaPlan} vistaInicial={vistaPlan} creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} onAbrirImportador={onAbrirImportador} /></section>}
       </section>
