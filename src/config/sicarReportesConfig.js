@@ -5,10 +5,31 @@ export const TIPOS_REPORTE_SICAR = {
   INVENTARIO: "INVENTARIO",
   UTILIDAD_VENTAS: "UTILIDAD_VENTAS",
   INVENTARIO_UTILIDAD: "INVENTARIO_UTILIDAD",
+  CORTES_CAJA: "CORTES_CAJA",
   DESCONOCIDO: "DESCONOCIDO",
 };
 
 export const REPORTES_SICAR_CONFIG = [
+  {
+    tipo: TIPOS_REPORTE_SICAR.CORTES_CAJA,
+    nombre: "Cortes de caja",
+    descripcion: "Cierres oficiales por caja, forma de pago y diferencia operativa.",
+    hojasEsperadas: ["Cortes", "CorteCaja"],
+    frasesIdentificacion: [
+      "Reporte de Corte de Caja",
+      "Calculado",
+      "Contado",
+      "Diferencia",
+      "Retirado",
+    ],
+    prioridad: 110,
+    permiteAnalizar: [
+      "efectivo_contado",
+      "diferencias_caja",
+      "metodos_pago",
+      "anomalias_sicar",
+    ],
+  },
   {
     tipo: TIPOS_REPORTE_SICAR.VENTAS_ARTICULOS,
     nombre: "Ventas por artículo",

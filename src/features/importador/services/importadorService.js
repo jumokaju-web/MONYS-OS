@@ -127,6 +127,11 @@ async function guardarDatosPorTipoReporte({
       break;
     }
 
+    case "Cortes de caja":
+      // El corte completo y su desglose quedan auditados en importacion_detalle.
+      // No se mezcla con cierres_turno, que corresponde a capturas manuales del equipo.
+      break;
+
     case "Créditos de proveedores": {
 
       console.log(

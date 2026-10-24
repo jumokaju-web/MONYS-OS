@@ -28,6 +28,7 @@ export default function CentroDecisionesFinancieras({ movimientos, creditosProve
     <section className="finanzas-decision__rutas" aria-label="Rutas de decisión">
       <button type="button" onClick={() => onAbrirArea?.("equipo", "disponible")}><span>💵</span><b>Dinero disponible</b><small>Bancos, cajas y compromisos</small></button>
       <button type="button" onClick={() => onAbrirArea?.("control")}><span>🧾</span><b>Resolver movimientos</b><small>{resumen.pendientes} pendientes de revisión</small></button>
+      <button type="button" onClick={() => onAbrirArea?.("equipo", "sicar")}><span>🏧</span><b>Cortes oficiales</b><small>Efectivo y diferencias de SICAR</small></button>
       <button type="button" onClick={() => onAbrirArea?.("plan", "panorama")}><span>📊</span><b>Resultados</b><small>Ventas, utilidad y tendencia</small></button>
       <button type="button" onClick={() => onAbrirArea?.("plan", "rescate")}><span>🛟</span><b>Plan de rescate</b><small>Prioridades de los próximos 30 días</small></button>
     </section>

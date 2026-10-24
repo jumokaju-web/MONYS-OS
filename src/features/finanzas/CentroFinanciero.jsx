@@ -7,6 +7,7 @@ import { obtenerCreditosProveedoresActuales } from '../inteligencia/services/cre
 import BandejaCapturasEquipo from './components/BandejaCapturasEquipo';
 import DisponibilidadFinancieraHoy from './components/DisponibilidadFinancieraHoy';
 import CentroDecisionesFinancieras from './components/CentroDecisionesFinancieras';
+import CortesCajaSicar from './components/CortesCajaSicar';
 
 const areas = [
   ['direccion', 'Dirección hoy', 'Prioridad, alertas y siguiente paso'],
@@ -19,6 +20,7 @@ const areas = [
 const vistasEquipo = [
   ['cierre', 'Cierre de hoy', 'Qué cajas faltan y cuáles ya quedaron'],
   ['revision', 'Revisar cortes', 'Diferencias, evidencias y aclaraciones'],
+  ['sicar', 'Cortes oficiales SICAR', 'Efectivo, métodos y diferencias reales'],
   ['fuentes', 'Cargar reportes', 'SICAR, banco y comprobantes'],
   ['disponible', 'Dinero disponible', 'Cuánto puedes usar hoy'],
 ];
@@ -108,6 +110,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
 
           {vistaEquipo === 'cierre' && <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} vista="cierre" />}
           {vistaEquipo === 'revision' && <BandejaCapturasEquipo branchId={branchId} sucursales={sucursalesDashboard} vista="revision" />}
+          {vistaEquipo === 'sicar' && <CortesCajaSicar branchId={branchId} sucursales={sucursalesDashboard} onAbrirImportador={onAbrirImportador} />}
           {vistaEquipo === 'fuentes' && <>
           <div className="finanzas-fuentes">
             <p><b>Estado de los datos:</b> los reportes enviados al chat no se importan automáticamente a MONYS. Los borradores bancarios se guardan en este dispositivo; las cifras del negocio usan las importaciones registradas.</p>
