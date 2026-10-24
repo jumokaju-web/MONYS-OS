@@ -66,6 +66,7 @@ function datosProveedores(reporte = {}, hoy = fechaMexico()) {
 export function resumirDisponibilidadFinanciera({
   cuentas = [],
   cierre = {},
+  cortesOficiales = {},
   creditosProveedores = {},
   hoy = fechaMexico(),
 } = {}) {
@@ -86,13 +87,28 @@ export function resumirDisponibilidadFinanciera({
     ? detalleCuentas.reduce((total, cuenta) => total + cuenta.saldo, 0)
     : null;
 
-  const cajasEsperadas = Math.max(0, Number(cierre?.cajasEsperadas) || 0);
-  const cajasFaltantes = Math.max(0, Number(cierre?.cajasFaltantes) || 0);
-  const cajasIncompletas = Math.max(0, Number(cierre?.cajasIncompletas) || 0);
-  const cajasCompletas = cajasEsperadas > 0 && cajasFaltantes === 0 && cajasIncompletas === 0;
-  const efectivoCajas = cajasCompletas ? numeroONulo(cierre?.efectivoFinal) : null;
-  const efectivoResguardado = numeroONulo(cierre?.efectivoEntregado);
-  const diferencias = Math.max(0, Number(cierre?.diferencias) || 0);
+  const cajasEsperadas = Math.max(0, Number(cierre?.cajasEsperadas) || Number(cortesOficiales?.cajasEsperadas) || 0);
+  const cierreManualCompleto = cajasEsperadas > 0
+    && Math.max(0, Number(cierre?.cajasFaltantes) || 0) === 0
+    && Math.max(0, Number(cierre?.cajasIncompletas) || 0) === 0;
+  const corteOficialCompleto = cortesOficiales?.completo === true;
+  const fuenteCajas = corteOficialCompleto ? "SICAR_OFICIAL" : cierreManualCompleto ? "CIERRE_EQUIPO" : "PENDIENTE";
+  const cajasCompletas = fuenteCajas !== "PENDIENTE";
+  const cajasFaltantes = corteOficialCompleto
+    ? 0
+    : cierreManualCompleto ? 0 : Math.max(0, Number(cortesOficiales?.cajasFaltantes) || Number(cierre?.cajasFaltantes) || 0);
+  const cajasIncompletas = corteOficialCompleto
+    ? 0
+    : cierreManualCompleto ? 0 : Math.max(0, Number(cortesOficiales?.cajasIncompletas) || Number(cierre?.cajasIncompletas) || 0);
+  const efectivoCajas = corteOficialCompleto
+    ? numeroONulo(cortesOficiales?.efectivoEnCaja)
+    : cierreManualCompleto ? numeroONulo(cierre?.efectivoFinal) : null;
+  const efectivoResguardado = corteOficialCompleto
+    ? numeroONulo(cortesOficiales?.efectivoRetirado)
+    : cierreManualCompleto ? numeroONulo(cierre?.efectivoEntregado) : null;
+  const diferencias = corteOficialCompleto
+    ? Math.max(0, Number(cortesOficiales?.diferencias) || 0)
+    : Math.max(0, Number(cierre?.diferencias) || 0);
   const proveedores = datosProveedores(creditosProveedores, hoy);
 
   const liquidezLocalizada = bancosVigentes && cajasCompletas
@@ -124,9 +140,9 @@ export function resumirDisponibilidadFinanciera({
   } else if (!cajasCompletas) {
     prioridad = {
       nivel: "alta",
-      titulo: "Completa el cierre de todas las cajas",
-      detalle: `${cajasFaltantes} sin cerrar y ${cajasIncompletas} con importes pendientes. MONYS no los convierte en cero.`,
-      destino: "equipo",
+      titulo: "Carga o completa los cortes de caja de hoy",
+      detalle: `${cajasFaltantes} sin corte y ${cajasIncompletas} con importes pendientes. MONYS no los convierte en cero.`,
+      destino: "importador",
     };
   } else if (!proveedores.disponible) {
     prioridad = {
@@ -181,6 +197,8 @@ export function resumirDisponibilidadFinanciera({
     cajasIncompletas,
     efectivoCajas,
     efectivoResguardado,
+    fuenteCajas,
+    cortesOficiales,
     diferencias,
     proveedores,
     liquidezLocalizada,

@@ -79,5 +79,39 @@ test("un cierre incompleto no se sustituye por efectivo cero", () => {
   });
   assert.equal(resumen.efectivoCajas, null);
   assert.equal(resumen.liquidezLocalizada, null);
-  assert.equal(resumen.prioridad.destino, "equipo");
+  assert.equal(resumen.prioridad.destino, "importador");
+});
+
+test("prefiere el corte oficial y separa el efectivo retirado", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    cortesOficiales: {
+      completo: true,
+      cajasEsperadas: 3,
+      efectivoEnCaja: 1250,
+      efectivoRetirado: 9750,
+      diferencias: 0,
+    },
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.fuenteCajas, "SICAR_OFICIAL");
+  assert.equal(resumen.efectivoCajas, 1250);
+  assert.equal(resumen.efectivoResguardado, 9750);
+  assert.equal(resumen.liquidezLocalizada, 11250);
+  assert.equal(resumen.dineroLibre, 7250);
+});
+
+test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial completo", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    cortesOficiales: { completo: false, cajasFaltantes: 3 },
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.fuenteCajas, "CIERRE_EQUIPO");
+  assert.equal(resumen.efectivoCajas, 3000);
+  assert.equal(resumen.dineroLibre, 9000);
 });

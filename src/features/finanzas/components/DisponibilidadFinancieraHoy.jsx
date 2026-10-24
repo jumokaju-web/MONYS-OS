@@ -7,6 +7,8 @@ import {
   obtenerCuentasBancariasParaConfirmar,
 } from "../../tesoreria/services/cuentasFinancierasService";
 import { resumirCierreDiarioDireccion } from "../utils/cierreDiarioDireccion";
+import { obtenerCortesCajaSicar } from "../services/cortesCajaSicarService";
+import { resumirCortesOficialesParaDisponibilidad } from "../utils/disponibilidadCortesOficiales";
 import { resumirDisponibilidadFinanciera } from "../utils/disponibilidadFinanciera";
 import "./DisponibilidadFinancieraHoy.css";
 
@@ -36,10 +38,12 @@ export default function DisponibilidadFinancieraHoy({
   sucursales = [],
   creditosProveedores = {},
   onAbrirArea,
+  onAbrirImportador,
 }) {
   const { usuario } = useUser();
   const [cuentas, setCuentas] = useState([]);
   const [cierre, setCierre] = useState({});
+  const [importacionesCortes, setImportacionesCortes] = useState([]);
   const [capturas, setCapturas] = useState({});
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
@@ -49,19 +53,25 @@ export default function DisponibilidadFinancieraHoy({
   const role = String(usuario?.role || "").toLowerCase();
   const puedeConfirmar = ["owner", "director", "admin", "finanzas"].includes(role);
   const alcanceCompleto = ["owner", "director", "admin", "finanzas"].includes(role);
+  const branchIds = useMemo(() => {
+    const ids = (sucursales || []).map((sucursal) => sucursal?.id || sucursal?.branch_id).filter(Boolean);
+    const principal = usuario?.branch_id || branchId;
+    return [...new Set(principal ? [...ids, principal] : ids)];
+  }, [branchId, sucursales, usuario?.branch_id]);
 
   const cargar = useCallback(async () => {
     if (!usuario?.organization_id) return;
     setCargando(true);
     setError("");
     try {
-      const [resumenBancos, cierres] = await Promise.all([
+      const [resumenBancos, cierres, cortesOficiales] = await Promise.all([
         obtenerCuentasBancariasParaConfirmar({ organizationId: usuario.organization_id }),
         obtenerCierresTurno({ branchId: alcanceCompleto ? null : branchId, limite: 100 }),
+        obtenerCortesCajaSicar({ branchIds }),
       ]);
       const capturasFinancieras = extraerCapturasFinancieras(cierres);
       setCuentas(resumenBancos.cuentas);
-      setCierre(resumirCierreDiarioDireccion({
+      const cierreResumido = resumirCierreDiarioDireccion({
         capturas: capturasFinancieras,
         sucursales: [
           ...(sucursales || []),
@@ -69,21 +79,35 @@ export default function DisponibilidadFinancieraHoy({
             ? [{ id: usuario.branch_id, nombre: usuario.sucursal }]
             : []),
         ],
-      }));
+      });
+      setCierre(cierreResumido);
+      setImportacionesCortes(cortesOficiales);
     } catch (e) {
       setError(e?.message || "No fue posible preparar la disponibilidad financiera de hoy.");
     } finally {
       setCargando(false);
     }
-  }, [alcanceCompleto, branchId, sucursales, usuario?.branch_id, usuario?.organization_id, usuario?.sucursal]);
+  }, [alcanceCompleto, branchId, branchIds, sucursales, usuario?.branch_id, usuario?.organization_id, usuario?.sucursal]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  const cortesOficiales = useMemo(() => resumirCortesOficialesParaDisponibilidad({
+    importaciones: importacionesCortes,
+    cierre,
+    hoy: cierre?.fecha,
+  }), [cierre, importacionesCortes]);
 
   const resumen = useMemo(() => resumirDisponibilidadFinanciera({
     cuentas,
     cierre,
+    cortesOficiales,
     creditosProveedores,
-  }), [cuentas, cierre, creditosProveedores]);
+  }), [cuentas, cierre, cortesOficiales, creditosProveedores]);
+
+  function resolverPrioridad() {
+    if (resumen.prioridad.destino === "importador") onAbrirImportador?.();
+    else onAbrirArea?.(resumen.prioridad.destino);
+  }
 
   function cambiarCaptura(accountId, campo, valor) {
     setCapturas((actual) => ({
@@ -141,7 +165,7 @@ export default function DisponibilidadFinancieraHoy({
           <span>PRIORIDAD</span>
           <h3>{resumen.prioridad.titulo}</h3>
           <p>{resumen.prioridad.detalle}</p>
-          <button type="button" onClick={() => onAbrirArea?.(resumen.prioridad.destino)}>
+          <button type="button" onClick={resolverPrioridad}>
             Resolver esta prioridad →
           </button>
         </article>
@@ -149,9 +173,24 @@ export default function DisponibilidadFinancieraHoy({
 
       <div className="disponibilidad-hoy__metricas">
         <article><span>En bancos</span><Importe valor={resumen.saldoBancos} /><small>{resumen.bancosVigentes ? "Confirmado hoy" : `${resumen.cuentasPendientes} por actualizar`}</small></article>
-        <article><span>En cajas</span><Importe valor={resumen.efectivoCajas} /><small>{resumen.cajasCompletas ? `${resumen.cajasEsperadas} cajas completas` : "Cierre incompleto"}</small></article>
+        <article><span>En cajas</span><Importe valor={resumen.efectivoCajas} /><small>{resumen.cajasCompletas ? `${resumen.cajasEsperadas} cajas · ${resumen.fuenteCajas === "SICAR_OFICIAL" ? "SICAR oficial" : "cierre del equipo"}` : "Cierre incompleto"}</small></article>
         <article><span>Liquidez localizada</span><Importe valor={resumen.liquidezLocalizada} /><small>Banco + efectivo que permanece en caja</small></article>
         <article><span>Obligaciones a 7 días</span><Importe valor={resumen.proveedores.vigente && resumen.proveedores.sinFecha === 0 ? resumen.proveedores.compromisos7Dias : null} /><small>{!resumen.proveedores.vigente ? "Reporte por actualizar" : resumen.proveedores.sinFecha ? `${resumen.proveedores.sinFecha} sin vencimiento` : "Según fechas reportadas"}</small></article>
+      </div>
+
+      <div className={`disponibilidad-hoy__fuente ${cortesOficiales.completo ? "esta-lista" : ""}`}>
+        <div>
+          <span>{cortesOficiales.completo ? "DATO REAL · SICAR" : "PENDIENTE · CORTE OFICIAL"}</span>
+          <strong>{cortesOficiales.completo
+            ? "Cortes oficiales de hoy completos"
+            : cortesOficiales.fechaUltimoCorte
+              ? `Último corte oficial: ${cortesOficiales.fechaUltimoCorte}`
+              : "Todavía no hay cortes SICAR importados"}</strong>
+          <small>{cortesOficiales.completo
+            ? `${cortesOficiales.cajasEncontradas} cajas comprobadas. Solo se suma el efectivo que permanece en caja.`
+            : `${cortesOficiales.cajasFaltantes} sin corte de hoy y ${cortesOficiales.cajasIncompletas} incompletas. La ausencia no se convierte en cero.`}</small>
+        </div>
+        <button type="button" onClick={onAbrirImportador}>Actualizar cortes</button>
       </div>
 
       <div className="disponibilidad-hoy__ruta" aria-label="Comprobaciones para liberar dinero">
@@ -162,7 +201,7 @@ export default function DisponibilidadFinancieraHoy({
 
       {resumen.efectivoResguardado > 0 && (
         <p className="disponibilidad-hoy__aviso">
-          Hay {dinero.format(resumen.efectivoResguardado)} reportados como retirados o resguardados. Se muestran aparte para no sumarlos dos veces hasta identificar su destino.
+          Hay {dinero.format(resumen.efectivoResguardado)} reportados como retirados o resguardados. Se muestran aparte y no se suman hasta identificar si fueron depositados, pagados o siguen bajo resguardo.
         </p>
       )}
       {mensaje && <p className="disponibilidad-hoy__mensaje" role="status">✓ {mensaje}</p>}

@@ -126,7 +126,7 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
             <p>El mismo pago puede aparecer en varias fuentes. La conciliación entre fuentes está pendiente; no se suman automáticamente para calcular utilidad.</p>
           </section>
           </>}
-          {vistaEquipo === 'disponible' && <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} />}
+          {vistaEquipo === 'disponible' && <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} onAbrirImportador={onAbrirImportador} />}
         </section>}
         {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} creditosProveedores={creditos} /></section>}
         {tab === 'control' && <section aria-label="Movimientos"><TesoreriaPage ocultarRevisionBancaria volverAlDashboard={volverAlDashboard} onMovimientoGuardado={onMovimientoGuardado} movimientos={movimientos} formatoDinero={formatoDinero} onCambiarEstado={onCambiarEstado} /></section>}
