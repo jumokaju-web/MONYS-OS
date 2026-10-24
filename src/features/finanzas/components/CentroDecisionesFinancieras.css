@@ -20,7 +20,7 @@
 .finanzas-decision__dato strong{margin:7px 0 5px;font-size:22px;color:#4a2e3f}
 .finanzas-decision__dato b{font-size:13px}
 .finanzas-decision__dato small{margin-top:6px;color:#796873;line-height:1.35}
-.finanzas-decision__rutas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;min-width:0}
+.finanzas-decision__rutas{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;min-width:0}
 .finanzas-decision__rutas button{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;text-align:left;padding:14px;border:1px solid #decbd6;border-radius:13px;background:#fff;color:#452f3d;cursor:pointer;min-width:0}
 .finanzas-decision__rutas button:hover,.finanzas-decision__rutas button:focus-visible{border-color:#9e4b74;background:#fff8fb;outline:2px solid #e9bfd3;outline-offset:2px}
 .finanzas-decision__rutas span{grid-row:1/3;font-size:23px}

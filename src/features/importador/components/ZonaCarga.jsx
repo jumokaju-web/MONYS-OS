@@ -16,6 +16,7 @@ import {
   normalizarUtilidadArticulos,
   normalizarExistencias,
   normalizarMovimientosCaja,
+  normalizarCortesCaja,
   normalizarCreditosProveedores,
 } from "../utils/normalizador";
 import { guardarImportacion } from "../services/importadorService";
@@ -25,6 +26,8 @@ import {
 } from "../utils/resumenReporte";
 import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
+import ResumenCortesCaja from "./ResumenCortesCaja";
+import { resumirCortesCajaSicar } from "../../finanzas/utils/cortesCajaSicar";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
 import { adjuntarPeriodoSicar, extraerPeriodoSicar } from "../utils/periodoSicar";
@@ -49,6 +52,7 @@ const REPORTES_ESPERADOS = [
   "Utilidad de ventas",
    "Utilidad por artículos",
   "Movimientos de caja",
+  "Cortes de caja",
   "Créditos de proveedores",
 ];
 
@@ -56,7 +60,7 @@ function crearIdArchivo(file) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
-function obtenerNormalizador(tipoReporte, filasDelReporte) {
+function obtenerNormalizador(tipoReporte, filasDelReporte, periodo = {}) {
   if (tipoReporte === "Ventas por artículo") {
     return normalizarVentasPorArticulo(filasDelReporte);
   }
@@ -70,6 +74,10 @@ if (tipoReporte === "Movimientos de caja") {
   return normalizarMovimientosCaja(
     filasDelReporte
   );
+}
+
+if (tipoReporte === "Cortes de caja") {
+  return normalizarCortesCaja(filasDelReporte, periodo);
 }
 
   if (tipoReporte === "Existencias") {
@@ -103,6 +111,9 @@ if (tipoReporte === "Movimientos de caja") {
 }
 
 function generarResumen(tipoReporte, datosNormalizados) {
+  if (tipoReporte === "Cortes de caja") {
+    return resumirCortesCajaSicar(datosNormalizados);
+  }
   if (tipoReporte === "Ventas por artículo") {
     return generarResumenReporte(datosNormalizados);
   }
@@ -364,7 +375,8 @@ if (
 let datosNormalizados =
   obtenerNormalizador(
     tipoReporte,
-    filasDelReporte
+    filasDelReporte,
+    { periodoInicio, periodoFin }
   );
 
 if (
@@ -411,7 +423,7 @@ if (
         ? { ...resumenBase, controlSicar }
         : resumenBase;
 
-      const analisis = resumen
+      const analisis = resumen && tipoReporte !== "Cortes de caja"
         ? generarAnalisisEjecutivo(resumen)
         : null;
 
@@ -1375,6 +1387,8 @@ if (
           {archivoActivo.resumen && (
             archivoActivo.tipoReporte === "Utilidad de ventas" ? (
               <ResumenUtilidadVentas resumen={archivoActivo.resumen} />
+            ) : archivoActivo.tipoReporte === "Cortes de caja" ? (
+              <ResumenCortesCaja resumen={archivoActivo.resumen} />
             ) : (
               <ResumenReporte resumen={archivoActivo.resumen} />
             )

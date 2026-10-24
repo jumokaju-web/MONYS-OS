@@ -222,12 +222,41 @@ const tieneUtilidad = contieneAlgunaColumna(
       "total",
     ]);
 
+  const tieneCalculadoCorte = contieneAlgunaColumna(columnas, [
+    "calculado",
+  ]);
+
+  const tieneContadoCorte = contieneAlgunaColumna(columnas, [
+    "contado",
+  ]);
+
+  const tieneDiferenciaCorte = contieneAlgunaColumna(columnas, [
+    "diferencia",
+  ]);
+
+  const tieneRetiradoCorte = contieneAlgunaColumna(columnas, [
+    "retirado",
+  ]);
+
   if (
     tieneNoProveedor &&
     tieneNombreProveedor &&
     tieneSaldoProveedor
   ) {
     return "Créditos de proveedores";
+  }
+
+  if (
+    tieneFecha &&
+    tieneHora &&
+    tieneCajaMovimiento &&
+    tieneUsuarioMovimiento &&
+    tieneCalculadoCorte &&
+    tieneContadoCorte &&
+    tieneDiferenciaCorte &&
+    tieneRetiradoCorte
+  ) {
+    return "Cortes de caja";
   }
 
   /*

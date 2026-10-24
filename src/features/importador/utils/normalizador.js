@@ -1,4 +1,5 @@
 import { saldoProveedor, fechaProveedor } from './datosProveedor.js';
+import { normalizarFechaSicar } from './periodoSicar.js';
 function limpiarEncabezado(valor) {
   return String(valor ?? "")
     .trim()
@@ -1308,4 +1309,132 @@ export function normalizarMovimientosCaja(filas) {
         fila.total !== 0 ||
         fila.comentario !== ""
     );
+}
+
+function normalizarHoraSicar(valor) {
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    return valor.toISOString().slice(11, 19);
+  }
+
+  const numero = typeof valor === "number" ? valor : Number(valor);
+  if (Number.isFinite(numero) && numero > 0) {
+    const fraccion = ((numero % 1) + 1) % 1;
+    const segundos = Math.round(fraccion * 86400) % 86400;
+    const hora = Math.floor(segundos / 3600);
+    const minuto = Math.floor((segundos % 3600) / 60);
+    const segundo = segundos % 60;
+    return [hora, minuto, segundo].map((parte) => String(parte).padStart(2, "0")).join(":");
+  }
+
+  const texto = String(valor ?? "").trim();
+  const coincidencia = texto.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!coincidencia) return null;
+  return [coincidencia[1], coincidencia[2], coincidencia[3] || "00"]
+    .map((parte) => String(parte).padStart(2, "0"))
+    .join(":");
+}
+
+function claveMetodoCorte(nombre) {
+  return limpiarEncabezado(nombre).replace(/\s+/g, "_") || "otro";
+}
+
+export function normalizarCortesCaja(filas, periodo = {}) {
+  if (!Array.isArray(filas) || filas.length < 2) return [];
+
+  const encabezados = filas[0].map(limpiarEncabezado);
+  const columnas = {
+    fecha: buscarColumna(encabezados, ["fecha"]),
+    hora: buscarColumna(encabezados, ["hora"]),
+    caja: buscarColumna(encabezados, ["caja"]),
+    usuario: buscarColumna(encabezados, ["usuario"]),
+    calculado: buscarColumna(encabezados, ["calculado"]),
+    contado: buscarColumna(encabezados, ["contado"]),
+    diferencia: buscarColumna(encabezados, ["diferencia"]),
+    retirado: buscarColumna(encabezados, ["retirado"]),
+  };
+  const requeridas = Object.values(columnas);
+  if (requeridas.some((indice) => indice < 0)) return [];
+
+  const cortes = [];
+  let corteActual = null;
+
+  for (const fila of filas.slice(1)) {
+    const fecha = normalizarFechaSicar(obtenerValor(fila, columnas.fecha));
+    const caja = String(obtenerValor(fila, columnas.caja)).trim();
+
+    if (fecha && caja) {
+      corteActual = {
+        codigo: `CORTE-${fecha}-${caja}-${normalizarHoraSicar(obtenerValor(fila, columnas.hora)) || "SIN-HORA"}`,
+        descripcion: `Corte SICAR ${caja}`,
+        categoria: "Cortes de caja",
+        cantidad: 1,
+        tipoDato: "corte_caja_sicar",
+        fecha,
+        hora: normalizarHoraSicar(obtenerValor(fila, columnas.hora)),
+        caja,
+        usuario: String(obtenerValor(fila, columnas.usuario)).trim() || null,
+        calculado: convertirNumeroOpcional(obtenerValor(fila, columnas.calculado)),
+        contado: convertirNumeroOpcional(obtenerValor(fila, columnas.contado)),
+        diferenciaReportada: convertirNumeroOpcional(obtenerValor(fila, columnas.diferencia)),
+        retirado: convertirNumeroOpcional(obtenerValor(fila, columnas.retirado)),
+        periodoInicio: periodo?.periodoInicio ?? null,
+        periodoFin: periodo?.periodoFin ?? null,
+        metodos: [],
+        alertas: [],
+      };
+      cortes.push(corteActual);
+      continue;
+    }
+
+    if (!corteActual) continue;
+    const nombreMetodo = String(obtenerValor(fila, columnas.caja + 1)).trim();
+    if (!nombreMetodo) continue;
+
+    const metodo = {
+      clave: claveMetodoCorte(nombreMetodo),
+      nombre: nombreMetodo,
+      calculado: convertirNumeroOpcional(obtenerValor(fila, columnas.calculado + 1)),
+      contado: convertirNumeroOpcional(obtenerValor(fila, columnas.contado + 1)),
+      diferencia: convertirNumeroOpcional(obtenerValor(fila, columnas.diferencia + 1)),
+      retirado: convertirNumeroOpcional(obtenerValor(fila, columnas.retirado + 1)),
+    };
+    metodo.esAnomaliaChequeNegativo = metodo.clave === "cheque"
+      && metodo.calculado !== null
+      && metodo.calculado < 0
+      && (metodo.contado === null || metodo.contado === 0)
+      && (metodo.retirado === null || metodo.retirado === 0);
+    if (metodo.esAnomaliaChequeNegativo) {
+      corteActual.alertas.push({
+        tipo: "CHEQUE_NEGATIVO_SICAR",
+        metodo: nombreMetodo,
+        monto: metodo.calculado,
+        mensaje: "SICAR reportó un cheque calculado negativo sin dinero contado ni retirado. Se conserva para auditoría y no se trata como faltante real.",
+      });
+    }
+    corteActual.metodos.push(metodo);
+  }
+
+  return cortes.map((corte) => {
+    const metodosOperativos = corte.metodos.filter((metodo) => !metodo.esAnomaliaChequeNegativo);
+    const diferenciasDisponibles = metodosOperativos
+      .map((metodo) => metodo.diferencia)
+      .filter((valor) => valor !== null);
+    const diferenciaOperativa = diferenciasDisponibles.length
+      ? diferenciasDisponibles.reduce((total, valor) => total + valor, 0)
+      : corte.diferenciaReportada;
+    const metodosContadosDisponibles = corte.metodos
+      .map((metodo) => metodo.contado)
+      .filter((valor) => valor !== null);
+    const sumaMetodosContados = metodosContadosDisponibles.reduce((total, valor) => total + valor, 0);
+    const diferenciaDesglose = corte.contado === null || metodosContadosDisponibles.length === 0
+      ? null
+      : Math.round((corte.contado - sumaMetodosContados) * 100) / 100;
+
+    return {
+      ...corte,
+      diferenciaOperativa: diferenciaOperativa === null ? null : Math.round(diferenciaOperativa * 100) / 100,
+      desgloseContadoCoincide: diferenciaDesglose === null ? null : Math.abs(diferenciaDesglose) < 0.01,
+      diferenciaDesglose,
+    };
+  });
 }
