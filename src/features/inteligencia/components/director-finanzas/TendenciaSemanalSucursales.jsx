@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import VentasDiariasSicar from "./VentasDiariasSicar";
 import { obtenerHistorialCausasSemanales, obtenerHistorialImportacionesUtilidad } from "../../../dashboard/services/dashboardDataService";
 import { obtenerEmpleadosActivosParaAsignacion } from "../../services/empleadosRHService";
 import { crearTareaOperativa, obtenerCalendarioTareasOperativas, obtenerEvidenciasTarea } from "../../services/tareasOperativasService";
@@ -187,6 +188,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
   const [causas, setCausas] = useState(null);
   const [cargandoCausas, setCargandoCausas] = useState(true);
   const [semanas, setSemanas] = useState([]);
+  const [paquetesDiarios, setPaquetesDiarios] = useState([]);
   const [metrica, setMetrica] = useState("ventas");
   const sucursalesClave = useMemo(() => sucursales.map((sucursal) => sucursal.id).filter(Boolean).sort().join(":"), [sucursales]);
 
@@ -196,6 +198,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
     async function cargar() {
       if (!sucursalesClave) {
         setSemanas([]);
+        setPaquetesDiarios([]);
         setCausas(null);
         setCargandoCausas(false);
         setCargando(false);
@@ -216,6 +219,7 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         if (paquetesResultado.status === "rejected") setError(paquetesResultado.reason?.message || "No fue posible cargar la tendencia semanal.");
         else {
           setError("");
+          setPaquetesDiarios(paquetesResultado.value);
           setSemanas(
             paquetesResultado.value
               .map(({ importacion, detalles }) => resumirImportacionUtilidad({ importacion, detalles, sucursal: mapa.get(importacion.branch_id) }))
@@ -265,6 +269,8 @@ export default function TendenciaSemanalSucursales({ sucursales = [], onAbrirImp
         </div>
         <strong>{cargando ? "Consultando semanas…" : error ? "Semanas pendientes" : `${tendencia.periodos.length} semana${tendencia.periodos.length === 1 ? "" : "s"} registrada${tendencia.periodos.length === 1 ? "" : "s"}`}</strong>
       </header>
+
+      <VentasDiariasSicar paquetes={paquetesDiarios} sucursales={sucursales} cargando={cargando} error={error} onAbrirImportador={onAbrirImportador} />
 
       <div className="weekly-rescue__tabs" aria-label="Métrica de la gráfica">
         {Object.entries(METRICAS).map(([id, opcion]) => (
