@@ -9,6 +9,8 @@ import { obtenerCuentasBancariasParaConfirmar } from "../../tesoreria/services/c
 import { generarCompraMaestra } from "../services/compraMaestraService";
 import { resumirCierreDiarioDireccion } from "../../finanzas/utils/cierreDiarioDireccion";
 import { resumirDisponibilidadFinanciera } from "../../finanzas/utils/disponibilidadFinanciera";
+import { resumirCortesOficialesParaDisponibilidad } from "../../finanzas/utils/disponibilidadCortesOficiales";
+import { obtenerCortesCajaSicar } from "../../finanzas/services/cortesCajaSicarService";
 import { construirCentroDireccionCEO } from "../utils/centroDireccionCEO";
 import PlanPagosComprasCEO from "./PlanPagosComprasCEO";
 import "./CentroDireccionCEO.css";
@@ -73,6 +75,7 @@ export default function CentroDireccionCEO({
       generarCompraMaestra(),
       obtenerCuentasBancariasParaConfirmar({ organizationId }),
       obtenerCierresTurno({ branchId: null, limite: 100 }),
+      obtenerCortesCajaSicar({ branchIds }),
     ]);
 
     const valor = (indice, respaldo) => resultados[indice].status === "fulfilled"
@@ -97,6 +100,11 @@ export default function CentroDireccionCEO({
     const proveedoresParaCaja = proveedores.fuenteCompleta
       ? proveedores
       : { ...proveedores, importacion: null };
+    const cortesOficiales = resumirCortesOficialesParaDisponibilidad({
+      importaciones: valor(6, []),
+      cierre,
+      hoy: cierre.fecha,
+    });
 
     setDatos({
       cargando: false,
@@ -111,6 +119,7 @@ export default function CentroDireccionCEO({
       disponibilidad: resumirDisponibilidadFinanciera({
         cuentas: cuentas?.cuentas || [],
         cierre,
+        cortesOficiales,
         creditosProveedores: proveedoresParaCaja,
       }),
     });
