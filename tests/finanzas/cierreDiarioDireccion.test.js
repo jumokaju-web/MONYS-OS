@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resumirCierreDiarioDireccion } from "../../src/features/finanzas/utils/cierreDiarioDireccion.js";
 
-function captura({ id, branchId, cajaId, createdAt, venta = 0, efectivoFinal = 0, entregado = 0, incompleto = false }) {
+function captura({ id, branchId, cajaId, createdAt, venta = 0, efectivoFinal = 0, entregado = 0, incompleto = false, destino = null }) {
   return {
     tipo: "caja",
     cierre: { id, branch_id: branchId, created_at: createdAt, fecha: "2026-10-15" },
@@ -13,6 +13,9 @@ function captura({ id, branchId, cajaId, createdAt, venta = 0, efectivoFinal = 0
       cobrado: venta,
       efectivoFinal,
       efectivoEntregado: entregado,
+      destinoEfectivoRetirado: destino?.tipo,
+      responsableEfectivoRetirado: destino?.responsable,
+      detalleEfectivoRetirado: destino?.detalle,
       diferenciaVenta: 0,
       diferenciaCaja: 0,
     },
@@ -49,4 +52,22 @@ test("suma únicamente el último corte completo de cada caja y conserva las fal
   assert.equal(resumen.ventaSicar, 10000);
   assert.equal(resumen.efectivoFinal, 1000);
   assert.equal(resumen.efectivoEntregado, 4000);
+  assert.equal(resumen.retiros[0].estado, "PENDIENTE");
+});
+
+test("identifica el destino del retiro cuando tiene responsable y referencia", () => {
+  const resumen = resumirCierreDiarioDireccion({
+    fecha: "2026-10-14",
+    sucursales: [{ id: "centro", name: "Centro" }],
+    capturas: [captura({
+      id: "c1",
+      branchId: "centro",
+      cajaId: "CAJA_1",
+      createdAt: "2026-10-15T03:00:00.000Z",
+      entregado: 800,
+      destino: { tipo: "RESGUARDO", responsable: "Mónica", detalle: "Caja fuerte" },
+    })],
+  });
+  assert.equal(resumen.retiros[0].estado, "IDENTIFICADO");
+  assert.equal(resumen.retiros[0].responsable, "Mónica");
 });

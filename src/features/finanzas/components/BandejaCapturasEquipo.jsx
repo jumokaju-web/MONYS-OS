@@ -38,6 +38,10 @@ const etiquetasCategoria = {
   compra_emergencia: "Compra de emergencia",
   prestamo_anticipo: "Préstamo o anticipo",
   otro: "Otro movimiento",
+  RESGUARDO: "Bajo resguardo",
+  DEPOSITO_BANCARIO: "Depósito bancario reportado",
+  PAGO_DIRECTO: "Pago directo reportado",
+  OTRO: "Otro destino reportado",
 };
 
 function TarjetaDato({ titulo, valor, alerta = false, esDinero = true }) {
@@ -307,6 +311,14 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
                   <TarjetaDato titulo="Diferencia contra SICAR" valor={datos.diferenciaVenta} alerta={Math.abs(Number(datos.diferenciaVenta) || 0) > 0.009} />
                   <TarjetaDato titulo="Diferencia de caja" valor={datos.diferenciaCaja} alerta={Math.abs(Number(datos.diferenciaCaja) || 0) > 0.009} />
                 </div>
+                {Number(datos.efectivoEntregado) > 0 && (
+                  <p className="capturas-aviso">
+                    <b>Destino reportado:</b>{" "}
+                    {datos.destinoEfectivoRetirado
+                      ? `${etiquetasCategoria[datos.destinoEfectivoRetirado] || datos.destinoEfectivoRetirado} · ${datos.responsableEfectivoRetirado || "responsable pendiente"} · ${datos.detalleEfectivoRetirado || "referencia pendiente"}`
+                      : "Pendiente de identificar. Este efectivo no se considera depósito ni pago confirmado."}
+                  </p>
+                )}
                 {Array.isArray(datos.movimientosCaja) && datos.movimientosCaja.length > 0 && (
                   <div className="captura-movimientos">
                     <h4>Movimientos declarados por el equipo</h4>

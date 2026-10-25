@@ -2,10 +2,32 @@ export function fechaOperativaMexico(ahora = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);
 }
 export const CAMPOS_CORTE = ['ventaSicar', 'efectivoVentas', 'tarjeta', 'transferencias', 'otrosCobros', 'fondoInicial', 'efectivoEntregado', 'efectivoFinal'];
+export const DESTINOS_EFECTIVO_RETIRADO = [
+  ['RESGUARDO', 'Quedó bajo resguardo'],
+  ['DEPOSITO_BANCARIO', 'Se llevará o llevó al banco'],
+  ['PAGO_DIRECTO', 'Se entregó para un pago'],
+  ['OTRO', 'Otro destino'],
+];
 export function validarImportesCorte(datos) {
   for (const campo of CAMPOS_CORTE) {
     const valor = datos?.[campo];
     if (!['string','number'].includes(typeof valor) || String(valor).trim()==='' || !Number.isFinite(Number(valor)) || Number(valor)<0) return 'Completa los importes reales de venta, cobros y efectivo. Escribe 0 únicamente cuando confirmes que no hubo importe.';
+  }
+  return '';
+}
+
+export function validarDestinoEfectivoRetirado(datos = {}) {
+  const retirado = Number(datos.efectivoEntregado);
+  if (!Number.isFinite(retirado) || retirado <= 0) return '';
+  const destinos = new Set(DESTINOS_EFECTIVO_RETIRADO.map(([valor]) => valor));
+  if (!destinos.has(String(datos.destinoEfectivoRetirado || '').trim())) {
+    return 'Indica qué pasó con el efectivo retirado.';
+  }
+  if (!String(datos.responsableEfectivoRetirado || '').trim()) {
+    return 'Indica quién recibió o resguarda el efectivo retirado.';
+  }
+  if (!String(datos.detalleEfectivoRetirado || '').trim()) {
+    return 'Escribe la cuenta, pago, lugar de resguardo o referencia del efectivo retirado.';
   }
   return '';
 }
@@ -30,5 +52,5 @@ export function validarCierreCajaParaEnvio({
   if (!fotoCorte) {
     return 'Toma o selecciona la foto del corte de SICAR antes de cerrar la caja.';
   }
-  return validarImportesCorte(formulario);
+  return validarImportesCorte(formulario) || validarDestinoEfectivoRetirado(formulario);
 }

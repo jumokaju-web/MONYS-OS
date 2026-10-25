@@ -9,9 +9,9 @@ test('el borrador pertenece a cuenta, sucursal y fecha de México; no usa nombre
 test('Caja 1 y Caja 2 conservan borradores independientes',()=>{
  assert.notEqual(claveBorradorCorte(usuario,'centro','CAJA_1'),claveBorradorCorte(usuario,'centro','CAJA_2'));
 });
-test('recupera importes y movimientos sin guardar fotos, enlaces, responsable o campos inesperados',()=>{
- const s=almacen(),k=claveBorradorCorte(usuario,'centro',ahora);guardarBorradorCorte(s,k,{ventaSicar:'123.40',efectivoFinal:'0',responsable:'otra',fotoCorteUrl:'privada',movimientosCaja:[{id:'1',tipo:'salida',monto:'30',concepto:'Proveedor',recibidoPor:'Ana'}]},'sesion1',false,ahora);
- const b=leerBorradorCorte(s,k,ahora);assert.equal(b.formulario.ventaSicar,'123.40');assert.equal(b.formulario.efectivoFinal,'0');assert.equal(b.sesionCajaId,'sesion1');assert.equal(b.formulario.movimientosCaja[0].monto,'30');assert.equal(b.formulario.responsable,undefined);assert.equal(b.formulario.fotoCorteUrl,undefined);
+test('recupera importes, destino y movimientos sin guardar fotos, enlaces o campos inesperados',()=>{
+ const s=almacen(),k=claveBorradorCorte(usuario,'centro',ahora);guardarBorradorCorte(s,k,{ventaSicar:'123.40',efectivoFinal:'0',destinoEfectivoRetirado:'RESGUARDO',responsableEfectivoRetirado:'Mónica',detalleEfectivoRetirado:'Caja fuerte',responsable:'otra',fotoCorteUrl:'privada',movimientosCaja:[{id:'1',tipo:'salida',monto:'30',concepto:'Proveedor',recibidoPor:'Ana'}]},'sesion1',false,ahora);
+ const b=leerBorradorCorte(s,k,ahora);assert.equal(b.formulario.ventaSicar,'123.40');assert.equal(b.formulario.efectivoFinal,'0');assert.equal(b.formulario.destinoEfectivoRetirado,'RESGUARDO');assert.equal(b.formulario.responsableEfectivoRetirado,'Mónica');assert.equal(b.sesionCajaId,'sesion1');assert.equal(b.formulario.movimientosCaja[0].monto,'30');assert.equal(b.formulario.responsable,undefined);assert.equal(b.formulario.fotoCorteUrl,undefined);
 });
 test('el formulario inicial no crea borrador; un cero capturado sí se conserva',()=>{
  const s=almacen();guardarBorradorCorte(s,'k',{fondoInicial:'1000'},null,false,ahora);assert.equal(s.length,0);guardarBorradorCorte(s,'k',{ventaSicar:'0'},null,true,ahora);assert.ok(leerBorradorCorte(s,'k',ahora));

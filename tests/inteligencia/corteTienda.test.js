@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CAMPOS_CORTE, fechaOperativaMexico, validarCierreCajaParaEnvio, validarImportesCorte } from '../../src/features/inteligencia/utils/corteTienda.js';
+import { CAMPOS_CORTE, fechaOperativaMexico, validarCierreCajaParaEnvio, validarDestinoEfectivoRetirado, validarImportesCorte } from '../../src/features/inteligencia/utils/corteTienda.js';
 test('el cierre de la noche conserva la fecha de México aunque UTC ya sea mañana', () => {
  assert.equal(fechaOperativaMexico(new Date('2026-10-15T01:30:00Z')), '2026-10-14');
  assert.equal(fechaOperativaMexico(new Date('2026-10-15T06:00:00Z')), '2026-10-15');
@@ -22,4 +22,13 @@ test('el cierre no se puede enviar sin identidad, caja, apertura, foto e importe
  assert.equal(validarCierreCajaParaEnvio({...base,tieneSesionCaja:false,corteSinApertura:true}),'');
  assert.match(validarCierreCajaParaEnvio({...base,fotoCorte:null}),/foto del corte/);
  assert.match(validarCierreCajaParaEnvio({...base,formulario:{...formulario,ventaSicar:''}}),/Completa los importes/);
+});
+
+test('cada retiro de efectivo exige destino, responsable y referencia', () => {
+ const base={efectivoEntregado:'500'};
+ assert.match(validarDestinoEfectivoRetirado(base),/qué pasó/i);
+ assert.match(validarDestinoEfectivoRetirado({...base,destinoEfectivoRetirado:'RESGUARDO'}),/quién/i);
+ assert.match(validarDestinoEfectivoRetirado({...base,destinoEfectivoRetirado:'RESGUARDO',responsableEfectivoRetirado:'Mónica'}),/referencia/i);
+ assert.equal(validarDestinoEfectivoRetirado({...base,destinoEfectivoRetirado:'RESGUARDO',responsableEfectivoRetirado:'Mónica',detalleEfectivoRetirado:'Caja fuerte oficina'}),'');
+ assert.equal(validarDestinoEfectivoRetirado({efectivoEntregado:'0'}),'');
 });

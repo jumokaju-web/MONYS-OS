@@ -7,7 +7,7 @@ import {
   crearObservacionesComplementoCierre,
   FONDO_FIJO_CAJA,
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
-import { validarCierreCajaParaEnvio } from "../../inteligencia/utils/corteTienda";
+import { DESTINOS_EFECTIVO_RETIRADO, validarCierreCajaParaEnvio } from "../../inteligencia/utils/corteTienda";
 
 const campos = [
   ["ventaSicar", "Venta total SICAR"],
@@ -20,10 +20,15 @@ const campos = [
   ["efectivoFinal", "Efectivo que quedó en caja"],
 ];
 
-const formularioInicial = Object.fromEntries(campos.map(([nombre]) => [
-  nombre,
-  nombre === "fondoInicial" ? String(FONDO_FIJO_CAJA) : "",
-]));
+const formularioInicial = {
+  ...Object.fromEntries(campos.map(([nombre]) => [
+    nombre,
+    nombre === "fondoInicial" ? String(FONDO_FIJO_CAJA) : "",
+  ])),
+  destinoEfectivoRetirado: "",
+  responsableEfectivoRetirado: "",
+  detalleEfectivoRetirado: "",
+};
 
 export default function CompletarCorteIncompleto({ captura, usuario, onGuardado }) {
   const [abierto, setAbierto] = useState(false);
@@ -65,7 +70,10 @@ export default function CompletarCorteIncompleto({ captura, usuario, onGuardado 
           fotoCorteUrl: evidencia.archivoUrl,
           fotoCortePath: evidencia.archivoPath,
           movimientosCaja: [],
-          ...Object.fromEntries(Object.entries(formulario).map(([clave, valor]) => [clave, Number(valor)])),
+          ...Object.fromEntries(campos.map(([clave]) => [clave, Number(formulario[clave])])),
+          destinoEfectivoRetirado: formulario.destinoEfectivoRetirado,
+          responsableEfectivoRetirado: formulario.responsableEfectivoRetirado.trim(),
+          detalleEfectivoRetirado: formulario.detalleEfectivoRetirado.trim(),
         }, nota),
       });
       setAbierto(false);
@@ -95,6 +103,11 @@ export default function CompletarCorteIncompleto({ captura, usuario, onGuardado 
       <div className="completar-corte-grid">
         {campos.map(([nombre, etiqueta]) => <label key={nombre}>{etiqueta}<input required type="number" inputMode="decimal" min="0" step="0.01" value={formulario[nombre]} onChange={e => setFormulario(actual => ({ ...actual, [nombre]: e.target.value }))} placeholder="$0.00" /></label>)}
       </div>
+      {Number(formulario.efectivoEntregado) > 0 && <div className="completar-corte-grid">
+        <label>Destino del efectivo<select required value={formulario.destinoEfectivoRetirado} onChange={e => setFormulario(actual => ({ ...actual, destinoEfectivoRetirado: e.target.value }))}><option value="">Selecciona</option>{DESTINOS_EFECTIVO_RETIRADO.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}</select></label>
+        <label>Quién lo recibió o resguarda<input required value={formulario.responsableEfectivoRetirado} onChange={e => setFormulario(actual => ({ ...actual, responsableEfectivoRetirado: e.target.value }))} /></label>
+        <label>Cuenta, pago o referencia<input required value={formulario.detalleEfectivoRetirado} onChange={e => setFormulario(actual => ({ ...actual, detalleEfectivoRetirado: e.target.value }))} /></label>
+      </div>}
       <label>Nota de aclaración (opcional)<textarea rows="2" value={nota} onChange={e => setNota(e.target.value)} placeholder="Ej. Importes tomados del reporte de cierre enviado por Karla" /></label>
       {error && <p className="completar-corte-error" role="alert">{error}</p>}
       <button className="completar-corte-guardar" type="submit" disabled={guardando}>{guardando ? "Guardando y comprobando…" : "Guardar importes y actualizar Finanzas"}</button>

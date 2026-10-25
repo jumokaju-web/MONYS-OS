@@ -1,3 +1,5 @@
+import { resumirDestinoEfectivoRetirado } from "./destinoEfectivoRetirado.js";
+
 const ZONA_MEXICO = "America/Mexico_City";
 
 function numeroONulo(valor) {
@@ -109,6 +111,7 @@ export function resumirDisponibilidadFinanciera({
   const diferencias = corteOficialCompleto
     ? Math.max(0, Number(cortesOficiales?.diferencias) || 0)
     : Math.max(0, Number(cierre?.diferencias) || 0);
+  const controlRetiros = resumirDestinoEfectivoRetirado({ cierre, cortesOficiales });
   const proveedores = datosProveedores(creditosProveedores, hoy);
 
   const liquidezLocalizada = bancosVigentes && cajasCompletas
@@ -174,6 +177,13 @@ export function resumirDisponibilidadFinanciera({
       detalle: `${diferencias} ${diferencias === 1 ? "caja necesita" : "cajas necesitan"} revisión antes de liberar dinero.`,
       destino: "equipo",
     };
+  } else if (controlRetiros.pendientes > 0 || controlRetiros.diferencias > 0) {
+    prioridad = {
+      nivel: "alta",
+      titulo: "Aclara el destino del efectivo retirado",
+      detalle: `${controlRetiros.pendientes} retiros sin destino completo y ${controlRetiros.diferencias} con importe distinto entre SICAR y el cierre. El dinero sigue excluido para no contarlo dos veces.`,
+      destino: "equipo",
+    };
   } else {
     prioridad = {
       nivel: dineroLibre < 0 ? "critica" : "bien",
@@ -199,6 +209,7 @@ export function resumirDisponibilidadFinanciera({
     efectivoResguardado,
     fuenteCajas,
     cortesOficiales,
+    controlRetiros,
     diferencias,
     proveedores,
     liquidezLocalizada,

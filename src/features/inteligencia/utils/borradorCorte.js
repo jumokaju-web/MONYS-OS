@@ -2,7 +2,7 @@ import { CAMPOS_CORTE, fechaOperativaMexico } from './corteTienda.js';
 
 const PREFIJO = 'monys:borrador-corte:v1:';
 const DURACION = 12 * 60 * 60 * 1000;
-const camposTexto = [...CAMPOS_CORTE, 'pendientes', 'incidencias', 'productosSolicitados', 'objecionesClientes', 'aprendizajes', 'observaciones'];
+const camposTexto = [...CAMPOS_CORTE, 'destinoEfectivoRetirado', 'responsableEfectivoRetirado', 'detalleEfectivoRetirado', 'pendientes', 'incidencias', 'productosSolicitados', 'objecionesClientes', 'aprendizajes', 'observaciones'];
 
 export function prefijoBorradorUsuario(usuario) {
   const id = usuario?.auth_user_id || usuario?.id;
