@@ -76,6 +76,22 @@ export function resumirCierreDiarioDireccion({ capturas = [], sucursales = [], f
     const caja = Math.abs(numeroReal(captura.datos.diferenciaCaja) || 0);
     return venta > 0.009 || caja > 0.009;
   }).length;
+  const retiros = evaluables.map((captura) => {
+    const monto = numeroReal(captura.datos.efectivoEntregado);
+    const destino = String(captura.datos.destinoEfectivoRetirado || "").trim() || null;
+    const responsable = String(captura.datos.responsableEfectivoRetirado || "").trim() || null;
+    const detalle = String(captura.datos.detalleEfectivoRetirado || "").trim() || null;
+    return {
+      cierreId: captura.cierre.id,
+      branchId: String(captura.cierre.branch_id || "SIN_SUCURSAL"),
+      cajaId: String(captura.datos.cajaId || "SIN_CAJA"),
+      monto,
+      destino,
+      responsable,
+      detalle,
+      estado: monto === 0 ? "NO_APLICA" : monto !== null && destino && responsable && detalle ? "IDENTIFICADO" : "PENDIENTE",
+    };
+  });
 
   return {
     fecha,
@@ -88,6 +104,7 @@ export function resumirCierreDiarioDireccion({ capturas = [], sucursales = [], f
     cobrado: sumar("cobrado"),
     efectivoFinal: sumar("efectivoFinal"),
     efectivoEntregado: sumar("efectivoEntregado"),
+    retiros,
     diferencias,
   };
 }

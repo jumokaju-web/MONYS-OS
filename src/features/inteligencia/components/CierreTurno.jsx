@@ -1,4 +1,4 @@
-import { validarCierreCajaParaEnvio, validarImportesCorte } from '../utils/corteTienda';
+import { DESTINOS_EFECTIVO_RETIRADO, validarCierreCajaParaEnvio, validarImportesCorte } from '../utils/corteTienda';
 import { claveBorradorCorte, guardarBorradorCorte, leerBorradorCorte, tieneCapturaBorrador } from '../utils/borradorCorte';
 import CapturaDemanda from '../../valor/CapturaDemanda';
 import {
@@ -53,6 +53,9 @@ const formularioInicial = {
   otrosCobros: "",
   fondoInicial: String(FONDO_FIJO_CAJA),
   efectivoEntregado: "",
+  destinoEfectivoRetirado: "",
+  responsableEfectivoRetirado: "",
+  detalleEfectivoRetirado: "",
   efectivoFinal: "",
   movimientosCaja: [],
 };
@@ -1670,6 +1673,27 @@ export default function CierreTurno({
               </label>
             ))}
           </div>
+
+          {Number(formulario.efectivoEntregado) > 0 && (
+            <section style={{ marginTop: "16px", padding: "15px", borderRadius: "13px", border: "1px solid #e1c18a", background: "#fff9eb" }}>
+              <div style={{ color: "#86570d", fontSize: "12px", fontWeight: 900, letterSpacing: ".06em" }}>DESTINO DEL EFECTIVO RETIRADO</div>
+              <p style={{ margin: "6px 0 13px", color: "#6d5a3c", fontSize: "13px" }}>Esto identifica el dinero, pero no confirma por sí solo un depósito o pago.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
+                <label style={{ fontWeight: 800, fontSize: "13px" }}>¿Qué pasó con el dinero?
+                  <select required value={formulario.destinoEfectivoRetirado} onChange={(event) => setFormulario(actual => ({ ...actual, destinoEfectivoRetirado: event.target.value }))} style={{ width: "100%", marginTop: "6px", padding: "11px" }}>
+                    <option value="">Selecciona el destino</option>
+                    {DESTINOS_EFECTIVO_RETIRADO.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontWeight: 800, fontSize: "13px" }}>¿Quién lo recibió o resguarda?
+                  <input required value={formulario.responsableEfectivoRetirado} onChange={(event) => setFormulario(actual => ({ ...actual, responsableEfectivoRetirado: event.target.value }))} placeholder="Nombre completo" style={{ width: "100%", boxSizing: "border-box", marginTop: "6px", padding: "11px" }} />
+                </label>
+                <label style={{ fontWeight: 800, fontSize: "13px" }}>Cuenta, pago o referencia
+                  <input required value={formulario.detalleEfectivoRetirado} onChange={(event) => setFormulario(actual => ({ ...actual, detalleEfectivoRetirado: event.target.value }))} placeholder="Ej. resguardo oficina o depósito BBVA" style={{ width: "100%", boxSizing: "border-box", marginTop: "6px", padding: "11px" }} />
+                </label>
+              </div>
+            </section>
+          )}
 
           <div
             style={{

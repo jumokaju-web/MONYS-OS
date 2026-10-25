@@ -200,9 +200,15 @@ export default function DisponibilidadFinancieraHoy({
       </div>
 
       {resumen.efectivoResguardado > 0 && (
-        <p className="disponibilidad-hoy__aviso">
-          Hay {dinero.format(resumen.efectivoResguardado)} reportados como retirados o resguardados. Se muestran aparte y no se suman hasta identificar si fueron depositados, pagados o siguen bajo resguardo.
-        </p>
+        <div className="disponibilidad-hoy__retiros">
+          <div><span>EFECTIVO RETIRADO</span><strong>{dinero.format(resumen.efectivoResguardado)}</strong><small>No se suma al banco ni a la caja.</small></div>
+          <div><span>DESTINO IDENTIFICADO</span><strong>{resumen.controlRetiros.identificados} de {resumen.controlRetiros.filas.length}</strong><small>{resumen.controlRetiros.diferencias > 0 ? `${resumen.controlRetiros.diferencias} importes no coinciden con SICAR.` : resumen.controlRetiros.pendientes > 0 ? `${resumen.controlRetiros.pendientes} retiros requieren aclaración.` : "Todos los retiros tienen destino reportado."}</small></div>
+          {resumen.controlRetiros.filas.map((retiro) => <article key={`${retiro.branchId}-${retiro.cajaId}`}>
+            <b>{retiro.cajaId.replace("_", " ")} · {dinero.format(retiro.monto)}</b>
+            <span>{retiro.estado === "IDENTIFICADO" ? retiro.etiquetaDestino : retiro.estado === "DIFERENCIA" ? "Importe distinto entre fuentes" : "Destino pendiente"}</span>
+            {retiro.responsable && <small>{retiro.responsable} · {retiro.detalle}</small>}
+          </article>)}
+        </div>
       )}
       {mensaje && <p className="disponibilidad-hoy__mensaje" role="status">✓ {mensaje}</p>}
       {error && <p className="disponibilidad-hoy__error" role="alert">{error}</p>}

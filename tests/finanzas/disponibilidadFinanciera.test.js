@@ -38,6 +38,8 @@ test("separa efectivo resguardado para evitar sumarlo dos veces", () => {
   assert.equal(resumen.liquidezLocalizada, 13000);
   assert.equal(resumen.efectivoResguardado, 8000);
   assert.equal(resumen.dineroLibre, 9000);
+  assert.equal(resumen.controlRetiros.pendientes, 1);
+  assert.match(resumen.prioridad.titulo, /destino del efectivo retirado/i);
 });
 
 test("un proveedor sin vencimiento bloquea dinero libre aunque el saldo sea conocido", () => {
@@ -114,4 +116,19 @@ test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial co
   assert.equal(resumen.fuenteCajas, "CIERRE_EQUIPO");
   assert.equal(resumen.efectivoCajas, 3000);
   assert.equal(resumen.dineroLibre, 9000);
+});
+
+test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: {
+      ...cierreCompleto,
+      retiros: [{ branchId: "centro", cajaId: "CAJA_1", monto: 8000, estado: "PENDIENTE" }],
+    },
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.dineroLibre, 9000);
+  assert.equal(resumen.controlRetiros.pendientes, 1);
+  assert.match(resumen.prioridad.titulo, /destino del efectivo retirado/i);
 });
