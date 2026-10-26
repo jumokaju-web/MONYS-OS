@@ -349,6 +349,9 @@ const [
     setErrorEmpleado("");
     setMensajeEmpleado("");
 
+    const requiereCrearAcceso =
+      !empleadoEditando?.usuario_id;
+
     if (
       !formularioEmpleado.nombre.trim()
     ) {
@@ -368,18 +371,19 @@ const [
     }
 
     if (
-      !empleadoEditando?.id &&
-      !formularioEmpleado.correo.trim()
+      requiereCrearAcceso &&
+      !formularioEmpleado.correo.trim() &&
+      !formularioEmpleado.telefono.trim()
     ) {
       setErrorEmpleado(
-        "Escribe el correo que usará para entrar a MONYS OS."
+        "Escribe el correo o teléfono que usará para entrar a MONYS OS."
       );
 
       return;
     }
 
     if (
-      !empleadoEditando?.id &&
+      requiereCrearAcceso &&
       formularioEmpleado.password.length < 8
     ) {
       setErrorEmpleado(
@@ -390,7 +394,7 @@ const [
     }
 
     if (
-      !empleadoEditando?.id &&
+      requiereCrearAcceso &&
       !formularioEmpleado.role
     ) {
       setErrorEmpleado(
@@ -442,8 +446,67 @@ const [
             formularioEmpleado.responsabilidades,
         });
 
+        if (requiereCrearAcceso) {
+          const [
+            negocios,
+            sucursales,
+          ] = await Promise.all([
+            obtenerNegociosActivos(),
+            obtenerSucursalesActivas(),
+          ]);
+
+          const sucursalActual =
+            (sucursales || []).find(
+              (sucursal) =>
+                sucursal.id === branchId
+            );
+
+          const businessIdFinal =
+            businessId ||
+            sucursalActual?.business_id ||
+            null;
+
+          if (!businessIdFinal) {
+            throw new Error(
+              "No fue posible identificar el negocio de la sucursal."
+            );
+          }
+
+          const usuarioValidado =
+            validarNuevoUsuario({
+              nombre:
+                formularioEmpleado.nombre,
+              correo:
+                formularioEmpleado.correo,
+              telefono:
+                formularioEmpleado.telefono,
+              password:
+                formularioEmpleado.password,
+              role:
+                formularioEmpleado.role,
+              business_id:
+                businessIdFinal,
+              branch_id:
+                branchId,
+              empleado_id:
+                empleadoEditando.id,
+              active: true,
+              negocios:
+                negocios || [],
+              sucursales:
+                sucursales || [],
+            });
+
+          usuarioCreado =
+            await crearPerfilUsuario(
+              usuarioValidado
+            );
+        }
+
         setMensajeEmpleado(
-          "Empleado actualizado correctamente."
+          requiereCrearAcceso
+            ? "Empleado actualizado y acceso creado correctamente."
+            : "Empleado actualizado correctamente."
         );
       } else {
         const [
@@ -980,11 +1043,11 @@ async function manejarReactivarEmpleado(
   </select>
 </label>
 
-            {!empleadoEditando && (
+            {(!empleadoEditando || !empleadoEditando.usuario_id) && (
               <>
                 <label>
                   <strong>
-                    Correo de acceso *
+                    Correo de acceso (opcional)
                   </strong>
 
                   <input
@@ -1015,7 +1078,7 @@ async function manejarReactivarEmpleado(
 
                 <label>
                   <strong>
-                    Teléfono
+                    Teléfono de acceso
                   </strong>
 
                   <input
@@ -1407,8 +1470,10 @@ async function manejarReactivarEmpleado(
             >
               {guardandoEmpleado
                 ? "Guardando..."
-                : empleadoEditando
+                : empleadoEditando?.usuario_id
                   ? "Guardar cambios"
+                  : empleadoEditando
+                    ? "Guardar y crear acceso"
                   : "Guardar empleado y acceso"}
             </button>
           </div>

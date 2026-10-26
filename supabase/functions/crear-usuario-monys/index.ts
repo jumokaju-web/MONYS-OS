@@ -24,6 +24,39 @@ const ROLES_PERMITIDOS = [
   "consulta",
 ];
 
+const DOMINIO_TELEFONO_INTERNO =
+  "acceso.telefono.monys.local";
+
+function normalizarTelefono(
+  valor: unknown
+) {
+  let digitos = String(
+    valor || ""
+  ).replace(/\D/g, "");
+
+  if (
+    digitos.length === 13 &&
+    digitos.startsWith("521")
+  ) {
+    digitos = digitos.slice(3);
+  } else if (
+    digitos.length === 12 &&
+    digitos.startsWith("52")
+  ) {
+    digitos = digitos.slice(2);
+  }
+
+  return /^\d{10}$/.test(digitos)
+    ? digitos
+    : null;
+}
+
+function correoInternoTelefono(
+  telefono: string
+) {
+  return `telefono.${telefono}@${DOMINIO_TELEFONO_INTERNO}`;
+}
+
 function respuesta(
   body: Record<string, unknown>,
   status = 200
@@ -245,9 +278,14 @@ Deno.serve(async (req) => {
       );
 
     const telefono =
-      body?.telefono
+      normalizarTelefono(
+        body?.telefono
+      );
+
+    const empleadoId =
+      body?.empleado_id
         ? String(
-            body.telefono
+            body.empleado_id
           ).trim()
         : null;
 
@@ -280,7 +318,20 @@ Deno.serve(async (req) => {
     }
 
     if (
-      !correo ||
+      !correo &&
+      !telefono
+    ) {
+      return respuesta(
+        {
+          error:
+            "Debes escribir un correo válido o un teléfono de 10 dígitos.",
+        },
+        400
+      );
+    }
+
+    if (
+      correo &&
       !correo.includes("@")
     ) {
       return respuesta(
@@ -435,29 +486,82 @@ Deno.serve(async (req) => {
       );
     }
 
+    let empleadoExistente = null;
+
+    if (empleadoId) {
+      const {
+        data,
+        error,
+      } = await supabaseAdmin
+        .from("empleados")
+        .select(`
+          id,
+          organization_id,
+          business_id,
+          branch_id,
+          usuario_id,
+          active
+        `)
+        .eq("id", empleadoId)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      empleadoExistente = data;
+
+      if (
+        !empleadoExistente ||
+        !empleadoExistente.active ||
+        empleadoExistente.organization_id !== negocio.organization_id ||
+        empleadoExistente.business_id !== negocio.id ||
+        empleadoExistente.branch_id !== sucursal.id
+      ) {
+        return respuesta(
+          {
+            error:
+              "La ficha de la empleada no corresponde al negocio y sucursal seleccionados.",
+          },
+          400
+        );
+      }
+
+      if (empleadoExistente.usuario_id) {
+        return respuesta(
+          {
+            error:
+              "Esta empleada ya tiene un usuario vinculado.",
+          },
+          409
+        );
+      }
+    }
+
     /*
       ========================================
       4. EVITAR CORREOS DUPLICADOS EN MONYS
       ========================================
     */
 
+    const consultaDuplicado =
+      correo
+        ? supabaseAdmin
+            .from("usuarios")
+            .select("id, correo, telefono, auth_user_id")
+            .eq("correo", correo)
+            .maybeSingle()
+        : supabaseAdmin
+            .from("usuarios")
+            .select("id, correo, telefono, auth_user_id")
+            .eq("telefono", telefono)
+            .maybeSingle();
+
     const {
       data: usuarioExistente,
       error:
         errorUsuarioExistente,
-    } =
-      await supabaseAdmin
-        .from("usuarios")
-        .select(`
-          id,
-          correo,
-          auth_user_id
-        `)
-        .eq(
-          "correo",
-          correo
-        )
-        .maybeSingle();
+    } = await consultaDuplicado;
 
     if (errorUsuarioExistente) {
       throw errorUsuarioExistente;
@@ -467,7 +571,9 @@ Deno.serve(async (req) => {
       return respuesta(
         {
           error:
-            "Ya existe un usuario de MONYS registrado con ese correo.",
+            correo
+              ? "Ya existe un usuario de MONYS registrado con ese correo."
+              : "Ya existe un usuario de MONYS registrado con ese teléfono.",
         },
         409
       );
@@ -479,6 +585,12 @@ Deno.serve(async (req) => {
       ========================================
     */
 
+    const correoAuth =
+      correo ||
+      correoInternoTelefono(
+        telefono as string
+      );
+
     const {
       data: nuevoAuth,
       error: errorCrearAuth,
@@ -487,11 +599,13 @@ Deno.serve(async (req) => {
         .auth
         .admin
         .createUser({
-          email: correo,
+          email: correoAuth,
           password,
           email_confirm: true,
           user_metadata: {
             nombre,
+            acceso_telefono:
+              !correo,
           },
         });
 
@@ -540,7 +654,8 @@ Deno.serve(async (req) => {
 
           nombre,
 
-          correo,
+          correo:
+            correo || null,
 
           telefono,
 
@@ -588,6 +703,54 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (empleadoExistente) {
+      const {
+        data: empleadoVinculado,
+        error: errorVincularEmpleado,
+      } = await supabaseAdmin
+        .from("empleados")
+        .update({
+          usuario_id:
+            nuevoPerfil.id,
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          empleadoExistente.id
+        )
+        .is(
+          "usuario_id",
+          null
+        )
+        .select("id, usuario_id")
+        .maybeSingle();
+
+      if (
+        errorVincularEmpleado ||
+        !empleadoVinculado
+      ) {
+        await supabaseAdmin
+          .from("usuarios")
+          .delete()
+          .eq("id", nuevoPerfil.id);
+
+        await supabaseAdmin
+          .auth
+          .admin
+          .deleteUser(
+            nuevoAuthUser.id
+          );
+
+        throw (
+          errorVincularEmpleado ||
+          new Error(
+            "No fue posible vincular el acceso con la ficha de la empleada."
+          )
+        );
+      }
+    }
+
     /*
       ========================================
       7. RESULTADO
@@ -598,7 +761,9 @@ Deno.serve(async (req) => {
       ok: true,
 
       mensaje:
-        "Usuario creado correctamente.",
+        empleadoExistente
+          ? "Usuario creado y vinculado correctamente."
+          : "Usuario creado correctamente.",
 
       usuario:
         nuevoPerfil,
