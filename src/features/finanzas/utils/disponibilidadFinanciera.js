@@ -1,4 +1,5 @@
 import { resumirDestinoEfectivoRetirado } from "./destinoEfectivoRetirado.js";
+import { integrarComprobacionesRetiros } from "./comprobacionRetiros.js";
 
 const ZONA_MEXICO = "America/Mexico_City";
 
@@ -70,6 +71,7 @@ export function resumirDisponibilidadFinanciera({
   cierre = {},
   cortesOficiales = {},
   creditosProveedores = {},
+  comprobacionesRetiros = [],
   hoy = fechaMexico(),
 } = {}) {
   const listaCuentas = Array.isArray(cuentas) ? cuentas : [];
@@ -112,6 +114,7 @@ export function resumirDisponibilidadFinanciera({
     ? Math.max(0, Number(cortesOficiales?.diferencias) || 0)
     : Math.max(0, Number(cierre?.diferencias) || 0);
   const controlRetiros = resumirDestinoEfectivoRetirado({ cierre, cortesOficiales });
+  const comprobacionRetiros = integrarComprobacionesRetiros(controlRetiros.filas, comprobacionesRetiros);
   const proveedores = datosProveedores(creditosProveedores, hoy);
 
   const liquidezLocalizada = bancosVigentes && cajasCompletas
@@ -184,6 +187,13 @@ export function resumirDisponibilidadFinanciera({
       detalle: `${controlRetiros.pendientes} retiros sin destino completo y ${controlRetiros.diferencias} con importe distinto entre SICAR y el cierre. El dinero sigue excluido para no contarlo dos veces.`,
       destino: "equipo",
     };
+  } else if (comprobacionRetiros.pendientes > 0 || comprobacionRetiros.reportados > 0 || comprobacionRetiros.diferencias > 0) {
+    prioridad = {
+      nivel: "alta",
+      titulo: "Comprueba el efectivo retirado",
+      detalle: `${comprobacionRetiros.pendientes} sin evidencia, ${comprobacionRetiros.reportados} pendientes de revisión y ${comprobacionRetiros.diferencias} con diferencia. Reportado no significa comprobado.`,
+      destino: "equipo",
+    };
   } else {
     prioridad = {
       nivel: dineroLibre < 0 ? "critica" : "bien",
@@ -210,6 +220,7 @@ export function resumirDisponibilidadFinanciera({
     fuenteCajas,
     cortesOficiales,
     controlRetiros,
+    comprobacionRetiros,
     diferencias,
     proveedores,
     liquidezLocalizada,

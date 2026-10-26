@@ -19,9 +19,10 @@ export function resumirDestinoEfectivoRetirado({ cierre = {}, cortesOficiales = 
       branchId: item.branchId,
       cajaId: item.cajaId,
       monto: item.efectivoRetirado,
+      cierreId: manuales.find((retiro) => retiro.branchId === item.branchId && retiro.cajaId === item.cajaId)?.cierreId || null,
       manual: manuales.find((retiro) => retiro.branchId === item.branchId && retiro.cajaId === item.cajaId) || null,
     }))
-    : manuales.map((manual) => ({ branchId: manual.branchId, cajaId: manual.cajaId, monto: manual.monto, manual }));
+    : manuales.map((manual) => ({ cierreId: manual.cierreId || null, branchId: manual.branchId, cajaId: manual.cajaId, monto: manual.monto, manual }));
 
   const totalSinDetalle = usarOficial
     ? centavos(cortesOficiales?.efectivoRetirado)

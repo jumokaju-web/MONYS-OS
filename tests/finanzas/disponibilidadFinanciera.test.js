@@ -132,3 +132,19 @@ test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible"
   assert.equal(resumen.controlRetiros.pendientes, 1);
   assert.match(resumen.prioridad.titulo, /destino del efectivo retirado/i);
 });
+
+test("no confunde una evidencia reportada con un retiro comprobado", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: {
+      ...cierreCompleto,
+      retiros: [{ cierreId: "c1", branchId: "centro", cajaId: "CAJA_1", monto: 8000, estado: "IDENTIFICADO", destino: "DEPOSITO_BANCARIO", responsable: "Mónica", detalle: "BBVA" }],
+    },
+    comprobacionesRetiros: [{ cierre_id: "c1", caja_id: "CAJA_1", version: 1, estado: "REPORTADO" }],
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.comprobacionRetiros.reportados, 1);
+  assert.equal(resumen.comprobacionRetiros.comprobados, 0);
+  assert.match(resumen.prioridad.titulo, /comprueba el efectivo/i);
+});
