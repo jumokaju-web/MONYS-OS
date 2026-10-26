@@ -10,6 +10,8 @@ import { resumirCierreDiarioDireccion } from "../utils/cierreDiarioDireccion";
 import { obtenerCortesCajaSicar } from "../services/cortesCajaSicarService";
 import { resumirCortesOficialesParaDisponibilidad } from "../utils/disponibilidadCortesOficiales";
 import { resumirDisponibilidadFinanciera } from "../utils/disponibilidadFinanciera";
+import { obtenerComprobacionesRetiros } from "../services/comprobacionesRetirosService.js";
+import ComprobacionRetiroCard from "./ComprobacionRetiroCard.jsx";
 import "./DisponibilidadFinancieraHoy.css";
 
 const dinero = new Intl.NumberFormat("es-MX", {
@@ -45,6 +47,7 @@ export default function DisponibilidadFinancieraHoy({
   const [cierre, setCierre] = useState({});
   const [importacionesCortes, setImportacionesCortes] = useState([]);
   const [capturas, setCapturas] = useState({});
+  const [comprobacionesRetiros, setComprobacionesRetiros] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
   const [mensaje, setMensaje] = useState("");
@@ -82,6 +85,9 @@ export default function DisponibilidadFinancieraHoy({
       });
       setCierre(cierreResumido);
       setImportacionesCortes(cortesOficiales);
+      setComprobacionesRetiros(await obtenerComprobacionesRetiros(
+        cierreResumido.retiros.map((retiro) => retiro.cierreId).filter(Boolean)
+      ));
     } catch (e) {
       setError(e?.message || "No fue posible preparar la disponibilidad financiera de hoy.");
     } finally {
@@ -102,7 +108,13 @@ export default function DisponibilidadFinancieraHoy({
     cierre,
     cortesOficiales,
     creditosProveedores,
-  }), [cuentas, cierre, cortesOficiales, creditosProveedores]);
+    comprobacionesRetiros,
+  }), [cuentas, cierre, cortesOficiales, creditosProveedores, comprobacionesRetiros]);
+
+  async function retiroActualizado(texto) {
+    setMensaje(texto);
+    await cargar();
+  }
 
   function resolverPrioridad() {
     if (resumen.prioridad.destino === "importador") onAbrirImportador?.();
@@ -202,12 +214,18 @@ export default function DisponibilidadFinancieraHoy({
       {resumen.efectivoResguardado > 0 && (
         <div className="disponibilidad-hoy__retiros">
           <div><span>EFECTIVO RETIRADO</span><strong>{dinero.format(resumen.efectivoResguardado)}</strong><small>No se suma al banco ni a la caja.</small></div>
-          <div><span>DESTINO IDENTIFICADO</span><strong>{resumen.controlRetiros.identificados} de {resumen.controlRetiros.filas.length}</strong><small>{resumen.controlRetiros.diferencias > 0 ? `${resumen.controlRetiros.diferencias} importes no coinciden con SICAR.` : resumen.controlRetiros.pendientes > 0 ? `${resumen.controlRetiros.pendientes} retiros requieren aclaración.` : "Todos los retiros tienen destino reportado."}</small></div>
-          {resumen.controlRetiros.filas.map((retiro) => <article key={`${retiro.branchId}-${retiro.cajaId}`}>
-            <b>{retiro.cajaId.replace("_", " ")} · {dinero.format(retiro.monto)}</b>
-            <span>{retiro.estado === "IDENTIFICADO" ? retiro.etiquetaDestino : retiro.estado === "DIFERENCIA" ? "Importe distinto entre fuentes" : "Destino pendiente"}</span>
-            {retiro.responsable && <small>{retiro.responsable} · {retiro.detalle}</small>}
-          </article>)}
+          <div><span>COMPROBACIÓN REAL</span><strong>{resumen.comprobacionRetiros.comprobados} de {resumen.comprobacionRetiros.filas.length}</strong><small>{resumen.comprobacionRetiros.diferencias > 0 ? `${resumen.comprobacionRetiros.diferencias} diferencias requieren aclaración.` : resumen.comprobacionRetiros.reportados > 0 ? `${resumen.comprobacionRetiros.reportados} evidencias esperan revisión.` : resumen.comprobacionRetiros.pendientes > 0 ? `${resumen.comprobacionRetiros.pendientes} retiros siguen sin comprobante.` : "Todos los retiros están comprobados."}</small></div>
+          <details className="disponibilidad-hoy__bandeja-retiros">
+            <summary>📎 Abrir bandeja de comprobantes</summary>
+            <h3>Comprobar retiros de caja</h3>
+            <p>Un destino declarado o una foto reportada no comprueban el movimiento hasta que Dirección revise la evidencia.</p>
+            {resumen.comprobacionRetiros.filas.map((retiro) => <ComprobacionRetiroCard
+              key={`${retiro.cierreId || retiro.branchId}-${retiro.cajaId}`}
+              retiro={retiro}
+              puedeRevisar={puedeConfirmar}
+              onActualizado={retiroActualizado}
+            />)}
+          </details>
         </div>
       )}
       {mensaje && <p className="disponibilidad-hoy__mensaje" role="status">✓ {mensaje}</p>}
