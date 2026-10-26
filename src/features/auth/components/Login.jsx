@@ -1,9 +1,10 @@
 import { useState } from "react";
 
 import { supabase } from "../../../supabase";
+import { prepararInicioSesion } from "../utils/identificadorAcceso";
 
 export default function Login() {
-  const [correo, setCorreo] = useState("");
+  const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
@@ -15,10 +16,12 @@ export default function Login() {
       setCargando(true);
       setError("");
 
+      const credencial = prepararInicioSesion(identificador);
+
       const {
         error: errorLogin,
       } = await supabase.auth.signInWithPassword({
-        email: correo.trim(),
+        ...credencial,
         password,
       });
 
@@ -107,16 +110,17 @@ export default function Login() {
               fontWeight: "700",
             }}
           >
-            Correo
+            Correo o teléfono
 
             <input
-              type="email"
-              value={correo}
+              type="text"
+              inputMode="email"
+              value={identificador}
               onChange={(evento) =>
-                setCorreo(evento.target.value)
+                setIdentificador(evento.target.value)
               }
-              placeholder="correo@ejemplo.com"
-              autoComplete="email"
+              placeholder="correo@ejemplo.com o 3781234567"
+              autoComplete="username"
               required
               style={estiloCampo}
             />
