@@ -135,6 +135,8 @@ export default function DirectorRH({
   organizationId = null,
   businessId = null,
   branchId = null,
+  sucursales = [],
+  onCambiarSucursal = null,
   empleados = [],
   onEmpleadoCreado = null,
 }) {
@@ -840,6 +842,41 @@ async function manejarReactivarEmpleado(
           >
             + Nuevo empleado
           </button>
+
+          {sucursales.length > 1 && (
+            <label
+              style={{
+                display: "grid",
+                gap: "5px",
+                color: "#594a52",
+                fontWeight: "800",
+                fontSize: "13px",
+              }}
+            >
+              Personal de la sucursal
+              <select
+                aria-label="Personal de la sucursal"
+                value={branchId || ""}
+                onChange={(evento) => onCambiarSucursal?.(evento.target.value)}
+                style={{
+                  minWidth: "210px",
+                  padding: "11px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid #cdbbd8",
+                  backgroundColor: "#ffffff",
+                  color: "#3d3037",
+                  fontWeight: "700",
+                  fontSize: "15px",
+                }}
+              >
+                {sucursales.map((sucursal) => (
+                  <option key={sucursal.id} value={sucursal.id}>
+                    {sucursal.nombre || sucursal.name || "Sucursal"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div
             style={{
