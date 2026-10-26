@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { normalizarTelefonoAcceso } from "../../auth/utils/identificadorAcceso";
 
 /*
   ==========================================
@@ -112,6 +113,7 @@ export function validarNuevoUsuario({
   business_id,
   branch_id,
   active,
+  empleado_id = null,
   negocios = [],
   sucursales = [],
 }) {
@@ -121,9 +123,20 @@ export function validarNuevoUsuario({
     );
   }
 
-  if (!correo?.trim()) {
+  const correoLimpio = correo?.trim().toLowerCase() || null;
+  const telefonoLimpio = telefono?.trim()
+    ? normalizarTelefonoAcceso(telefono)
+    : null;
+
+  if (!correoLimpio && !telefonoLimpio) {
     throw new Error(
-      "Debes escribir el correo del usuario."
+      "Debes escribir un correo o un teléfono de 10 dígitos."
+    );
+  }
+
+  if (telefono?.trim() && !telefonoLimpio) {
+    throw new Error(
+      "El teléfono debe tener 10 dígitos."
     );
   }
 
@@ -195,11 +208,11 @@ export function validarNuevoUsuario({
     nombre:
       nombre.trim(),
 
-    correo:
-      correo.trim().toLowerCase(),
+    correo: correoLimpio,
 
-    telefono:
-      telefono?.trim() || null,
+    telefono: telefonoLimpio,
+
+    empleado_id,
 
     password,
 
