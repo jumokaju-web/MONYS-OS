@@ -224,6 +224,13 @@ function CentroInteligencia({
     setUsuariosRH,
   ] = useState([]);
 
+  const [branchIdRH, setBranchIdRH] = useState(null);
+
+  function cambiarSucursalRH(sucursalId) {
+    setUsuariosRH([]);
+    setBranchIdRH(sucursalId);
+  }
+
    const organizationId =
   datosDashboard?.organization_id || null;
 
@@ -232,6 +239,12 @@ const businessId =
 
   const branchId =
     datosDashboard?.branch_id || null;
+
+useEffect(() => {
+  if (!branchIdRH && branchId) {
+    setBranchIdRH(branchId);
+  }
+}, [branchId, branchIdRH]);
 
 console.log(
   "DATOS DASHBOARD PARA RH:",
@@ -290,7 +303,9 @@ useEffect(() => {
 
 
 async function cargarEmpleadosRH() {
-  if (!branchId) {
+  const sucursalRH = branchIdRH || branchId;
+
+  if (!sucursalRH) {
     setUsuariosRH([]);
     return;
   }
@@ -298,7 +313,7 @@ async function cargarEmpleadosRH() {
   try {
     const empleados =
       await obtenerEmpleadosRH(
-        branchId
+        sucursalRH
       );
 
     setUsuariosRH(
@@ -316,7 +331,7 @@ async function cargarEmpleadosRH() {
 
 useEffect(() => {
   cargarEmpleadosRH();
-}, [branchId]);
+}, [branchId, branchIdRH]);
 
   /*
     ==========================================
@@ -540,7 +555,7 @@ const analisisRH =
       inventario: <DirectorInventario datosDashboard={datosDashboard} organizationId={organizationId} businessId={businessId} analisisFinanciero={analisisFinancieroCEO} />,
       financiero: <DirectorFinanciero datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientos} creditosProveedores={creditosProveedores} onAbrirImportador={onAbrirImportador} onAbrirValor={onAbrirValor} />,
       marketing: <DirectorMarketing analisisMarketing={analisisMarketing} onVolverAlDashboard={abrirDashboardDireccion} onAbrirImportador={onAbrirImportador} />,
-      rh: <DirectorRH analisisRH={analisisRH} organizationId={organizationId} businessId={businessId} branchId={branchId} empleados={usuariosRH} onEmpleadoCreado={cargarEmpleadosRH} />,
+      rh: <DirectorRH analisisRH={analisisRH} organizationId={organizationId} businessId={businessId} branchId={branchIdRH || branchId} sucursales={sucursalesDashboard} onCambiarSucursal={cambiarSucursalRH} empleados={usuariosRH} onEmpleadoCreado={cargarEmpleadosRH} />,
       ceo: <PanelCEOIA decisionCEO={decisionCEO} />,
     }[directorAbierto];
 
