@@ -481,7 +481,7 @@ async function guardarCambiosPermisos() {
  const formularioCompleto =
   Boolean(
     formulario.nombre.trim() &&
-      formulario.correo.trim() &&
+      (formulario.correo.trim() || formulario.telefono.trim()) &&
       formulario.password.length >= 8 &&
       formulario.role &&
       formulario.business_id &&
@@ -746,7 +746,7 @@ async function guardarCambiosPermisos() {
                 fontWeight: "700",
               }}
             >
-              Correo
+              Correo (opcional si usa teléfono)
 
               <input
                 type="email"
@@ -794,7 +794,7 @@ async function guardarCambiosPermisos() {
                 fontWeight: "700",
               }}
             >
-              Teléfono
+              Teléfono de acceso
 
               <input
                 type="tel"
