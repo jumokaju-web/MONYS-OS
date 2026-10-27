@@ -125,14 +125,35 @@ export async function obtenerCuentasBancariasSinNegocio({ organizationId = null 
   if (!organizationId) return [];
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, organization_id, name, account_type, currency, active")
+    .select("id, organization_id, name, account_type, currency, active, ownership_scope")
     .eq("organization_id", organizationId)
     .eq("active", true)
     .eq("account_type", "banco")
+    .eq("ownership_scope", "PENDIENTE")
     .is("business_id", null)
     .order("name", { ascending: true });
   if (error) throw new Error(`No fue posible revisar las cuentas bancarias sin negocio asignado: ${error.message}`);
   return Array.isArray(data) ? data : [];
+}
+
+export async function clasificarCuentaBancaria({ accountId, clasificacion, businessId = null, nota }) {
+  if (!accountId) throw new Error("No encontramos la cuenta que quieres clasificar.");
+  const tiposValidos = ["EMPRESA", "PERSONAL", "MIXTA"];
+  if (!tiposValidos.includes(String(clasificacion || "").toUpperCase())) {
+    throw new Error("Selecciona si la cuenta es de empresa, personal o mixta.");
+  }
+  const comentario = String(nota || "").trim();
+  if (comentario.length < 5 || comentario.length > 500) {
+    throw new Error("La nota debe tener entre 5 y 500 caracteres.");
+  }
+  const { data, error } = await supabase.rpc("clasificar_cuenta_bancaria", {
+    p_account_id: accountId,
+    p_clasificacion: String(clasificacion).toUpperCase(),
+    p_business_id: String(clasificacion).toUpperCase() === "EMPRESA" ? businessId : null,
+    p_nota: comentario,
+  });
+  if (error) throw new Error(`No se pudo registrar la clasificación de la cuenta: ${error.message}`);
+  return data;
 }
 
 export async function guardarSaldoBancarioConfirmado({

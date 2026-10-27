@@ -3,6 +3,7 @@ import { useUser } from "../../../context/UserContext";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import { extraerCapturasFinancieras } from "../../inteligencia/utils/capturasFinancierasEquipo";
 import {
+  clasificarCuentaBancaria,
   guardarSaldoBancarioConfirmado,
   obtenerCuentasBancariasParaConfirmar,
   obtenerCuentasBancariasSinNegocio,
@@ -62,6 +63,8 @@ export default function DisponibilidadFinancieraHoy({
   const [errorObligaciones, setErrorObligaciones] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
+  const [clasificacionCuenta, setClasificacionCuenta] = useState({});
+  const [clasificandoCuenta, setClasificandoCuenta] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
 
@@ -190,6 +193,49 @@ export default function DisponibilidadFinancieraHoy({
       setError(e?.message || "No fue posible confirmar el saldo.");
     } finally {
       setGuardando(null);
+    }
+  }
+
+  async function guardarClasificacionCuenta(evento, cuenta) {
+    evento.preventDefault();
+    const seleccion = clasificacionCuenta[cuenta.id] || {};
+    const tipo = String(seleccion.tipo || "").toUpperCase();
+    const nota = String(seleccion.nota || "").trim();
+    if (!["EMPRESA", "PERSONAL", "MIXTA"].includes(tipo)) {
+      setError("Selecciona si la cuenta es de empresa, personal o mixta.");
+      return;
+    }
+    if (tipo === "EMPRESA" && !usuario?.business_id) {
+      setError("Tu perfil no tiene un negocio asignado. No se modificó la cuenta.");
+      return;
+    }
+    if (nota.length < 5) {
+      setError("Describe brevemente cómo verificaste quién es titular o usa esta cuenta.");
+      return;
+    }
+    const accion = tipo === "EMPRESA"
+      ? "vincularla a Monys Glam como cuenta empresarial"
+      : tipo === "PERSONAL"
+        ? "marcarla como personal y excluirla del dinero de Monys Glam"
+        : "marcarla como mixta y excluirla del dinero disponible empresarial";
+    if (!window.confirm(`Confirma que revisaste ${cuenta.name} y es correcto ${accion}. La decisión quedará registrada con tu usuario y la nota.`)) return;
+
+    setClasificandoCuenta(cuenta.id);
+    setError("");
+    setMensaje("");
+    try {
+      await clasificarCuentaBancaria({
+        accountId: cuenta.id,
+        clasificacion: tipo,
+        businessId: tipo === "EMPRESA" ? usuario.business_id : null,
+        nota,
+      });
+      setMensaje(`${cuenta.name}: clasificación guardada. Si es empresarial, confirma también su saldo actual para incluirlo en el cálculo.`);
+      await cargar();
+    } catch (fallo) {
+      setError(fallo?.message || "No se pudo guardar la clasificación de la cuenta.");
+    } finally {
+      setClasificandoCuenta(null);
     }
   }
 
@@ -329,8 +375,22 @@ export default function DisponibilidadFinancieraHoy({
       </details>
       {role === "owner" && cuentasSinAsignar.length > 0 && <aside role="status" style={{ marginTop: 16, padding: 16, border: "1px solid #e8c98c", borderRadius: 12, background: "#fff9ed" }}>
         <strong>Cuentas bancarias pendientes de asignar</strong>
-        <p>No las sumé al dinero de Monys Glam porque todavía no tienen negocio asignado. Confirma si son del negocio, personales o mixtas antes de incorporarlas.</p>
-        <ul>{cuentasSinAsignar.map((cuenta) => <li key={cuenta.id}>{cuenta.name} · saldo excluido hasta revisar</li>)}</ul>
+        <p>Estas cuentas siguen excluidas del dinero disponible hasta que confirmes su uso. Personal o mixta queda registrada, pero nunca se suma al efectivo empresarial.</p>
+        <div style={{ display: "grid", gap: 12 }}>{cuentasSinAsignar.map((cuenta) => <form key={cuenta.id} onSubmit={(evento) => guardarClasificacionCuenta(evento, cuenta)} style={{ padding: 12, borderRadius: 10, background: "#fff", border: "1px solid #eadfc8" }}>
+          <strong>{cuenta.name}</strong><span style={{ marginLeft: 8, color: "#7b6b53" }}>Saldo excluido hasta clasificar</span>
+          <label style={{ display: "block", marginTop: 8 }}>Titularidad y uso
+            <select value={clasificacionCuenta[cuenta.id]?.tipo || ""} onChange={(evento) => setClasificacionCuenta((actual) => ({ ...actual, [cuenta.id]: { ...actual[cuenta.id], tipo: evento.target.value } }))} required>
+              <option value="">Selecciona después de revisar</option>
+              <option value="EMPRESA">Es cuenta de Monys Glam</option>
+              <option value="PERSONAL">Es personal</option>
+              <option value="MIXTA">Es personal y del negocio (mixta)</option>
+            </select>
+          </label>
+          <label style={{ display: "block", marginTop: 8 }}>Cómo verificaste
+            <input value={clasificacionCuenta[cuenta.id]?.nota || ""} onChange={(evento) => setClasificacionCuenta((actual) => ({ ...actual, [cuenta.id]: { ...actual[cuenta.id], nota: evento.target.value } }))} maxLength={500} minLength={5} placeholder="Ej. Revisé la titularidad y el uso de la cuenta" required />
+          </label>
+          <button type="submit" disabled={Boolean(clasificandoCuenta)} style={{ marginTop: 10 }}>{clasificandoCuenta === cuenta.id ? "Guardando…" : "Guardar clasificación"}</button>
+        </form>)}</div>
       </aside>}
     </section>
   );
