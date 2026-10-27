@@ -2,6 +2,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useUser } from "../../../context/UserContext";
 import FormularioMovimiento from "../components/FormularioMovimiento";
 import "./TesoreriaPage.css";
 import HistorialMovimientos from "../components/HistorialMovimientos";
@@ -26,6 +27,7 @@ function TesoreriaPage({
   formatoDinero,
   onCambiarEstado,
 }) {
+  const { usuario } = useUser();
   const [tipoMovimiento, setTipoMovimiento] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("");
@@ -59,7 +61,10 @@ function TesoreriaPage({
           setErrorSaldos("");
 
           const resumen =
-            await obtenerSaldosBancariosActuales();
+            await obtenerSaldosBancariosActuales({
+              organizationId: usuario?.organization_id || null,
+              businessId: usuario?.business_id || null,
+            });
 
           if (componenteActivo) {
             setResumenBancario(
@@ -92,7 +97,7 @@ function TesoreriaPage({
     return () => {
       componenteActivo = false;
     };
-  }, []);
+  }, [usuario?.business_id, usuario?.organization_id]);
 
   const formularioVisible = tipoMovimiento !== null;
 

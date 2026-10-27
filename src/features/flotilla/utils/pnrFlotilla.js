@@ -54,11 +54,15 @@ export function calcularSaldoPnr(montoOriginal, descuentos = []) {
   return Math.max(0, Math.round((original - aplicado) * 100) / 100);
 }
 
-export function validarDescuentoPnr({ saldo, monto, desde, hasta }) {
+export function validarDescuentoPnr({ saldo, monto, desde, hasta, limiteAutorizado }) {
   const cantidad = Number(monto);
   if (!desde || !hasta || desde > hasta) return "Selecciona un corte semanal válido.";
   if (!Number.isFinite(cantidad) || cantidad <= 0) return "Escribe un descuento válido.";
   if (cantidad > Number(saldo || 0)) return "El descuento no puede superar el saldo pendiente.";
+  if (limiteAutorizado !== null && limiteAutorizado !== undefined && limiteAutorizado !== ""
+    && Number.isFinite(Number(limiteAutorizado)) && cantidad > Number(limiteAutorizado)) {
+    return "El abono no puede superar el monto semanal autorizado.";
+  }
   return "";
 }
 

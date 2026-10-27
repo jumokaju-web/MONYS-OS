@@ -17,6 +17,7 @@ import {
 } from "./services/recordatoriosJefaService";
 import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinancieroIA";
 import { obtenerEstadoCorte } from "./utils/estadoCorte";
+import { resumirCorteFinancieroDireccion } from "./utils/resumenFinancieroDireccion";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -243,25 +244,10 @@ movimientos = [],
     },
   ];
 
-    const ventasConsolidadas =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.ventasTotales
-      ) || 0),
-    0
-  );
-
-const utilidadConsolidada =
-  sucursalesDashboard.reduce(
-    (total, sucursal) =>
-      total +
-      (Number(
-        sucursal?.utilidadTotal
-      ) || 0),
-    0
-  );
+  const consolidacionFinanciera = resumirCorteFinancieroDireccion(sucursalesDashboard);
+  const ventasConsolidadas = consolidacionFinanciera.ventas;
+  const utilidadConsolidada = consolidacionFinanciera.utilidad;
+  const cifrasConsolidadasDisponibles = ventasConsolidadas !== null && utilidadConsolidada !== null;
 
   const metricasFinancieras = datosDashboard?.metricas || {};
   const costoConsolidado = Math.max(
@@ -271,14 +257,14 @@ const utilidadConsolidada =
   const diasAnalizados = Number(metricasFinancieras.diasAnalizados) || 0;
   const analisisFinanciero = generarAnalisisFinanciero({
     movimientos,
-    ventasTotales: ventasConsolidadas || ventasTotales,
+    ventasTotales: cifrasConsolidadasDisponibles ? ventasConsolidadas : ventasTotales,
     costoTotal:
-      ventasConsolidadas > 0
+      cifrasConsolidadasDisponibles && ventasConsolidadas > 0
         ? costoConsolidado
         : Number(metricasFinancieras.costoTotal) || 0,
-    utilidadTotal: utilidadConsolidada || utilidadTotal,
+    utilidadTotal: cifrasConsolidadasDisponibles ? utilidadConsolidada : utilidadTotal,
     margenUtilidad:
-      ventasConsolidadas > 0
+      cifrasConsolidadasDisponibles && ventasConsolidadas > 0
         ? (utilidadConsolidada / ventasConsolidadas) * 100
         : Number(metricasFinancieras.margenUtilidad) || 0,
     fechaInicial,
@@ -286,20 +272,20 @@ const utilidadConsolidada =
     diasAnalizados,
     ventaPromedioDiaria:
       diasAnalizados > 0
-        ? (ventasConsolidadas || ventasTotales) / diasAnalizados
+        ? (cifrasConsolidadasDisponibles ? ventasConsolidadas : ventasTotales) / diasAnalizados
         : 0,
     utilidadPromedioDiaria:
       diasAnalizados > 0
-        ? (utilidadConsolidada || utilidadTotal) / diasAnalizados
+        ? (cifrasConsolidadasDisponibles ? utilidadConsolidada : utilidadTotal) / diasAnalizados
         : 0,
   });
 
   const estadoResultados = [
-    ["Ventas", analisisFinanciero.ventasTotales],
-    ["Costo de mercancía", analisisFinanciero.costoTotal],
-    ["Utilidad bruta", analisisFinanciero.utilidadTotal],
-    ["Gastos operativos", analisisFinanciero.gastosOperativos],
-    ["Utilidad después de gastos", analisisFinanciero.utilidadNetaEstimada],
+    ["Ventas", cifrasConsolidadasDisponibles ? analisisFinanciero.ventasTotales : null],
+    ["Costo de mercancía", cifrasConsolidadasDisponibles ? analisisFinanciero.costoTotal : null],
+    ["Utilidad bruta", cifrasConsolidadasDisponibles ? analisisFinanciero.utilidadTotal : null],
+    ["Gastos operativos", cifrasConsolidadasDisponibles ? analisisFinanciero.gastosOperativos : null],
+    ["Utilidad después de gastos", cifrasConsolidadasDisponibles ? analisisFinanciero.utilidadNetaEstimada : null],
   ];
 
   const movimientosFlotilla = movimientos.filter((movimiento) => {
@@ -328,7 +314,7 @@ const utilidadConsolidada =
     return total;
   }, 0);
 
-  const puntoEquilibrioDisponible = Number.isFinite(
+  const puntoEquilibrioDisponible = cifrasConsolidadasDisponibles && Number.isFinite(
     Number(analisisFinanciero.puntoEquilibrioVentas),
   );
 
@@ -504,10 +490,10 @@ const utilidadConsolidada =
       >
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas y cortes de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
         {contenidoOperacion && <BloquePlegable id="operacion-completa-direccion" titulo="📋 Tareas y fotos del equipo">{contenidoOperacion}</BloquePlegable>}
-        <p className="owner-period">Datos del corte: {detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
+        <p className="owner-period">Datos del corte: {cifrasConsolidadasDisponibles ? `${formatearFechaPeriodo(consolidacionFinanciera.fechaInicial)} al ${formatearFechaPeriodo(consolidacionFinanciera.fechaFinal)}` : consolidacionFinanciera.motivo || detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         <section className="owner-results" aria-label="Resultados del corte SICAR">
-          <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(ventasConsolidadas || ventasTotales) : detallePeriodo}</strong><span>Venta registrada en SICAR</span></div>
-          <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" ? formatoDinero(utilidadConsolidada || utilidadTotal) : "Por confirmar"}</strong><span>Antes de renta, nómina y demás gastos</span></div>
+          <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(ventasConsolidadas) : consolidacionFinanciera.motivo || detallePeriodo}</strong><span>Venta registrada en SICAR</span></div>
+          <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(utilidadConsolidada) : "Corte por alinear"}</strong><span>Antes de renta, nómina y demás gastos</span></div>
           <div><small>Dinero para decidir</small><strong>Confirmar saldos</strong><span>Ventas y movimientos no equivalen a efectivo disponible</span><button type="button" onClick={abrirFinanzas}>Revisar saldos y compromisos →</button></div>
         </section>
         <CortesHoyDireccion usuario={usuario} sucursales={sucursalesDashboard} />
@@ -778,7 +764,7 @@ const utilidadConsolidada =
                     }}
                   >
                     <span>{etiqueta}</span>
-                    <strong>{formatoDinero(valor)}</strong>
+                    <strong>{valor === null ? "Por confirmar" : formatoDinero(valor)}</strong>
                   </div>
                 ))}
               </div>
@@ -800,7 +786,7 @@ const utilidadConsolidada =
                 Ventas mínimas estimadas para cubrir costos y gastos registrados.
               </p>
               <div style={estiloAvisoDato}>
-                Margen después de gastos: {Number(analisisFinanciero.margenConGastos || 0).toFixed(1)}%
+                Margen después de gastos: {cifrasConsolidadasDisponibles ? `${Number(analisisFinanciero.margenConGastos || 0).toFixed(1)}%` : "por confirmar"}
               </div>
             </article>
 

@@ -18,6 +18,10 @@ const proveedoresConfirmados = {
 
 test("no usa como disponible un saldo bancario de otro día", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 9000, fechaSaldo: "2026-10-14T20:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -28,8 +32,34 @@ test("no usa como disponible un saldo bancario de otro día", () => {
   assert.equal(resumen.prioridad.destino, "bancos");
 });
 
+test("un movimiento bancario de hoy no vuelve confirmado un saldo capturado días antes", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
+    hoy: "2026-10-15",
+    cuentas: [{
+      id: "b1",
+      saldo: 9000,
+      fechaSaldo: "2026-10-14T20:00:00-06:00",
+      fechaActualizacion: "2026-10-15T09:00:00-06:00",
+      esEstimado: true,
+    }],
+    cierre: cierreCompleto,
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.cuentasPendientes, 1);
+  assert.equal(resumen.liquidezLocalizada, null);
+  assert.equal(resumen.dineroLibre, null);
+});
+
 test("separa efectivo resguardado para evitar sumarlo dos veces", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -44,6 +74,10 @@ test("separa efectivo resguardado para evitar sumarlo dos veces", () => {
 
 test("un proveedor sin vencimiento bloquea dinero libre aunque el saldo sea conocido", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -59,6 +93,10 @@ test("un proveedor sin vencimiento bloquea dinero libre aunque el saldo sea cono
 
 test("un reporte antiguo de proveedores no libera dinero", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -72,8 +110,97 @@ test("un reporte antiguo de proveedores no libera dinero", () => {
   assert.match(resumen.prioridad.titulo, /actualiza/i);
 });
 
+test("un saldo negativo de proveedor no reduce otras deudas ni libera dinero", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    creditosProveedores: {
+      importacion: { id: "imp-1", created_at: "2026-10-15T12:00:00Z" },
+      creditos: [{ saldo: 4000, fecha_vencimiento: "2026-10-18" }, { saldo: -1000, fecha_vencimiento: "2026-10-18" }],
+    },
+  });
+  assert.equal(resumen.proveedores.total, 4000);
+  assert.equal(resumen.proveedores.saldosPendientes, 1);
+  assert.equal(resumen.dineroLibre, null);
+});
+
+test("una fecha futura de reporte de proveedores no se toma como vigente", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    creditosProveedores: {
+      importacion: { id: "imp-1", created_at: "2026-10-16T12:00:00Z" },
+      creditos: [],
+    },
+  });
+  assert.equal(resumen.proveedores.vigente, false);
+  assert.equal(resumen.dineroLibre, null);
+});
+
+test("acepta cero proveedores solo con confirmación vigente y conserva el saldo como cero", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    creditosProveedores: {
+      importacion: null,
+      confirmacion: { fecha_corte: "2026-10-15", confirmado_en: "2026-10-15T12:00:00-06:00" },
+      fuente: "confirmacion_cero",
+      disponible: true,
+      creditos: [],
+      saldoTotal: 0,
+    },
+  });
+  assert.equal(resumen.proveedores.disponible, true);
+  assert.equal(resumen.proveedores.vigente, true);
+  assert.equal(resumen.proveedores.total, 0);
+  assert.equal(resumen.dineroLibre, 13000);
+});
+
+test("un cero confirmado en una sucursal no cubre otra sucursal sin reporte", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: cierreCompleto,
+    creditosProveedores: {
+      importacion: null,
+      confirmacion: { fecha_corte: "2026-10-15" },
+      fuente: "confirmacion_cero",
+      fuenteCompleta: false,
+      disponible: true,
+      creditos: [],
+      saldoTotal: 0,
+    },
+  });
+  assert.equal(resumen.proveedores.disponible, false);
+  assert.equal(resumen.proveedores.vigente, false);
+  assert.equal(resumen.dineroLibre, null);
+});
+
 test("un cierre incompleto no se sustituye por efectivo cero", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: { ...cierreCompleto, cajasIncompletas: 1, efectivoFinal: 0 },
@@ -86,6 +213,10 @@ test("un cierre incompleto no se sustituye por efectivo cero", () => {
 
 test("prefiere el corte oficial y separa el efectivo retirado", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -107,6 +238,10 @@ test("prefiere el corte oficial y separa el efectivo retirado", () => {
 
 test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial completo", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: cierreCompleto,
@@ -120,6 +255,10 @@ test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial co
 
 test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: {
@@ -135,6 +274,10 @@ test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible"
 
 test("no confunde una evidencia reportada con un retiro comprobado", () => {
   const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    deudasFinancieras: [],
+    deudasConsultadas: true,
+    obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
     cierre: {
@@ -147,4 +290,67 @@ test("no confunde una evidencia reportada con un retiro comprobado", () => {
   assert.equal(resumen.comprobacionRetiros.reportados, 1);
   assert.equal(resumen.comprobacionRetiros.comprobados, 0);
   assert.match(resumen.prioridad.titulo, /comprueba el efectivo/i);
+});
+
+
+test("no presenta dinero libre si no se comprobaron deudas y gastos operativos", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+  });
+  assert.equal(resumen.dineroLibre, null);
+  assert.equal(resumen.prioridad.titulo, "Completa el calendario de pagos de deuda");
+});
+
+test("descuenta deuda próxima del remanente y no lo llama dinero libre sin gastos operativos", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    deudasFinancieras: [{ estado: "ACTIVA", pago_mensual: 1200, fecha_proximo_pago: "2026-10-20" }],
+  });
+  assert.equal(resumen.remanenteRegistrado, 7800);
+  assert.equal(resumen.dineroLibre, null);
+  assert.match(resumen.prioridad.detalle, /cobertura diaria no está confirmada/i);
+});
+
+test("bloquea una deuda marcada como diaria cuando solo tiene campo de pago mensual", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    deudasFinancieras: [{ estado: "ACTIVA", nombre: "Anticipo TPV · pago diario", pago_mensual: 3945.93, fecha_proximo_pago: "2026-10-20" }],
+    obligacionesOperativasConfirmadas: true,
+  });
+  assert.equal(resumen.deudas.frecuenciasAmbiguas, 1);
+  assert.equal(resumen.deudas.compromisos7Dias, 0);
+  assert.equal(resumen.dineroLibre, null);
+  assert.match(resumen.prioridad.detalle, /frecuencia distinta o dudosa/i);
+});
+
+test("resta obligaciones operativas de la caja y exige revisión vigente para liberar dinero", () => {
+  const base = {
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    deudasFinancieras: [],
+    obligacionesOperativas: { completas: true, compromisos7Dias: 1000 },
+  };
+  const pendiente = resumirDisponibilidadFinanciera({ ...base, obligacionesOperativasConfirmadas: false });
+  assert.equal(pendiente.remanenteRegistrado, 8000);
+  assert.equal(pendiente.dineroLibre, null);
+  assert.match(pendiente.prioridad.titulo, /revisaste todos los pagos/i);
+  const confirmado = resumirDisponibilidadFinanciera({ ...base, obligacionesOperativasConfirmadas: true });
+  assert.equal(confirmado.dineroLibre, 8000);
 });

@@ -1,4 +1,5 @@
 import {
+  TURNOS_CORTE,
   validarDestinoEfectivoRetirado,
   validarImportesCorte,
 } from "../../inteligencia/utils/corteTienda.js";
@@ -15,6 +16,7 @@ const CAMPOS_IDENTIDAD = [
   ["empleadoId", "Selecciona quién hizo el corte."],
   ["fecha", "Selecciona la fecha real del corte."],
   ["cajaId", "Selecciona la caja del corte."],
+  ["turnoCaja", "Selecciona el turno real del corte."],
   ["motivo", "Indica por qué Dirección está registrando este corte."],
 ];
 
@@ -36,6 +38,10 @@ export function validarCorteRecibidoDireccion({
 
   if (fechaActual && formulario.fecha > fechaActual) {
     return "No se puede registrar un corte con fecha futura.";
+  }
+
+  if (!TURNOS_CORTE.some(([valor]) => valor === formulario.turnoCaja)) {
+    return "Selecciona un turno válido para el corte.";
   }
 
   if (!String(formulario.detalleMotivo || "").trim()) {
@@ -92,6 +98,9 @@ export function construirCorteRecibidoDireccion({
     detalleEfectivoRetirado: formulario.detalleEfectivoRetirado || null,
     cajaId: formulario.cajaId,
     cajaNombre: formulario.cajaId === "CAJA_2" ? "Caja 2" : "Caja 1",
+    turnoCaja: formulario.turnoCaja,
+    turnoCajaNombre:
+      TURNOS_CORTE.find(([valor]) => valor === formulario.turnoCaja)?.[1] || null,
     sesionCajaId: null,
     responsableApertura: null,
     responsableCaja: empleado.nombre,

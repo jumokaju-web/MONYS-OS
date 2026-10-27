@@ -5,13 +5,18 @@ import { extraerCapturasFinancieras } from "../../inteligencia/utils/capturasFin
 import {
   guardarSaldoBancarioConfirmado,
   obtenerCuentasBancariasParaConfirmar,
+  obtenerCuentasBancariasSinNegocio,
 } from "../../tesoreria/services/cuentasFinancierasService";
 import { resumirCierreDiarioDireccion } from "../utils/cierreDiarioDireccion";
 import { obtenerCortesCajaSicar } from "../services/cortesCajaSicarService";
 import { resumirCortesOficialesParaDisponibilidad } from "../utils/disponibilidadCortesOficiales";
-import { resumirDisponibilidadFinanciera } from "../utils/disponibilidadFinanciera";
+import { fechaMexico, resumirDisponibilidadFinanciera } from "../utils/disponibilidadFinanciera";
 import { obtenerComprobacionesRetiros } from "../services/comprobacionesRetirosService.js";
+import { obtenerDeudasFinancieras } from "../../inteligencia/services/deudasFinancierasService";
+import { obtenerControlObligacionesOperativas } from "../../inteligencia/services/obligacionesOperativasService";
 import ComprobacionRetiroCard from "./ComprobacionRetiroCard.jsx";
+import ObligacionesOperativas from "./ObligacionesOperativas.jsx";
+import { resumirObligacionesOperativas } from "../utils/obligacionesOperativas";
 import "./DisponibilidadFinancieraHoy.css";
 
 const dinero = new Intl.NumberFormat("es-MX", {
@@ -44,10 +49,17 @@ export default function DisponibilidadFinancieraHoy({
 }) {
   const { usuario } = useUser();
   const [cuentas, setCuentas] = useState([]);
+  const [cuentasSinAsignar, setCuentasSinAsignar] = useState([]);
   const [cierre, setCierre] = useState({});
   const [importacionesCortes, setImportacionesCortes] = useState([]);
   const [capturas, setCapturas] = useState({});
   const [comprobacionesRetiros, setComprobacionesRetiros] = useState([]);
+  const [deudasFinancieras, setDeudasFinancieras] = useState([]);
+  const [deudasConsultadas, setDeudasConsultadas] = useState(false);
+  const [obligaciones, setObligaciones] = useState([]);
+  const [obligacionesConsultadas, setObligacionesConsultadas] = useState(false);
+  const [coberturaObligacionesConfirmada, setCoberturaObligacionesConfirmada] = useState(false);
+  const [errorObligaciones, setErrorObligaciones] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(null);
   const [mensaje, setMensaje] = useState("");
@@ -67,13 +79,36 @@ export default function DisponibilidadFinancieraHoy({
     setCargando(true);
     setError("");
     try {
-      const [resumenBancos, cierres, cortesOficiales] = await Promise.all([
-        obtenerCuentasBancariasParaConfirmar({ organizationId: usuario.organization_id }),
+      const consultaSinAsignar = role === "owner"
+        ? obtenerCuentasBancariasSinNegocio({ organizationId: usuario.organization_id })
+        : Promise.resolve([]);
+      const consultaObligaciones = obtenerControlObligacionesOperativas({ organizationId: usuario.organization_id, businessId: usuario.business_id })
+        .then((data) => ({ data }))
+        .catch((error) => ({ error }));
+      const [resumenBancos, cierres, cortesOficiales, sinAsignar, deudas, resultadoObligaciones] = await Promise.all([
+        obtenerCuentasBancariasParaConfirmar({ organizationId: usuario.organization_id, businessId: usuario.business_id }),
         obtenerCierresTurno({ branchId: alcanceCompleto ? null : branchId, limite: 100 }),
         obtenerCortesCajaSicar({ branchIds }),
+        consultaSinAsignar,
+        obtenerDeudasFinancieras({ organizationId: usuario.organization_id, businessId: usuario.business_id }),
+        consultaObligaciones,
       ]);
       const capturasFinancieras = extraerCapturasFinancieras(cierres);
       setCuentas(resumenBancos.cuentas);
+      setCuentasSinAsignar(sinAsignar);
+      setDeudasFinancieras(deudas);
+      setDeudasConsultadas(true);
+      if (resultadoObligaciones.error) {
+        setObligaciones([]);
+        setObligacionesConsultadas(false);
+        setCoberturaObligacionesConfirmada(false);
+        setErrorObligaciones(resultadoObligaciones.error?.message || "Consulta de obligaciones no disponible.");
+      } else {
+        setObligaciones(resultadoObligaciones.data.obligaciones);
+        setObligacionesConsultadas(true);
+        setCoberturaObligacionesConfirmada(resultadoObligaciones.data.coberturaConfirmada);
+        setErrorObligaciones("");
+      }
       const cierreResumido = resumirCierreDiarioDireccion({
         capturas: capturasFinancieras,
         sucursales: [
@@ -89,11 +124,14 @@ export default function DisponibilidadFinancieraHoy({
         cierreResumido.retiros.map((retiro) => retiro.cierreId).filter(Boolean)
       ));
     } catch (e) {
+      setDeudasConsultadas(false);
+      setObligacionesConsultadas(false);
+      setCoberturaObligacionesConfirmada(false);
       setError(e?.message || "No fue posible preparar la disponibilidad financiera de hoy.");
     } finally {
       setCargando(false);
     }
-  }, [alcanceCompleto, branchId, branchIds, sucursales, usuario?.branch_id, usuario?.organization_id, usuario?.sucursal]);
+  }, [alcanceCompleto, branchId, branchIds, role, sucursales, usuario?.branch_id, usuario?.business_id, usuario?.organization_id, usuario?.sucursal]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -108,8 +146,12 @@ export default function DisponibilidadFinancieraHoy({
     cierre,
     cortesOficiales,
     creditosProveedores,
+    deudasFinancieras,
+    deudasConsultadas,
+    obligacionesOperativas: resumirObligacionesOperativas({ obligaciones, consultadas: obligacionesConsultadas, hoy: fechaMexico() }),
+    obligacionesOperativasConfirmadas: coberturaObligacionesConfirmada,
     comprobacionesRetiros,
-  }), [cuentas, cierre, cortesOficiales, creditosProveedores, comprobacionesRetiros]);
+  }), [cuentas, cierre, cortesOficiales, creditosProveedores, deudasFinancieras, deudasConsultadas, obligaciones, obligacionesConsultadas, coberturaObligacionesConfirmada, comprobacionesRetiros]);
 
   async function retiroActualizado(texto) {
     setMensaje(texto);
@@ -171,7 +213,7 @@ export default function DisponibilidadFinancieraHoy({
           <Importe valor={resumen.dineroLibre} />
           <p>{resumen.calculable
             ? "Después de separar las obligaciones confirmadas de los próximos 7 días."
-            : "No se mostrará una cifra hasta comprobar bancos, cajas y vencimientos."}</p>
+            : `No se mostrará una cifra hasta comprobar bancos, cajas, proveedores, deudas y gastos operativos. Remanente de obligaciones registradas: ${resumen.remanenteRegistrado === null ? "por calcular" : dinero.format(resumen.remanenteRegistrado)}; aún faltan gastos de operación confirmados.`}</p>
         </div>
         <article>
           <span>PRIORIDAD</span>
@@ -188,7 +230,19 @@ export default function DisponibilidadFinancieraHoy({
         <article><span>En cajas</span><Importe valor={resumen.efectivoCajas} /><small>{resumen.cajasCompletas ? `${resumen.cajasEsperadas} cajas · ${resumen.fuenteCajas === "SICAR_OFICIAL" ? "SICAR oficial" : "cierre del equipo"}` : "Cierre incompleto"}</small></article>
         <article><span>Liquidez localizada</span><Importe valor={resumen.liquidezLocalizada} /><small>Banco + efectivo que permanece en caja</small></article>
         <article><span>Obligaciones a 7 días</span><Importe valor={resumen.proveedores.vigente && resumen.proveedores.sinFecha === 0 ? resumen.proveedores.compromisos7Dias : null} /><small>{!resumen.proveedores.vigente ? "Reporte por actualizar" : resumen.proveedores.sinFecha ? `${resumen.proveedores.sinFecha} sin vencimiento` : "Según fechas reportadas"}</small></article>
+        <article><span>Pagos de deuda a 7 días</span><Importe valor={resumen.deudas.completas ? resumen.deudas.compromisos7Dias : null} /><small>{!resumen.deudas.consultadas ? "Consulta pendiente" : resumen.deudas.incompletas ? `${resumen.deudas.incompletas} créditos incompletos` : "Según calendario registrado"}</small></article>
       </div>
+
+      <ObligacionesOperativas
+        usuario={usuario}
+        sucursales={sucursales}
+        obligaciones={obligaciones}
+        consultadas={obligacionesConsultadas}
+        errorConsulta={errorObligaciones}
+        coberturaConfirmada={coberturaObligacionesConfirmada}
+        puedeGestionar={puedeConfirmar}
+        onGuardar={cargar}
+      />
 
       <div className={`disponibilidad-hoy__fuente ${cortesOficiales.completo ? "esta-lista" : ""}`}>
         <div>
@@ -273,6 +327,11 @@ export default function DisponibilidadFinancieraHoy({
         {!resumen.cuentas.length && !cargando && <p>No hay cuentas bancarias activas configuradas para esta organización.</p>}
         {!puedeConfirmar && <p>Tu perfil puede consultar este control, pero Dirección o Finanzas deben confirmar los saldos.</p>}
       </details>
+      {role === "owner" && cuentasSinAsignar.length > 0 && <aside role="status" style={{ marginTop: 16, padding: 16, border: "1px solid #e8c98c", borderRadius: 12, background: "#fff9ed" }}>
+        <strong>Cuentas bancarias pendientes de asignar</strong>
+        <p>No las sumé al dinero de Monys Glam porque todavía no tienen negocio asignado. Confirma si son del negocio, personales o mixtas antes de incorporarlas.</p>
+        <ul>{cuentasSinAsignar.map((cuenta) => <li key={cuenta.id}>{cuenta.name} · saldo excluido hasta revisar</li>)}</ul>
+      </aside>}
     </section>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "../../inteligencia/utils/capturasFinancierasEquipo";
 import {
   DESTINOS_EFECTIVO_RETIRADO,
+  TURNOS_CORTE,
   fechaOperativaMexico,
 } from "../../inteligencia/utils/corteTienda";
 import {
@@ -37,6 +38,7 @@ function formularioVacio(fecha) {
     empleadoId: "",
     fecha,
     cajaId: "",
+    turnoCaja: "",
     motivo: "",
     detalleMotivo: "",
     ventaSicar: "",
@@ -162,12 +164,14 @@ export default function CapturaCorteRecibido({
         .eq("fecha", formulario.fecha)
         .limit(100);
       if (errorExistentes) throw errorExistentes;
-      const cajaOcupada = (existentes || []).some(
-        (registro) => leerCorteCaja(registro.observaciones)?.cajaId === formulario.cajaId
-      );
+      const cajaOcupada = (existentes || []).some((registro) => {
+        const corte = leerCorteCaja(registro.observaciones);
+        if (corte?.cajaId !== formulario.cajaId) return false;
+        return !corte.turnoCaja || corte.turnoCaja === formulario.turnoCaja;
+      });
       if (cajaOcupada) {
         throw new Error(
-          "Ya existe un corte de esa caja y fecha. Revísalo antes de registrar otro para evitar duplicar ventas."
+          "Ya existe un corte de esa caja, fecha y turno, o hay un corte antiguo sin turno identificado. Revísalo antes de registrar otro para evitar duplicar ventas."
         );
       }
 
@@ -243,6 +247,12 @@ export default function CapturaCorteRecibido({
                 <option value="">Seleccionar…</option>
                 <option value="CAJA_1">Caja 1</option>
                 {esSucursalCentro && <option value="CAJA_2">Caja 2</option>}
+              </select>
+            </label>
+            <label>Turno real del corte
+              <select required value={formulario.turnoCaja} onChange={(e) => cambiar("turnoCaja", e.target.value)} style={estiloCampo}>
+                <option value="">Seleccionar…</option>
+                {TURNOS_CORTE.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
               </select>
             </label>
             <label>Por qué no se envió

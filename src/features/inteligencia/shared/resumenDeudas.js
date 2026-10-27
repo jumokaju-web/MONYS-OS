@@ -16,14 +16,15 @@ export function calcularResumenDeudas(deudas = []) {
 
   return abiertas.reduce(
     (resumen, deuda) => {
-      const saldo = Number(deuda?.saldo_actual);
+      const saldo = numeroONulo(deuda?.saldo_actual);
       const pago = Number(deuda?.pago_mensual);
       const tasa = numeroONulo(deuda?.tasa_anual);
+      const saldoValido = saldo !== null && saldo >= 0;
 
       return {
         cantidad: resumen.cantidad + 1,
-        saldoTotal:
-          resumen.saldoTotal + (Number.isFinite(saldo) ? saldo : 0),
+        saldoTotal: resumen.saldoTotal + (saldoValido ? saldo : 0),
+        sinSaldoActual: resumen.sinSaldoActual + (saldoValido ? 0 : 1),
         pagoMensualTotal:
           resumen.pagoMensualTotal + (Number.isFinite(pago) ? pago : 0),
         sinTasa: resumen.sinTasa + (tasa === null ? 1 : 0),
@@ -35,6 +36,7 @@ export function calcularResumenDeudas(deudas = []) {
     {
       cantidad: 0,
       saldoTotal: 0,
+      sinSaldoActual: 0,
       pagoMensualTotal: 0,
       sinTasa: 0,
       sinPagoMensual: 0,

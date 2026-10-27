@@ -19,25 +19,43 @@ export function resumirCentroDecisionesFinancieras({ movimientos = [], creditosP
   const cancelados = listaMovimientos.filter((movimiento) => String(movimiento?.estado || movimiento?.status || "") === "Cancelado").length;
   const metricas = datosDashboard?.metricas || {};
   const consolidacion = consolidarFinanzasSucursales(Array.isArray(sucursalesDashboard) ? sucursalesDashboard : []);
-  const fechaFinal = consolidacion.disponible ? consolidacion.fechaFinal : metricas.fechaFinal || null;
+  const variasSucursales = Array.isArray(sucursalesDashboard) && sucursalesDashboard.length > 1;
+  const faltaConsolidadoComparable = variasSucursales && !consolidacion.disponible;
+  const fechaFinal = consolidacion.disponible
+    ? consolidacion.fechaFinal
+    : faltaConsolidadoComparable
+      ? null
+      : metricas.fechaFinal || null;
   const antiguedadVentas = diasDesde(fechaFinal);
-  const ventas = consolidacion.disponible ? numeroONulo(consolidacion.ventas) : numeroONulo(metricas.ventasTotales);
-  const utilidad = consolidacion.disponible ? numeroONulo(consolidacion.utilidad) : numeroONulo(metricas.utilidadTotal);
-  const saldoProveedores = creditosProveedores?.importacion ? numeroONulo(creditosProveedores?.saldoTotal) : null;
+  const ventas = consolidacion.disponible
+    ? numeroONulo(consolidacion.ventas)
+    : faltaConsolidadoComparable
+      ? null
+      : numeroONulo(metricas.ventasTotales);
+  const utilidad = consolidacion.disponible
+    ? numeroONulo(consolidacion.utilidad)
+    : faltaConsolidadoComparable
+      ? null
+      : numeroONulo(metricas.utilidadTotal);
+  const saldoProveedores = creditosProveedores?.importacion || creditosProveedores?.disponible
+    ? numeroONulo(creditosProveedores?.saldoTotal)
+    : null;
   const sucursales = Array.isArray(sucursalesDashboard) ? sucursalesDashboard.length : 0;
 
   let prioridad;
   if (pendientes.length > 0) {
     prioridad = { nivel: "alta", etiqueta: "ACCIÓN DE HOY", titulo: `Resolver ${pendientes.length} ${pendientes.length === 1 ? "movimiento pendiente" : "movimientos pendientes"}`, detalle: "Mientras no estén clasificados y revisados, MONYS no debe tratarlos como una base financiera cerrada.", accion: "Abrir movimientos", destino: "control", evidencia: `REAL · ${listaMovimientos.length} movimientos consultados` };
-  } else if (!creditosProveedores?.importacion) {
+  } else if (!creditosProveedores?.importacion && !creditosProveedores?.disponible) {
     prioridad = { nivel: "alta", etiqueta: "DATO FALTANTE", titulo: "Cargar los saldos de proveedores", detalle: "Sin obligaciones actualizadas no es seguro decidir cuánto dinero está libre para comprar o pagar.", accion: "Cargar reporte", destino: "importador", evidencia: "PENDIENTE · no hay importación vigente de proveedores" };
+  } else if (faltaConsolidadoComparable) {
+    prioridad = { nivel: "alta", etiqueta: "CORTE INCOMPLETO", titulo: "Alinear los reportes de las sucursales", detalle: "Las fechas disponibles no forman un mismo corte para todo el negocio. Se ocultan los totales parciales hasta poder compararlos.", accion: "Revisar cortes", destino: "plan", evidencia: `PENDIENTE · ${consolidacion.motivo}` };
   } else if (antiguedadVentas === null || antiguedadVentas > 7) {
     prioridad = { nivel: "media", etiqueta: "ACTUALIZAR BASE", titulo: "Actualizar las ventas de SICAR", detalle: antiguedadVentas === null ? "La fecha del último corte no está confirmada." : `El último corte disponible tiene ${antiguedadVentas} días de antigüedad.`, accion: "Subir reportes", destino: "importador", evidencia: fechaFinal ? `REAL · último corte ${fechaFinal}` : "PENDIENTE · fecha de corte no disponible" };
   } else {
     prioridad = { nivel: "bien", etiqueta: "SIGUIENTE DECISIÓN", titulo: "Confirmar cuánto dinero puedes usar hoy", detalle: "Revisa bancos, cajas y compromisos próximos antes de autorizar compras o pagos.", accion: "Calcular disponibilidad", destino: "disponible", evidencia: "REAL · movimientos y reportes principales sin bloqueo inmediato" };
   }
 
-  return { prioridad, pendientes: pendientes.length, revisados: Math.max(0, listaMovimientos.length - pendientes.length - cancelados), totalMovimientos: listaMovimientos.length, ventas, utilidad, saldoProveedores, fechaFinal, antiguedadVentas, sucursales, alcanceVentas: consolidacion.disponible ? "Todas las sucursales · cortes comparables" : "Corte disponible · sin consolidar" };
+  return { prioridad, pendientes: pendientes.length, revisados: Math.max(0, listaMovimientos.length - pendientes.length - cancelados), totalMovimientos: listaMovimientos.length, ventas, utilidad, saldoProveedores, fechaFinal, antiguedadVentas, sucursales, alcanceVentas: consolidacion.disponible ? "Todas las sucursales · cortes comparables" : faltaConsolidadoComparable ? "Cortes distintos · total pendiente" : "Corte de la sucursal seleccionada" };
 }
 import { consolidarFinanzasSucursales } from "../../inteligencia/shared/resumenSucursalesFinanciero.js";
 

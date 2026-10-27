@@ -79,7 +79,8 @@ export function consolidarFinanzasSucursales(sucursales = []) {
   const fechaInicial = filas[0].periodoInicio;
   const fechaFinal = filas[0].periodoFin;
   const diasAnalizados = (Date.parse(fechaFinal) - Date.parse(fechaInicial)) / 86400000 + 1;
-  const ventas = filas.reduce((s, f) => s + f.ventas, 0);
-  const utilidad = filas.reduce((s, f) => s + f.utilidadBruta, 0);
+  const redondearCentavos = (valor) => Math.round((valor + Number.EPSILON) * 100) / 100;
+  const ventas = redondearCentavos(filas.reduce((s, f) => s + f.ventas, 0));
+  const utilidad = redondearCentavos(filas.reduce((s, f) => s + f.utilidadBruta, 0));
   return { disponible: true, ventas, utilidad, costo: ventas - utilidad, margen: ventas > 0 ? utilidad / ventas * 100 : 0, fechaInicial, fechaFinal, diasAnalizados };
 }

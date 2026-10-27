@@ -33,6 +33,7 @@ test("suma créditos activos y reestructurados, y excluye los cerrados", () => {
   assert.deepEqual(resumen, {
     cantidad: 2,
     saldoTotal: 150000,
+    sinSaldoActual: 0,
     pagoMensualTotal: 40000,
     sinTasa: 0,
     sinPagoMensual: 0,
@@ -52,6 +53,7 @@ test("marca mensualidad y tasa faltantes sin ocultar el saldo", () => {
   assert.deepEqual(resumen, {
     cantidad: 1,
     saldoTotal: 12500,
+    sinSaldoActual: 0,
     pagoMensualTotal: 0,
     sinTasa: 1,
     sinPagoMensual: 1,
@@ -62,8 +64,19 @@ test("devuelve ceros para entradas que no son una lista", () => {
   assert.deepEqual(calcularResumenDeudas(null), {
     cantidad: 0,
     saldoTotal: 0,
+    sinSaldoActual: 0,
     pagoMensualTotal: 0,
     sinTasa: 0,
     sinPagoMensual: 0,
   });
+});
+
+test("no cuenta un saldo activo vacío o negativo como cero confirmado", () => {
+  const resumen = calcularResumenDeudas([
+    { estado: "ACTIVA", saldo_actual: null, pago_mensual: 1000 },
+    { estado: "ACTIVA", saldo_actual: -500, pago_mensual: 1000 },
+  ]);
+  assert.equal(resumen.cantidad, 2);
+  assert.equal(resumen.saldoTotal, 0);
+  assert.equal(resumen.sinSaldoActual, 2);
 });

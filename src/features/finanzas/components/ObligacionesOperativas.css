@@ -1,0 +1,29 @@
+.obligaciones-operativas{margin-top:16px;padding:18px;border:1px solid #e5d1dc;border-radius:16px;background:#fff}
+.obligaciones-operativas>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.obligaciones-operativas>header span{color:#9a2a61;font-size:10px;font-weight:900;letter-spacing:.12em}
+.obligaciones-operativas h3{margin:5px 0;color:#442d3a;font-size:21px}
+.obligaciones-operativas header p{margin:0;color:#796571;font-size:13px;line-height:1.5}
+.obligaciones-operativas button{min-height:42px;border:0;border-radius:9px;background:#713554;color:#fff;padding:9px 12px;font-weight:800;cursor:pointer}
+.obligaciones-operativas button:disabled{opacity:.55;cursor:wait}
+.obligaciones-operativas__totales{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.obligaciones-operativas__totales article{padding:13px;border:1px solid #eee1e8;border-radius:11px;background:#fcf8fa}
+.obligaciones-operativas__totales span,.obligaciones-operativas__totales strong{display:block}
+.obligaciones-operativas__totales span{color:#765f6c;font-size:12px}
+.obligaciones-operativas__totales strong{margin-top:6px;color:#442d3a;font-size:19px}
+.obligaciones-operativas__lista{display:grid;gap:7px;margin:12px 0}
+.obligaciones-operativas__lista article{display:flex;justify-content:space-between;gap:12px;padding:11px;border-bottom:1px solid #f0e6eb}
+.obligaciones-operativas__lista strong,.obligaciones-operativas__lista small{display:block}
+.obligaciones-operativas__lista small{margin-top:3px;color:#816d78;font-size:11px}
+.obligaciones-operativas details{margin-top:10px;border-top:1px solid #eee1e8;padding-top:10px}
+.obligaciones-operativas summary{color:#713554;font-weight:850;cursor:pointer}
+.obligaciones-operativas__form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.obligaciones-operativas__form label{display:grid;gap:5px;color:#64495a;font-size:12px;font-weight:750}
+.obligaciones-operativas__form input,.obligaciones-operativas__form select{box-sizing:border-box;width:100%;min-height:42px;border:1px solid #d8c4d0;border-radius:8px;padding:9px;background:#fff;color:#3e2b36;font:inherit}
+.obligaciones-operativas__form>button{align-self:end}
+.obligaciones-operativas__pendiente{padding:11px;border-radius:9px;background:#fff6df;color:#755719;font-size:12px;line-height:1.45}
+.obligaciones-operativas__revision{display:grid;gap:8px;margin-top:12px;padding:13px;border:1px solid #d9e6db;border-radius:11px;background:#f6fbf7}
+.obligaciones-operativas__revision p{margin:0;color:#63756a;font-size:12px;line-height:1.45}
+.obligaciones-operativas__revision label{display:grid;gap:5px;color:#526858;font-size:12px;font-weight:750}
+.obligaciones-operativas__revision textarea{box-sizing:border-box;width:100%;min-height:64px;border:1px solid #cad8ce;border-radius:8px;padding:9px;background:#fff;font:inherit}
+.obligaciones-operativas>small{display:block;margin-top:12px;color:#816d78;line-height:1.45}
+@media(max-width:600px){.obligaciones-operativas__totales,.obligaciones-operativas__form{grid-template-columns:1fr}.obligaciones-operativas>header{display:block}.obligaciones-operativas>header button{width:100%;margin-top:9px}.obligaciones-operativas__lista article{align-items:flex-start}.obligaciones-operativas__lista article>div:last-child{text-align:right}}

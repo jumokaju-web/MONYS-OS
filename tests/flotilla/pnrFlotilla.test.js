@@ -29,6 +29,7 @@ test("un descuento compartido reduce una sola vez el saldo del PNR", () => {
   assert.equal(calcularSaldoPnr(2500, descuentos), 1500);
   assert.equal(validarDescuentoPnr({ saldo: 1500, monto: 500, desde: "2026-10-12", hasta: "2026-10-18" }), "");
   assert.match(validarDescuentoPnr({ saldo: 300, monto: 500, desde: "2026-10-12", hasta: "2026-10-18" }), /saldo pendiente/);
+  assert.match(validarDescuentoPnr({ saldo: 1500, monto: 700, limiteAutorizado: 500, desde: "2026-10-12", hasta: "2026-10-18" }), /monto semanal autorizado/);
 });
 
 test("resume pendientes y saldo sin contar PNR resueltos", () => {

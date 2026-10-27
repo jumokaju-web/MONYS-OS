@@ -151,7 +151,7 @@ function CentroRescateFinanciero({
   }, [organizationId]);
 
   const resumen = useMemo(() => calcularResumenDeudas(deudas), [deudas]);
-  const datosFaltantes = resumen.sinTasa + resumen.sinPagoMensual;
+  const datosFaltantes = resumen.sinTasa + resumen.sinPagoMensual + resumen.sinSaldoActual;
   const pagosOrdenados = useMemo(
     () =>
       [...deudas]

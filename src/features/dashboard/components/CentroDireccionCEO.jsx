@@ -11,7 +11,7 @@ import { resumirCierreDiarioDireccion } from "../../finanzas/utils/cierreDiarioD
 import { resumirDisponibilidadFinanciera } from "../../finanzas/utils/disponibilidadFinanciera";
 import { resumirCortesOficialesParaDisponibilidad } from "../../finanzas/utils/disponibilidadCortesOficiales";
 import { obtenerCortesCajaSicar } from "../../finanzas/services/cortesCajaSicarService";
-import { construirCentroDireccionCEO } from "../utils/centroDireccionCEO";
+import { construirCentroDireccionCEO, consolidarCreditosProveedores } from "../utils/centroDireccionCEO";
 import PlanPagosComprasCEO from "./PlanPagosComprasCEO";
 import "./CentroDireccionCEO.css";
 
@@ -23,21 +23,6 @@ const dinero = new Intl.NumberFormat("es-MX", {
 
 function TextoDinero({ valor, pendiente = "Por confirmar" }) {
   return <strong>{valor === null || valor === undefined ? pendiente : dinero.format(valor)}</strong>;
-}
-
-function consolidarProveedores(resultados, esperadas) {
-  const correctos = resultados
-    .filter((resultado) => resultado.status === "fulfilled")
-    .map((resultado) => resultado.value);
-  const conReporte = correctos.filter((reporte) => reporte?.importacion);
-  return {
-    importacion: conReporte[0]?.importacion || null,
-    creditos: conReporte.flatMap((reporte) => reporte?.creditos || []),
-    saldoTotal: conReporte.reduce((total, reporte) => total + Number(reporte?.saldoTotal || 0), 0),
-    fuenteCompleta: esperadas > 0 && conReporte.length === esperadas,
-    sucursalesEsperadas: esperadas,
-    sucursalesConReporte: conReporte.length,
-  };
 }
 
 export default function CentroDireccionCEO({
@@ -66,14 +51,14 @@ export default function CentroDireccionCEO({
 
     const proveedoresPromesa = Promise.allSettled(
       branchIds.map((branchId) => obtenerCreditosProveedoresActuales(branchId)),
-    ).then((resultados) => consolidarProveedores(resultados, branchIds.length));
+    ).then((resultados) => consolidarCreditosProveedores(resultados, branchIds.length));
 
     const resultados = await Promise.allSettled([
       proveedoresPromesa,
-      obtenerDeudasFinancieras({ organizationId }),
+      obtenerDeudasFinancieras({ organizationId, businessId }),
       obtenerCampanasMarketing({ organizationId, businessId }),
       generarCompraMaestra(),
-      obtenerCuentasBancariasParaConfirmar({ organizationId }),
+      obtenerCuentasBancariasParaConfirmar({ organizationId, businessId }),
       obtenerCierresTurno({ branchId: null, limite: 100 }),
       obtenerCortesCajaSicar({ branchIds }),
     ]);
@@ -121,6 +106,8 @@ export default function CentroDireccionCEO({
         cierre,
         cortesOficiales,
         creditosProveedores: proveedoresParaCaja,
+        deudasFinancieras: valor(1, []),
+        deudasConsultadas: resultados[1].status === "fulfilled",
       }),
     });
   }, [branchIds, businessId, organizationId, sucursales]);
@@ -140,7 +127,7 @@ export default function CentroDireccionCEO({
   }), [datos, sucursales]);
 
   const accionCompra = resumen.compra.estado === "datos" ? abrirImportador : abrirCompraMaestra;
-  const primerPago = resumen.pagos.lista[0];
+  const primerPago = resumen.pagos.completo ? resumen.pagos.lista[0] : null;
 
   return (
     <section className="centro-ceo" aria-labelledby="centro-ceo-titulo">
@@ -176,7 +163,7 @@ export default function CentroDireccionCEO({
 
         <article className={resumen.pagos.vencidos ? "es-urgente" : ""}>
           <small>QUÉ PAGAR PRIMERO</small>
-          <TextoDinero valor={resumen.pagos.lista.length ? resumen.pagos.total7Dias : null} pendiente="Sin calendario completo" />
+          <TextoDinero valor={resumen.pagos.completo && resumen.pagos.lista.length ? resumen.pagos.total7Dias : null} pendiente="Sin calendario completo" />
           <p>{primerPago
             ? `${primerPago.vencido ? "Vencido" : `Vence ${primerPago.fecha}`}: ${primerPago.nombre} · ${dinero.format(primerPago.monto)}.`
             : "Completa fechas y mensualidades; MONYS no confundirá falta de datos con cero deuda."}</p>
