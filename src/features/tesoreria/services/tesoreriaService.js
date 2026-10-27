@@ -1,6 +1,7 @@
 import { supabase } from "../../../supabase";
 import { validarMovimientoParaRevision } from "../utils/validacionMovimientoTesoreria.js";
 import { validarDistribucionMovimiento } from "../utils/distribucionMovimientoTesoreria.js";
+import { consultarTodasLasPaginas } from "../utils/paginarConsultaSupabase.js";
 
 /*
   Convierte un texto para poder comparar nombres
@@ -507,35 +508,30 @@ expense_behavior:
 */
 export const obtenerMovimientosTesoreria =
   async () => {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("cash_movements")
-      .select("*")
-      .order(
-        "occurred_at",
-        {
-          ascending: false,
-        }
-      );
-
-    if (error) {
+    let movimientos;
+    try {
+      movimientos = await consultarTodasLasPaginas((inicio, fin) => supabase
+        .from("cash_movements")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .range(inicio, fin));
+    } catch (error) {
       throw new Error(
         `No fue posible consultar los movimientos: ${error.message}`
       );
     }
 
-    const movimientos = data || [];
     if (!movimientos.length) return movimientos;
 
-    const { data: partidas, error: errorPartidas } = await supabase
-      .from("cash_movement_allocations")
-      .select("id,distribution_id,cash_movement_id,organization_id,business_id,branch_id,amount,expense_category,expense_behavior,note,status,created_at")
-      .eq("status", "ACTIVA")
-      .order("created_at", { ascending: true });
-
-    if (errorPartidas) {
+    let partidas;
+    try {
+      partidas = await consultarTodasLasPaginas((inicio, fin) => supabase
+        .from("cash_movement_allocations")
+        .select("id,distribution_id,cash_movement_id,organization_id,business_id,branch_id,amount,expense_category,expense_behavior,note,status,created_at")
+        .eq("status", "ACTIVA")
+        .order("created_at", { ascending: true })
+        .range(inicio, fin));
+    } catch (errorPartidas) {
       throw new Error(`No fue posible consultar el desglose de los pagos: ${errorPartidas.message}`);
     }
 
