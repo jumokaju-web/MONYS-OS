@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -28,6 +29,7 @@ import {
   analizarInventario,
 } from "../../inteligencia/analyzers/inventarioAnalyzer";
 import { EVENTO_IMPORTACIONES_ACTUALIZADAS } from "../../../core/events/importacionesActualizadas";
+import { crearControlSolicitudVigente } from "../utils/controlSolicitudVigente.js";
 
 function convertirNumero(valor) {
   if (
@@ -559,8 +561,15 @@ export function useDashboardSucursales({ enabled = true } = {}) {
     setErrorSucursales,
   ] = useState("");
 
+  const controlSolicitudRef = useRef(null);
+  if (!controlSolicitudRef.current) {
+    controlSolicitudRef.current = crearControlSolicitudVigente();
+  }
+
   const cargarSucursales =
     useCallback(async () => {
+      const solicitud = controlSolicitudRef.current.iniciar();
+      const solicitudVigente = () => controlSolicitudRef.current.esVigente(solicitud);
       try {
         setCargandoSucursales(true);
         setErrorSucursales("");
@@ -578,9 +587,7 @@ export function useDashboardSucursales({ enabled = true } = {}) {
           !organizationId ||
           !businessId
         ) {
-          setSucursalesDashboard(
-            []
-          );
+          if (solicitudVigente()) setSucursalesDashboard([]);
 
           return;
         }
@@ -625,10 +632,9 @@ export function useDashboardSucursales({ enabled = true } = {}) {
             )
           );
 
-        setSucursalesDashboard(
-          resultados
-        );
+        if (solicitudVigente()) setSucursalesDashboard(resultados);
       } catch (error) {
+        if (!solicitudVigente()) return;
         console.error(
           "Error cargando sucursales para Dirección:",
           error
@@ -643,9 +649,7 @@ export function useDashboardSucursales({ enabled = true } = {}) {
           []
         );
       } finally {
-        setCargandoSucursales(
-          false
-        );
+        if (solicitudVigente()) setCargandoSucursales(false);
       }
     }, [
       enabled,
@@ -657,7 +661,10 @@ export function useDashboardSucursales({ enabled = true } = {}) {
     cargarSucursales();
     if (typeof window === "undefined") return undefined;
     window.addEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarSucursales);
-    return () => window.removeEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarSucursales);
+    return () => {
+      window.removeEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarSucursales);
+      controlSolicitudRef.current?.invalidar();
+    };
   }, [
     cargarSucursales,
   ]);
