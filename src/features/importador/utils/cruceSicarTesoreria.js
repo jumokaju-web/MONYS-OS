@@ -1,0 +1,78 @@
+import { normalizarFechaSicar } from "./periodoSicar.js";
+
+function centavos(valor) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? Math.round((numero + Number.EPSILON) * 100) : null;
+}
+
+function fechaTesoreria(movimiento) {
+  return String(movimiento?.occurred_at ?? movimiento?.fecha ?? "").slice(0, 10);
+}
+
+function noCancelado(estado) {
+  return !String(estado ?? "").toLocaleLowerCase("es-MX").includes("cancel");
+}
+
+export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTesoreria = [], branchId = "") {
+  const cheques = (Array.isArray(chequesSicar) ? chequesSicar : []).filter((fila) =>
+    String(fila?.tipoMovimiento ?? fila?.tipo ?? "").toUpperCase() === "SALIDA"
+    && String(fila?.metodoPago ?? "").trim().toUpperCase() === "CH",
+  );
+  const movimientos = (Array.isArray(movimientosTesoreria) ? movimientosTesoreria : []).filter((movimiento) =>
+    noCancelado(movimiento?.status ?? movimiento?.estado),
+  );
+
+  const coincidencias = cheques.map((cheque) => {
+    const fecha = normalizarFechaSicar(cheque?.fecha);
+    const importe = centavos(cheque?.monto ?? cheque?.total);
+    const candidatos = fecha && importe !== null ? movimientos.filter((movimiento) => {
+      const tipo = String(movimiento?.movement_type ?? movimiento?.tipo ?? "").toUpperCase();
+      const sucursalCompatible = !branchId || !movimiento?.branch_id || movimiento.branch_id === branchId;
+      return tipo === "SALIDA"
+        && sucursalCompatible
+        && fechaTesoreria(movimiento) === fecha
+        && centavos(movimiento?.amount ?? movimiento?.monto) === importe;
+    }) : [];
+
+    return {
+      codigoSicar: cheque?.codigo ?? "",
+      fecha,
+      monto: importe === null ? null : importe / 100,
+      cajaSicar: String(cheque?.caja ?? "").trim() || "Caja no indicada",
+      conceptoSicar: String(cheque?.comentario ?? "").trim(),
+      candidatos: candidatos.map((movimiento) => ({
+        id: movimiento.id,
+        concepto: movimiento.concept ?? movimiento.concepto ?? "Sin concepto",
+        monto: Number(movimiento.amount ?? movimiento.monto),
+        fecha: fechaTesoreria(movimiento),
+        estado: movimiento.status ?? movimiento.estado ?? "Estado no indicado",
+        categoria: movimiento.expense_category ?? movimiento.categoria ?? "Sin clasificar",
+        branchId: movimiento.branch_id ?? null,
+        alcance: movimiento.branch_id === branchId ? "Sucursal coincidente" : "Registro de negocio sin sucursal especificada",
+        recibo: movimiento.receipt_status ?? "Comprobante no indicado",
+      })),
+    };
+  });
+
+  const usos = new Map();
+  for (const fila of coincidencias) {
+    for (const candidato of fila.candidatos) usos.set(candidato.id, (usos.get(candidato.id) || 0) + 1);
+  }
+
+  for (const fila of coincidencias) {
+    const seReutiliza = fila.candidatos.some((candidato) => usos.get(candidato.id) > 1);
+    fila.estadoCruce = fila.candidatos.length === 0
+      ? "SIN_COINCIDENCIA"
+      : fila.candidatos.length === 1 && !seReutiliza
+        ? "CANDIDATA_UNICA"
+        : "AMBIGUA";
+  }
+
+  return {
+    filas: coincidencias,
+    candidatasUnicas: coincidencias.filter((fila) => fila.estadoCruce === "CANDIDATA_UNICA").length,
+    ambiguas: coincidencias.filter((fila) => fila.estadoCruce === "AMBIGUA").length,
+    sinCoincidencia: coincidencias.filter((fila) => fila.estadoCruce === "SIN_COINCIDENCIA").length,
+    aclaracion: "La comparación usa fecha, importe y sucursal disponible. No confirma que dos registros sean el mismo pago; revisa concepto, comprobante y forma de pago antes de vincularlos.",
+  };
+}

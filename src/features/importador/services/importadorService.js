@@ -16,6 +16,17 @@ export async function guardarImportacion(carga) {
  });
 }
 
+export async function obtenerDetallesImportacion(importacionId) {
+ if (!importacionId) return [];
+ const { data, error } = await supabase
+  .from("importacion_detalle")
+  .select("id,importacion_id,numero_fila,codigo,descripcion,datos_originales")
+  .eq("importacion_id", importacionId)
+  .order("numero_fila", { ascending: true });
+ if (error) throw new Error(`No se pudieron consultar las filas del reporte: ${error.message}`);
+ return data || [];
+}
+
 async function guardarDatosPorTipoReporte({
   tipoReporte,
   datosNormalizados,

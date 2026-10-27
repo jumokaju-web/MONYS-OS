@@ -19,7 +19,7 @@ import {
   normalizarCortesCaja,
   normalizarCreditosProveedores,
 } from "../utils/normalizador";
-import { guardarImportacion } from "../services/importadorService";
+import { guardarImportacion, obtenerDetallesImportacion } from "../services/importadorService";
 import {
   generarResumenReporte,
   generarResumenInventario,
@@ -27,10 +27,14 @@ import {
 import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import ResumenCortesCaja from "./ResumenCortesCaja";
+import ResumenMovimientosCaja from "./ResumenMovimientosCaja";
+import { generarResumenMovimientosCaja } from "../utils/resumenMovimientosCaja";
+import { cruzarChequesSicarConTesoreria } from "../utils/cruceSicarTesoreria";
+import { adjuntarPeriodoSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../utils/periodoSicar";
+import { obtenerMovimientosParaCruceSicar } from "../../tesoreria/services/tesoreriaService";
 import { resumirCortesCajaSicar } from "../../finanzas/utils/cortesCajaSicar";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
-import { adjuntarPeriodoSicar, extraerPeriodoSicar } from "../utils/periodoSicar";
 import { reconciliarUtilidadVentas } from "../utils/reconciliarUtilidadVentas";
 import ResumenReporte from "./ResumenReporte";
 import { generarAnalisisEjecutivo } from "../intelligence/generarAnalisisEjecutivo";
@@ -112,6 +116,9 @@ if (tipoReporte === "Cortes de caja") {
 }
 
 function generarResumen(tipoReporte, datosNormalizados) {
+  if (tipoReporte === "Movimientos de caja") {
+    return generarResumenMovimientosCaja(datosNormalizados);
+  }
   if (tipoReporte === "Cortes de caja") {
     return resumirCortesCajaSicar(datosNormalizados);
   }
@@ -242,6 +249,14 @@ useEffect(() => {
   const [guardando, setGuardando] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
   const [mensajeGeneral, setMensajeGeneral] = useState("");
+  const [revisionImportacionSicar, setRevisionImportacionSicar] = useState(null);
+  const [cargandoRevisionSicar, setCargandoRevisionSicar] = useState(false);
+  const [errorRevisionSicar, setErrorRevisionSicar] = useState("");
+
+  useEffect(() => {
+    setRevisionImportacionSicar(null);
+    setErrorRevisionSicar("");
+  }, [branchIdSeleccionado]);
 
   const archivoActivo =
     archivosProcesados.find(
@@ -302,6 +317,36 @@ useEffect(() => {
           : item
       )
     );
+  }
+
+  async function abrirConciliacionImportada(importacion) {
+    try {
+      setCargandoRevisionSicar(true);
+      setRevisionImportacionSicar(null);
+      setErrorRevisionSicar("");
+      const detalles = await obtenerDetallesImportacion(importacion.id);
+      const datos = detalles.map((detalle) => detalle.datos_originales).filter(Boolean);
+      const resumenBase = generarResumenMovimientosCaja(datos);
+      const cheques = datos.filter((fila) => fila.tipoMovimiento === "SALIDA" && String(fila.metodoPago).trim().toUpperCase() === "CH");
+      let resumen = resumenBase;
+      if (cheques.length) {
+        const sucursal = sucursales.find((item) => item.id === importacion.branch_id)
+          || (await obtenerSucursalesInventario()).find((item) => item.id === importacion.branch_id);
+        const fechas = cheques.map((fila) => normalizarFechaSicar(fila.fecha)).filter(Boolean).sort();
+        const movimientosTesoreria = await obtenerMovimientosParaCruceSicar({
+          branchId: importacion.branch_id,
+          businessId: sucursal?.business_id || usuario?.business_id || null,
+          desde: fechas[0],
+          hasta: fechas.at(-1),
+        });
+        resumen = { ...resumenBase, cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, importacion.branch_id) };
+      }
+      setRevisionImportacionSicar({ importacion, resumen });
+    } catch (error) {
+      setErrorRevisionSicar(error?.message || "No se pudo abrir la conciliación del reporte guardado.");
+    } finally {
+      setCargandoRevisionSicar(false);
+    }
   }
 
   async function analizarArchivo(item) {
@@ -417,14 +462,45 @@ if (
         tipoReporte,
         datosNormalizados
       );
+      let resumenConCruce = resumenBase;
+      if (tipoReporte === "Movimientos de caja") {
+        const cheques = datosNormalizados.filter((fila) =>
+          fila.tipoMovimiento === "SALIDA" && String(fila.metodoPago).trim().toUpperCase() === "CH",
+        );
+        if (cheques.length) {
+          try {
+            let sucursal = sucursales.find((item) => item.id === branchIdSeleccionado);
+            if (!sucursal) {
+              const sucursalesActuales = await obtenerSucursalesInventario();
+              sucursal = sucursalesActuales.find((item) => item.id === branchIdSeleccionado);
+            }
+            const fechas = cheques.map((fila) => normalizarFechaSicar(fila.fecha)).filter(Boolean).sort();
+            const movimientosTesoreria = await obtenerMovimientosParaCruceSicar({
+              branchId: branchIdSeleccionado,
+              businessId: sucursal?.business_id || usuario?.business_id || null,
+              desde: fechas[0],
+              hasta: fechas.at(-1),
+            });
+            resumenConCruce = {
+              ...resumenBase,
+              cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, branchIdSeleccionado),
+            };
+          } catch (errorCruce) {
+            resumenConCruce = {
+              ...resumenBase,
+              cruceTesoreriaError: errorCruce?.message || "No fue posible consultar Tesorería para proponer coincidencias.",
+            };
+          }
+        }
+      }
       const controlSicar = tipoReporte === "Utilidad de ventas"
         ? reconciliarUtilidadVentas(filasDelReporte, datosNormalizados)
         : null;
       const resumen = resumenBase && controlSicar
-        ? { ...resumenBase, controlSicar }
-        : resumenBase;
+        ? { ...resumenConCruce, controlSicar }
+        : resumenConCruce;
 
-      const analisis = resumen && tipoReporte !== "Cortes de caja"
+      const analisis = resumen && tipoReporte !== "Cortes de caja" && tipoReporte !== "Movimientos de caja"
         ? generarAnalisisEjecutivo(resumen)
         : null;
 
@@ -674,9 +750,18 @@ if (
 
           try {
             if (item.resumen) {
+              const resumenMemoria = item.tipoReporte === "Movimientos de caja"
+                ? {
+                    tipoResumen: item.resumen.tipoResumen,
+                    totalRegistros: item.resumen.totalRegistros,
+                    grupos: item.resumen.grupos,
+                    totalSalidasCheque: item.resumen.totalSalidasCheque,
+                    chequesSinConcepto: item.resumen.chequesSinConcepto,
+                  }
+                : item.resumen;
               registrarConocimientoReporte({
                 tipoReporte: item.tipoReporte,
-                resumen: item.resumen,
+                resumen: resumenMemoria,
                 nombreArchivo: item.nombre,
               });
             }
@@ -1394,6 +1479,14 @@ if (
               <ResumenUtilidadVentas resumen={archivoActivo.resumen} />
             ) : archivoActivo.tipoReporte === "Cortes de caja" ? (
               <ResumenCortesCaja resumen={archivoActivo.resumen} />
+            ) : archivoActivo.tipoReporte === "Movimientos de caja" ? (
+              <ResumenMovimientosCaja
+                resumen={archivoActivo.resumen}
+                importacionId={archivoActivo.importacionId}
+                organizationId={usuario?.organization_id}
+                businessId={sucursales.find((item) => item.id === branchIdSeleccionado)?.business_id || usuario?.business_id}
+                branchId={branchIdSeleccionado}
+              />
             ) : (
               <ResumenReporte resumen={archivoActivo.resumen} />
             )
@@ -1477,7 +1570,26 @@ if (
         </div>
       )}
 
-      <HistorialImportaciones branchId={branchIdSeleccionado} revision={archivosImportados.length} />
+      <HistorialImportaciones
+        branchId={branchIdSeleccionado}
+        revision={archivosImportados.length}
+        onAbrirConciliacion={abrirConciliacionImportada}
+      />
+      {cargandoRevisionSicar && <p role="status">Abriendo movimientos SICAR y comparando con Tesorería…</p>}
+      {errorRevisionSicar && <p role="alert">No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
+      {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div><h2 style={{ margin: "0 0 4px" }}>Revisión guardada · {revisionImportacionSicar.importacion.archivo_original}</h2><small>{new Date(revisionImportacionSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })} · Sin volver a importar los datos</small></div>
+          <button type="button" onClick={() => setRevisionImportacionSicar(null)}>Cerrar revisión</button>
+        </div>
+        <ResumenMovimientosCaja
+          resumen={revisionImportacionSicar.resumen}
+          importacionId={revisionImportacionSicar.importacion.id}
+          organizationId={usuario?.organization_id}
+          businessId={sucursales.find((item) => item.id === revisionImportacionSicar.importacion.branch_id)?.business_id || usuario?.business_id}
+          branchId={revisionImportacionSicar.importacion.branch_id}
+        />
+      </section>}
       {mensajeGeneral && (
         <p
           style={{
