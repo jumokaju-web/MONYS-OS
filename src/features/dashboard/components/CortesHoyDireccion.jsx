@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../supabase';
 import { fechaActualMexico } from '../../inteligencia/services/asistenciaOperativaService';
 import { importeCorte, resumirCortesHoy } from '../utils/cortesHoy';
+import CapturaCorteRecibido from './CapturaCorteRecibido';
 
 const dinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const mostrar = valor => importeCorte(valor) === null ? 'Por confirmar' : dinero.format(Number(valor));
@@ -60,11 +61,14 @@ export default function CortesHoyDireccion({ usuario, sucursales = [] }) {
       {!pendiente && resumen.incompletos > 0 && <p>{resumen.incompletos} cortes tienen datos por completar; el total queda por confirmar.</p>}
       {!pendiente && resumen.cortes.map(({ cierre, datos, venta, diferencia, diferenciaVenta }) => <details key={cierre.id} style={{ padding: '14px 0', borderTop: '1px solid #eadce5' }}>
         <summary style={{ cursor: 'pointer', lineHeight: 1.7 }}><b>{nombres.get(cierre.branch_id)} · {datos.cajaNombre || datos.cajaId || 'Caja por identificar'}</b> · {cierre.responsable || 'Responsable por confirmar'} · {mostrar(venta)} · recibido {new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit' }).format(new Date(cierre.created_at))}</summary>
+        {datos.registroFueraDeFlujo && <p style={{ padding: 10, borderRadius: 10, background: '#fff5df', fontWeight: 750 }}>Recibido por {datos.fuenteCaptura === 'WHATSAPP' ? 'WhatsApp' : 'un canal externo'} y capturado por {datos.capturadoPorDireccion || 'Dirección'}. Responsable original: {datos.responsableCierre || cierre.responsable || 'por confirmar'}.</p>}
+        {datos.registroFueraDeFlujo && <p>Motivo: {datos.detalleMotivoRegistroTardio || datos.motivoRegistroTardio || 'Pendiente de documentar'}</p>}
         <p>Efectivo de ventas: {mostrar(datos.efectivoVentas)} · Tarjeta: {mostrar(datos.tarjeta)} · Transferencias: {mostrar(datos.transferencias)}</p>
         <p>Diferencia de caja: {mostrar(diferencia)} · Diferencia entre cobros y venta: {mostrar(diferenciaVenta)}</p>
         <p>{datos.fotoCortePath || datos.fotoCorteUrl ? 'Foto adjunta · pendiente de revisar' : 'Foto pendiente'} · Contrastar con el corte SICAR</p>
       </details>)}
     </>}
     <small>{estado.fecha} · actualización automática cada minuto mientras esta pantalla esté visible{estado.actualizado && !error && !cargando ? ` · última consulta ${estado.actualizado.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit' })}` : ''}</small>
+    <CapturaCorteRecibido usuario={usuario} sucursales={ramas} onGuardado={() => setRevision(n => n + 1)} />
   </section>;
 }
