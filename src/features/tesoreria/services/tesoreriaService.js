@@ -548,6 +548,40 @@ export const obtenerMovimientosTesoreria =
     }));
   };
 
+export async function obtenerMovimientosParaCruceSicar({ branchId, businessId, desde, hasta }) {
+  if (!branchId || !desde || !hasta) return [];
+  const uuidValido = (valor) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(valor));
+  if (!uuidValido(branchId) || (businessId && !uuidValido(businessId))) {
+    throw new Error("No se pudo validar el alcance de sucursal y negocio para la comparación.");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta) || hasta < desde) {
+    throw new Error("El periodo SICAR no tiene fechas válidas para comparar.");
+  }
+  const finExclusivo = new Date(`${hasta}T00:00:00.000Z`);
+  if (Number.isNaN(finExclusivo.getTime())) throw new Error("El periodo SICAR no tiene una fecha final válida.");
+  finExclusivo.setUTCDate(finExclusivo.getUTCDate() + 1);
+  const fechaFinExclusiva = finExclusivo.toISOString();
+
+  const consultar = (inicio, fin) => {
+    let consulta = supabase
+      .from("cash_movements")
+      .select("id,organization_id,business_id,branch_id,movement_type,amount,concept,counterparty,status,occurred_at,expense_category,receipt_status")
+      .in("movement_type", ["ENTRADA", "SALIDA"])
+      .gte("occurred_at", `${desde}T00:00:00.000Z`)
+      .lt("occurred_at", fechaFinExclusiva)
+      .order("occurred_at", { ascending: true });
+
+    if (businessId) {
+      consulta = consulta.eq("business_id", businessId).or(`branch_id.eq.${branchId},branch_id.is.null`);
+    } else {
+      consulta = consulta.eq("branch_id", branchId);
+    }
+    return consulta.range(inicio, fin);
+  };
+
+  return consultarTodasLasPaginas(consultar);
+}
+
 export async function obtenerDestinosDistribucionTesoreria(organizationId) {
   if (!organizationId) throw new Error("No encontramos la organización del movimiento.");
   const { data: negocios, error: errorNegocios } = await supabase
