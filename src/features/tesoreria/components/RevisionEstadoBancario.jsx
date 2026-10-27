@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
 import { guardarRevisionBanco, recuperarRevisionBanco } from '../services/revisionBancariaService';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias } from '../utils/sugerenciasBancarias';
+import { sugerirMovimientoBancario, agruparSugerenciasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../utils/sugerenciasBancarias';
 import { prepararComisiones, clasificarComisiones, prepararTerminales, clasificarTerminales } from '../utils/clasificacionComisiones';
 import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
@@ -10,6 +10,9 @@ import { useUser } from '../../../context/UserContext';
 import { claveRevisionBancaria, guardarRevisionBancaria, recuperarRevisionBancaria } from '../utils/borradorEstadoBancario';
 const categorias = ['Cobro de flotilla', 'Cobro de tienda: conciliar SICAR', 'Transferencia interna', 'Combustible', 'Proveedor', 'Nómina', 'Gasto operativo', 'Pago de crédito', 'Pago de tarjeta', 'Préstamo por recuperar', 'Personal', 'Comisión bancaria / IVA', 'Crédito recibido', 'Recuperación de préstamo', 'Aportación de capital', 'Otro'];
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+const notaComunDeLote = categoria => categoria === 'Préstamo por recuperar'
+  ? 'Adelantos o préstamos recuperables; vincular la recuperación con el pago futuro del beneficiario.'
+  : `Clasificación por lote confirmada por la titular: ${categoria}.`;
 export default function RevisionEstadoBancario({ movimientos = [], creditosProveedores = {} }) {
   const { usuario } = useUser();
   const clave = claveRevisionBancaria(usuario);
@@ -49,10 +52,15 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   const [editando, setEditando] = useState(null);
   const [categoria, setCategoria] = useState('');
   const [nota, setNota] = useState('');
+  const [grupoLote, setGrupoLote] = useState('');
+  const [notaLote, setNotaLote] = useState('');
+  const [confirmarLote, setConfirmarLote] = useState(false);
+  const [revisarClasificacionSegura, setRevisarClasificacionSegura] = useState(false);
   const resumen = useMemo(() => paquete ? validarEstadoBancario(paquete) : null, [paquete]);
   const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo]);
   const planComisiones = useMemo(() => paquete ? prepararComisiones(paquete, cuenta) : null, [paquete, cuenta]);
   const planTerminales = useMemo(() => paquete ? prepararTerminales(paquete, cuenta) : null, [paquete, cuenta]);
+  const planSeguro = useMemo(() => paquete ? prepararClasificacionSegura(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta)) : null, [paquete, cuenta]);
   const guardarComisiones = async () => {
     if (!planComisiones?.movimientos.length) return;
     setSincronizando(true); setError('');
@@ -75,6 +83,37 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
       setPaquete(nuevo); setRevisionId(registro.id); setRevisarTerminales(false); setPagina(0); setEditando(null);
       setGuardado(`${cantidad} cobros de terminal identificados y guardados en MONYS. Conciliación SICAR pendiente. Versión ${registro.id}.`);
     } catch (e) { setError(e.message || 'No se pudo guardar. La revisión anterior sigue abierta.'); }
+    finally { setSincronizando(false); }
+  };
+  const guardarLoteSugerido = async () => {
+    if (!confirmarLote) { setError('Confirma que la misma clasificación aplica a todo el bloque.'); return; }
+    const movimientosGrupo = (paquete?.movimientos || []).filter(m => !cuenta || m.cuenta === cuenta);
+    const lote = prepararLoteSugerido(movimientosGrupo, grupoLote);
+    if (!lote.movimientos.length) { setError('No quedan movimientos claros pendientes en este bloque.'); return; }
+    setSincronizando(true); setError('');
+    try {
+      const paqueteFiltrado = { ...paquete, movimientos: movimientosGrupo };
+      const clasificados = clasificarLoteSugerido(paqueteFiltrado, grupoLote, notaLote);
+      const idsClasificados = new Set(lote.movimientos.map(m => m.id));
+      const nuevo = { ...paquete, movimientos: paquete.movimientos.map(m => idsClasificados.has(m.id) ? clasificados.movimientos.find(x => x.id === m.id) : m) };
+      const registro = await guardarRevisionBanco(usuario, nuevo);
+      setPaquete(nuevo); setRevisionId(registro.id); setGrupoLote(''); setNotaLote(''); setConfirmarLote(false); setPagina(0);
+      setGuardado(`${lote.movimientos.length} movimientos clasificados como “${grupoLote}” y guardados en MONYS. Versión ${registro.id}.`);
+    } catch (e) { setError(e.message || 'No se pudo guardar el bloque. La revisión anterior sigue abierta.'); }
+    finally { setSincronizando(false); }
+  };
+  const guardarClasificacionSegura = async () => {
+    if (!planSeguro?.movimientos) return;
+    setSincronizando(true); setError('');
+    try {
+      const movimientosCuenta = paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta);
+      const clasificados = clasificarSugerenciasSeguras({ ...paquete, movimientos: movimientosCuenta });
+      const porId = new Map(clasificados.movimientos.map(m => [m.id, m]));
+      const nuevo = { ...paquete, movimientos: paquete.movimientos.map(m => porId.get(m.id) || m) };
+      const registro = await guardarRevisionBanco(usuario, nuevo);
+      setPaquete(nuevo); setRevisionId(registro.id); setRevisarClasificacionSegura(false); setGrupo(''); setPagina(0); setEditando(null);
+      setGuardado(`${planSeguro.movimientos} movimientos seguros clasificados y guardados. ${planSeguro.excepciones} excepciones siguen pendientes. Versión ${registro.id}.`);
+    } catch (e) { setError(e.message || 'No se pudo guardar la clasificación segura. La revisión anterior sigue abierta.'); }
     finally { setSincronizando(false); }
   };
   const cargar = async event => {
@@ -130,7 +169,8 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
       <div className="banco-filtros"><input aria-label="Buscar movimiento bancario" placeholder="Nombre, concepto o referencia" value={filtro} onChange={e => { setFiltro(e.target.value); setPagina(0); }} /><select aria-label="Cuenta bancaria" value={cuenta} onChange={e => { setCuenta(e.target.value); setPagina(0); }}><option value="">Todas las cuentas</option>{resumen.cuentas.map(c => <option key={c.terminacion} value={c.terminacion}>·{c.terminacion}</option>)}</select><select aria-label="Tipo de movimiento bancario" value={direccion} onChange={e => { setDireccion(e.target.value); setPagina(0); }}><option value="">Entradas y salidas</option><option value="entrada">Solo entradas</option><option value="salida">Solo salidas</option></select><label><input type="checkbox" checked={pendientes} onChange={e => { setPendientes(e.target.checked); setPagina(0); }} /> Solo pendientes</label><button onClick={descargar}>Descargar mi revisión</button></div>
       {usuario?.role === 'owner' && planComisiones?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · comisiones identificadas</h3><p>{planComisiones.movimientos.length} cargos por {dinero(planComisiones.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Conceptos explícitos del banco; los otros pagos quedan fuera de este bloque.</p><button onClick={() => setRevisarComisiones(v => !v)}>{revisarComisiones ? 'Cerrar revisión del bloque' : 'Revisar comisiones juntas'}</button>{revisarComisiones && <div><p>Se clasificarán como Comisión bancaria / IVA y se guardará una nueva versión en MONYS. La asignación a negocio, sucursal o uso personal sigue pendiente. Los saldos bancarios se conservan y los movimientos de caja no cambian.</p><details><summary>Ver los {planComisiones.movimientos.length} cargos del bloque</summary><div className="banco-lista">{planComisiones.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.cargo)}</strong></article>)}</div></details><button onClick={guardarComisiones}>Clasificar {planComisiones.movimientos.length} comisiones y guardar en MONYS</button></div>}</section>}
       {usuario?.role === 'owner' && planTerminales?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · cobros de terminal</h3><p>{planTerminales.movimientos.length} abonos por {dinero(planTerminales.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Identificados por el banco; falta conciliarlos con SICAR.</p><button onClick={() => setRevisarTerminales(v => !v)}>{revisarTerminales ? 'Cerrar revisión de terminales' : 'Revisar cobros de terminal juntos'}</button>{revisarTerminales && <div><p>Se clasificarán como Cobro de tienda: conciliar SICAR y se guardará una nueva versión. Esta acción no agrega ventas ni confirma que coinciden con caja.</p><details><summary>Ver los {planTerminales.movimientos.length} abonos del bloque</summary><div className="banco-lista">{planTerminales.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.abono)}</strong></article>)}</div></details><button onClick={guardarTerminales}>Identificar {planTerminales.movimientos.length} cobros y guardar en MONYS</button></div>}</section>}
-      <section className="banco-sugerencias"><h3>Revisión asistida · destinos sugeridos</h3><p>MONYS agrupa las pistas para que revises más rápido. Cada destino requiere tu confirmación.</p><div className="banco-cuentas">{agruparSugerenciasBancarias(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta)).map(g => <article key={g.nombre}><b>{g.nombre}</b><p>{g.cantidad} pendientes</p><p>Salidas {dinero(g.cargos)} · Entradas {dinero(g.abonos)}</p><button onClick={() => { setGrupo(g.nombre); setFiltro(''); setDireccion(''); setPendientes(true); setPagina(0); setEditando(null); requestAnimationFrame(() => document.getElementById('banco-resultados')?.scrollIntoView({ behavior: 'smooth' })); }}>Revisar este grupo</button></article>)}</div>{grupo && <p>Grupo: <b>{grupo}</b> <button onClick={() => { setGrupo(''); setPagina(0); }}>Mostrar todos los destinos</button></p>}</section>
+      {usuario?.role === 'owner' && planSeguro?.movimientos > 0 && <section className="banco-sugerencias banco-contador"><h3>Contador MONYS · clasificación segura</h3><p><b>{planSeguro.movimientos} movimientos</b> por {dinero(planSeguro.importe)} tienen una regla clara. MONYS puede clasificarlos ahora y dejarte solo <b>{planSeguro.excepciones} excepciones</b>.</p><button onClick={() => setRevisarClasificacionSegura(v => !v)}>{revisarClasificacionSegura ? 'Cerrar resumen' : 'Revisar resumen y clasificar'}</button>{revisarClasificacionSegura && <div><p>No se incluirán movimientos sin destino, con evidencia contradictoria ni ya confirmados. Esta acción clasifica conceptos; no mueve dinero ni duplica ventas o gastos.</p><div className="banco-cuentas">{planSeguro.grupos.map(grupo => <article key={grupo.categoria}><b>{grupo.categoria}</b><p>{grupo.movimientos.length} movimientos</p><p>{dinero(grupo.importe)}</p></article>)}</div><button onClick={guardarClasificacionSegura}>Clasificar los {planSeguro.movimientos} seguros y guardar</button></div>}</section>}
+      <section className="banco-sugerencias"><h3>Revisión asistida · destinos sugeridos</h3><p>Revisa por bloques. Los movimientos sin destino claro o con evidencia ambigua quedan pendientes.</p><div className="banco-cuentas">{agruparSugerenciasBancarias(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta)).map(g => { const lote = prepararLoteSugerido(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta), g.nombre); return <article key={g.nombre}><b>{g.nombre}</b><p>{g.cantidad} pendientes</p><p>Salidas {dinero(g.cargos)} · Entradas {dinero(g.abonos)}</p><button onClick={() => { setGrupo(g.nombre); setFiltro(''); setDireccion(''); setPendientes(true); setPagina(0); setEditando(null); requestAnimationFrame(() => document.getElementById('banco-resultados')?.scrollIntoView({ behavior: 'smooth' })); }}>Ver movimientos</button>{lote.movimientos.length > 0 && <button onClick={() => { setGrupoLote(g.nombre); setNotaLote(notaComunDeLote(g.nombre)); setConfirmarLote(false); setError(''); }}>Clasificar {lote.movimientos.length} juntos</button>}{lote.ambiguos > 0 && <small>{lote.ambiguos} con evidencia ambigua quedarán fuera.</small>}</article>; })}</div>{grupoLote && (() => { const lote = prepararLoteSugerido(paquete.movimientos.filter(m => !cuenta || m.cuenta === cuenta), grupoLote); return <div className="banco-lote"><h4>Confirmar bloque: {grupoLote}</h4><p>{lote.movimientos.length} movimientos · total {dinero(lote.importe)}. MONYS pondrá una nota de auditoría en cada movimiento. {lote.ambiguos ? `${lote.ambiguos} ambiguos no se incluirán.` : ''}</p><label>Nota de auditoría<textarea value={notaLote} onChange={e => setNotaLote(e.target.value)} /></label><label className="banco-lote-confirmacion"><input type="checkbox" checked={confirmarLote} onChange={e => setConfirmarLote(e.target.checked)} /> Confirmo que esta categoría aplica a todos los movimientos incluidos.</label><button disabled={!notaLote.trim() || !confirmarLote} onClick={guardarLoteSugerido}>Confirmar bloque y guardar en MONYS</button><button onClick={() => { setGrupoLote(''); setConfirmarLote(false); }}>Cancelar</button></div>; })()}{grupo && <p>Grupo: <b>{grupo}</b> <button onClick={() => { setGrupo(''); setPagina(0); }}>Mostrar todos los destinos</button></p>}</section>
       <CruceBancoCaja paquete={paquete} movimientos={movimientos} revisionId={revisionId} creditosProveedores={creditosProveedores} />
       <DiagnosticoEstadoBancario paquete={paquete} cuenta={cuenta} onRevisar={m => {
         setGrupo(''); setCuenta(m.cuenta); setDireccion(''); setFiltro(m.descripcion); setPendientes(true);
