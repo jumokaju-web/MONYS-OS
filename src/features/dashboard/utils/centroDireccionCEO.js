@@ -8,13 +8,78 @@ function numeroONulo(valor) {
 
 function fechaISO(valor) {
   const texto = String(valor || "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(texto) ? texto : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return null;
+  const fecha = new Date(`${texto}T12:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === texto ? texto : null;
 }
 
 function sumarDias(fecha, dias) {
   const base = new Date(`${fecha}T12:00:00Z`);
   base.setUTCDate(base.getUTCDate() + dias);
   return base.toISOString().slice(0, 10);
+}
+
+function diferenciaDias(fecha, hoy) {
+  const fechaDato = fechaISO(fecha);
+  const fechaHoy = fechaISO(hoy);
+  if (!fechaDato || !fechaHoy) return null;
+  return Math.floor((Date.parse(`${fechaHoy}T12:00:00Z`) - Date.parse(`${fechaDato}T12:00:00Z`)) / 86400000);
+}
+
+function hoyMexico() {
+  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const tomar = (tipo) => partes.find((parte) => parte.type === tipo)?.value;
+  return `${tomar("year")}-${tomar("month")}-${tomar("day")}`;
+}
+
+export function consolidarCreditosProveedores(resultados = [], sucursalesEsperadas = 0, hoy = hoyMexico()) {
+  const correctos = resultados
+    .filter((resultado) => resultado.status === "fulfilled")
+    .map((resultado) => resultado.value);
+  const disponibles = correctos.filter((reporte) => reporte?.importacion || reporte?.disponible);
+  const creditos = disponibles.flatMap((reporte) => reporte?.creditos || []);
+  const fechasCorte = disponibles.map((reporte) => reporte?.fuente === "confirmacion_cero"
+    ? reporte?.confirmacion?.fecha_corte
+    : reporte?.fechaCorte || reporte?.importacion?.created_at).filter(Boolean).map((fecha) => String(fecha).slice(0, 10));
+  const fuentesVigentes = disponibles.length === sucursalesEsperadas && disponibles.every((reporte) => {
+    const fecha = reporte?.fuente === "confirmacion_cero"
+      ? reporte?.confirmacion?.fecha_corte
+      : reporte?.fechaCorte || reporte?.importacion?.created_at;
+    const antiguedad = diferenciaDias(fecha, hoy);
+    const vigencia = reporte?.fuente === "confirmacion_cero" ? 7 : 30;
+    return antiguedad !== null && antiguedad >= 0 && antiguedad <= vigencia;
+  });
+  const saldosCompletos = creditos.every((credito) => {
+    const saldo = numeroONulo(credito?.saldo);
+    return saldo !== null && saldo >= 0;
+  });
+  const fuenteCompleta = sucursalesEsperadas > 0
+    && disponibles.length === sucursalesEsperadas
+    && fuentesVigentes
+    && saldosCompletos;
+  return {
+    importacion: disponibles.find((reporte) => reporte?.importacion)?.importacion || null,
+    confirmacion: disponibles.find((reporte) => reporte?.fuente === "confirmacion_cero")?.confirmacion || null,
+    fuente: disponibles.length > 0 && disponibles.every((reporte) => reporte?.fuente === "confirmacion_cero")
+      ? "confirmacion_cero"
+      : "consolidado_sucursales",
+    disponible: sucursalesEsperadas > 0 && disponibles.length === sucursalesEsperadas,
+    fuenteCompleta,
+    fuentesVigentes,
+    saldosCompletos,
+    fechaCorte: fechasCorte.sort()[0] || null,
+    confirmacionesCeroFechas: disponibles
+      .filter((reporte) => reporte?.fuente === "confirmacion_cero")
+      .map((reporte) => reporte?.confirmacion?.fecha_corte)
+      .filter(Boolean),
+    confirmacionesCeroCompletas: disponibles
+      .filter((reporte) => reporte?.fuente === "confirmacion_cero")
+      .every((reporte) => Boolean(reporte?.confirmacion?.fecha_corte)),
+    creditos,
+    saldoTotal: creditos.reduce((total, credito) => total + Math.max(0, numeroONulo(credito?.saldo) || 0), 0),
+    sucursalesEsperadas,
+    sucursalesConReporte: disponibles.length,
+  };
 }
 
 function resultadoCampana(campana = {}) {
@@ -136,14 +201,29 @@ export function construirCentroDireccionCEO({
     ? creditosProveedores.creditos
     : [];
   const proveedoresCompletos = creditosProveedores?.fuenteCompleta === true;
-  const saldoProveedores = creditos.reduce(
-    (total, credito) => total + (numeroONulo(credito?.saldo) || 0),
+  const saldoProveedoresIdentificado = creditos.reduce(
+    (total, credito) => total + Math.max(0, numeroONulo(credito?.saldo) || 0),
     0,
   );
+  const saldoProveedores = proveedoresCompletos ? saldoProveedoresIdentificado : null;
   const deudaIdentificada =
-    (deudasConsultadas ? resumenDeudas.saldoTotal : 0) + saldoProveedores;
-  const deudaCompleta = deudasConsultadas && proveedoresCompletos;
-  const pagos = resumirPagos({ deudas, creditos, hoy });
+    (deudasConsultadas ? resumenDeudas.saldoTotal : 0) + saldoProveedoresIdentificado;
+  const saldosDeudaCompletos = resumenDeudas.sinSaldoActual === 0;
+  const deudaCompleta = deudasConsultadas && saldosDeudaCompletos && proveedoresCompletos;
+  const pagos = resumirPagos({ deudas, creditos: proveedoresCompletos ? creditos : [], hoy });
+  const fechasProveedorIncompletas = proveedoresCompletos && creditos.some((credito) => {
+    const saldo = numeroONulo(credito?.saldo);
+    return saldo !== null && saldo > 0 && !fechaISO(credito?.fecha_vencimiento || credito?.fecha_vencimiento_estimada);
+  });
+  const deudasActivas = (Array.isArray(deudas) ? deudas : []).filter((deuda) => ["ACTIVA", "REESTRUCTURADA"].includes(String(deuda?.estado || "").trim().toUpperCase()));
+  const fechasDeudaIncompletas = deudasActivas.filter((deuda) => {
+    const pago = numeroONulo(deuda?.pago_mensual);
+    return pago !== null && pago > 0 && !fechaISO(deuda?.fecha_proximo_pago);
+  }).length;
+  const calendarioPagosCompleto = deudaCompleta
+    && resumenDeudas.sinPagoMensual === 0
+    && fechasDeudaIncompletas === 0
+    && !fechasProveedorIncompletas;
   const campanasResumen = resumirCampanas(campanasConsultadas ? campanas : []);
   const productosCompra = Array.isArray(compraMaestra?.productos)
     ? compraMaestra.productos
@@ -227,15 +307,18 @@ export function construirCentroDireccionCEO({
       proveedoresConSaldo: creditos.filter((credito) => (numeroONulo(credito?.saldo) || 0) > 0).length,
       fuentesFaltantes: [
         !deudasConsultadas ? "créditos financieros" : null,
+        deudasConsultadas && !saldosDeudaCompletos ? "saldos actuales de créditos financieros" : null,
         !proveedoresCompletos ? "saldos de proveedores de todas las sucursales" : null,
       ].filter(Boolean),
     },
     pagos: {
       lista: pagos,
-      total7Dias: pagos.reduce((total, pago) => total + pago.monto, 0),
+      completo: calendarioPagosCompleto,
+      total7Dias: calendarioPagosCompleto ? pagos.reduce((total, pago) => total + pago.monto, 0) : null,
       vencidos: pagos.filter((pago) => pago.vencido).length,
       fechasIncompletas:
         resumenDeudas.sinPagoMensual +
+        fechasDeudaIncompletas +
         creditos.filter((credito) => (numeroONulo(credito?.saldo) || 0) > 0 && !fechaISO(credito?.fecha_vencimiento || credito?.fecha_vencimiento_estimada)).length,
     },
     compra,

@@ -27,6 +27,7 @@ import {
 import {
   analizarInventario,
 } from "../../inteligencia/analyzers/inventarioAnalyzer";
+import { EVENTO_IMPORTACIONES_ACTUALIZADAS } from "../../../core/events/importacionesActualizadas";
 
 function convertirNumero(valor) {
   if (
@@ -654,6 +655,9 @@ export function useDashboardSucursales({ enabled = true } = {}) {
 
   useEffect(() => {
     cargarSucursales();
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarSucursales);
+    return () => window.removeEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarSucursales);
   }, [
     cargarSucursales,
   ]);

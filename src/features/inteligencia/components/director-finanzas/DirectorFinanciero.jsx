@@ -1,6 +1,7 @@
 import ObligacionesProveedores from './ObligacionesProveedores';
 import EquilibrioDiario from './EquilibrioDiario';
 import FlujoCaja13Semanas from './FlujoCaja13Semanas';
+import ConfirmarCeroCreditos from '../../../finanzas/components/ConfirmarCeroCreditos';
 // ======================================================
 // MONYS OS
 // Director Financiero IA
@@ -108,6 +109,10 @@ const [vistaFinanciera, setVistaFinanciera] = useState(vistaInicial);
 
 const branchId =
   datosDashboard?.branch_id || null;
+
+const proveedoresDisponibles = Boolean(
+  creditosProveedores?.importacion || creditosProveedores?.disponible
+);
 
 const organizationId =
   datosDashboard?.organization_id || null;
@@ -637,7 +642,7 @@ const historial =
   }
 
   if (vistaFinanciera === "proveedores") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ObligacionesProveedores reporte={creditosProveedores} />{!creditosProveedores?.importacion && onAbrirImportador && <button className="finanzas-accion" type="button" onClick={onAbrirImportador}>Subir créditos de proveedores →</button>}</section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ConfirmarCeroCreditos sucursales={sucursalesDashboard} /><ObligacionesProveedores reporte={creditosProveedores} />{!proveedoresDisponibles && onAbrirImportador && <button className="finanzas-accion" type="button" onClick={onAbrirImportador}>Subir créditos de proveedores →</button>}</section>;
   }
 
   if (sucursalesDashboard.length > 0 && !consolidacion.disponible) {
@@ -910,7 +915,7 @@ const historial =
         branchId={branchId}
       />
 
-      {!creditosProveedores?.importacion && (
+      {!proveedoresDisponibles && (
         <div
           style={{
             marginTop: "16px",
@@ -973,7 +978,7 @@ const historial =
        <TarjetaIndicador
   titulo="Saldo con proveedores"
   valor={
-    creditosProveedores?.importacion
+    proveedoresDisponibles
       ? formatoDinero(
           creditosProveedores?.saldoTotal || 0
         )
@@ -1209,7 +1214,7 @@ const historial =
         <div
   style={{
     display:
-      creditosProveedores?.importacion
+      proveedoresDisponibles
         ? "block"
         : "none",
     marginTop: "28px",

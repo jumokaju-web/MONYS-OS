@@ -9,6 +9,13 @@ function numeroONulo(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+function fechaISOValida(valor) {
+  const fecha = String(valor || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const fechaUTC = new Date(`${fecha}T00:00:00Z`);
+  return !Number.isNaN(fechaUTC.getTime()) && fechaUTC.toISOString().slice(0, 10) === fecha;
+}
+
 export function fechaMexico(valor = new Date()) {
   const fecha = valor instanceof Date ? valor : new Date(valor);
   if (Number.isNaN(fecha.getTime())) return null;
@@ -23,6 +30,7 @@ export function fechaMexico(valor = new Date()) {
 }
 
 function datosProveedores(reporte = {}, hoy = fechaMexico()) {
+  const fuenteCompleta = reporte?.fuenteCompleta !== false;
   const creditos = Array.isArray(reporte?.creditos) ? reporte.creditos : [];
   let compromisos7Dias = 0;
   let sinFecha = 0;
@@ -30,20 +38,27 @@ function datosProveedores(reporte = {}, hoy = fechaMexico()) {
   const limite = new Date(`${hoy}T12:00:00-06:00`);
   limite.setDate(limite.getDate() + 7);
   const fechaLimite = fechaMexico(limite);
-  const fechaImportacion = String(reporte?.importacion?.created_at || "").slice(0, 10) || null;
+  const fechaImportacion = String(reporte?.fechaCorte || reporte?.importacion?.created_at || reporte?.confirmacion?.fecha_corte || "").slice(0, 10) || null;
+  const fechasConfirmacionesCero = reporte?.confirmacionesCeroFechas || [];
+  const confirmacionesCeroVigentes = reporte?.confirmacionesCeroCompletas !== false && fechasConfirmacionesCero.every((fecha) => {
+    const dias = Math.floor((new Date(`${hoy}T12:00:00Z`).getTime() - new Date(`${String(fecha).slice(0, 10)}T12:00:00Z`).getTime()) / 86400000);
+    return dias >= 0 && dias <= 7;
+  });
   const antiguedadDias = fechaImportacion
-    ? Math.max(0, Math.floor(
+    ? Math.floor(
       (new Date(`${hoy}T12:00:00Z`).getTime() - new Date(`${fechaImportacion}T12:00:00Z`).getTime()) / 86400000
-    ))
+    )
     : null;
 
+  let total = 0;
   for (const credito of creditos) {
     const saldo = numeroONulo(credito?.saldo);
-    if (saldo === null) {
+    if (saldo === null || saldo < 0) {
       saldosPendientes += 1;
       continue;
     }
     if (saldo <= 0) continue;
+    total += saldo;
     const vencimiento = String(
       credito?.fecha_vencimiento || credito?.fecha_vencimiento_estimada || ""
     ).slice(0, 10);
@@ -55,14 +70,48 @@ function datosProveedores(reporte = {}, hoy = fechaMexico()) {
   }
 
   return {
-    disponible: Boolean(reporte?.importacion),
+    disponible: fuenteCompleta && Boolean(reporte?.importacion || reporte?.disponible),
     fechaImportacion,
     antiguedadDias,
-    vigente: Boolean(reporte?.importacion) && antiguedadDias !== null && antiguedadDias <= 30,
+    vigente: reporte?.fuente === "confirmacion_cero"
+      ? fuenteCompleta && antiguedadDias !== null && antiguedadDias >= 0 && antiguedadDias <= 7
+      : fuenteCompleta && Boolean(reporte?.importacion) && antiguedadDias !== null && antiguedadDias >= 0 && antiguedadDias <= 30 && confirmacionesCeroVigentes,
     compromisos7Dias,
     sinFecha,
     saldosPendientes,
-    total: creditos.reduce((total, credito) => total + (numeroONulo(credito?.saldo) || 0), 0),
+    total,
+  };
+}
+
+function datosDeudas(deudas = [], consultadas = false, hoy = fechaMexico()) {
+  const activas = Array.isArray(deudas)
+    ? deudas.filter((deuda) => ["ACTIVA", "REESTRUCTURADA"].includes(String(deuda?.estado || "").toUpperCase()))
+    : [];
+  const limite = new Date(`${hoy}T12:00:00-06:00`);
+  limite.setDate(limite.getDate() + 7);
+  const fechaLimite = fechaMexico(limite);
+  let compromisos7Dias = 0;
+  let incompletas = 0;
+  let frecuenciasAmbiguas = 0;
+  for (const deuda of activas) {
+    const pago = numeroONulo(deuda?.pago_mensual);
+    const fecha = String(deuda?.fecha_proximo_pago || "").slice(0, 10);
+    const textoFrecuencia = `${deuda?.nombre || ""} ${deuda?.notas || ""}`.toLocaleLowerCase("es-MX");
+    const frecuenciaAmbigua = /\b(diari[oa]s?|semanal(?:es)?|quincenal(?:es)?)\b/.test(textoFrecuencia);
+    if (frecuenciaAmbigua) frecuenciasAmbiguas += 1;
+    if (pago === null || pago < 0 || !fechaISOValida(fecha) || frecuenciaAmbigua) {
+      incompletas += 1;
+      continue;
+    }
+    if (fecha <= fechaLimite) compromisos7Dias += pago;
+  }
+  return {
+    consultadas,
+    activas: activas.length,
+    compromisos7Dias,
+    incompletas,
+    frecuenciasAmbiguas,
+    completas: consultadas && incompletas === 0,
   };
 }
 
@@ -71,13 +120,18 @@ export function resumirDisponibilidadFinanciera({
   cierre = {},
   cortesOficiales = {},
   creditosProveedores = {},
+  deudasFinancieras = [],
+  deudasConsultadas = false,
+  obligacionesOperativas = {},
+  obligacionesOperativasConfirmadas = false,
   comprobacionesRetiros = [],
   hoy = fechaMexico(),
 } = {}) {
   const listaCuentas = Array.isArray(cuentas) ? cuentas : [];
   const detalleCuentas = listaCuentas.map((cuenta) => {
     const saldo = numeroONulo(cuenta?.saldo);
-    const fechaSaldo = fechaMexico(cuenta?.fechaActualizacion || cuenta?.fechaSaldo);
+    // A recent movement can estimate a balance, but it is not a fresh bank confirmation.
+    const fechaSaldo = fechaMexico(cuenta?.fechaSaldo || cuenta?.fechaActualizacion);
     return {
       ...cuenta,
       saldo,
@@ -116,17 +170,23 @@ export function resumirDisponibilidadFinanciera({
   const controlRetiros = resumirDestinoEfectivoRetirado({ cierre, cortesOficiales });
   const comprobacionRetiros = integrarComprobacionesRetiros(controlRetiros.filas, comprobacionesRetiros);
   const proveedores = datosProveedores(creditosProveedores, hoy);
+  const deudas = datosDeudas(deudasFinancieras, deudasConsultadas, hoy);
 
   const liquidezLocalizada = bancosVigentes && cajasCompletas
     ? saldoBancos + (efectivoCajas || 0)
     : null;
   const compromisosConfirmados =
     proveedores.vigente && proveedores.sinFecha === 0 && proveedores.saldosPendientes === 0;
-  const calculable =
-    liquidezLocalizada !== null && compromisosConfirmados && diferencias === 0;
-  const dineroLibre = calculable
-    ? liquidezLocalizada - proveedores.compromisos7Dias
+  const operativasCompletas = obligacionesOperativas?.completas === true;
+  const fuentesConocidas =
+    liquidezLocalizada !== null && compromisosConfirmados && deudas.completas && operativasCompletas && diferencias === 0;
+  const remanenteRegistrado = fuentesConocidas
+    ? liquidezLocalizada - proveedores.compromisos7Dias - deudas.compromisos7Dias - obligacionesOperativas.compromisos7Dias
     : null;
+  // MONYS no cuenta aún con renta, nómina, impuestos, servicios y otros costos fijos
+  // confirmados para esta vista. El residual conocido no equivale a dinero libre.
+  const calculable = fuentesConocidas && obligacionesOperativasConfirmadas;
+  const dineroLibre = calculable ? remanenteRegistrado : null;
 
   let prioridad;
   if (!detalleCuentas.length) {
@@ -194,6 +254,31 @@ export function resumirDisponibilidadFinanciera({
       detalle: `${comprobacionRetiros.pendientes} sin evidencia, ${comprobacionRetiros.reportados} pendientes de revisión y ${comprobacionRetiros.diferencias} con diferencia. Reportado no significa comprobado.`,
       destino: "equipo",
     };
+  } else if (!deudas.consultadas || deudas.incompletas > 0) {
+    prioridad = {
+      nivel: "alta",
+      titulo: "Completa el calendario de pagos de deuda",
+      detalle: !deudas.consultadas
+        ? "MONYS no pudo comprobar todos los créditos activos."
+        : `${deudas.incompletas} créditos tienen datos de pago incompletos${deudas.frecuenciasAmbiguas ? `; ${deudas.frecuenciasAmbiguas} usan una frecuencia distinta o dudosa frente al campo mensual` : ""}.`,
+      destino: "plan",
+    };
+  } else if (!operativasCompletas) {
+    prioridad = {
+      nivel: "alta",
+      titulo: "Completa los compromisos operativos",
+      detalle: obligacionesOperativas?.frecuenciasNoProyectadas
+        ? `${obligacionesOperativas.frecuenciasNoProyectadas} obligaciones son recurrentes y todavía no tienen su siguiente vencimiento registrado. MONYS bloquea el dinero libre hasta completar esos periodos.`
+        : "Faltan obligaciones operativas guardadas o hay registros incompletos. MONYS no los convierte en cero.",
+      destino: "plan",
+    };
+  } else if (!obligacionesOperativasConfirmadas) {
+    prioridad = {
+      nivel: "alta",
+      titulo: "Confirma que revisaste todos los pagos próximos",
+      detalle: "La cobertura diaria no está confirmada o quedó desactualizada después de registrar un cambio.",
+      destino: "plan",
+    };
   } else {
     prioridad = {
       nivel: dineroLibre < 0 ? "critica" : "bien",
@@ -223,7 +308,11 @@ export function resumirDisponibilidadFinanciera({
     comprobacionRetiros,
     diferencias,
     proveedores,
+    deudas,
+    obligacionesOperativasConfirmadas,
+    obligacionesOperativas,
     liquidezLocalizada,
+    remanenteRegistrado,
     dineroLibre,
     calculable,
     prioridad,

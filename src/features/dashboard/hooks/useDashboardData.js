@@ -20,6 +20,7 @@ import {
 } from "../utils/dashboardMetrics";
 
 import { evaluarComparabilidadPeriodos } from "../utils/evaluarComparabilidadPeriodos";
+import { EVENTO_IMPORTACIONES_ACTUALIZADAS } from "../../../core/events/importacionesActualizadas";
 
 function convertirFechaValida(valor) {
   if (!valor) {
@@ -351,6 +352,9 @@ export function useDashboardData({ enabled = true } = {}) {
 
   useEffect(() => {
     cargarDatosDashboard();
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarDatosDashboard);
+    return () => window.removeEventListener(EVENTO_IMPORTACIONES_ACTUALIZADAS, cargarDatosDashboard);
   }, [cargarDatosDashboard]);
 
   return {

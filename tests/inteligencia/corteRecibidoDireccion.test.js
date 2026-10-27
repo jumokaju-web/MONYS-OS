@@ -12,6 +12,7 @@ function formulario(overrides = {}) {
     empleadoId: "katy",
     fecha: "2026-10-26",
     cajaId: "CAJA_1",
+    turnoCaja: "MATUTINO",
     motivo: "SIN_ACCESO",
     detalleMotivo: "La empleada todavía no tenía acceso.",
     ventaSicar: "1000",
@@ -41,6 +42,11 @@ test("rechaza fechas futuras", () => {
   assert.match(validarCorteRecibidoDireccion({ formulario: formulario({ fecha: "2026-10-27" }), foto: {}, fechaActual: "2026-10-26" }), /fecha futura/i);
 });
 
+test("rechaza un turno ausente o fuera del catálogo", () => {
+  assert.match(validarCorteRecibidoDireccion({ formulario: formulario({ turnoCaja: "" }), foto: {}, fechaActual: "2026-10-26" }), /turno real/i);
+  assert.match(validarCorteRecibidoDireccion({ formulario: formulario({ turnoCaja: "INVENTADO" }), foto: {}, fechaActual: "2026-10-26" }), /turno válido/i);
+});
+
 test("exige confirmar otras salidas de caja y documentarlas cuando existen", () => {
   assert.match(validarCorteRecibidoDireccion({ formulario: formulario({ gastosCaja: "" }), foto: {}, fechaActual: "2026-10-26" }), /cuánto salió de caja/i);
   assert.match(validarCorteRecibidoDireccion({ formulario: formulario({ gastosCaja: "50" }), foto: {}, fechaActual: "2026-10-26" }), /en qué se usaron/i);
@@ -61,4 +67,6 @@ test("conserva responsable original, capturista, evidencia y motivo por separado
   assert.equal(datos.fuenteCaptura, "WHATSAPP");
   assert.equal(datos.fotoCortePath, "foto.jpg");
   assert.equal(datos.motivoRegistroTardio, "SIN_ACCESO");
+  assert.equal(datos.turnoCaja, "MATUTINO");
+  assert.equal(datos.turnoCajaNombre, "Mañana");
 });

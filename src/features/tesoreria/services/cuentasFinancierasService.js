@@ -10,6 +10,9 @@ export async function obtenerCuentasBancariasParaConfirmar({
   organizationId = null,
   businessId = null,
 } = {}) {
+  if (!organizationId || !businessId) {
+    return { cuentas: [], saldoTotal: null, completo: false };
+  }
   let consultaCuentas = supabase
     .from("accounts")
     .select("id, organization_id, business_id, branch_id, name, account_type, currency, active")
@@ -17,12 +20,9 @@ export async function obtenerCuentasBancariasParaConfirmar({
     .eq("account_type", "banco")
     .order("name", { ascending: true });
 
-  if (organizationId) {
-    consultaCuentas = consultaCuentas.eq("organization_id", organizationId);
-  }
-  if (businessId) {
-    consultaCuentas = consultaCuentas.eq("business_id", businessId);
-  }
+  consultaCuentas = consultaCuentas
+    .eq("organization_id", organizationId)
+    .eq("business_id", businessId);
 
   const { data: cuentas, error: errorCuentas } = await consultaCuentas;
   if (errorCuentas) {
@@ -121,6 +121,20 @@ export async function obtenerCuentasBancariasParaConfirmar({
   };
 }
 
+export async function obtenerCuentasBancariasSinNegocio({ organizationId = null } = {}) {
+  if (!organizationId) return [];
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, organization_id, name, account_type, currency, active")
+    .eq("organization_id", organizationId)
+    .eq("active", true)
+    .eq("account_type", "banco")
+    .is("business_id", null)
+    .order("name", { ascending: true });
+  if (error) throw new Error(`No fue posible revisar las cuentas bancarias sin negocio asignado: ${error.message}`);
+  return Array.isArray(data) ? data : [];
+}
+
 export async function guardarSaldoBancarioConfirmado({
   organizationId,
   accountId,
@@ -179,8 +193,8 @@ export async function guardarSaldoBancarioConfirmado({
   registrados después de ese corte.
 */
 export const obtenerSaldosBancariosActuales =
-  async ({ organizationId = null } = {}) => {
-    const resumenSeguro = await obtenerCuentasBancariasParaConfirmar({ organizationId });
+  async ({ organizationId = null, businessId = null } = {}) => {
+    const resumenSeguro = await obtenerCuentasBancariasParaConfirmar({ organizationId, businessId });
     if (organizationId || resumenSeguro.cuentas.length) return resumenSeguro;
 
     const {

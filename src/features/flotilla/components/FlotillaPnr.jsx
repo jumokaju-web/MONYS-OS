@@ -230,7 +230,7 @@ function TarjetaAdmin({ pnr, onCambio }) {
   async function descontar() {
     try {
       setOcupado(true); setError(""); setMensaje("");
-      await aplicarDescuentoPnr({ pnrId: pnr.id, saldo: pnr.saldo, desde: valores.desde, hasta: valores.hasta, monto: valores.monto, observaciones: valores.observaciones });
+      await aplicarDescuentoPnr({ pnrId: pnr.id, saldo: pnr.saldo, desde: valores.desde, hasta: valores.hasta, monto: valores.monto, observaciones: valores.observaciones, limiteAutorizado: pnr.estado === "CONVENIO_ACTIVO" ? pnr.convenio_autorizado_monto : null });
       setValores((actual) => ({ ...actual, monto: "", observaciones: "" }));
       setMensaje("Abono aplicado una sola vez y marcado para ambos documentos."); await onCambio();
     } catch (fallo) { setError(fallo?.message || "No fue posible aplicar el abono."); }
@@ -239,6 +239,10 @@ function TarjetaAdmin({ pnr, onCambio }) {
 
   const temprano = ["EN_INVESTIGACION", "ESPERANDO_EVIDENCIA", "RESPONDIDO"].includes(pnr.estado);
   const conCobro = ["PENALIDAD_CONFIRMADA", "CONVENIO_SOLICITADO", "CONVENIO_ACTIVO"].includes(pnr.estado);
+  const puedeAplicarAbono = ["PENALIDAD_CONFIRMADA", "CONVENIO_ACTIVO"].includes(pnr.estado);
+  const limiteAbono = pnr.estado === "CONVENIO_ACTIVO"
+    ? Math.min(Number(pnr.saldo) || 0, Number(pnr.convenio_autorizado_monto) || 0)
+    : Number(pnr.saldo) || 0;
   return <article style={caja}>
     <CabeceraPnr pnr={pnr} />
     <small style={{ display: "block", marginTop: 6 }}>Driver: <b>{pnr.chofer_nombre}</b></small>
@@ -260,13 +264,14 @@ function TarjetaAdmin({ pnr, onCambio }) {
       </div>
     </div>}
 
-    {conCobro && pnr.saldo > 0 && <div style={{ marginTop: 10, padding: 9, borderRadius: 9, background: "#fff8ef" }}>
+    {pnr.estado === "CONVENIO_SOLICITADO" && <p role="status" style={{ marginTop: 10, padding: 9, borderRadius: 9, background: "#fff8ef" }}>El convenio está pendiente de autorización de Mónica. No se pueden aplicar abonos todavía.</p>}
+    {puedeAplicarAbono && pnr.saldo > 0 && <div style={{ marginTop: 10, padding: 9, borderRadius: 9, background: "#fff8ef" }}>
       <b style={{ fontSize: 12 }}>Aplicar abono al corte</b>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
         <label style={{ fontSize: 10, fontWeight: 850 }}>Desde<input type="date" value={valores.desde} onChange={(e) => cambiar("desde", e.target.value)} style={campo} /></label>
         <label style={{ fontSize: 10, fontWeight: 850 }}>Hasta<input type="date" value={valores.hasta} onChange={(e) => cambiar("hasta", e.target.value)} style={campo} /></label>
       </div>
-      <label style={{ display: "block", marginTop: 7, fontSize: 10, fontWeight: 850 }}>Monto del abono<input type="number" min="0.01" max={pnr.saldo} step="0.01" value={valores.monto} onChange={(e) => cambiar("monto", e.target.value)} style={campo} /></label>
+      <label style={{ display: "block", marginTop: 7, fontSize: 10, fontWeight: 850 }}>Monto del abono<input type="number" min="0.01" max={limiteAbono} step="0.01" value={valores.monto} onChange={(e) => cambiar("monto", e.target.value)} style={campo} /></label>
       <label style={{ display: "block", marginTop: 7, fontSize: 10, fontWeight: 850 }}>Observación<input value={valores.observaciones} onChange={(e) => cambiar("observaciones", e.target.value)} style={campo} /></label>
       <button type="button" disabled={ocupado || !(Number(valores.monto) > 0)} onClick={descontar} style={{ width: "100%", marginTop: 8 }}>Aplicar una vez en socio y driver</button>
     </div>}

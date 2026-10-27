@@ -26,6 +26,22 @@ test('varios cortes de una caja requieren revisar turnos antes de sumar', () => 
   assert.equal(r.cajasRepetidas, true);
   assert.equal(r.ventaReportada, null);
 });
+test('suma mañana y noche de la misma caja sin tratarlos como duplicados', () => {
+  const r = resumirCortesHoy([
+    corte('a', 'centro', 'CAJA_1', { turnoCaja: 'MATUTINO', ventaSicar: 80 }),
+    corte('b', 'centro', 'CAJA_1', { turnoCaja: 'VESPERTINO', ventaSicar: 120 }),
+  ], fecha);
+  assert.equal(r.cajasRepetidas, false);
+  assert.equal(r.ventaReportada, 200);
+});
+test('dos envíos del mismo turno y caja permanecen bloqueados como duplicados', () => {
+  const r = resumirCortesHoy([
+    corte('a', 'centro', 'CAJA_1', { turnoCaja: 'MATUTINO' }),
+    corte('b', 'centro', 'CAJA_1', { turnoCaja: 'MATUTINO' }),
+  ], fecha);
+  assert.equal(r.cajasRepetidas, true);
+  assert.equal(r.ventaReportada, null);
+});
 test('excluye aperturas y otros días, y señala diferencias de venta o efectivo', () => {
   const r = resumirCortesHoy([corte('a','centro','CAJA_1',{diferenciaCaja:-10}),
     corte('b','centro','CAJA_2',{diferenciaVenta:20}),

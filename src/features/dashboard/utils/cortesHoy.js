@@ -19,10 +19,16 @@ export function resumirCortesHoy(registros = [], fecha) {
     const caja = corte.datos.cajaId;
     if (caja) {
       const clave = `${corte.cierre.branch_id}:${caja}`;
-      cajas.set(clave, (cajas.get(clave) || 0) + 1);
+      const grupo = cajas.get(clave) || [];
+      grupo.push(String(corte.datos.turnoCaja || '').trim());
+      cajas.set(clave, grupo);
     }
   }
-  const cajasRepetidas = [...cajas.values()].some(n => n > 1);
+  const cajasRepetidas = [...cajas.values()].some((turnos) => {
+    if (turnos.length < 2) return false;
+    if (turnos.some((turno) => !turno)) return true;
+    return new Set(turnos).size !== turnos.length;
+  });
   const incompletos = cortes.filter(c => c.datos.registroIncompleto || c.venta === null || c.venta < 0 || !c.datos.cajaId).length;
   const suma = cortes.length && !incompletos && !cajasRepetidas
     ? Math.round(cortes.reduce((total, c) => total + c.venta, 0) * 100) / 100 : null;

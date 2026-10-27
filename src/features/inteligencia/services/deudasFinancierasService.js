@@ -18,6 +18,7 @@ export { calcularResumenDeudas } from "../shared/resumenDeudas";
 
 export async function obtenerDeudasFinancieras({
   organizationId,
+  businessId = null,
   incluirCerradas = false,
 } = {}) {
   if (!organizationId) {
@@ -29,6 +30,8 @@ export async function obtenerDeudasFinancieras({
     .select("*")
     .eq("organization_id", organizationId)
     .order("fecha_proximo_pago", { ascending: true, nullsFirst: false });
+
+  if (businessId) consulta = consulta.eq("business_id", businessId);
 
   if (!incluirCerradas) {
     consulta = consulta.in("estado", ["ACTIVA", "REESTRUCTURADA"]);

@@ -169,8 +169,8 @@ export async function gestionarPnrFlotilla({ pnrId, accion, resolucion = "", mon
   return data;
 }
 
-export async function aplicarDescuentoPnr({ pnrId, saldo, desde, hasta, monto, observaciones }) {
-  const errorValidacion = validarDescuentoPnr({ saldo, monto, desde, hasta });
+export async function aplicarDescuentoPnr({ pnrId, saldo, desde, hasta, monto, observaciones, limiteAutorizado }) {
+  const errorValidacion = validarDescuentoPnr({ saldo, monto, desde, hasta, limiteAutorizado });
   if (errorValidacion) throw new Error(errorValidacion);
   const { data, error } = await supabase.rpc("aplicar_descuento_pnr_flotilla", {
     p_pnr_id: pnrId,

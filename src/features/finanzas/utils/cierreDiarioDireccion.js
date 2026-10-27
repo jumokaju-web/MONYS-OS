@@ -6,6 +6,12 @@ function numeroReal(valor) {
   return Number.isFinite(convertido) ? convertido : null;
 }
 
+function tieneDatosFinancierosCompletos(captura) {
+  if (!captura?.datos || captura.datos.registroIncompleto) return false;
+  return ["ventaSicar", "cobrado", "efectivoEntregado", "efectivoFinal", "diferenciaVenta", "diferenciaCaja"]
+    .every((campo) => numeroReal(captura.datos[campo]) !== null);
+}
+
 export function fechaCierreEnMexico(cierre = {}) {
   const creada = cierre.created_at ? new Date(cierre.created_at) : null;
   if (creada && !Number.isNaN(creada.getTime())) return fechaOperativaMexico(creada);
@@ -38,27 +44,47 @@ export function resumirCierreDiarioDireccion({ capturas = [], sucursales = [], f
     if (!mapaSucursales.has(id)) mapaSucursales.set(id, "Sucursal sin identificar");
   }
 
-  const ultimosPorCaja = new Map();
+  const ultimosPorCajaTurno = new Map();
   for (const captura of cortesHoy) {
     const branchId = String(captura?.cierre?.branch_id || "SIN_SUCURSAL");
     const cajaId = String(captura?.datos?.cajaId || "SIN_CAJA");
-    const clave = `${branchId}|${cajaId}`;
-    if (!ultimosPorCaja.has(clave)) ultimosPorCaja.set(clave, captura);
+    const turnoCaja = String(captura?.datos?.turnoCaja || "SIN_TURNO");
+    const clave = `${branchId}|${cajaId}|${turnoCaja}`;
+    if (!ultimosPorCajaTurno.has(clave)) ultimosPorCajaTurno.set(clave, captura);
+  }
+
+  const capturasPorCaja = new Map();
+  for (const captura of ultimosPorCajaTurno.values()) {
+    const clave = `${String(captura?.cierre?.branch_id || "SIN_SUCURSAL")}|${String(captura?.datos?.cajaId || "SIN_CAJA")}`;
+    const lista = capturasPorCaja.get(clave) || [];
+    lista.push(captura);
+    capturasPorCaja.set(clave, lista);
+  }
+
+  // Un corte de día completo es el cierre autoritativo de esa caja; no se suma
+  // encima de cortes parciales que puedan existir por una corrección de turno.
+  for (const [clave, capturas] of capturasPorCaja) {
+    const jornadaCompleta = capturas.find((captura) => String(captura?.datos?.turnoCaja || "").toUpperCase() === "COMPLETO");
+    if (jornadaCompleta) capturasPorCaja.set(clave, [jornadaCompleta]);
   }
 
   const filas = [...mapaSucursales.entries()].map(([branchId, nombre]) => {
     const esperadas = cajasEsperadas(nombre);
     const cajas = esperadas.map((cajaId) => {
-      const captura = ultimosPorCaja.get(`${branchId}|${cajaId}`) || null;
+      const capturasCaja = capturasPorCaja.get(`${branchId}|${cajaId}`) || [];
+      const captura = capturasCaja.find((item) => item.datos.registroIncompleto) || capturasCaja[0] || null;
+      const completa = tieneDatosFinancierosCompletos(captura);
       return {
         cajaId,
         nombre: nombreCaja(cajaId),
-        estado: !captura ? "faltante" : captura.datos.registroIncompleto ? "incompleto" : "completo",
+        estado: !captura ? "faltante" : !completa || capturasCaja.some((item) => !tieneDatosFinancierosCompletos(item)) ? "incompleto" : "completo",
         captura,
+        capturas: capturasCaja,
+        turnosReportados: capturasCaja.map((item) => String(item.datos.turnoCaja || "SIN_TURNO")),
       };
     });
-    const sinIdentificar = ultimosPorCaja.get(`${branchId}|SIN_CAJA`);
-    if (sinIdentificar) cajas.push({ nombre: nombreCaja(), cajaId: "SIN_CAJA", estado: "incompleto", captura: sinIdentificar });
+    const sinIdentificar = capturasPorCaja.get(`${branchId}|SIN_CAJA`) || [];
+    if (sinIdentificar.length) cajas.push({ nombre: nombreCaja(), cajaId: "SIN_CAJA", estado: "incompleto", captura: sinIdentificar[0], capturas: sinIdentificar, turnosReportados: sinIdentificar.map((item) => String(item.datos.turnoCaja || "SIN_TURNO")) });
     return {
       branchId,
       nombre,
@@ -69,8 +95,10 @@ export function resumirCierreDiarioDireccion({ capturas = [], sucursales = [], f
     };
   });
 
-  const evaluables = [...ultimosPorCaja.values()].filter((captura) => !captura.datos.registroIncompleto);
-  const sumar = (campo) => evaluables.reduce((total, captura) => total + (numeroReal(captura.datos[campo]) || 0), 0);
+  const evaluables = [...capturasPorCaja.values()].flat().filter(tieneDatosFinancierosCompletos);
+  const sumar = (campo) => evaluables.length > 0
+    ? evaluables.reduce((total, captura) => total + numeroReal(captura.datos[campo]), 0)
+    : null;
   const diferencias = evaluables.filter((captura) => {
     const venta = Math.abs(numeroReal(captura.datos.diferenciaVenta) || 0);
     const caja = Math.abs(numeroReal(captura.datos.diferenciaCaja) || 0);

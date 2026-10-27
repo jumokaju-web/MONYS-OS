@@ -13,15 +13,16 @@ test('el efectivo contado no se puede omitir ni sustituir por el fondo objetivo'
 
 test('el cierre no se puede enviar sin identidad, caja, apertura, foto e importes', () => {
  const formulario=Object.fromEntries(CAMPOS_CORTE.map(c=>[c,'0']));
- const base={responsable:'Karla Yoselin',branchId:'centro',cajaId:'CAJA_1',tieneSesionCaja:true,fotoCorte:{name:'corte.jpg'},formulario};
+ const base={responsable:'Karla Yoselin',branchId:'centro',cajaId:'CAJA_1',tieneSesionCaja:true,fotoCorte:{name:'corte.jpg'},formulario:{...formulario,turnoCaja:'VESPERTINO'}};
  assert.equal(validarCierreCajaParaEnvio(base),'');
  assert.match(validarCierreCajaParaEnvio({...base,responsable:''}),/iniciar sesión/);
  assert.match(validarCierreCajaParaEnvio({...base,branchId:null}),/sucursal/);
  assert.match(validarCierreCajaParaEnvio({...base,cajaId:''}),/Caja 1 o Caja 2/);
+ assert.match(validarCierreCajaParaEnvio({...base,formulario:{...formulario,turnoCaja:''}}),/mañana, tarde/);
  assert.match(validarCierreCajaParaEnvio({...base,tieneSesionCaja:false}),/Abre la caja/);
  assert.equal(validarCierreCajaParaEnvio({...base,tieneSesionCaja:false,corteSinApertura:true}),'');
  assert.match(validarCierreCajaParaEnvio({...base,fotoCorte:null}),/foto del corte/);
- assert.match(validarCierreCajaParaEnvio({...base,formulario:{...formulario,ventaSicar:''}}),/Completa los importes/);
+ assert.match(validarCierreCajaParaEnvio({...base,formulario:{...formulario,turnoCaja:'VESPERTINO',ventaSicar:''}}),/Completa los importes/);
 });
 
 test('cada retiro de efectivo exige destino, responsable y referencia', () => {

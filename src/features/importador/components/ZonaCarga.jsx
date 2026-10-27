@@ -42,6 +42,7 @@ import {
 import {
   useUser,
 } from "../../../context/UserContext";
+import { notificarImportacionesActualizadas } from "../../../core/events/importacionesActualizadas";
 
 
 const REPORTES_ESPERADOS = [
@@ -750,6 +751,10 @@ if (
           `⚠️ Se importaron ${importadosCorrectamente} reportes y ` +
             `${importacionesConError} presentaron errores.`
         );
+      }
+
+      if (importadosCorrectamente > 0) {
+        notificarImportacionesActualizadas();
       }
     } finally {
       setGuardando(false);
