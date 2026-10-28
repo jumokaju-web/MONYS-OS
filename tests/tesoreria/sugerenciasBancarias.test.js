@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, actualizarReglasBancarias, aplicarReglasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
+import { sugerirMovimientoBancario, identificarBeneficiarioBancario, coincideBeneficiarioBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, actualizarReglasBancarias, aplicarReglasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
 const movimiento = { cargo: '2750.00', abono: '0.00', fecha_operacion: '2026-09-01', fecha_liquidacion: '2026-09-02', categoria: 'Por aclarar' };
 test('un mensaje salarial con misma fecha e importe propone nómina sin aprobar', () => {
  const m = { ...movimiento, evidencia_whatsapp: [{ fecha: '2026-09-01', importe: 275000, texto: 'Pago sueldo Luis' }] };
@@ -100,6 +100,15 @@ test('mantiene Oscar e Iván en grupos separados cuando sus referencias identifi
  const grupos=agruparPendientesPorNombre(filas);
  assert.deepEqual(grupos.map(g=>g.nombre).sort(),personas.sort());
  for(const g of grupos) assert.equal(g.cantidad,2);
+});
+test('el filtro de beneficiario usa la misma identidad exacta del grupo', () => {
+ const ivan={descripcion:'PAGO A IVAN',referencia_visible:'sueldo'};
+ const oscar={descripcion:'PAGO A OSCAR',referencia_visible:'adelanto'};
+ const divan={descripcion:'TRANSFERENCIA A DIVAN',referencia_visible:'pago'};
+ assert.equal(identificarBeneficiarioBancario(ivan),'IVAN');
+ assert.equal(coincideBeneficiarioBancario(ivan,'IVAN'),true);
+ assert.equal(coincideBeneficiarioBancario(oscar,'IVAN'),false);
+ assert.equal(coincideBeneficiarioBancario(divan,'IVAN'),false);
 });
 test('clasifica en bloque un beneficiario tras elegir categoría y nota, conserva otros y exige información', () => {
  const filas=[

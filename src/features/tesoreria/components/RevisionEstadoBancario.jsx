@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
 import './RevisionEstadoBancario.css';
 import { guardarRevisionBanco, recuperarRevisionBanco } from '../services/revisionBancariaService';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, actualizarReglasBancarias, aplicarReglasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../utils/sugerenciasBancarias';
+import { sugerirMovimientoBancario, coincideBeneficiarioBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, actualizarReglasBancarias, aplicarReglasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../utils/sugerenciasBancarias';
 import { prepararComisiones, clasificarComisiones, prepararTerminales, clasificarTerminales } from '../utils/clasificacionComisiones';
 import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
@@ -72,7 +72,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   }, [grupoLote]);
   const [revisarClasificacionSegura, setRevisarClasificacionSegura] = useState(false);
   const resumen = useMemo(() => paquete ? validarEstadoBancario(paquete) : null, [paquete]);
-  const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && (!personaGrupo || [m.descripcion, m.referencia_visible].join(' ').toLocaleUpperCase('es-MX').includes(personaGrupo)) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo, personaGrupo]);
+  const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && coincideBeneficiarioBancario(m, personaGrupo) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo, personaGrupo]);
   useEffect(() => {
     if (!grupo && !personaGrupo) return;
     requestAnimationFrame(() => document.getElementById('banco-resultados')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));

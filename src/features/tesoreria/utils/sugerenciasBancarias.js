@@ -25,6 +25,9 @@ export function identificarBeneficiarioBancario(m) {
   const candidatos = [...texto.matchAll(/(?:\b(?:A|AL|PARA|BENEFICIARIO|BENEFICIARIA|NOMBRE)\s+)([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{3,}){0,2})/g)].map(x => x[1]);
   return candidatos.map(x => x.trim().split(/\s+/).filter(p => !exclusiones.has(normalizar(p))).join(' ')).find(Boolean) || '';
 }
+export function coincideBeneficiarioBancario(m, nombre) {
+  return !nombre || identificarBeneficiarioBancario(m) === nombre;
+}
 export function claveReglaBancaria(m) {
   const beneficiario = identificarBeneficiarioBancario(m);
   const concepto = normalizar(m?.descripcion);
