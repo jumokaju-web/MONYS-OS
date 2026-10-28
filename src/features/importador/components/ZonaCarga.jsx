@@ -18,6 +18,7 @@ import {
   normalizarMovimientosCaja,
   normalizarCortesCaja,
   normalizarCreditosProveedores,
+  normalizarAbonosProveedores,
 } from "../utils/normalizador";
 import { guardarImportacion, obtenerDetallesImportacion } from "../services/importadorService";
 import {
@@ -28,7 +29,9 @@ import { generarResumenUtilidadVentas } from "../utils/resumenUtilidadVentas";
 import ResumenUtilidadVentas from "./ResumenUtilidadVentas";
 import ResumenCortesCaja from "./ResumenCortesCaja";
 import ResumenMovimientosCaja from "./ResumenMovimientosCaja";
+import ResumenAbonosProveedores from "./ResumenAbonosProveedores";
 import { generarResumenMovimientosCaja } from "../utils/resumenMovimientosCaja";
+import { resumirAbonosProveedores } from "../utils/conciliarAbonosProveedorSicar.js";
 import { cruzarChequesSicarConTesoreria } from "../utils/cruceSicarTesoreria";
 import { adjuntarPeriodoSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../utils/periodoSicar";
 import { obtenerMovimientosParaCruceSicar } from "../../tesoreria/services/tesoreriaService";
@@ -88,6 +91,10 @@ if (tipoReporte === "Créditos de proveedores") {
   );
 }
 
+if (tipoReporte === "Abonos de proveedores") {
+  return normalizarAbonosProveedores(filasDelReporte);
+}
+
 if (tipoReporte === "Movimientos de caja") {
   return normalizarMovimientosCaja(
     filasDelReporte
@@ -134,6 +141,9 @@ function generarResumen(tipoReporte, datosNormalizados) {
   }
   if (tipoReporte === "Cortes de caja") {
     return resumirCortesCajaSicar(datosNormalizados);
+  }
+  if (tipoReporte === "Abonos de proveedores") {
+    return resumirAbonosProveedores(datosNormalizados);
   }
   if (tipoReporte === "Ventas por artículo") {
     return generarResumenReporte(datosNormalizados);
@@ -515,7 +525,7 @@ if (
         ? { ...resumenConCruce, controlSicar }
         : resumenConCruce;
 
-      const analisis = resumen && tipoReporte !== "Cortes de caja" && tipoReporte !== "Movimientos de caja"
+      const analisis = resumen && tipoReporte !== "Cortes de caja" && tipoReporte !== "Movimientos de caja" && tipoReporte !== "Abonos de proveedores"
         ? generarAnalisisEjecutivo(resumen)
         : null;
 
@@ -1497,6 +1507,16 @@ if (
             ) : archivoActivo.tipoReporte === "Movimientos de caja" ? (
               <ResumenMovimientosCaja
                 resumen={archivoActivo.resumen}
+                importacionId={archivoActivo.importacionId}
+                organizationId={usuario?.organization_id}
+                businessId={sucursales.find((item) => item.id === branchIdSeleccionado)?.business_id || usuario?.business_id}
+                branchId={branchIdSeleccionado}
+              />
+            ) : archivoActivo.tipoReporte === "Abonos de proveedores" ? (
+              <ResumenAbonosProveedores
+                resumen={archivoActivo.resumen}
+                abonos={archivoActivo.datosNormalizados || []}
+                archivoNombre={archivoActivo.nombre}
                 importacionId={archivoActivo.importacionId}
                 organizationId={usuario?.organization_id}
                 businessId={sucursales.find((item) => item.id === branchIdSeleccionado)?.business_id || usuario?.business_id}
