@@ -10,12 +10,14 @@ import {
   guardarDistribucionMovimientoTesoreria,
   obtenerDestinosDistribucionTesoreria,
 } from "../services/tesoreriaService.js";
+import { agruparMovimientosPendientes } from "../utils/agruparMovimientosPendientes.js";
 
 function HistorialMovimientos({
   movimientos = [],
   formatoDinero,
   onCambiarEstado,
   onEditarMovimiento,
+  onClasificarGrupo,
   onEliminarMovimiento,
   onDistribucionGuardada,
 }) {
@@ -46,6 +48,12 @@ function HistorialMovimientos({
   const [cargandoDestinos, setCargandoDestinos] = useState(false);
   const [guardandoDistribucion, setGuardandoDistribucion] = useState(false);
   const [errorDistribucion, setErrorDistribucion] = useState("");
+  const [grupoEnRevision, setGrupoEnRevision] = useState(null);
+  const [categoriaGrupo, setCategoriaGrupo] = useState("");
+  const [comportamientoGrupo, setComportamientoGrupo] = useState("");
+  const [confirmacionGrupo, setConfirmacionGrupo] = useState(false);
+  const [guardandoGrupo, setGuardandoGrupo] = useState(false);
+  const [errorGrupo, setErrorGrupo] = useState("");
 
   const abrirComprobante = async (movimiento) => {
     if (!movimiento?.receiptUrl) return;
@@ -228,13 +236,57 @@ function HistorialMovimientos({
 
   const movimientosFiltrados = movimientos.filter(
     (movimiento) => {
+      const estado = movimiento.estado || movimiento.status;
       if (filtroEstado === "todos") {
         return true;
       }
 
-      return movimiento.estado === filtroEstado;
+      return estado === filtroEstado;
     }
   );
+  const gruposPendientes = filtroEstado === "Pendiente de revisión"
+    ? agruparMovimientosPendientes(movimientosFiltrados)
+    : [];
+
+  const iniciarRevisionGrupo = (grupo) => {
+    setGrupoEnRevision(grupo);
+    setCategoriaGrupo(grupo.category && grupo.category !== "sin_clasificar" ? grupo.category : "");
+    setComportamientoGrupo(grupo.behavior || "");
+    setConfirmacionGrupo(false);
+    setErrorGrupo("");
+  };
+
+  const guardarRevisionGrupo = async (evento) => {
+    evento.preventDefault();
+    if (!grupoEnRevision || typeof onClasificarGrupo !== "function") return;
+    const validacion = validarMovimientoParaRevision({
+      movement_type: "SALIDA",
+      expense_category: categoriaGrupo,
+      expense_behavior: comportamientoGrupo,
+    });
+    if (!validacion.valido) {
+      setErrorGrupo(validacion.motivo);
+      return;
+    }
+    if (!confirmacionGrupo) {
+      setErrorGrupo("Confirma que todos los movimientos del grupo comparten la misma clasificación.");
+      return;
+    }
+    setGuardandoGrupo(true);
+    setErrorGrupo("");
+    try {
+      const guardado = await onClasificarGrupo({
+        movimientos: grupoEnRevision.movimientos,
+        categoria: categoriaGrupo,
+        comportamiento: comportamientoGrupo,
+      });
+      if (guardado) setGrupoEnRevision(null);
+    } catch (error) {
+      setErrorGrupo(error?.message || "No fue posible clasificar el grupo.");
+    } finally {
+      setGuardandoGrupo(false);
+    }
+  };
 
   if (movimientos.length === 0) {
     return (
@@ -281,6 +333,44 @@ function HistorialMovimientos({
         <p className="movimientos-bandeja__resumen">
           Mostrando {movimientosFiltrados.length} de {movimientos.length}. El historial completo permanece disponible en “Todos”.
         </p>
+
+        {gruposPendientes.length > 0 && (
+          <section aria-label="Movimientos repetidos para revisar juntos" className="movimientos-grupos">
+            <h3>Coincidencias para revisar en grupo</h3>
+            <p>MONYS junta registros con la misma sucursal, cuenta, concepto y referencia. La coincidencia ayuda a revisarlos; no confirma por sí sola que tengan el mismo destino.</p>
+            {gruposPendientes.map((grupo) => (
+              <article key={grupo.id} className="movimientos-grupos__tarjeta">
+                <div>
+                  <strong>{grupo.movimientos.length} movimientos · {formatoDinero(grupo.total)}</strong>
+                  <p>{grupo.concept}</p>
+                  {grupo.counterparty && <small>Referencia de origen: {grupo.counterparty}. No confirma quién recibió el dinero.</small>}
+                </div>
+                <details>
+                  <summary>Ver fechas e importes</summary>
+                  <ul>
+                    {grupo.movimientos.map((movimiento) => {
+                      const fechaValor = movimiento.fecha || movimiento.occurred_at;
+                      const fechaVisible = movimiento.fecha
+                        ? String(movimiento.fecha)
+                        : fechaValor
+                        ? new Date(String(fechaValor).slice(0, 10) + "T12:00:00").toLocaleDateString("es-MX")
+                        : "Fecha no registrada";
+                      return (
+                        <li key={movimiento.id}>
+                          <span>{fechaVisible}</span>
+                          <strong>{formatoDinero(movimiento.monto ?? movimiento.amount)}</strong>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+                <button type="button" onClick={() => iniciarRevisionGrupo(grupo)}>
+                  Revisar estos movimientos juntos
+                </button>
+              </article>
+            ))}
+          </section>
+        )}
 
         <div className="movimientos-bandeja__lista">
           {movimientosFiltrados.map((movimiento) => {
@@ -380,6 +470,64 @@ function HistorialMovimientos({
           })}
         </div>
       </section>
+
+      {grupoEnRevision && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-revision-grupo"
+          className="movimiento-grupo-modal"
+        >
+          <form onSubmit={guardarRevisionGrupo} className="movimiento-grupo-modal__contenido">
+            <h2 id="titulo-revision-grupo">Revisar {grupoEnRevision.movimientos.length} movimientos juntos</h2>
+            <p><strong>Total agrupado: {formatoDinero(grupoEnRevision.total)}</strong></p>
+            <p>El sistema no alterará fechas, importes ni conceptos originales. Solo actualizará la categoría, su tratamiento financiero y el estado de revisión.</p>
+            {grupoEnRevision.concept.toLocaleLowerCase("es-MX").includes("sin comentario") && (
+              <p role="note" className="movimiento-grupo-modal__aviso">El reporte de SICAR no incluyó comentarios. Revisa cada fecha e importe antes de confirmar el mismo destino para todo el grupo.</p>
+            )}
+            <label>
+              Categoría
+              <select
+                value={categoriaGrupo}
+                onChange={(evento) => {
+                  setCategoriaGrupo(evento.target.value);
+                  if (comportamientoGrupo === "no_aplica" && !permiteNoAplica(evento.target.value)) setComportamientoGrupo("");
+                }}
+                required
+              >
+                <option value="">Selecciona una categoría</option>
+                {[...CATEGORIAS_GASTO, ...CATEGORIAS_GASTO_ANTERIORES].map(([valor, etiqueta]) => (
+                  <option key={valor} value={valor}>{etiqueta}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Tratamiento financiero
+              <select value={comportamientoGrupo} onChange={(evento) => setComportamientoGrupo(evento.target.value)} required>
+                <option value="">Selecciona</option>
+                <option value="fijo">Gasto fijo</option>
+                <option value="variable">Gasto variable</option>
+                {permiteNoAplica(categoriaGrupo) && <option value="no_aplica">No es gasto operativo</option>}
+              </select>
+            </label>
+            <label className="movimiento-grupo-modal__confirmacion">
+              <input
+                type="checkbox"
+                checked={confirmacionGrupo}
+                onChange={(evento) => setConfirmacionGrupo(evento.target.checked)}
+              />
+              Confirmo que todos los movimientos listados comparten esta categoría y tratamiento.
+            </label>
+            {errorGrupo && <p role="alert">{errorGrupo}</p>}
+            <div className="movimiento-grupo-modal__acciones">
+              <button type="submit" disabled={guardandoGrupo || !confirmacionGrupo}>
+                {guardandoGrupo ? "Guardando..." : "Confirmar el grupo"}
+              </button>
+              <button type="button" onClick={() => setGrupoEnRevision(null)} disabled={guardandoGrupo}>Cancelar</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {movimientoEditando && (
         <div

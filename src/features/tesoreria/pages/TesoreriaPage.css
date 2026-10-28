@@ -171,6 +171,27 @@
 .movimientos-bandeja__filtros button{min-height:42px;padding:9px 14px;border:1px solid #dfc3d1;border-radius:999px;background:#fff;color:#6f3150;font-weight:800;white-space:nowrap;cursor:pointer}
 .movimientos-bandeja__filtros button[aria-pressed="true"]{background:#6f3150;color:#fff;border-color:#6f3150}
 .movimientos-bandeja__resumen{margin:0 0 16px;color:#7c6a75;font-size:12px}
+.movimientos-grupos{display:grid;gap:10px;margin:16px 0 20px;padding:16px;border:1px solid #e8d5df;border-radius:16px;background:#fff}
+.movimientos-grupos h3{margin:0;color:#552d45;font-size:17px}
+.movimientos-grupos>p{margin:0;color:#746572;font-size:13px;line-height:1.5}
+.movimientos-grupos__tarjeta{display:grid;gap:10px;padding:14px;border:1px solid #eadfe5;border-radius:13px;background:#fffcfd}
+.movimientos-grupos__tarjeta p{margin:5px 0;color:#463b43}
+.movimientos-grupos__tarjeta small{color:#766873}
+.movimientos-grupos__tarjeta details ul{display:grid;gap:7px;margin:8px 0;padding:0;list-style:none}
+.movimientos-grupos__tarjeta details li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #eee6eb}
+.movimientos-grupos__tarjeta>button{min-height:42px;border:0;border-radius:10px;background:#6f3150;color:#fff;font-weight:800;cursor:pointer}
+.movimiento-grupo-modal{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,10,16,.78)}
+.movimiento-grupo-modal__contenido{display:grid;gap:14px;width:100%;max-width:520px;max-height:90vh;overflow:auto;padding:24px;border-radius:20px;background:#fff;box-sizing:border-box}
+.movimiento-grupo-modal__contenido h2,.movimiento-grupo-modal__contenido p{margin:0}
+.movimiento-grupo-modal__contenido label{display:grid;gap:6px;font-weight:700;color:#493542}
+.movimiento-grupo-modal__contenido select{width:100%;min-height:42px;padding:8px;border:1px solid #d9c6d1;border-radius:9px;background:#fff}
+.movimiento-grupo-modal__aviso{padding:11px;border:1px solid #e7b354;border-radius:10px;background:#fff8e8;color:#704900}
+.movimiento-grupo-modal__confirmacion{display:flex!important;align-items:flex-start;gap:9px!important;font-weight:500!important;line-height:1.45}
+.movimiento-grupo-modal__confirmacion input{margin-top:3px}
+.movimiento-grupo-modal__acciones{display:flex;gap:10px}
+.movimiento-grupo-modal__acciones button{flex:1;min-height:44px;padding:9px;border:1px solid #d9c6d1;border-radius:10px;background:#fff;color:#60304a;font-weight:800}
+.movimiento-grupo-modal__acciones button[type="submit"]{border-color:#6f3150;background:#6f3150;color:#fff}
+.movimiento-grupo-modal__acciones button:disabled{opacity:.55}
 .movimientos-bandeja__lista{display:grid;gap:12px}
 .movimiento-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 20px;padding:18px;border:1px solid #ead8e2;border-radius:17px;background:#fff;box-shadow:0 4px 12px rgba(73,41,62,.04)}
 .movimiento-card__principal{min-width:0}
@@ -190,4 +211,4 @@
 .movimiento-card__opciones>div{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
 .movimiento-card__opciones button{min-height:38px;padding:8px 10px;border:1px solid #ddc6d3;border-radius:9px;background:#fff;color:#643c56;font-weight:750;cursor:pointer}
 .movimiento-card__opciones span{align-self:center;color:#8c7c85;font-weight:500}
-@media(max-width:650px){.movimientos-bandeja{margin:12px 0!important;padding:14px!important;border-radius:16px!important}.movimientos-bandeja__encabezado h2{font-size:21px}.movimientos-bandeja__contador{min-width:46px;height:46px;border-radius:14px;font-size:18px}.movimiento-card{grid-template-columns:1fr auto;padding:14px;gap:10px}.movimiento-card h3{font-size:15px}.movimiento-card__importe{font-size:17px}.movimiento-card__acciones{align-items:stretch;flex-direction:column}.movimiento-card__resolver{width:100%}.movimiento-card__opciones summary{text-align:center}.movimiento-card__opciones>div{display:grid;grid-template-columns:1fr 1fr}.movimiento-card__opciones button{width:100%}}
+@media(max-width:650px){.movimientos-bandeja{margin:12px 0!important;padding:14px!important;border-radius:16px!important}.movimientos-bandeja__encabezado h2{font-size:21px}.movimientos-bandeja__contador{min-width:46px;height:46px;border-radius:14px;font-size:18px}.movimiento-card{grid-template-columns:1fr auto;padding:14px;gap:10px}.movimiento-card h3{font-size:15px}.movimiento-card__importe{font-size:17px}.movimiento-card__acciones{align-items:stretch;flex-direction:column}.movimiento-card__resolver{width:100%}.movimiento-card__opciones summary{text-align:center}.movimiento-card__opciones>div{display:grid;grid-template-columns:1fr 1fr}.movimiento-card__opciones button{width:100%}.movimientos-grupos{padding:12px}.movimiento-grupo-modal__contenido{padding:18px}.movimiento-grupo-modal__acciones{flex-direction:column}}
