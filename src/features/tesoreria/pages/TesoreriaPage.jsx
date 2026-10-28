@@ -12,6 +12,7 @@ import ResumenBancario from "../components/ResumenBancario";
 import {
   guardarMovimientoTesoreria,
   actualizarMovimientoTesoreria,
+  clasificarMovimientosTesoreriaEnGrupo,
   eliminarMovimientoTesoreria,
 } from "../services/tesoreriaService";
 
@@ -213,6 +214,36 @@ function TesoreriaPage({
     }
   };
 
+  const clasificarGrupoMovimientos = async ({ movimientos: grupo, categoria, comportamiento }) => {
+    try {
+      setGuardando(true);
+      setMensaje("");
+      setTipoMensaje("");
+      const resultado = await clasificarMovimientosTesoreriaEnGrupo({
+        movimientos: grupo,
+        categoria,
+        comportamiento,
+      });
+      if (onMovimientoGuardado) await onMovimientoGuardado();
+      const cantidad = Number(resultado?.updated || grupo.length);
+      setMensaje(
+        cantidad + " movimientos clasificados juntos." +
+        (resultado?.memoriaGuardada
+          ? " MONYS recordará la regla para sugerirla en adelante."
+          : resultado?.patronSeguro
+            ? " No se guardó la regla para sugerencias futuras."
+            : " El concepto es genérico; MONYS no lo usará como regla automática.")
+      );
+      setTipoMensaje("exito");
+      return true;
+    } catch (error) {
+      console.error("Error al clasificar el grupo:", error);
+      throw new Error(error?.message || "No fue posible clasificar el grupo.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const eliminarMovimiento = async (
     movimientoId
   ) => {
@@ -408,6 +439,7 @@ function TesoreriaPage({
               onEditarMovimiento={
                 editarMovimiento
               }
+              onClasificarGrupo={clasificarGrupoMovimientos}
               onDistribucionGuardada={onMovimientoGuardado}
               onEliminarMovimiento={
                 eliminarMovimiento

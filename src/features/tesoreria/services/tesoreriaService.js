@@ -569,6 +569,51 @@ export async function obtenerConteoMovimientosPendientes({ organizationId, busin
   return { total: movimientos.length, pendientes: pendientes.length, consultado: true };
 }
 
+export async function clasificarMovimientosTesoreriaEnGrupo({ movimientos = [], categoria, comportamiento }) {
+  const lista = Array.isArray(movimientos) ? movimientos : [];
+  const ids = lista.map((movimiento) => movimiento?.id).filter(Boolean);
+  if (ids.length < 2 || new Set(ids).size !== ids.length) {
+    throw new Error("El grupo debe tener al menos dos movimientos distintos.");
+  }
+  const muestra = lista[0];
+  if (lista.some((movimiento) =>
+    String(movimiento?.tipo || movimiento?.movement_type || "").toUpperCase() !== "SALIDA"
+  )) {
+    throw new Error("Solo se pueden clasificar juntos salidas pendientes.");
+  }
+  const validacion = validarMovimientoParaRevision({
+    movement_type: "SALIDA",
+    expense_category: categoria,
+    expense_behavior: comportamiento,
+  });
+  if (!validacion.valido) throw new Error(validacion.motivo);
+
+  const { data, error } = await supabase.rpc("clasificar_movimientos_tesoreria_en_grupo", {
+    p_movement_ids: ids,
+    p_expense_category: categoria,
+    p_expense_behavior: comportamiento,
+  });
+  if (error) throw new Error("No se pudo clasificar el grupo. No se guardó ningún movimiento: " + error.message);
+
+  let memoriaGuardada = false;
+  const concepto = muestra.concepto || muestra.concept;
+  const patronSeguro = Boolean(muestra.branch_id && concepto && tienePatronSeguro(concepto));
+  if (patronSeguro) {
+    const { error: errorMemoria } = await supabase
+      .from("tesoreria_memoria_clasificacion")
+      .upsert({
+        branch_id: muestra.branch_id,
+        patron: normalizarTexto(concepto),
+        tipo_movimiento: "salida",
+        categoria,
+        comportamiento,
+        contraparte: muestra.contraparte || muestra.counterparty || null,
+      }, { onConflict: "created_by,branch_id,patron,tipo_movimiento" });
+    memoriaGuardada = !errorMemoria;
+  }
+  return { ...(data || {}), memoriaGuardada, patronSeguro };
+}
+
 export async function obtenerMovimientosParaCruceSicar({ branchId, businessId, desde, hasta }) {
   if (!branchId || !desde || !hasta) return [];
   const uuidValido = (valor) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(valor));
