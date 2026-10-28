@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useUser } from "../../../context/UserContext";
 import { obtenerDetallesImportacion } from "../services/importadorService";
 import {
   anularConciliacionSicar,
@@ -14,20 +15,49 @@ import {
 import { agruparChequesPorProveedor } from "../utils/agruparChequesPorProveedor";
 import { resumirEvidenciaPagoProveedor } from "../utils/evidenciaPagoProveedor.js";
 import { obtenerConciliacionesBancariasPorMovimientos } from "../../tesoreria/services/conciliacionBancariaService.js";
+import { obtenerConciliacionesBancarias, guardarConciliacionBancaria } from "../../tesoreria/services/conciliacionBancariaService.js";
+import { recuperarRevisionBanco } from "../../tesoreria/services/revisionBancariaService.js";
+import { sugerirBancoParaCheque } from "../utils/sugerenciasBancoCheque.js";
 
 const dinero = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const fecha = (valor) => valor ? new Date(`${valor}T12:00:00`).toLocaleDateString("es-MX") : "Fecha no identificada";
 
 export default function ResumenMovimientosCaja({ resumen, importacionId, organizationId, businessId, branchId }) {
+  const { usuario } = useUser();
   const [detalles, setDetalles] = useState([]);
   const [conciliaciones, setConciliaciones] = useState([]);
   const [pagos, setPagos] = useState([]);
   const [conciliacionesBancarias, setConciliacionesBancarias] = useState([]);
+  const [revisionBancoMensual, setRevisionBancoMensual] = useState(null);
+  const [conciliacionesRevisionBanco, setConciliacionesRevisionBanco] = useState([]);
+  const [cargandoRevisionBanco, setCargandoRevisionBanco] = useState(false);
+  const [errorRevisionBanco, setErrorRevisionBanco] = useState("");
   const [actualizandoBanco, setActualizandoBanco] = useState(false);
   const [seleccionesPago, setSeleccionesPago] = useState({});
   const [cargandoVinculos, setCargandoVinculos] = useState(false);
   const [procesando, setProcesando] = useState("");
   const [errorVinculo, setErrorVinculo] = useState("");
+
+  async function cargarRevisionBancoMensual() {
+    if (usuario?.role !== "owner") {
+      setRevisionBancoMensual(null);
+      setConciliacionesRevisionBanco([]);
+      return null;
+    }
+    const contextoBanco = {
+      role: usuario.role,
+      auth_user_id: usuario.auth_user_id,
+      organization_id: usuario.organization_id,
+      business_id: usuario.business_id,
+      branch_id: usuario.branch_id,
+    };
+    const revision = await recuperarRevisionBanco(contextoBanco);
+    const vinculos = revision ? await obtenerConciliacionesBancarias(revision.id) : [];
+    setRevisionBancoMensual(revision);
+    setConciliacionesRevisionBanco(vinculos);
+    setErrorRevisionBanco("");
+    return revision;
+  }
 
   useEffect(() => {
     let activa = true;
@@ -57,17 +87,76 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
     return () => { activa = false; };
   }, [importacionId]);
 
+  useEffect(() => {
+    let activa = true;
+    setRevisionBancoMensual(null);
+    setConciliacionesRevisionBanco([]);
+    setErrorRevisionBanco("");
+    if (usuario?.role !== "owner" || !usuario?.auth_user_id || !usuario?.business_id || !usuario?.branch_id) return () => { activa = false; };
+    setCargandoRevisionBanco(true);
+    recuperarRevisionBanco({
+      role: usuario.role,
+      auth_user_id: usuario.auth_user_id,
+      organization_id: usuario.organization_id,
+      business_id: usuario.business_id,
+      branch_id: usuario.branch_id,
+    }).then(async (revision) => {
+      if (!activa) return;
+      const vinculos = revision ? await obtenerConciliacionesBancarias(revision.id) : [];
+      if (!activa) return;
+      setRevisionBancoMensual(revision);
+      setConciliacionesRevisionBanco(vinculos);
+    }).catch((error) => {
+      if (activa) setErrorRevisionBanco(error?.message || "No se pudo leer el estado de cuenta mensual guardado.");
+    }).finally(() => { if (activa) setCargandoRevisionBanco(false); });
+    return () => { activa = false; };
+  }, [usuario?.role, usuario?.auth_user_id, usuario?.organization_id, usuario?.business_id, usuario?.branch_id]);
+
   async function actualizarCrucesBancarios() {
     const idsCaja = conciliaciones.filter((item) => item.estado === "ACTIVA").map((item) => item.cash_movement_id);
     try {
       setActualizandoBanco(true);
+      await cargarRevisionBancoMensual();
       const bancarias = await obtenerConciliacionesBancariasPorMovimientos(idsCaja);
       setConciliacionesBancarias(bancarias);
       setErrorVinculo("");
     } catch (error) {
-      setErrorVinculo(error?.message || "No se pudo actualizar la evidencia bancaria vinculada.");
+      setErrorRevisionBanco(error?.message || "No se pudo actualizar el estado de cuenta mensual guardado.");
     } finally {
       setActualizandoBanco(false);
+    }
+  }
+
+  async function confirmarVinculoBanco(fila, movimientoCaja, banco) {
+    if (!revisionBancoMensual?.id || !movimientoCaja?.id) return;
+    const fechaBanco = banco.fecha_operacion || banco.fecha_liquidacion || "fecha no indicada";
+    const cargo = Number(banco.cargo || 0);
+    const cuenta = banco.cuenta || "cuenta no indicada";
+    const concepto = banco.descripcion || banco.referencia_visible || "sin concepto";
+    if (!window.confirm(`Confirma que el cargo del ${fechaBanco} en ${cuenta} por ${dinero.format(cargo)} (“${concepto}”) corresponde al cheque SICAR ${fila.codigoSicar || "sin folio"} y a la salida de Tesorería. Esto solo vincula evidencia; no registra otro pago ni cambia saldos.`)) return;
+    try {
+      setProcesando(`banco:${banco.id}`);
+      setErrorRevisionBanco("");
+      await guardarConciliacionBancaria({
+        revisionBancariaId: revisionBancoMensual.id,
+        banco,
+        movimiento: { ...movimientoCaja, tipo: "salida" },
+        proveedoresSugeridos: fila.proveedoresCandidatos || [],
+      });
+    } catch (error) {
+      setErrorRevisionBanco(error?.message || "No se pudo guardar el vínculo bancario.");
+    } finally {
+      setProcesando("");
+    }
+    try {
+      const [vinculosRevision, bancarias] = await Promise.all([
+        obtenerConciliacionesBancarias(revisionBancoMensual.id),
+        obtenerConciliacionesBancariasPorMovimientos(conciliaciones.filter((item) => item.estado === "ACTIVA").map((item) => item.cash_movement_id)),
+      ]);
+      setConciliacionesRevisionBanco(vinculosRevision);
+      setConciliacionesBancarias(bancarias);
+    } catch {
+      setErrorRevisionBanco("El vínculo bancario se guardó. No se pudo actualizar la vista; pulsa «Actualizar evidencia bancaria» para volver a leerlo.");
     }
   }
 
@@ -234,6 +323,11 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
         <button type="button" onClick={actualizarCrucesBancarios} disabled={actualizandoBanco || cargandoVinculos}>
           {actualizandoBanco ? "Actualizando cruces…" : "Actualizar evidencia bancaria"}
         </button>
+        {cargandoRevisionBanco && <p role="status">Buscando el último estado de cuenta mensual guardado…</p>}
+        {usuario?.role === "owner" && !cargandoRevisionBanco && revisionBancoMensual && <p>Estado mensual cargado de {new Date(revisionBancoMensual.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}. Los cargos sugeridos requieren confirmación.</p>}
+        {usuario?.role === "owner" && !cargandoRevisionBanco && !revisionBancoMensual && !errorRevisionBanco && <p>No hay un estado de cuenta mensual guardado para esta sucursal. Carga el estado desde Tesorería para ver sugerencias bancarias.</p>}
+        {usuario?.role !== "owner" && <p>La sugerencia de cargos bancarios está disponible para la propietaria que guardó el estado mensual.</p>}
+        {errorRevisionBanco && <p role="alert">{errorRevisionBanco}</p>}
         {resumen.cruceTesoreria && <><p>{resumen.cruceTesoreria.candidatasUnicas} coincidencias únicas con Tesorería · {resumen.cruceTesoreria.ambiguas} ambiguas · {resumen.cruceTesoreria.sinCoincidencia} sin coincidencia exacta.</p><p>{resumen.cruceTesoreria.aclaracion} Una coincidencia candidata no modifica ninguno de los registros.</p></>}
         {!resumen.cruceTesoreria && <p>La comparación con Tesorería no estuvo disponible; puedes registrar proveedor y tipo de aplicación directamente desde el reporte SICAR.</p>}
         {gruposCheque.length > 0 && <div style={{ display: "grid", gap: 10, margin: "14px 0" }}>
@@ -256,6 +350,12 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
             conciliacionesBancarias,
             pagoProveedor: pago,
           });
+          const movimientoCajaVinculado = conciliacion
+            ? fila.candidatos.find((candidato) => candidato.id === conciliacion.cash_movement_id)
+            : null;
+          const sugerenciaBanco = movimientoCajaVinculado && revisionBancoMensual?.paquete?.movimientos
+            ? sugerirBancoParaCheque({ banco: revisionBancoMensual.paquete.movimientos, movimientoCaja: movimientoCajaVinculado, conciliaciones: [...conciliacionesRevisionBanco, ...conciliacionesBancarias] })
+            : { estado: "REQUIERE_VINCULO_TESORERIA", candidatos: [] };
           const vinculosAnulados = detalle?.id
             ? conciliaciones.filter((vinculo) => vinculo.importacion_detalle_id === detalle.id && vinculo.estado === "ANULADA")
             : [];
@@ -277,6 +377,16 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
             {evidenciaPago.banco && <small style={{ display: "block" }}>Banco: {evidenciaPago.banco.fecha || "fecha pendiente"} · cuenta {evidenciaPago.banco.cuenta || "sin indicar"} · {dinero.format(evidenciaPago.banco.monto)} · {evidenciaPago.banco.descripcion}</small>}
             {evidenciaPago.pagoProveedor && <small style={{ display: "block" }}>Proveedor registrado: {evidenciaPago.pagoProveedor.proveedor} · {evidenciaPago.pagoProveedor.tipoAplicacion === "ABONO" ? "Abono" : evidenciaPago.pagoProveedor.tipoAplicacion === "LIQUIDACION" ? "Liquidación total" : "Abono o liquidación por determinar"} · {dinero.format(evidenciaPago.pagoProveedor.importe)}</small>}
             {evidenciaPago.estado === "AMBIGUA_BANCO" && <small style={{ display: "block" }}>Se conserva la ambigüedad; revisa qué versión bancaria corresponde antes de cerrar este pago.</small>}
+            {evidenciaPago.estado === "FALTA_BANCO" && movimientoCajaVinculado && revisionBancoMensual && <div style={{ marginTop: 8 }}>
+              {sugerenciaBanco.estado === "CANDIDATO_UNICO" && sugerenciaBanco.candidatos.map((banco) => <div key={banco.id} style={{ marginTop: 6, padding: 8, background: "#fff", borderRadius: 8 }}>
+                <small style={{ display: "block" }}>Cargo candidato: {banco.fecha_operacion || banco.fecha_liquidacion} · {banco.cuenta || "Cuenta no indicada"} · {dinero.format(Number(banco.cargo || 0))} · {banco.descripcion || banco.referencia_visible || "Sin concepto"}</small>
+                <button type="button" disabled={Boolean(procesando) || cargandoVinculos} onClick={() => confirmarVinculoBanco(fila, movimientoCajaVinculado, banco)}>{procesando === `banco:${banco.id}` ? "Guardando vínculo…" : "Confirmar que este cargo es el cheque"}</button>
+              </div>)}
+              {sugerenciaBanco.estado === "AMBIGUO" && <small style={{ display: "block" }}>Hay {sugerenciaBanco.candidatos.length} cargos con la misma fecha e importe; no se selecciona ninguno. Revisa el número de cheque en el estado de cuenta antes de vincular.</small>}
+              {sugerenciaBanco.estado === "SIN_COINCIDENCIA" && <small style={{ display: "block" }}>No se encontró un cargo exacto en el estado mensual guardado. El cheque sigue pendiente de conciliación bancaria.</small>}
+              {sugerenciaBanco.estado === "VINCULADO" && <small style={{ display: "block" }}>Ya existe un vínculo bancario activo para este movimiento de Tesorería. Actualiza la evidencia si el estado de arriba aún lo marca pendiente.</small>}
+              {sugerenciaBanco.estado === "AMBIGUO_VINCULADO" && <small style={{ display: "block" }}>Hay más de un vínculo bancario activo para esta salida; se conserva la alerta de ambigüedad.</small>}
+            </div>}
           </div>
           {vinculosAnulados.length > 0 && <details><summary>Historial de vínculos corregidos · {vinculosAnulados.length}</summary>{vinculosAnulados.map((vinculo) => <p key={vinculo.id}>{new Date(vinculo.anulado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Motivo: {vinculo.motivo_anulacion}</p>)}</details>}
           {(() => {

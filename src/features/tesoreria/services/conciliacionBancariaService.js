@@ -1,4 +1,5 @@
 import { supabase } from '../../../supabase';
+import { fechaOperacionFinanciera } from '../utils/fechaOperacionFinanciera.js';
 
 async function sesion() {
   const { data, error } = await supabase.auth.getUser();
@@ -36,7 +37,7 @@ export async function guardarConciliacionBancaria({ revisionBancariaId, banco, m
   const montoBanco = Number(salida ? banco.cargo : banco.abono);
   const montoCaja = Number(movimiento.monto ?? movimiento.amount);
   const tipoCaja = String(movimiento.tipo ?? movimiento.movement_type ?? '').toLowerCase();
-  const fechaCaja = String(movimiento.fecha ?? movimiento.occurred_at ?? '').slice(0, 10);
+  const fechaCaja = fechaOperacionFinanciera(movimiento.fecha ?? movimiento.occurred_at);
   if (!Number.isFinite(montoBanco) || montoBanco <= 0 || Math.round(montoBanco * 100) !== Math.round(montoCaja * 100)) throw new Error('Los importes del banco y Tesorería no coinciden.');
   if (salida ? !['salida', 'egreso'].includes(tipoCaja) : !['entrada', 'ingreso'].includes(tipoCaja)) throw new Error('La dirección del movimiento no coincide.');
   if (![banco.fecha_operacion, banco.fecha_liquidacion].includes(fechaCaja)) throw new Error('La fecha de Tesorería no coincide con la fecha de operación o liquidación bancaria.');
