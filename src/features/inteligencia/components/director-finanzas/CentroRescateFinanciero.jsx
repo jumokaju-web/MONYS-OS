@@ -8,6 +8,7 @@ import {
   obtenerDeudasFinancieras,
 } from "../../services/deudasFinancierasService";
 import { calcularMensualidadesConFecha } from "../../shared/resumenProgramacionPagos.js";
+import ImportarEstadoCreditoBbva from "./ImportarEstadoCreditoBbva.jsx";
 
 const FORMULARIO_INICIAL = {
   nombre: "",
@@ -326,6 +327,8 @@ function CentroRescateFinanciero({
           {mensaje}
         </div>
       )}
+
+      <ImportarEstadoCreditoBbva deudas={deudas} />
 
       <div
         style={{
