@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
+import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
 const movimiento = { cargo: '2750.00', abono: '0.00', fecha_operacion: '2026-09-01', fecha_liquidacion: '2026-09-02', categoria: 'Por aclarar' };
 test('un mensaje salarial con misma fecha e importe propone nómina sin aprobar', () => {
  const m = { ...movimiento, evidencia_whatsapp: [{ fecha: '2026-09-01', importe: 275000, texto: 'Pago sueldo Luis' }] };
@@ -100,4 +100,27 @@ test('agrupa beneficiarios conocidos por separado aunque aparezcan en cualquier 
  const grupos=agruparPendientesPorNombre(filas);
  assert.deepEqual(grupos.map(g=>g.nombre).sort(),personas.sort());
  for(const g of grupos) assert.equal(g.cantidad,2);
+});
+test('clasifica en bloque un beneficiario tras elegir categoría y nota, conserva otros y exige información', () => {
+ const filas=[
+  {...movimiento,id:'oscar-1',descripcion:'SPEI OSCAR',cargo:'200.00'},
+  {...movimiento,id:'oscar-2',descripcion:'PAGO OSCAR',cargo:'300.00'},
+  {...movimiento,id:'pina-1',descripcion:'SPEI PIÑA',cargo:'100.00'},
+  {...movimiento,id:'otro',descripcion:'SPEI STP',cargo:'500.00'},
+ ];
+ const paquete={movimientos:filas,version:4};
+ const nuevo=clasificarGrupoBeneficiario(paquete,'OSCAR','Préstamo por recuperar','Adelantos a Oscar, por recuperar en su liquidación.','2026-10-28T12:00:00.000Z');
+ assert.equal(nuevo.version,4);
+ assert.equal(nuevo.movimientos[0].revision.clasificacion,'Préstamo por recuperar');
+ assert.equal(nuevo.movimientos[1].revision.origen,'confirmacion_lote_beneficiario');
+ assert.equal(nuevo.movimientos[2].revision,undefined);
+ assert.equal(nuevo.movimientos[3].revision,undefined);
+ assert.throws(()=>clasificarGrupoBeneficiario(paquete,'OSCAR','','nota'),/categoría/);
+});
+test('no permite clasificar juntos un beneficiario si mezcla entradas y salidas', () => {
+ const paquete={movimientos:[
+  {...movimiento,id:'oscar-salida',descripcion:'SPEI OSCAR',cargo:'200.00',abono:'0'},
+  {...movimiento,id:'oscar-entrada',descripcion:'ABONO OSCAR',cargo:'0',abono:'200.00'},
+ ]};
+ assert.throws(()=>clasificarGrupoBeneficiario(paquete,'OSCAR','Personal','Pago a Oscar'),/mezcla salidas y entradas/);
 });
