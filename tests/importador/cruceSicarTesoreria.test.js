@@ -59,6 +59,36 @@ test("usa descripción del cheque como concepto cuando falta comentario", () => 
   assert.deepEqual(resultado.filas[0].candidatos[0].palabrasCoincidentes, ["PINK", "UP"]);
 });
 
+test("sugiere el proveedor del último reporte por el concepto, sin liquidar su saldo", () => {
+  const resultado = cruzarChequesSicarConTesoreria(
+    [{ ...cheque("MOV-PINK", 30000), comentario: "Abono Pink Up" }],
+    [],
+    branchId,
+    [{ id: "pink-up", nombre: "Pink Up", saldo: 12000 }],
+    true,
+  );
+
+  assert.equal(resultado.filas[0].tipoPago, "Pago a proveedor por cheque");
+  assert.equal(resultado.filas[0].proveedoresCandidatos.length, 1);
+  assert.equal(resultado.filas[0].proveedoresCandidatos[0].id, "pink-up");
+  assert.equal(resultado.filas[0].proveedoresCandidatos[0].saldoReportado, 12000);
+  assert.equal(resultado.filas[0].catalogoProveedoresConsultado, true);
+});
+
+test("deja pendiente el proveedor si no hay reporte cargado para identificarlo", () => {
+  const resultado = cruzarChequesSicarConTesoreria(
+    [{ ...cheque("MOV-PINK", 30000), comentario: "Abono Pink Up" }],
+    [],
+    branchId,
+    [],
+    false,
+  );
+
+  assert.equal(resultado.filas[0].proveedoresCandidatos.length, 0);
+  assert.equal(resultado.filas[0].catalogoProveedoresConsultado, false);
+  assert.equal(resultado.filas[0].tipoPago, "Pago a proveedor por cheque");
+});
+
 test("acepta movimientos consolidados del negocio como candidatas de menor alcance y rechaza otra sucursal", () => {
   const resultado = cruzarChequesSicarConTesoreria(
     [cheque("MOV-1", 20000)],
