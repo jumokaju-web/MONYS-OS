@@ -8,6 +8,63 @@ const pistas = {
   'Préstamo: confirmar destino': ['Préstamo por recuperar', 'Confirma beneficiario y si el dinero debe devolverse.'],
   'Transferencia interna pareada': ['Transferencia interna', 'Comprueba ambos movimientos y la propiedad de las cuentas.'],
 };
+const beneficiariosConocidos = [
+  { nombre: 'OSCAR', variantes: ['OSCAR'] },
+  { nombre: 'PIÑA', variantes: ['PINA'] },
+  { nombre: 'JOSHUA', variantes: ['JOSHUA', 'JOSH'] },
+  { nombre: 'IVAN', variantes: ['IVAN'] },
+  { nombre: 'EMANUEL', variantes: ['EMANUEL', 'EMMANUEL'] },
+];
+const normalizar = texto => String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\d+/g, ' ').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+export function identificarBeneficiarioBancario(m) {
+  const texto = [m?.descripcion, m?.referencia_visible].filter(Boolean).join(' ').toLocaleUpperCase('es-MX');
+  const normalizado = normalizar(texto);
+  const conocido = beneficiariosConocidos.find(persona => persona.variantes.some(variante => new RegExp(`\\b${variante}\\b`).test(normalizado)));
+  if (conocido) return conocido.nombre;
+  const exclusiones = new Set(['SPEI', 'STP', 'PAGO', 'PAGOS', 'TRANSFERENCIA', 'TRASPASO', 'DEPOSITO', 'DEPOSITO', 'BANCO', 'BBVA', 'SANTANDER', 'HSBC', 'BANORTE', 'SCOTIABANK', 'OXXO', 'CLABE', 'CUENTA', 'ENVIO', 'ENVIADO', 'OPERACION', 'REFERENCIA']);
+  const candidatos = [...texto.matchAll(/(?:\b(?:A|AL|PARA|BENEFICIARIO|BENEFICIARIA|NOMBRE)\s+)([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{3,}){0,2})/g)].map(x => x[1]);
+  return candidatos.map(x => x.trim().split(/\s+/).filter(p => !exclusiones.has(normalizar(p))).join(' ')).find(Boolean) || '';
+}
+export function claveReglaBancaria(m) {
+  const beneficiario = identificarBeneficiarioBancario(m);
+  const concepto = normalizar(m?.descripcion);
+  const direccion = Number(m?.cargo) > 0 ? 'SALIDA' : Number(m?.abono) > 0 ? 'ENTRADA' : '';
+  if (!beneficiario || !concepto || !direccion || !m?.cuenta) return '';
+  return [m.cuenta, direccion, concepto, normalizar(beneficiario)].join('|');
+}
+export function actualizarReglasBancarias(paquete) {
+  const reglas = new Map((paquete?.reglas_bancarias || []).filter(r => r?.clave && (r?.categoria || r.conflicto)).map(r => [r.clave, r]));
+  const actuales = new Map();
+  for (const m of paquete?.movimientos || []) {
+    if (m.revision?.estado !== 'Confirmado') continue;
+    const clave = claveReglaBancaria(m);
+    if (!clave) continue;
+    const categorias = actuales.get(clave) || new Set();
+    categorias.add(m.revision.clasificacion);
+    actuales.set(clave, categorias);
+  }
+  for (const [clave, categorias] of actuales) {
+    const anterior = reglas.get(clave);
+    if (categorias.size > 1 || (anterior && !anterior.conflicto && !categorias.has(anterior.categoria))) {
+      reglas.set(clave, { clave, conflicto: true });
+    } else if (categorias.size === 1 && !anterior?.conflicto) {
+      reglas.set(clave, { clave, categoria: [...categorias][0], conflicto: false });
+    }
+  }
+  return { ...paquete, reglas_bancarias: [...reglas.values()].slice(-500) };
+}
+export function aplicarReglasBancarias(paquete, reglas = paquete?.reglas_bancarias || []) {
+  const reglasPorClave = new Map((reglas || []).filter(r => r?.clave && r?.categoria && !r.conflicto).map(r => [r.clave, r]));
+  let sugeridas = 0;
+  const movimientos = (paquete?.movimientos || []).map(m => {
+    if (m.revision?.estado === 'Confirmado' || m.revision?.clasificacion || sugerirMovimientoBancario(m).categoria) return m;
+    const regla = reglasPorClave.get(claveReglaBancaria(m));
+    if (!regla) return m;
+    sugeridas++;
+    return { ...m, revision: { estado: 'Por revisar', clasificacion: regla.categoria, nota: 'Sugerencia basada en una clasificación confirmada anteriormente para el mismo beneficiario, concepto, cuenta y tipo de movimiento. Confirma antes de guardar.', origen: 'regla_historica_monys' } };
+  });
+  return { paquete: { ...paquete, reglas_bancarias: reglas || [], movimientos }, sugeridas };
+}
 export function sugerirMovimientoBancario(m) {
   const coincidencias = (Array.isArray(m.evidencia_whatsapp) ? m.evidencia_whatsapp : []).filter(e =>
     typeof e.texto === 'string' && Number.isInteger(e.importe) && e.importe === Math.round((Number(m.cargo) + Number(m.abono)) * 100) && [m.fecha_operacion, m.fecha_liquidacion].includes(e.fecha));
@@ -28,6 +85,10 @@ export function sugerirMovimientoBancario(m) {
   if (!categoria && coincidencias.length === 1 && Number(m.cargo) > 0 && /\b(sueldo|n[oó]mina)\b/i.test(coincidencias[0].texto)) {
     categoria = 'Nómina'; motivo = 'Hay un mensaje del mismo importe y fecha que menciona sueldo. Comprueba que corresponde a este pago.';
   }
+  if (!categoria && m.revision?.origen === 'regla_historica_monys' && m.revision?.clasificacion) {
+    categoria = m.revision.clasificacion;
+    motivo = m.revision.nota;
+  }
   return { categoria, motivo, coincidencias, ambigua: coincidencias.length > 1, categoriaCandidata: posibleNomina ? 'Nómina' : '' };
 }
 export function agruparSugerenciasBancarias(movimientos) {
@@ -46,24 +107,9 @@ export function agruparSugerenciasBancarias(movimientos) {
 // referencia. Es una pista de revisión, no una asignación contable.
 export function agruparPendientesPorNombre(movimientos = []) {
   const grupos = new Map();
-  const exclusiones = new Set(['SPEI', 'STP', 'PAGO', 'PAGOS', 'TRANSFERENCIA', 'TRASPASO', 'DEPOSITO', 'DEPÓSITO', 'BANCO', 'BBVA', 'SANTANDER', 'HSBC', 'BANORTE', 'SCOTIABANK', 'OXXO', 'CLABE', 'CUENTA', 'ENVIO', 'ENVIADO', 'OPERACION', 'OPERACIÓN', 'REFERENCIA']);
-  const beneficiariosConocidos = [
-    { nombre: 'OSCAR', variantes: ['OSCAR'] },
-    { nombre: 'PIÑA', variantes: ['PINA', 'PINA'] },
-    { nombre: 'JOSHUA', variantes: ['JOSHUA', 'JOSH'] },
-    { nombre: 'IVAN', variantes: ['IVAN'] },
-    { nombre: 'EMANUEL', variantes: ['EMANUEL', 'EMMANUEL'] },
-  ];
   for (const m of movimientos) {
     if (m.revision?.estado === 'Confirmado' || sugerirMovimientoBancario(m).categoria) continue;
-    const texto = [m.descripcion, m.referencia_visible].filter(Boolean).join(' ').toLocaleUpperCase('es-MX');
-    const normalizado = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    // Captura nombres tras indicadores habituales y también nombres aislados
-    // conocidos en la referencia bancaria (p. ej. "SPEI ENVIADO OSCAR").
-    const candidatos = [...texto.matchAll(/(?:\b(?:A|AL|PARA|BENEFICIARIO|BENEFICIARIA|NOMBRE)\s+)([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{3,}){0,2})/g)].map(x => x[1]);
-    const conocido = beneficiariosConocidos.find(persona => persona.variantes.some(variante => new RegExp(`\\b${variante}\\b`).test(normalizado)));
-    if (conocido) candidatos.unshift(conocido.nombre);
-    const nombre = candidatos.map(x => x.trim().split(/\s+/).filter(p => !exclusiones.has(p)).join(' ')).find(Boolean);
+    const nombre = identificarBeneficiarioBancario(m);
     if (!nombre) continue;
     const key = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const g = grupos.get(key) || { nombre, cantidad: 0, cargos: 0, abonos: 0, movimientos: [] };
