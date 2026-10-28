@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 15076)
+Total output lines: 1917
+
 import './InicioJefa.css';
 import CortesHoyDireccion from './components/CortesHoyDireccion';
 import {
@@ -491,6 +494,17 @@ movimientos = [],
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas y cortes de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
         {contenidoOperacion && <BloquePlegable id="operacion-completa-direccion" titulo="📋 Tareas y fotos del equipo">{contenidoOperacion}</BloquePlegable>}
         <p className="owner-period">Datos del corte: {cifrasConsolidadasDisponibles ? `${formatearFechaPeriodo(consolidacionFinanciera.fechaInicial)} al ${formatearFechaPeriodo(consolidacionFinanciera.fechaFinal)}` : consolidacionFinanciera.motivo || detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
+        <details className="owner-period-sources">
+          <summary>Ver archivos SICAR que respaldan estas cifras</summary>
+          {sucursalesDashboard.map((sucursal) => {
+            const fuente = sucursal.fuenteFinanciera;
+            return <p key={sucursal.id}>
+              <b>{sucursal.nombre}:</b> {fuente
+                ? <>{fuente.tipoReporte} · {fuente.archivo} · {fuente.filas ?? "Filas sin dato"} filas · {fuente.importadoEn ? new Date(fuente.importadoEn).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "fecha de importación sin dato"}</>
+                : "sin reporte financiero SICAR disponible"}
+            </p>;
+          })}
+        </details>
         <section className="owner-results" aria-label="Resultados del corte SICAR">
           <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(ventasConsolidadas) : consolidacionFinanciera.motivo || detallePeriodo}</strong><span>Venta registrada en SICAR</span></div>
           <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(utilidadConsolidada) : "Corte por alinear"}</strong><span>Antes de renta, nómina y demás gastos</span></div>
@@ -767,16 +781,7 @@ movimientos = [],
                     <strong>{valor === null ? "Por confirmar" : formatoDinero(valor)}</strong>
                   </div>
                 ))}
-              </div>
-              {!datosFinancierosVigentes && (
-                <div style={estiloAvisoDato}>
-                  Histórico: actualiza reportes antes de decidir.
-                </div>
-              )}
-            </article>
-
-            <article style={estiloPanelFinanciero}>
-              <div style={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
+              </d…76 tokens truncated…e={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
               <strong style={estiloCifraFinanciera}>
                 {puntoEquilibrioDisponible
                   ? formatoDinero(analisisFinanciero.puntoEquilibrioVentas)

@@ -455,6 +455,10 @@ async function prepararSucursal(
     periodoUtilidad ||
     periodoVentas;
 
+  const importacionFinanciera = tieneUtilidad
+    ? resultadoUtilidad?.importacion
+    : resultadoVentas?.importacion;
+
   const diasAnalizados =
     periodoReal?.diasAnalizados ||
     Number(
@@ -530,6 +534,13 @@ const resumenInventario =
       detallesInventario.length,
 
     periodo: periodoReal,
+
+    fuenteFinanciera: importacionFinanciera ? {
+      tipoReporte: importacionFinanciera.tipo_reporte || (tieneUtilidad ? "Utilidad de ventas" : "Ventas por artículo"),
+      archivo: importacionFinanciera.archivo_original || "Archivo SICAR sin nombre",
+      importadoEn: importacionFinanciera.created_at || null,
+      filas: importacionFinanciera.total_filas ?? null,
+    } : null,
 
     inventario:
       detallesInventario,
