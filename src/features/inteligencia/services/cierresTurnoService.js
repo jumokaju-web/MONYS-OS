@@ -1,6 +1,20 @@
 import { fechaOperativaMexico } from '../utils/corteTienda';
 import { supabase } from "../../../supabase";
 
+async function consultarHistorialCompleto(consultarPagina) {
+  const filas = [];
+  let inicio = 0;
+  const tamanoPagina = 1000;
+  while (true) {
+    const { data, error } = await consultarPagina(inicio, inicio + tamanoPagina - 1);
+    if (error) throw error;
+    const pagina = Array.isArray(data) ? data : [];
+    filas.push(...pagina);
+    if (pagina.length < tamanoPagina) return filas;
+    inicio += tamanoPagina;
+  }
+}
+
 
 export async function guardarCierreTurno({
   branchId = null,
@@ -168,6 +182,38 @@ export async function obtenerCierresTurno({
   branchId = null,
   limite = 10,
 } = {}) {
+  if (limite === null) {
+    const consultarPagina = (inicio, fin) => {
+      let consulta = supabase
+        .from("cierres_turno")
+        .select(`
+          id,
+          branch_id,
+          responsable,
+          turno,
+          pendientes,
+          incidencias,
+          productos_solicitados,
+          objeciones_clientes,
+          aprendizajes,
+          observaciones,
+          fecha,
+          created_at
+        `)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(inicio, fin);
+      if (branchId) consulta = consulta.eq("branch_id", branchId);
+      return consulta;
+    };
+    try {
+      return await consultarHistorialCompleto(consultarPagina);
+    } catch (error) {
+      console.error("Error al obtener el historial completo de cierres de turno:", error);
+      throw error;
+    }
+  }
+
   let consulta =
     supabase
       .from(

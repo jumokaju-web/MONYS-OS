@@ -548,6 +548,27 @@ export const obtenerMovimientosTesoreria =
     }));
   };
 
+export async function obtenerConteoMovimientosPendientes({ organizationId, businessId, branchId = null }) {
+  if (!organizationId || !businessId) throw new Error("Falta el negocio para revisar las conciliaciones financieras.");
+  const movimientos = await consultarTodasLasPaginas((inicio, fin) => {
+    let consulta = supabase
+      .from("cash_movements")
+      .select("id,status")
+      .eq("organization_id", organizationId)
+      .eq("business_id", businessId)
+      .order("occurred_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(inicio, fin);
+    if (branchId) consulta = consulta.eq("branch_id", branchId);
+    return consulta;
+  });
+  const pendientes = movimientos.filter((movimiento) => {
+    const estado = String(movimiento?.status || "Pendiente de revisión").trim().toLocaleLowerCase("es-MX");
+    return estado !== "revisado" && estado !== "cancelado";
+  });
+  return { total: movimientos.length, pendientes: pendientes.length, consultado: true };
+}
+
 export async function obtenerMovimientosParaCruceSicar({ branchId, businessId, desde, hasta }) {
   if (!branchId || !desde || !hasta) return [];
   const uuidValido = (valor) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(valor));

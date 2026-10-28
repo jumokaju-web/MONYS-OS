@@ -125,6 +125,10 @@ export function resumirDisponibilidadFinanciera({
   obligacionesOperativas = {},
   obligacionesOperativasConfirmadas = false,
   comprobacionesRetiros = [],
+  sesionesCajaAbiertas = 0,
+  sesionesCajaConsultadas = true,
+  movimientosPendientes = 0,
+  movimientosPendientesConsultados = true,
   hoy = fechaMexico(),
 } = {}) {
   const listaCuentas = Array.isArray(cuentas) ? cuentas : [];
@@ -172,14 +176,21 @@ export function resumirDisponibilidadFinanciera({
   const proveedores = datosProveedores(creditosProveedores, hoy);
   const deudas = datosDeudas(deudasFinancieras, deudasConsultadas, hoy);
 
-  const liquidezLocalizada = bancosVigentes && cajasCompletas
+  const turnosAbiertos = Math.max(0, Number(sesionesCajaAbiertas) || 0);
+  const pendientesTesoreria = Math.max(0, Number(movimientosPendientes) || 0);
+  const bloqueoConsolidacion = diferencias > 0
+    || !sesionesCajaConsultadas
+    || turnosAbiertos > 0
+    || !movimientosPendientesConsultados
+    || pendientesTesoreria > 0;
+  const liquidezLocalizada = bancosVigentes && cajasCompletas && !bloqueoConsolidacion
     ? saldoBancos + (efectivoCajas || 0)
     : null;
   const compromisosConfirmados =
     proveedores.vigente && proveedores.sinFecha === 0 && proveedores.saldosPendientes === 0;
   const operativasCompletas = obligacionesOperativas?.completas === true;
   const fuentesConocidas =
-    liquidezLocalizada !== null && compromisosConfirmados && deudas.completas && operativasCompletas && diferencias === 0;
+    liquidezLocalizada !== null && compromisosConfirmados && deudas.completas && operativasCompletas;
   const remanenteRegistrado = fuentesConocidas
     ? liquidezLocalizada - proveedores.compromisos7Dias - deudas.compromisos7Dias - obligacionesOperativas.compromisos7Dias
     : null;
@@ -200,6 +211,16 @@ export function resumirDisponibilidadFinanciera({
     faltantes.push({ id: "cajas", titulo: `Completar cortes de caja (${cajasFaltantes} faltantes, ${cajasIncompletas} incompletos)`, destino: "importador" });
   } else if (diferencias > 0) {
     faltantes.push({ id: "diferencias", titulo: `Aclarar ${diferencias} diferencia${diferencias === 1 ? "" : "s"} de caja`, destino: "equipo" });
+  }
+  if (!sesionesCajaConsultadas) {
+    faltantes.push({ id: "sesiones-caja", titulo: "No se pudo verificar si hay turnos de caja abiertos", destino: "equipo" });
+  } else if (turnosAbiertos > 0) {
+    faltantes.push({ id: "sesiones-caja", titulo: `Cerrar o aclarar ${turnosAbiertos} turno${turnosAbiertos === 1 ? "" : "s"} de caja abierto${turnosAbiertos === 1 ? "" : "s"}`, destino: "equipo" });
+  }
+  if (!movimientosPendientesConsultados) {
+    faltantes.push({ id: "movimientos-pendientes", titulo: "No se pudo verificar la bandeja de movimientos de Tesorería", destino: "bancos" });
+  } else if (pendientesTesoreria > 0) {
+    faltantes.push({ id: "movimientos-pendientes", titulo: `Revisar ${pendientesTesoreria} movimiento${pendientesTesoreria === 1 ? "" : "s"} pendiente${pendientesTesoreria === 1 ? "" : "s"} de Tesorería`, destino: "bancos" });
   }
   if (!proveedores.disponible) {
     faltantes.push({ id: "proveedores", titulo: "Cargar reporte vigente o confirmar cero créditos por sucursal", destino: "plan" });
@@ -241,6 +262,20 @@ export function resumirDisponibilidadFinanciera({
       titulo: "Carga o completa los cortes de caja de hoy",
       detalle: `${cajasFaltantes} sin corte y ${cajasIncompletas} con importes pendientes. MONYS no los convierte en cero.`,
       destino: "importador",
+    };
+  } else if (!sesionesCajaConsultadas || turnosAbiertos > 0) {
+    prioridad = {
+      nivel: "alta",
+      titulo: !sesionesCajaConsultadas ? "Verifica los turnos de caja abiertos" : `Cierra o aclara ${turnosAbiertos} turno${turnosAbiertos === 1 ? "" : "s"} abierto${turnosAbiertos === 1 ? "" : "s"}`,
+      detalle: "MONYS bloquea la liquidez consolidada hasta confirmar que todas las cajas estén cerradas.",
+      destino: "equipo",
+    };
+  } else if (!movimientosPendientesConsultados || pendientesTesoreria > 0) {
+    prioridad = {
+      nivel: "alta",
+      titulo: !movimientosPendientesConsultados ? "Verifica los movimientos pendientes de Tesorería" : `Revisa ${pendientesTesoreria} movimiento${pendientesTesoreria === 1 ? "" : "s"} pendiente${pendientesTesoreria === 1 ? "" : "s"}`,
+      detalle: "MONYS no suma liquidez ni dinero libre mientras haya movimientos sin revisar.",
+      destino: "bancos",
     };
   } else if (!proveedores.disponible) {
     prioridad = {
@@ -339,6 +374,11 @@ export function resumirDisponibilidadFinanciera({
     controlRetiros,
     comprobacionRetiros,
     diferencias,
+    sesionesCajaAbiertas: turnosAbiertos,
+    sesionesCajaConsultadas,
+    movimientosPendientes: pendientesTesoreria,
+    movimientosPendientesConsultados,
+    bloqueoConsolidacion,
     proveedores,
     deudas,
     obligacionesOperativasConfirmadas,

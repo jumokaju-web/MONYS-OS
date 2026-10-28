@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "../../../context/UserContext";
 import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import { extraerCapturasFinancieras } from "../../inteligencia/utils/capturasFinancierasEquipo";
+import { resumirSesionesCajaAbiertas } from "../utils/sesionesCajaAbiertas.js";
 import {
   clasificarCuentaBancaria,
   guardarSaldoBancarioConfirmado,
@@ -16,6 +17,7 @@ import { resumirRemanenteSemanaAnterior } from "../utils/remanenteSemanaAnterior
 import { obtenerComprobacionesRetiros } from "../services/comprobacionesRetirosService.js";
 import { obtenerDeudasFinancieras } from "../../inteligencia/services/deudasFinancierasService";
 import { obtenerControlObligacionesOperativas } from "../../inteligencia/services/obligacionesOperativasService";
+import { obtenerConteoMovimientosPendientes } from "../../tesoreria/services/tesoreriaService.js";
 import ComprobacionRetiroCard from "./ComprobacionRetiroCard.jsx";
 import RemanenteSemanalCaja from "./RemanenteSemanalCaja.jsx";
 import ObligacionesOperativas from "./ObligacionesOperativas.jsx";
@@ -54,6 +56,10 @@ export default function DisponibilidadFinancieraHoy({
   const [cuentas, setCuentas] = useState([]);
   const [cuentasSinAsignar, setCuentasSinAsignar] = useState([]);
   const [cierre, setCierre] = useState({});
+  const [sesionesCaja, setSesionesCaja] = useState({ cantidad: 0, sesiones: [] });
+  const [sesionesCajaConsultadas, setSesionesCajaConsultadas] = useState(false);
+  const [movimientosPendientes, setMovimientosPendientes] = useState(0);
+  const [movimientosPendientesConsultados, setMovimientosPendientesConsultados] = useState(false);
   const [importacionesCortes, setImportacionesCortes] = useState([]);
   const [capturas, setCapturas] = useState({});
   const [comprobacionesRetiros, setComprobacionesRetiros] = useState([]);
@@ -83,6 +89,8 @@ export default function DisponibilidadFinancieraHoy({
     if (!usuario?.organization_id) return;
     setCargando(true);
     setError("");
+    setSesionesCajaConsultadas(false);
+    setMovimientosPendientesConsultados(false);
     try {
       const consultaSinAsignar = role === "owner"
         ? obtenerCuentasBancariasSinNegocio({ organizationId: usuario.organization_id })
@@ -90,13 +98,14 @@ export default function DisponibilidadFinancieraHoy({
       const consultaObligaciones = obtenerControlObligacionesOperativas({ organizationId: usuario.organization_id, businessId: usuario.business_id })
         .then((data) => ({ data }))
         .catch((error) => ({ error }));
-      const [resumenBancos, cierres, cortesOficiales, sinAsignar, deudas, resultadoObligaciones] = await Promise.all([
+      const [resumenBancos, cierres, cortesOficiales, sinAsignar, deudas, resultadoObligaciones, conteoMovimientos] = await Promise.all([
         obtenerCuentasBancariasParaConfirmar({ organizationId: usuario.organization_id, businessId: usuario.business_id }),
-        obtenerCierresTurno({ branchId: alcanceCompleto ? null : branchId, limite: 100 }),
+        obtenerCierresTurno({ branchId: alcanceCompleto ? null : branchId, limite: null }),
         obtenerCortesCajaSicar({ branchIds }),
         consultaSinAsignar,
         obtenerDeudasFinancieras({ organizationId: usuario.organization_id, businessId: usuario.business_id }),
         consultaObligaciones,
+        obtenerConteoMovimientosPendientes({ organizationId: usuario.organization_id, businessId: usuario.business_id, branchId: alcanceCompleto ? null : branchId }),
       ]);
       const capturasFinancieras = extraerCapturasFinancieras(cierres);
       setCuentas(resumenBancos.cuentas);
@@ -124,6 +133,10 @@ export default function DisponibilidadFinancieraHoy({
         ],
       });
       setCierre(cierreResumido);
+      setSesionesCaja(resumirSesionesCajaAbiertas(cierres));
+      setSesionesCajaConsultadas(true);
+      setMovimientosPendientes(conteoMovimientos.pendientes);
+      setMovimientosPendientesConsultados(true);
       setImportacionesCortes(cortesOficiales);
       setComprobacionesRetiros(await obtenerComprobacionesRetiros(
         cierreResumido.retiros.map((retiro) => retiro.cierreId).filter(Boolean)
@@ -132,6 +145,8 @@ export default function DisponibilidadFinancieraHoy({
       setDeudasConsultadas(false);
       setObligacionesConsultadas(false);
       setCoberturaObligacionesConfirmada(false);
+      setSesionesCajaConsultadas(false);
+      setMovimientosPendientesConsultados(false);
       setError(e?.message || "No fue posible preparar la disponibilidad financiera de hoy.");
     } finally {
       setCargando(false);
@@ -156,7 +171,11 @@ export default function DisponibilidadFinancieraHoy({
     obligacionesOperativas: resumirObligacionesOperativas({ obligaciones, consultadas: obligacionesConsultadas, hoy: fechaMexico() }),
     obligacionesOperativasConfirmadas: coberturaObligacionesConfirmada,
     comprobacionesRetiros,
-  }), [cuentas, cierre, cortesOficiales, creditosProveedores, deudasFinancieras, deudasConsultadas, obligaciones, obligacionesConsultadas, coberturaObligacionesConfirmada, comprobacionesRetiros]);
+    sesionesCajaAbiertas: sesionesCaja.cantidad,
+    sesionesCajaConsultadas,
+    movimientosPendientes,
+    movimientosPendientesConsultados,
+  }), [cuentas, cierre, cortesOficiales, creditosProveedores, deudasFinancieras, deudasConsultadas, obligaciones, obligacionesConsultadas, coberturaObligacionesConfirmada, comprobacionesRetiros, sesionesCaja, sesionesCajaConsultadas, movimientosPendientes, movimientosPendientesConsultados]);
 
   const semanaAnterior = useMemo(() => resumirRemanenteSemanaAnterior({
     importaciones: importacionesCortes,
@@ -295,7 +314,7 @@ export default function DisponibilidadFinancieraHoy({
           <Importe valor={resumen.dineroLibre} />
           <p>{resumen.calculable
             ? "Después de separar las obligaciones confirmadas de los próximos 7 días."
-            : `No se mostrará una cifra hasta comprobar bancos, cajas, proveedores, deudas y gastos operativos. Remanente de obligaciones registradas: ${resumen.remanenteRegistrado === null ? "por calcular" : dinero.format(resumen.remanenteRegistrado)}; aún faltan gastos de operación confirmados.`}</p>
+            : `No se mostrará una cifra hasta comprobar bancos, cajas y obligaciones, cerrar los turnos y revisar Tesorería. ${resumen.sesionesCajaAbiertas > 0 ? `${resumen.sesionesCajaAbiertas} turno(s) siguen abiertos. ` : ""}${resumen.movimientosPendientes > 0 ? `${resumen.movimientosPendientes} movimiento(s) siguen pendientes. ` : ""}${resumen.diferencias > 0 ? `${resumen.diferencias} diferencia(s) de caja siguen sin aclarar. ` : ""}Remanente de obligaciones registradas: ${resumen.remanenteRegistrado === null ? "por calcular" : dinero.format(resumen.remanenteRegistrado)}; aún faltan gastos de operación confirmados.`}</p>
         </div>
         <article>
           <span>PRIORIDAD</span>
