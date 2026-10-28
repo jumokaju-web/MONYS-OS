@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { cruzarBancoCaja, resumirCruceBancoCaja } from '../utils/cruceBancoCaja';
+import { cruzarBancoCaja, resumirCruceBancoCaja, listarBancoSinCoincidencia } from '../utils/cruceBancoCaja';
 import { anularConciliacionBancaria, guardarConciliacionBancaria, obtenerConciliacionesBancarias } from '../services/conciliacionBancariaService';
 import { buscarProveedoresParaPago, resumirPagosProveedores } from '../utils/crucePagosProveedores';
 
 const dinero = n => Number(n).toLocaleString('es-MX',{style:'currency',currency:'MXN'});
 
-export default function CruceBancoCaja({ paquete, movimientos = [], revisionId, creditosProveedores = {} }) {
+export default function CruceBancoCaja({ paquete, movimientos = [], revisionId, creditosProveedores = {}, onRevisarBanco }) {
  const [conciliaciones,setConciliaciones]=useState([]);
  const [cargando,setCargando]=useState(false);
  const [procesando,setProcesando]=useState('');
+ const [limiteSinCoincidencia,setLimiteSinCoincidencia]=useState(30);
  const [error,setError]=useState('');
  const cargar=useCallback(async()=>{
   if(!revisionId){setConciliaciones([]);return;}
@@ -19,6 +20,7 @@ export default function CruceBancoCaja({ paquete, movimientos = [], revisionId, 
  useEffect(()=>{cargar();},[cargar]);
  const cruces=useMemo(()=>cruzarBancoCaja(paquete.movimientos,movimientos,conciliaciones),[paquete,movimientos,conciliaciones]);
  const resumen=useMemo(()=>resumirCruceBancoCaja(paquete.movimientos,movimientos,conciliaciones),[paquete,movimientos,conciliaciones]);
+ const sinCoincidencia=useMemo(()=>listarBancoSinCoincidencia(paquete.movimientos,movimientos,conciliaciones),[paquete,movimientos,conciliaciones]);
  const anuladas=conciliaciones.filter(item=>item.estado==='ANULADA');
  const proveedores=useMemo(()=>creditosProveedores?.creditos || [],[creditosProveedores]);
  const resumenProveedores=useMemo(()=>resumirPagosProveedores({banco:paquete.movimientos,movimientos,proveedores,conciliaciones}),[paquete,movimientos,proveedores,conciliaciones]);
@@ -52,6 +54,7 @@ export default function CruceBancoCaja({ paquete, movimientos = [], revisionId, 
    {conciliacion?<div><p><b>Vinculado con Tesorería:</b> {conciliacion.snapshot?.movimiento?.concepto??conciliacion.snapshot?.movimiento?.concept??conciliacion.cash_movement_id}</p><small>Confirmado el {new Intl.DateTimeFormat('es-MX',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Mexico_City'}).format(new Date(conciliacion.registrado_en))}.</small><br/><button disabled={procesando===`anular:${conciliacion.id}`} onClick={()=>anular(conciliacion)}>{procesando===`anular:${conciliacion.id}`?'Anulando…':'Anular y corregir vínculo'}</button></div>
    :candidatos.map((m,i)=>{const posibles=buscarProveedoresParaPago({banco,movimiento:m,proveedores});return <article key={m.id||i} style={{borderTop:'1px solid #ead8e2',padding:'8px 0'}}><p><b>Registro MONYS:</b> {m.concepto??m.concept??'Sin concepto'} · {String(m.fecha??m.occurred_at??'').slice(0,10)} · {m.estado??m.status??'Sin estado'}</p>{posibles.length>0&&<p><b>Proveedor sugerido:</b> {posibles.map(item=>item.nombre).join(', ')}. Confirma con comprobante; no se descontará del saldo automáticamente.</p>}<button disabled={!revisionId||procesando===`guardar:${banco.id}`} onClick={()=>confirmar(banco,m)}>{procesando===`guardar:${banco.id}`?'Guardando…':'Confirmar esta coincidencia'}</button></article>})}
   </details>)}
+  {sinCoincidencia.length>0&&<details className="banco-sin-cruce"><summary>Ver los {sinCoincidencia.length} movimientos sin coincidencia exacta</summary><p>No encontramos un registro de Tesorería con el mismo importe, sentido y fecha de operación o liquidación. Esto no significa por sí solo que el dinero esté perdido: puede faltar el registro de caja, estar en otro día o ser un movimiento bancario que no corresponde a una operación de tienda.</p>{sinCoincidencia.slice(0,limiteSinCoincidencia).map(banco=><article key={banco.id}><b>{banco.fecha_operacion} · Cuenta ·{banco.cuenta} · {dinero(Number(banco.cargo)+Number(banco.abono))} · {Number(banco.cargo)>0?'Salida':'Entrada'}</b><p>{banco.descripcion}</p><small>Referencia: {banco.referencia_visible||'Sin referencia'}</small><br/><button disabled={!onRevisarBanco} onClick={()=>onRevisarBanco?.(banco)}>Abrir este movimiento para revisarlo</button></article>)}{sinCoincidencia.length>limiteSinCoincidencia&&<button onClick={()=>setLimiteSinCoincidencia(limiteSinCoincidencia+30)}>Mostrar 30 más</button>}</details>}
   {cruces.length>30&&<p>Se muestran los primeros 30 cruces. Usa periodos más pequeños para completar la revisión.</p>}
   {anuladas.length>0&&<details><summary>Historial de vínculos anulados · {anuladas.length}</summary>{anuladas.map(item=><p key={item.id}>{item.fecha_banco} · Cuenta ·{item.cuenta} · {dinero(item.monto)} · {item.motivo_anulacion}</p>)}</details>}
  </section>;
