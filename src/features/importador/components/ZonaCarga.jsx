@@ -278,6 +278,7 @@ useEffect(() => {
   const [revisionAbonosSicar, setRevisionAbonosSicar] = useState(null);
   const [cargandoAbonosSicar, setCargandoAbonosSicar] = useState(false);
   const [errorAbonosSicar, setErrorAbonosSicar] = useState("");
+  const abonosRevisionRef = useRef(null);
 
   useEffect(() => {
     setRevisionImportacionSicar(null);
@@ -285,6 +286,11 @@ useEffect(() => {
     setRevisionAbonosSicar(null);
     setErrorAbonosSicar("");
   }, [branchIdSeleccionado]);
+
+  useEffect(() => {
+    if (!cargandoAbonosSicar && !errorAbonosSicar && !revisionAbonosSicar) return;
+    abonosRevisionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [cargandoAbonosSicar, errorAbonosSicar, revisionAbonosSicar]);
 
   const archivoActivo =
     archivosProcesados.find(
@@ -1634,6 +1640,7 @@ if (
         onAbrirConciliacion={abrirConciliacionImportada}
         onAbrirAbonos={abrirAbonosImportados}
       />
+      <div ref={abonosRevisionRef} id="revision-abonos-sicar" tabIndex={-1} style={{ scrollMarginTop: 16 }}>
       {cargandoAbonosSicar && <p role="status">Abriendo el reporte guardado de abonos…</p>}
       {errorAbonosSicar && <p role="alert">No se pudo abrir el reporte de abonos: {errorAbonosSicar}</p>}
       {revisionAbonosSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
@@ -1651,6 +1658,7 @@ if (
           branchId={revisionAbonosSicar.importacion.branch_id}
         />
       </section>}
+      </div>
       {cargandoRevisionSicar && <p role="status">Abriendo movimientos SICAR y comparando con Tesorería…</p>}
       {errorRevisionSicar && <p role="alert">No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
       {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
