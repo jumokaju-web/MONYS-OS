@@ -11,6 +11,7 @@ import { claveRevisionBancaria, guardarRevisionBancaria, recuperarRevisionBancar
 import { obtenerFacturasIngresoFlotillaPeriodo } from '../../dashboard/services/facturasIngresoFlotillaService.js';
 import { proponerCrucesFacturasEstadoCuenta } from '../utils/cruceFacturasEstadoCuenta.js';
 import { extraerTextoPdfBancario } from '../utils/extraerTextoPdfBancario.js';
+import { crearPaqueteBbva } from '../utils/crearPaqueteBbva.js';
 const categorias = ['Cobro de flotilla', 'Cobro de tienda: conciliar SICAR', 'Transferencia interna', 'Combustible', 'Proveedor', 'Nómina', 'Gasto operativo', 'Pago de crédito', 'Pago de tarjeta', 'Préstamo por recuperar', 'Personal', 'Comisión bancaria / IVA', 'Crédito recibido', 'Recuperación de préstamo', 'Aportación de capital', 'Otro'];
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 const notaComunDeLote = categoria => categoria === 'Préstamo por recuperar'
@@ -44,6 +45,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   const [cargandoFacturasCruce, setCargandoFacturasCruce] = useState(false);
   const [extraccionPdf, setExtraccionPdf] = useState(null);
   const [leyendoPdf, setLeyendoPdf] = useState(false);
+  const [paquetesPdf, setPaquetesPdf] = useState([]);
   useEffect(() => {
     if (!clave || usuario?.role !== 'owner') return undefined;
     let vigente = true;
@@ -189,6 +191,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
       if (file.size > 10 * 1024 * 1024) throw new Error('El archivo supera 10 MB.');
       const nuevo = JSON.parse(await file.text()); validarEstadoBancario(nuevo);
       const aplicado = aplicarReglasBancarias(nuevo, reglasBancarias);
+      setPaquetesPdf([]); setExtraccionPdf(null);
       setPaquete(aplicado.paquete); setReglasSugeridas(aplicado.sugeridas); setRevisionId(null); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null);
     } catch (e) { setError(e.message || 'No fue posible leer el archivo.'); }
   };
@@ -197,8 +200,23 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
     setLeyendoPdf(true); setError(''); setExtraccionPdf(null);
     try {
       const resultado = await extraerTextoPdfBancario(file);
-      setExtraccionPdf({ nombre: file.name, ...resultado });
-      setGuardado('PDF leído en este dispositivo. El contenido queda en vista previa; todavía no se importaron ni clasificaron movimientos.');
+      const { paquete: paqueteBbva, resumen: resumenBbva } = crearPaqueteBbva(resultado.lineas);
+      let lote = [...paquetesPdf];
+      if (lote.length) {
+        const periodoAnterior = lote[0].cuentas[0];
+        const cuentaNueva = paqueteBbva.cuentas[0];
+        if (periodoAnterior.desde !== cuentaNueva.desde || periodoAnterior.hasta !== cuentaNueva.hasta) throw new Error('Este PDF es de otro mes. Termina la revisión mensual actual antes de abrir un periodo distinto.');
+        if (lote.some((existente) => existente.cuentas.some((cuentaExistente) => cuentaExistente.terminacion === cuentaNueva.terminacion))) throw new Error(`Ya cargaste un estado para la cuenta ·${cuentaNueva.terminacion} de este mes.`);
+        lote = [...lote, paqueteBbva];
+      } else lote = [paqueteBbva];
+      const paqueteCombinado = { version: 1, cuentas: lote.flatMap((item) => item.cuentas), movimientos: lote.flatMap((item) => item.movimientos) };
+      validarEstadoBancario(paqueteCombinado);
+      const aplicado = aplicarReglasBancarias(paqueteCombinado, reglasBancarias);
+      setExtraccionPdf({ nombre: file.name, ...resultado }); setPaquetesPdf(lote);
+      setPaquete(aplicado.paquete); setReglasSugeridas(aplicado.sugeridas); setRevisionId(null);
+      setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null);
+      const totalMovimientos = paqueteCombinado.movimientos.length;
+      setGuardado(`${lote.length} estado(s) del mismo mes en revisión: ${totalMovimientos} movimientos. El último PDF aportó ${resumenBbva.movimientos} movimientos; importes y saldos cuadran. Aún no se guardó en MONYS.`);
     } catch (e) { setError(e.message || 'No fue posible leer el PDF.'); }
     finally { setLeyendoPdf(false); }
   };
@@ -241,7 +259,7 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   };
   return <section className="banco-revision"><fieldset className="banco-controles" disabled={sincronizando} aria-busy={sincronizando}>
     <div className="banco-revision-head"><div><span>CONCILIACIÓN BANCARIA</span><h2>Revisa el destino de tu dinero</h2></div><div className="banco-cargas"><label className="banco-carga">Leer PDF BBVA<input type="file" accept=".pdf,application/pdf" onChange={cargarPdf} disabled={leyendoPdf} /></label><label className="banco-carga banco-carga-secundaria">Abrir paquete MONYS<input type="file" accept=".json,application/json" onChange={cargar} /></label></div></div>
-    <p>Lee el texto seleccionable del estado de cuenta directamente aquí. El paquete MONYS valida movimientos, cargos, abonos y saldos antes de cargarlos.</p>
+    <p>Lee el estado BBVA mensual, detecta cargos y abonos y comprueba cantidades y saldos contra el resumen del banco. Los movimientos solo pasan a esta revisión después de cuadrar.</p>
     {leyendoPdf && <p role="status">Leyendo el PDF en este dispositivo…</p>}
     {extraccionPdf && <section className="banco-pdf-preview"><div><h3>Vista previa del estado de cuenta</h3><p><b>{extraccionPdf.nombre}</b> · {extraccionPdf.paginas} páginas · {extraccionPdf.lineas.length} líneas de texto</p><p>MONYS reconoció texto de BBVA, pero esta vista previa no altera saldos. Descarga el texto para conservarlo o compáralo con el estado original.</p><button type="button" onClick={descargarTextoPdf}>Descargar texto extraído</button><button type="button" onClick={() => setExtraccionPdf(null)}>Cerrar vista previa</button></div><details><summary>Revisar texto extraído</summary><pre>{extraccionPdf.lineas.map(({ pagina, texto }) => `[${pagina}] ${texto}`).join('\n')}</pre></details></section>}
     <p className="banco-aviso">Esta revisión no cambia los saldos de Tesorería ni registra ingresos o gastos. Puedes guardarla en este dispositivo con tu usuario, negocio y sucursal, o descargarla para abrirla en otro equipo. Al entrar se carga tu última versión guardada en MONYS. Guarda los cambios antes de salir, actualizar o abrir otro paquete.</p>

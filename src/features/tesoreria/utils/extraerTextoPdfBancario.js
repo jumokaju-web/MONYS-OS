@@ -29,8 +29,9 @@ export async function extraerTextoPdfBancario(archivo) {
       fila.elementos.push(elemento);
     }
     for (const fila of filas.sort((a, b) => b.y - a.y)) {
-      const texto = fila.elementos.sort((a, b) => a.x - b.x).map((item) => item.texto).join(" ").replace(/\s+/g, " ").trim();
-      if (texto) lineas.push({ pagina: paginaNumero, texto });
+      const celdas = fila.elementos.sort((a, b) => a.x - b.x).map(({ texto, x }) => ({ texto, x }));
+      const texto = celdas.map((item) => item.texto).join(" ").replace(/\s+/g, " ").trim();
+      if (texto) lineas.push({ pagina: paginaNumero, y: fila.y, texto, celdas });
     }
   }
   const textoCompleto = lineas.map((linea) => linea.texto).join("\n");
