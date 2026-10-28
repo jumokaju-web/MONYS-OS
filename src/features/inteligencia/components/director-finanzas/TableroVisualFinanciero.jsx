@@ -76,8 +76,9 @@ export default function TableroVisualFinanciero({
   fechaInicial = null,
 }) {
   const hayVentas = numero(ventas) > 0;
-  const gastosOperativos = numero(gastosFijos) + numero(gastosVariables) + numero(gastosSinClasificar);
-  const maxResultados = Math.max(numero(ventas), numero(costos), Math.abs(numero(utilidadBruta)), gastosOperativos, Math.abs(numero(utilidadNeta)), 1);
+  const gastosOperativosClasificados = numero(gastosFijos) + numero(gastosVariables);
+  const gastosPendientes = numero(gastosSinClasificar);
+  const maxResultados = Math.max(numero(ventas), numero(costos), Math.abs(numero(utilidadBruta)), gastosOperativosClasificados, gastosPendientes, Math.abs(numero(utilidadNeta)), 1);
   const maxFlujo = Math.max(numero(entradas), numero(salidas), Math.abs(numero(disponible)), numero(reserva), 1);
   const punto = numero(puntoEquilibrio);
   const avanceEquilibrio = punto > 0 ? (numero(ventas) / punto) * 100 : 0;
@@ -133,19 +134,21 @@ export default function TableroVisualFinanciero({
               <Barra etiqueta="Ventas" valor={ventas} maximo={maxResultados} color={PALETA.rosa} />
               <Barra etiqueta="Costo de mercancía" valor={costos} maximo={maxResultados} color={PALETA.dorado} />
               <Barra etiqueta="Utilidad bruta" valor={utilidadBruta} maximo={maxResultados} color={PALETA.rosaClaro} detalle={`${dinero(utilidadBruta)} · ${porcentaje(margenBruto)}`} />
-              <Barra etiqueta="Gastos operativos" valor={gastosOperativos} maximo={maxResultados} color={PALETA.gris} />
+              <Barra etiqueta="Gastos operativos clasificados" valor={gastosOperativosClasificados} maximo={maxResultados} color={PALETA.gris} />
+              {gastosPendientes > 0 && <Barra etiqueta="Salidas pendientes · no restadas" valor={gastosPendientes} maximo={maxResultados} color={PALETA.dorado} />}
               <Barra etiqueta="Utilidad neta estimada" valor={utilidadNeta} maximo={maxResultados} color={numero(utilidadNeta) >= 0 ? PALETA.verde : PALETA.rojo} detalle={`${dinero(utilidadNeta)} · ${porcentaje(margenNeto)}`} />
+              <small style={{ display: "block", marginTop: 9, color: "#75616b", lineHeight: 1.45 }}>La utilidad estimada descuenta solo gastos operativos clasificados. Las salidas pendientes aparecen aparte y no se cuentan como gasto hasta revisarlas.</small>
             </>
           )}
         </article>
 
         <article style={{ padding: 18, borderRadius: 17, background: "#fff", border: "1px solid #eadce3" }}>
-          <h4 style={{ margin: "0 0 15px", color: PALETA.vino, fontSize: 18 }}>Punto de equilibrio</h4>
+          <h4 style={{ margin: "0 0 15px", color: PALETA.vino, fontSize: 18 }}>Punto de equilibrio estimado</h4>
           {punto <= 0 ? <MensajeSinDatos texto="Necesitamos clasificar gastos fijos y conocer el margen real." /> : (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "end" }}>
                 <div><small style={{ color: "#7b6871" }}>Ventas actuales</small><strong style={{ display: "block", fontSize: 22 }}>{dinero(ventas)}</strong></div>
-                <div style={{ textAlign: "right" }}><small style={{ color: "#7b6871" }}>Meta mínima</small><strong style={{ display: "block", fontSize: 22 }}>{dinero(punto)}</strong></div>
+                <div style={{ textAlign: "right" }}><small style={{ color: "#7b6871" }}>Meta estimada del periodo</small><strong style={{ display: "block", fontSize: 22 }}>{dinero(punto)}</strong></div>
               </div>
               <div style={{ height: 22, marginTop: 18, borderRadius: 999, overflow: "hidden", background: "#f0e4ea", position: "relative" }}>
                 <div style={{ width: `${Math.min(100, Math.max(0, avanceEquilibrio))}%`, height: "100%", background: avanceEquilibrio >= 100 ? PALETA.verde : `linear-gradient(90deg, ${PALETA.rosa}, ${PALETA.rosaClaro})` }} />
@@ -157,18 +160,22 @@ export default function TableroVisualFinanciero({
                 <small>{fechaInicial} al {fechaCorte} · {diasAnalizados} días calendario. Equilibrio del periodo ÷ días; depende de que los gastos fijos y variables del corte estén completos. No es la venta de hoy.</small>
               </div>}
               <strong style={{ display: "block", marginTop: 10, textAlign: "center", color: avanceEquilibrio >= 100 ? PALETA.verde : PALETA.vino }}>{porcentaje(avanceEquilibrio)} cubierto</strong>
-              <p style={{ margin: "12px 0 0", color: "#75616b", lineHeight: 1.45 }}>{avanceEquilibrio >= 100 ? `Superávit sobre equilibrio: ${dinero(numero(ventas) - punto)}.` : `Faltante para no perder: ${dinero(faltanteEquilibrio)}.`}</p>
+              <p style={{ margin: "12px 0 0", color: "#75616b", lineHeight: 1.45 }}>{avanceEquilibrio >= 100 ? `Ventas por encima de la meta estimada: ${dinero(numero(ventas) - punto)}.` : `Brecha contra la meta estimada: ${dinero(faltanteEquilibrio)}.`}</p>
+              <p role={numero(movimientosPendientes) > 0 || numero(gastosSinClasificar) > 0 ? "alert" : "note"} style={{ margin: "9px 0 0", color: numero(movimientosPendientes) > 0 || numero(gastosSinClasificar) > 0 ? "#765416" : "#75616b", lineHeight: 1.45, fontSize: 12 }}>
+                Se calcula con gastos operativos clasificados de este corte. Puede quedar incompleto si faltan gastos mensuales o hay movimientos pendientes de revisar{numero(movimientosPendientes) > 0 ? ` (${numero(movimientosPendientes)} movimientos)` : ""}.
+              </p>
             </>
           )}
         </article>
 
         <article style={{ padding: 18, borderRadius: 17, background: "#fff", border: "1px solid #eadce3" }}>
-          <h4 style={{ margin: "0 0 15px", color: PALETA.vino, fontSize: 18 }}>Flujo y dinero protegido</h4>
+          <h4 style={{ margin: "0 0 15px", color: PALETA.vino, fontSize: 18 }}>Flujo registrado · no es saldo disponible</h4>
           {numero(entradas) === 0 && numero(salidas) === 0 ? <MensajeSinDatos texto="Carga o clasifica movimientos bancarios para separar entradas y salidas." /> : (
             <>
               <Barra etiqueta="Entradas" valor={entradas} maximo={maxFlujo} color={PALETA.verde} />
               <Barra etiqueta="Salidas" valor={salidas} maximo={maxFlujo} color={PALETA.rojo} />
-              <Barra etiqueta="Flujo disponible" valor={disponible} maximo={maxFlujo} color={numero(disponible) >= 0 ? PALETA.rosa : PALETA.rojo} />
+              <Barra etiqueta="Flujo neto del periodo" valor={disponible} maximo={maxFlujo} color={numero(disponible) >= 0 ? PALETA.rosa : PALETA.rojo} />
+              <small style={{ display: "block", marginTop: 8, color: "#75616b", lineHeight: 1.45 }}>Entradas menos salidas registradas. No es el saldo actual de caja o bancos; faltan saldos iniciales y conciliaciones completas.</small>
               {reserva === null || reserva === undefined
                 ? <MensajeSinDatos texto="Reserva no calculada: faltan saldos iniciales de caja y bancos y pagos completos." />
                 : <Barra etiqueta="Reserva recomendada" valor={reserva} maximo={maxFlujo} color={PALETA.dorado} />}

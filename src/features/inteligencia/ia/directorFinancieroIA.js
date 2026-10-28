@@ -24,6 +24,20 @@ const formatoDinero = (cantidad) =>
 const formatoPorcentaje = (cantidad) =>
   `${convertirNumero(cantidad).toFixed(2)}%`;
 
+// Son salidas reales de Tesorería, pero no se deben sumar como gasto
+// operativo pendiente: cambian efectivo, inventario, deuda o patrimonio.
+const CATEGORIAS_NO_OPERATIVAS = new Set([
+  "abono_proveedor_inventario",
+  "anticipo_prestamo",
+  "aportacion",
+  "ajuste_cancelacion",
+  "compras_inventario",
+  "pago_capital",
+  "registro_prueba",
+  "retiro_propietaria",
+  "traspaso_caja",
+]);
+
 const convertirFecha = (valor) => {
   if (!valor) {
     return null;
@@ -502,8 +516,14 @@ const {
               movimiento
             );
 
+          const categoria =
+            obtenerCategoriaMovimiento(
+              movimiento
+            );
+
           return (
             tipo === "salida" &&
+            !CATEGORIAS_NO_OPERATIVAS.has(categoria) &&
             (
               estado ===
                 "Pendiente de revisión" ||
