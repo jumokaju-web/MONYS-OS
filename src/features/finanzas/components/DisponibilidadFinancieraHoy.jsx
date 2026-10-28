@@ -12,6 +12,7 @@ import { resumirCierreDiarioDireccion } from "../utils/cierreDiarioDireccion";
 import { obtenerCortesCajaSicar } from "../services/cortesCajaSicarService";
 import { resumirCortesOficialesParaDisponibilidad } from "../utils/disponibilidadCortesOficiales";
 import { fechaMexico, resumirDisponibilidadFinanciera } from "../utils/disponibilidadFinanciera";
+import { resumirRemanenteSemanaAnterior } from "../utils/remanenteSemanaAnterior.js";
 import { obtenerComprobacionesRetiros } from "../services/comprobacionesRetirosService.js";
 import { obtenerDeudasFinancieras } from "../../inteligencia/services/deudasFinancierasService";
 import { obtenerControlObligacionesOperativas } from "../../inteligencia/services/obligacionesOperativasService";
@@ -156,6 +157,12 @@ export default function DisponibilidadFinancieraHoy({
     comprobacionesRetiros,
   }), [cuentas, cierre, cortesOficiales, creditosProveedores, deudasFinancieras, deudasConsultadas, obligaciones, obligacionesConsultadas, coberturaObligacionesConfirmada, comprobacionesRetiros]);
 
+  const semanaAnterior = useMemo(() => resumirRemanenteSemanaAnterior({
+    importaciones: importacionesCortes,
+    cierre,
+    referencia: fechaMexico(),
+  }), [importacionesCortes, cierre]);
+
   async function retiroActualizado(texto) {
     setMensaje(texto);
     await cargar();
@@ -256,6 +263,29 @@ export default function DisponibilidadFinancieraHoy({
           {cargando ? "Consultando…" : "Actualizar control"}
         </button>
       </header>
+
+      <section className="remanente-semanal" aria-labelledby="remanente-semanal-titulo">
+        <div className="remanente-semanal__encabezado">
+          <div>
+            <span>REVISIÓN DEL LUNES · CICLO LUNES A DOMINGO</span>
+            <h3 id="remanente-semanal-titulo">Efectivo reportado al cierre de la semana anterior</h3>
+            <small>{semanaAnterior.semana ? `${semanaAnterior.semana.inicio} al ${semanaAnterior.semana.fin}` : "Periodo por confirmar"}</small>
+          </div>
+          <strong>{semanaAnterior.efectivoReportado === null ? "Por confirmar" : dinero.format(semanaAnterior.efectivoReportado)}</strong>
+        </div>
+        <p>{semanaAnterior.completo
+          ? "Dato de SICAR después de los retiros reportados. Es la base para revisar el remanente, todavía no es una autorización de retiro: falta cotejar el efectivo contado físicamente y conservar el fondo fijo de cada caja."
+          : semanaAnterior.motivo}</p>
+        {semanaAnterior.cajas.length > 0 && <div className="remanente-semanal__cajas">
+          {semanaAnterior.cajas.map((caja) => <article key={`${caja.branchId}-${caja.cajaId}`}>
+            <span>{caja.sucursal} · {caja.nombre}</span>
+            <strong>{caja.efectivoEnCaja === null ? "Sin dato completo" : dinero.format(caja.efectivoEnCaja)}</strong>
+            <small>{caja.estado === "completo"
+              ? Math.abs(Number(caja.diferencia) || 0) > 0.009 ? `Diferencia SICAR: ${dinero.format(caja.diferencia)}` : "Corte completo · sin diferencia reportada"
+              : caja.estado === "faltante" ? "Falta corte del domingo" : "Corte incompleto"}</small>
+          </article>)}
+        </div>}
+      </section>
 
       <div className="disponibilidad-hoy__principal">
         <div>
