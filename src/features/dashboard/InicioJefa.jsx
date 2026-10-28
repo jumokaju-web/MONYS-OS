@@ -793,7 +793,7 @@ movimientos = [],
             </article>
 
             <article style={estiloPanelFinanciero}>
-              <div style={estiloTituloPanel}>🚚 Dinero de Flotilla</div>
+              <div style={estiloTituloPanel}>🚚 Flujo de efectivo · Flotilla</div>
               <strong style={estiloCifraFinanciera}>
                 {movimientosFlotilla > 0
                   ? formatoDinero(flujoFlotilla)
@@ -801,9 +801,12 @@ movimientos = [],
               </strong>
               <p style={estiloTextoPanel}>
                 {movimientosFlotilla > 0
-                  ? `Entradas registradas: ${formatoDinero(resumenFlotilla.entradas)} · salidas operativas: ${formatoDinero(resumenFlotilla.salidas)}. Neto de este corte; transferencias internas excluidas.`
+                  ? `Entradas registradas: ${formatoDinero(resumenFlotilla.entradas)} · salidas operativas: ${formatoDinero(resumenFlotilla.salidas)}. Neto del periodo; traspasos internos excluidos.`
                   : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
               </p>
+              <small style={{ ...estiloTextoPanel, display: "block", marginTop: "7px", opacity: 0.82 }}>
+                Este flujo no es utilidad ni dinero disponible. Las facturas de servicio aún requieren registro separado y conciliación bancaria.
+              </small>
               <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
                 Abrir Flotilla →
               </button>
