@@ -212,6 +212,21 @@ const tieneUtilidad = contieneAlgunaColumna(
       "caja",
     ]);
 
+  const tieneFolioCheque = contieneAlgunaColumna(columnas, [
+    "folio c",
+    "folio cheque",
+    "folio de cheque",
+  ]);
+
+  const tieneFormaPago = contieneAlgunaColumna(columnas, [
+    "fp",
+    "forma de pago",
+  ]);
+
+  const tieneReferencia = contieneAlgunaColumna(columnas, [
+    "referencia",
+  ]);
+
   const tieneUsuarioMovimiento =
     contieneAlgunaColumna(columnas, [
       "usuario",
@@ -221,6 +236,10 @@ const tieneUtilidad = contieneAlgunaColumna(
     contieneAlgunaColumna(columnas, [
       "total",
     ]);
+
+  if (tieneFecha && tieneCajaMovimiento && tieneFolioCheque && tieneFormaPago && tieneReferencia && tieneTotalMovimiento) {
+    return "Abonos de proveedores";
+  }
 
   const tieneCalculadoCorte = contieneAlgunaColumna(columnas, [
     "calculado",

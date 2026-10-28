@@ -1311,7 +1311,69 @@ export function normalizarMovimientosCaja(filas) {
     );
 }
 
-function normalizarHoraSicar(valor) {
+export function normalizarAbonosProveedores(filas) {
+  if (!Array.isArray(filas) || filas.length < 2 || !Array.isArray(filas[0])) return [];
+
+  const encabezados = filas[0].map(limpiarEncabezado);
+  const columnas = {
+    fecha: buscarColumna(encabezados, ["fecha"]),
+    caja: buscarColumna(encabezados, ["caja"]),
+    usuario: buscarColumna(encabezados, ["usuario"]),
+    folio: buscarColumna(encabezados, ["folio c", "folio cheque", "folio de cheque"]),
+    metodo: buscarColumna(encabezados, ["fp", "forma de pago"]),
+    multipago: buscarColumna(encabezados, ["multipago", "multi pago"]),
+    referencia: buscarColumna(encabezados, ["referencia"]),
+    total: buscarColumna(encabezados, ["total"]),
+  };
+  if (Object.values(columnas).some((indice) => indice < 0)) return [];
+
+  const abonos = [];
+  let abonoActual = null;
+  for (let indice = 1; indice < filas.length; indice += 1) {
+    const fila = filas[indice];
+    if (!Array.isArray(fila)) continue;
+    const etiqueta = limpiarEncabezado(fila[0]);
+
+    if (etiqueta === "proveedor:") {
+      if (abonoActual) {
+        const nombre = String(obtenerValor(fila, columnas.caja)).trim();
+        abonoActual.proveedorNombre = nombre;
+        const indiceRepresentante = fila.findIndex((valor) => limpiarEncabezado(valor) === "representante:");
+        abonoActual.representante = indiceRepresentante >= 0
+          ? String(fila.slice(indiceRepresentante + 1).find((valor) => String(valor ?? "").trim()) || "").trim()
+          : "";
+      }
+      continue;
+    }
+
+    const fechaOriginal = obtenerValor(fila, columnas.fecha);
+    const fecha = normalizarFechaSicar(fechaOriginal);
+    const monto = convertirNumero(obtenerValor(fila, columnas.total));
+    if (!fecha || monto <= 0) continue;
+
+    abonoActual = {
+      codigo: `ABONO-${indice}`,
+      fecha,
+      hora: normalizarHoraSicar(fechaOriginal),
+      caja: String(obtenerValor(fila, columnas.caja)).trim(),
+      usuario: String(obtenerValor(fila, columnas.usuario)).trim(),
+      folioCheque: String(obtenerValor(fila, columnas.folio)).trim(),
+      metodoPago: String(obtenerValor(fila, columnas.metodo)).trim().toUpperCase(),
+      multipago: String(obtenerValor(fila, columnas.multipago)).trim(),
+      referencia: String(obtenerValor(fila, columnas.referencia)).trim(),
+      monto,
+      total: monto,
+      proveedorNombre: "",
+      representante: "",
+      tipoDato: "abono_proveedor_sicar",
+    };
+    abonos.push(abonoActual);
+  }
+
+  return abonos.filter((abono) => abono.proveedorNombre.length >= 2 && ["CH", "EF"].includes(abono.metodoPago));
+}
+
+export function normalizarHoraSicar(valor) {
   if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
     return valor.toISOString().slice(11, 19);
   }

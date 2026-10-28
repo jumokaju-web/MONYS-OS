@@ -27,6 +27,40 @@ export async function obtenerDetallesImportacion(importacionId) {
  return data || [];
 }
 
+function fechaAExcelSerial(fecha) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return null;
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  return Math.floor((Date.UTC(anio, mes - 1, dia) - Date.UTC(1899, 11, 30)) / 86400000);
+}
+
+export async function obtenerDetallesMovimientosCajaParaAbonos({ branchId, desde, hasta }) {
+  const inicio = fechaAExcelSerial(desde);
+  const fin = fechaAExcelSerial(hasta);
+  if (!branchId || inicio === null || fin === null || fin < inicio) return [];
+
+  const consulta = (primero, ultimo) => supabase
+    .from("importacion_detalle")
+    .select("id,importacion_id,numero_fila,codigo,datos_originales,importaciones!inner(archivo_original,tipo_reporte,branch_id,estado)")
+    .eq("importaciones.tipo_reporte", "Movimientos de caja")
+    .eq("importaciones.branch_id", branchId)
+    .eq("importaciones.estado", "procesado")
+    .gte("datos_originales->>fecha", String(inicio))
+    .lte("datos_originales->>fecha", String(fin + 1))
+    .order("numero_fila", { ascending: true })
+    .order("importacion_id", { ascending: true })
+    .range(primero, ultimo);
+
+  const filas = [];
+  for (let inicioPagina = 0; ; inicioPagina += 1000) {
+    const { data, error } = await consulta(inicioPagina, inicioPagina + 999);
+    if (error) throw new Error(`No se pudieron consultar los movimientos SICAR del periodo: ${error.message}`);
+    const pagina = data || [];
+    filas.push(...pagina);
+    if (pagina.length < 1000) break;
+  }
+  return filas;
+}
+
 async function guardarDatosPorTipoReporte({
   tipoReporte,
   datosNormalizados,
@@ -141,6 +175,11 @@ async function guardarDatosPorTipoReporte({
     case "Cortes de caja":
       // El corte completo y su desglose quedan auditados en importacion_detalle.
       // No se mezcla con cierres_turno, que corresponde a capturas manuales del equipo.
+      break;
+
+    case "Abonos de proveedores":
+      // El reporte se conserva como evidencia en importacion_detalle.
+      // No crea otra salida de caja ni modifica saldos o créditos.
       break;
 
     case "Créditos de proveedores": {
