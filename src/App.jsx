@@ -49,6 +49,7 @@ import {
   actualizarEstadoMovimientoTesoreria,
   obtenerMovimientosTesoreria,
 } from "./features/tesoreria/services/tesoreriaService";
+import { adaptarIdentidadMovimientoTesoreria } from "./features/tesoreria/utils/adaptarMovimientoTesoreria.js";
 import {
   obtenerFechaMovimiento,
 } from "./features/dashboard/utils/movimientosPeriodo";
@@ -293,9 +294,7 @@ function App() {
           registros.map(
             (registro) => ({
               id: registro.id,
-              organization_id: registro.organization_id,
-              business_id: registro.business_id,
-              branch_id: registro.branch_id,
+              ...adaptarIdentidadMovimientoTesoreria(registro),
               occurred_at: registro.occurred_at,
 
               tipo:

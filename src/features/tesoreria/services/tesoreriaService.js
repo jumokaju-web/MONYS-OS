@@ -512,7 +512,7 @@ export const obtenerMovimientosTesoreria =
     try {
       movimientos = await consultarTodasLasPaginas((inicio, fin) => supabase
         .from("cash_movements")
-        .select("*")
+        .select("*, cuenta:accounts(name)")
         .order("occurred_at", { ascending: false })
         .range(inicio, fin));
     } catch (error) {
