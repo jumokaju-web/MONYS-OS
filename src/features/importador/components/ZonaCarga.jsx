@@ -278,19 +278,23 @@ useEffect(() => {
   const [revisionAbonosSicar, setRevisionAbonosSicar] = useState(null);
   const [cargandoAbonosSicar, setCargandoAbonosSicar] = useState(false);
   const [errorAbonosSicar, setErrorAbonosSicar] = useState("");
-  const abonosRevisionRef = useRef(null);
+  const [abonosDialogOpen, setAbonosDialogOpen] = useState(false);
+  const abonosDialogRef = useRef(null);
 
   useEffect(() => {
     setRevisionImportacionSicar(null);
     setErrorRevisionSicar("");
     setRevisionAbonosSicar(null);
     setErrorAbonosSicar("");
+    setAbonosDialogOpen(false);
   }, [branchIdSeleccionado]);
 
   useEffect(() => {
-    if (!cargandoAbonosSicar && !errorAbonosSicar && !revisionAbonosSicar) return;
-    abonosRevisionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [cargandoAbonosSicar, errorAbonosSicar, revisionAbonosSicar]);
+    const dialog = abonosDialogRef.current;
+    if (!dialog) return;
+    if (abonosDialogOpen && !dialog.open) dialog.showModal();
+    if (!abonosDialogOpen && dialog.open) dialog.close();
+  }, [abonosDialogOpen]);
 
   const archivoActivo =
     archivosProcesados.find(
@@ -387,6 +391,7 @@ useEffect(() => {
 
   async function abrirAbonosImportados(importacion) {
     try {
+      setAbonosDialogOpen(true);
       setCargandoAbonosSicar(true);
       setRevisionAbonosSicar(null);
       setRevisionImportacionSicar(null);
@@ -1640,25 +1645,34 @@ if (
         onAbrirConciliacion={abrirConciliacionImportada}
         onAbrirAbonos={abrirAbonosImportados}
       />
-      <div ref={abonosRevisionRef} id="revision-abonos-sicar" tabIndex={-1} style={{ scrollMarginTop: 16 }}>
-      {cargandoAbonosSicar && <p role="status">Abriendo el reporte guardado de abonos…</p>}
-      {errorAbonosSicar && <p role="alert">No se pudo abrir el reporte de abonos: {errorAbonosSicar}</p>}
-      {revisionAbonosSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div><h2 style={{ margin: "0 0 4px" }}>Abonos guardados · {revisionAbonosSicar.importacion.archivo_original}</h2><small>{new Date(revisionAbonosSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })} · Revisión sin volver a importar</small></div>
-          <button type="button" onClick={() => setRevisionAbonosSicar(null)}>Cerrar revisión</button>
+      <dialog
+        ref={abonosDialogRef}
+        aria-labelledby="abonos-dialog-title"
+        onCancel={(event) => { event.preventDefault(); setAbonosDialogOpen(false); }}
+        onClick={(event) => { if (event.target === event.currentTarget) setAbonosDialogOpen(false); }}
+        style={{ width: "min(1080px, calc(100vw - 32px))", maxWidth: "1080px", maxHeight: "88vh", padding: 0, border: 0, borderRadius: 16, boxShadow: "0 24px 80px rgba(31, 18, 25, .28)", overflow: "hidden" }}
+      >
+        <div style={{ maxHeight: "88vh", overflowY: "auto", padding: 20, boxSizing: "border-box" }}>
+          <header style={{ position: "sticky", top: -20, zIndex: 2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, margin: "-20px -20px 16px", padding: "16px 20px", background: "#fff", borderBottom: "1px solid #ead8e2" }}>
+            <div>
+              <h2 id="abonos-dialog-title" style={{ margin: "0 0 4px", color: "#5e3048" }}>Revisión de abonos</h2>
+              {revisionAbonosSicar && <small>{revisionAbonosSicar.importacion.archivo_original} · {new Date(revisionAbonosSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</small>}
+            </div>
+            <button type="button" onClick={() => setAbonosDialogOpen(false)} style={{ flexShrink: 0, minHeight: 40, padding: "8px 14px", border: "1px solid #cdb7c2", borderRadius: 9, background: "#fff", color: "#5e3048", fontWeight: 700, cursor: "pointer" }}>Cerrar</button>
+          </header>
+          {cargandoAbonosSicar && <p role="status" style={{ padding: 12, background: "#f7f1f4", borderRadius: 10 }}>Abriendo el reporte guardado de abonos…</p>}
+          {errorAbonosSicar && <p role="alert" style={{ padding: 12, background: "#fff1f0", borderRadius: 10 }}>No se pudo abrir el reporte de abonos: {errorAbonosSicar}</p>}
+          {revisionAbonosSicar && <ResumenAbonosProveedores
+            resumen={revisionAbonosSicar.resumen}
+            abonos={revisionAbonosSicar.abonos}
+            archivoNombre={revisionAbonosSicar.importacion.archivo_original}
+            importacionId={revisionAbonosSicar.importacion.id}
+            organizationId={usuario?.organization_id}
+            businessId={sucursales.find((item) => item.id === revisionAbonosSicar.importacion.branch_id)?.business_id || usuario?.business_id}
+            branchId={revisionAbonosSicar.importacion.branch_id}
+          />}
         </div>
-        <ResumenAbonosProveedores
-          resumen={revisionAbonosSicar.resumen}
-          abonos={revisionAbonosSicar.abonos}
-          archivoNombre={revisionAbonosSicar.importacion.archivo_original}
-          importacionId={revisionAbonosSicar.importacion.id}
-          organizationId={usuario?.organization_id}
-          businessId={sucursales.find((item) => item.id === revisionAbonosSicar.importacion.branch_id)?.business_id || usuario?.business_id}
-          branchId={revisionAbonosSicar.importacion.branch_id}
-        />
-      </section>}
-      </div>
+      </dialog>
       {cargandoRevisionSicar && <p role="status">Abriendo movimientos SICAR y comparando con Tesorería…</p>}
       {errorRevisionSicar && <p role="alert">No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
       {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
