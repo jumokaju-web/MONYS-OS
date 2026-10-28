@@ -36,8 +36,8 @@ export function generarResumenMovimientosCaja(datos = []) {
       fecha: normalizarFechaSicar(fila?.fecha),
       monto: Number(fila?.monto ?? fila?.total ?? 0) || 0,
       caja: String(fila?.caja ?? "").trim() || "Caja no indicada",
-      concepto: String(fila?.comentario ?? fila?.descripcion ?? "").trim(),
-      conceptoRegistrado: Boolean(String(fila?.comentario ?? "").trim()),
+      concepto: String(fila?.comentario || fila?.descripcion || "").trim(),
+      conceptoRegistrado: Boolean(String(fila?.comentario || fila?.descripcion || "").trim()),
     }))
     .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "") || a.monto - b.monto);
 
