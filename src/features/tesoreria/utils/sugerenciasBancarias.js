@@ -48,10 +48,10 @@ export function agruparPendientesPorNombre(movimientos = []) {
   const grupos = new Map();
   const exclusiones = new Set(['SPEI', 'STP', 'PAGO', 'PAGOS', 'TRANSFERENCIA', 'TRASPASO', 'DEPOSITO', 'DEPÓSITO', 'BANCO', 'BBVA', 'SANTANDER', 'HSBC', 'BANORTE', 'SCOTIABANK', 'OXXO', 'CLABE', 'CUENTA', 'ENVIO', 'ENVIADO', 'OPERACION', 'OPERACIÓN', 'REFERENCIA']);
   const beneficiariosConocidos = [
-    { nombre: 'OSCAR', variantes: ['OSCAR'] },
+    // Mónica confirmó que las referencias Oscar e Iván pertenecen al mismo beneficiario.
+    { nombre: 'OSCAR', variantes: ['OSCAR', 'IVAN'] },
     { nombre: 'PIÑA', variantes: ['PINA', 'PINA'] },
     { nombre: 'JOSHUA', variantes: ['JOSHUA', 'JOSH'] },
-    { nombre: 'IVAN', variantes: ['IVAN'] },
     { nombre: 'EMANUEL', variantes: ['EMANUEL', 'EMMANUEL'] },
   ];
   for (const m of movimientos) {
