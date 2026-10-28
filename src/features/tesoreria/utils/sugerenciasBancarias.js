@@ -13,12 +13,17 @@ export function sugerirMovimientoBancario(m) {
     typeof e.texto === 'string' && Number.isInteger(e.importe) && e.importe === Math.round((Number(m.cargo) + Number(m.abono)) * 100) && [m.fecha_operacion, m.fecha_liquidacion].includes(e.fecha));
   const pista = pistas[m.categoria];
   const textoMovimiento = [m.descripcion, m.referencia_visible, ...coincidencias.map(e => e.texto)].filter(Boolean).join(' ');
+  const sueldoExplicito = Number(m.cargo) > 0 && /\b(sueldo|n[oó]mina)\b/i.test([m.descripcion, m.referencia_visible].filter(Boolean).join(' '));
   const mencionaAdelantoChofer = Number(m.cargo) > 0
     && /\b(adelanto|anticipo|pr[eé]stamo)\b/i.test(textoMovimiento)
     && /\b(chofer(?:es)?|driver|descontar|descuento|recuperable)\b/i.test(textoMovimiento);
   // Los mensajes son candidatos; nunca cambian la clasificación aprobada.
   let categoria = pista?.[0] || (mencionaAdelantoChofer ? 'Préstamo por recuperar' : '');
   let motivo = pista?.[1] || (mencionaAdelantoChofer ? 'La referencia menciona un adelanto recuperable a un chofer; confirma el beneficiario antes de guardar el bloque.' : 'Falta explicar el destino con un comprobante o mensaje.');
+  if (!categoria && sueldoExplicito) {
+    categoria = 'Nómina';
+    motivo = 'La descripción o referencia bancaria indica sueldo o nómina. Revisa el nombre del empleado y confirma antes de guardar.';
+  }
   const posibleNomina = !categoria && Number(m.cargo) > 0 && coincidencias.length > 1 && coincidencias.every(e => /\b(sueldo|n[oó]mina)\b/i.test(e.texto));
   if (!categoria && coincidencias.length === 1 && Number(m.cargo) > 0 && /\b(sueldo|n[oó]mina)\b/i.test(coincidencias[0].texto)) {
     categoria = 'Nómina'; motivo = 'Hay un mensaje del mismo importe y fecha que menciona sueldo. Comprueba que corresponde a este pago.';

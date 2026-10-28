@@ -6,6 +6,14 @@ test('un mensaje salarial con misma fecha e importe propone nómina sin aprobar'
  const m = { ...movimiento, evidencia_whatsapp: [{ fecha: '2026-09-01', importe: 275000, texto: 'Pago sueldo Luis' }] };
  assert.equal(sugerirMovimientoBancario(m).categoria, 'Nómina'); assert.equal(m.revision, undefined);
 });
+test('la referencia explícita de sueldo a Iván sugiere nómina y queda sin confirmar', () => {
+ const m={...movimiento,id:'ivan',cargo:'6425.00',descripcion:'PAGO CUENTA DE TERCERO',referencia_visible:'••••9448 sueldo de ivan'};
+ const s=sugerirMovimientoBancario(m);
+ assert.equal(s.categoria,'Nómina');
+ assert.match(s.motivo,/referencia bancaria indica sueldo/i);
+ assert.equal(m.revision,undefined);
+ assert.equal(prepararLoteSugerido([m],'Nómina').movimientos.length,1);
+});
 test('mensajes con otro importe o fecha no se usan como evidencia coincidente', () => {
  const m = { ...movimiento, evidencia_whatsapp: [{fecha:'2026-09-01',importe:1,texto:'sueldo'}, {fecha:'2026-09-03',importe:275000,texto:'sueldo'}] };
  assert.equal(sugerirMovimientoBancario(m).coincidencias.length, 0); assert.equal(sugerirMovimientoBancario(m).categoria, '');
