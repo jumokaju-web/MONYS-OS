@@ -18,29 +18,44 @@ export async function registrarPagoProveedorSicar({
   proveedorId = null, proveedorNombre, numeroProveedor = null,
   tipoAplicacion = "POR_DETERMINAR", fechaPago, importePago, evidencia,
 }) {
-  const nombre = String(proveedorNombre || "").trim();
-  const nota = String(evidencia || "").trim();
-  if (nombre.length < 2) throw new Error("Indica el proveedor que recibió el cheque.");
-  if (nota.length < 5) throw new Error("Agrega una nota de referencia del cheque.");
-  if (!["ABONO", "LIQUIDACION", "POR_DETERMINAR"].includes(tipoAplicacion)) throw new Error("Selecciona si fue abono, liquidación o si queda por determinar.");
+  const [registro] = await registrarPagosProveedoresSicar([{
+    organizationId, businessId, branchId, importacionId, detalleId,
+    proveedorId, proveedorNombre, numeroProveedor, tipoAplicacion,
+    fechaPago, importePago, evidencia,
+  }]);
+  return registro;
+}
+
+export async function registrarPagosProveedoresSicar(pagos) {
+  if (!Array.isArray(pagos) || pagos.length === 0) throw new Error("No hay cheques válidos para registrar.");
+  const registros = pagos.map((pago) => {
+    const nombre = String(pago.proveedorNombre || "").trim();
+    const nota = String(pago.evidencia || "").trim();
+    if (nombre.length < 2) throw new Error("Indica el proveedor que recibió cada cheque.");
+    if (nota.length < 5 || nota.length > 500) throw new Error("La referencia de cada cheque debe tener entre 5 y 500 caracteres.");
+    if (!["ABONO", "LIQUIDACION", "POR_DETERMINAR"].includes(pago.tipoAplicacion)) throw new Error("Selecciona si fue abono, liquidación o si queda por determinar.");
+    if (!pago.detalleId || !pago.fechaPago || !(Number(pago.importePago) > 0)) throw new Error("Hay un cheque del lote sin folio de detalle, fecha o importe válido.");
+    return {
+      organization_id: pago.organizationId,
+      business_id: pago.businessId,
+      branch_id: pago.branchId,
+      importacion_id: pago.importacionId,
+      importacion_detalle_id: pago.detalleId,
+      proveedor_credito_id: pago.proveedorId || null,
+      proveedor_nombre_snapshot: nombre,
+      numero_proveedor_snapshot: pago.numeroProveedor || null,
+      tipo_aplicacion: pago.tipoAplicacion,
+      fecha_pago: pago.fechaPago,
+      importe_pago: pago.importePago,
+      evidencia: nota,
+    };
+  });
   const { data: sesion, error: errorSesion } = await supabase.auth.getUser();
   if (errorSesion || !sesion?.user?.id) throw new Error("Inicia sesión para guardar el pago.");
-  const { data, error } = await supabase.from("pagos_proveedores_sicar").insert({
-    organization_id: organizationId,
-    business_id: businessId,
-    branch_id: branchId,
-    importacion_id: importacionId,
-    importacion_detalle_id: detalleId,
-    proveedor_credito_id: proveedorId || null,
-    proveedor_nombre_snapshot: nombre,
-    numero_proveedor_snapshot: numeroProveedor || null,
-    tipo_aplicacion: tipoAplicacion,
-    fecha_pago: fechaPago,
-    importe_pago: importePago,
-    evidencia: nota,
-    registrado_por: sesion.user.id,
-  }).select(CAMPOS).single();
-  if (error) throw new Error(`No se pudo guardar la atribución: ${error.message}`);
+  const { data, error } = await supabase.from("pagos_proveedores_sicar").insert(
+    registros.map((registro) => ({ ...registro, registrado_por: sesion.user.id })),
+  ).select(CAMPOS);
+  if (error) throw new Error(`No se pudo guardar el grupo; no se aplicó parcialmente: ${error.message}`);
   return data;
 }
 
