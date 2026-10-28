@@ -1,4 +1,4 @@
-export async function extraerTextoPdfBancario(archivo) {
+export async function extraerTextoPdfGenerico(archivo) {
   if (!archivo || typeof archivo.arrayBuffer !== "function") throw new Error("Selecciona un estado de cuenta PDF.");
   if (archivo.size > 25 * 1024 * 1024) throw new Error("El PDF supera 25 MB.");
   if (archivo.type && archivo.type !== "application/pdf" && !archivo.name?.toLowerCase().endsWith(".pdf")) {
@@ -36,9 +36,14 @@ export async function extraerTextoPdfBancario(archivo) {
   }
   const textoCompleto = lineas.map((linea) => linea.texto).join("\n");
   if (textoCompleto.trim().length < 80) throw new Error("El PDF no contiene texto seleccionable. No procesaré un escaneo sin OCR verificable.");
-  const normalizado = textoCompleto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  return { paginas: documento.numPages, lineas, textoCompleto };
+}
+
+export async function extraerTextoPdfBancario(archivo) {
+  const resultado = await extraerTextoPdfGenerico(archivo);
+  const normalizado = resultado.textoCompleto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   if (!normalizado.includes("BBVA")) throw new Error("El archivo no parece ser un estado de cuenta BBVA.");
   const encabezados = ["DESCRIPCION", "CARGOS", "ABONOS", "SALDO"].filter((titulo) => normalizado.includes(titulo));
   if (encabezados.length < 3) throw new Error("No reconozco con suficiente seguridad la tabla de movimientos de este estado BBVA.");
-  return { paginas: documento.numPages, lineas, textoCompleto };
+  return resultado;
 }
