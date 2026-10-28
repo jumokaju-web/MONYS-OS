@@ -76,6 +76,27 @@ export function agruparPendientesPorNombre(movimientos = []) {
   return [...grupos.values()].map(g => ({ ...g, cargos: g.cargos / 100, abonos: g.abonos / 100 })).filter(g => g.cantidad > 1).sort((a, b) => b.cantidad - a.cantidad);
 }
 
+export function clasificarGrupoBeneficiario(paquete, nombre, categoria, nota, fecha = new Date().toISOString()) {
+  if (!nombre || !categoria || !nota?.trim()) throw new Error('Elige una categoría y escribe la nota común del grupo.');
+  const grupo = agruparPendientesPorNombre(paquete?.movimientos || []).find(g => g.nombre === nombre);
+  if (!grupo?.movimientos.length) throw new Error('Este grupo ya no tiene movimientos pendientes para clasificar.');
+  if (grupo.cargos > 0 && grupo.abonos > 0) throw new Error('El grupo mezcla salidas y entradas; sepáralas antes de clasificar en bloque.');
+  const ids = new Set(grupo.movimientos.map(m => m.id));
+  return {
+    ...paquete,
+    movimientos: paquete.movimientos.map(m => ids.has(m.id) ? {
+      ...m,
+      revision: {
+        estado: 'Confirmado',
+        clasificacion: categoria,
+        nota: `Beneficiario identificado por referencia: ${nombre}. ${nota.trim()}`,
+        fecha,
+        origen: 'confirmacion_lote_beneficiario',
+      },
+    } : m),
+  };
+}
+
 export function prepararLoteSugerido(movimientos, nombre) {
   if (!nombre || nombre === 'Sin destino identificado') return { movimientos: [], ambiguos: 0, importe: 0 };
   const elegibles = [];
