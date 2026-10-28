@@ -32,6 +32,22 @@ test("no usa como disponible un saldo bancario de otro día", () => {
   assert.equal(resumen.prioridad.destino, "bancos");
 });
 
+test("muestra todos los bloqueos de datos a la vez y conserva cada destino", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-27",
+    cuentas: [{ id: "b1", saldo: 9000, fechaSaldo: "2026-10-26T20:00:00-06:00" }],
+    cierre: { cajasEsperadas: 2, cajasFaltantes: 1, cajasIncompletas: 1 },
+    creditosProveedores: {},
+    deudasFinancieras: [{ estado: "ACTIVA", nombre: "Crédito", pago_mensual: null }],
+    deudasConsultadas: true,
+    obligacionesOperativas: { completas: false },
+  });
+
+  assert.equal(resumen.dineroLibre, null);
+  assert.deepEqual(resumen.faltantes.map(({ id }) => id), ["saldos", "cajas", "proveedores", "deudas", "operacion"]);
+  assert.deepEqual(resumen.faltantes.map(({ destino }) => destino), ["bancos", "importador", "plan", "plan", "plan"]);
+});
+
 test("un movimiento bancario de hoy no vuelve confirmado un saldo capturado días antes", () => {
   const resumen = resumirDisponibilidadFinanciera({
     obligacionesOperativas: { completas: true, compromisos7Dias: 0 },

@@ -188,6 +188,38 @@ export function resumirDisponibilidadFinanciera({
   const calculable = fuentesConocidas && obligacionesOperativasConfirmadas;
   const dineroLibre = calculable ? remanenteRegistrado : null;
 
+  // Present every blocker together so the CEO can see the work remaining,
+  // instead of discovering one missing source at a time through the priority card.
+  const faltantes = [];
+  if (!detalleCuentas.length) {
+    faltantes.push({ id: "cuentas", titulo: "Registrar las cuentas bancarias del negocio", destino: "bancos" });
+  } else if (!bancosVigentes) {
+    faltantes.push({ id: "saldos", titulo: `Confirmar ${cuentasPendientes.length} saldo${cuentasPendientes.length === 1 ? "" : "s"} bancario${cuentasPendientes.length === 1 ? "" : "s"} de hoy`, destino: "bancos" });
+  }
+  if (!cajasCompletas) {
+    faltantes.push({ id: "cajas", titulo: `Completar cortes de caja (${cajasFaltantes} faltantes, ${cajasIncompletas} incompletos)`, destino: "importador" });
+  } else if (diferencias > 0) {
+    faltantes.push({ id: "diferencias", titulo: `Aclarar ${diferencias} diferencia${diferencias === 1 ? "" : "s"} de caja`, destino: "equipo" });
+  }
+  if (!proveedores.disponible) {
+    faltantes.push({ id: "proveedores", titulo: "Cargar reporte vigente o confirmar cero créditos por sucursal", destino: "plan" });
+  } else if (!proveedores.vigente) {
+    faltantes.push({ id: "proveedores-vigencia", titulo: "Actualizar el reporte de proveedores", destino: "plan" });
+  } else if (proveedores.sinFecha > 0 || proveedores.saldosPendientes > 0) {
+    faltantes.push({ id: "vencimientos", titulo: `Completar fechas de ${proveedores.sinFecha} saldos y revisar ${proveedores.saldosPendientes} importes`, destino: "plan" });
+  }
+  if (!deudas.consultadas || deudas.incompletas > 0) {
+    faltantes.push({ id: "deudas", titulo: !deudas.consultadas ? "Revisar créditos y calendario de pagos" : `Completar datos de ${deudas.incompletas} créditos`, destino: "plan" });
+  }
+  if (!operativasCompletas) {
+    faltantes.push({ id: "operacion", titulo: "Registrar renta, nómina, servicios, impuestos y otros compromisos", destino: "plan" });
+  } else if (!obligacionesOperativasConfirmadas) {
+    faltantes.push({ id: "confirmacion-operativa", titulo: "Confirmar que se revisaron los pagos próximos", destino: "plan" });
+  }
+  if (controlRetiros.pendientes > 0 || controlRetiros.diferencias > 0) {
+    faltantes.push({ id: "retiros", titulo: `Aclarar ${controlRetiros.pendientes} retiros y ${controlRetiros.diferencias} diferencias`, destino: "equipo" });
+  }
+
   let prioridad;
   if (!detalleCuentas.length) {
     prioridad = {
@@ -315,6 +347,7 @@ export function resumirDisponibilidadFinanciera({
     remanenteRegistrado,
     dineroLibre,
     calculable,
+    faltantes,
     prioridad,
   };
 }

@@ -162,8 +162,12 @@ export default function DisponibilidadFinancieraHoy({
   }
 
   function resolverPrioridad() {
-    if (resumen.prioridad.destino === "importador") onAbrirImportador?.();
-    else onAbrirArea?.(resumen.prioridad.destino);
+    resolverDestino(resumen.prioridad.destino);
+  }
+
+  function resolverDestino(destino) {
+    if (destino === "importador") onAbrirImportador?.();
+    else onAbrirArea?.(destino);
   }
 
   function cambiarCaptura(accountId, campo, valor) {
@@ -270,6 +274,18 @@ export default function DisponibilidadFinancieraHoy({
           </button>
         </article>
       </div>
+
+      {resumen.faltantes.length > 0 && <section className="disponibilidad-hoy__faltantes" aria-labelledby="disponibilidad-faltantes-titulo">
+        <div>
+          <strong id="disponibilidad-faltantes-titulo">Qué falta para calcular el dinero libre</strong>
+          <span>{resumen.faltantes.length} pasos pendientes</span>
+        </div>
+        <ol>{resumen.faltantes.map((faltante, indice) => <li key={faltante.id}>
+          <span><b>{indice + 1}</b>{faltante.titulo}</span>
+          <button type="button" onClick={() => resolverDestino(faltante.destino)}>Abrir →</button>
+        </li>)}</ol>
+        <small>MONYS mantiene la cifra como “por confirmar” mientras falten datos; no convierte faltantes en ceros.</small>
+      </section>}
 
       <div className="disponibilidad-hoy__metricas">
         <article><span>En bancos</span><Importe valor={resumen.saldoBancos} /><small>{resumen.bancosVigentes ? "Confirmado hoy" : `${resumen.cuentasPendientes} por actualizar`}</small></article>
