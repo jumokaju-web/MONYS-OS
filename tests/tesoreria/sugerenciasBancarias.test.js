@@ -92,19 +92,25 @@ test('agrupa por nombre repetido en concepto sin clasificar ni modificar los mov
  assert.equal(JSON.stringify(filas),antes);
 });
 test('agrupa beneficiarios conocidos por separado aunque aparezcan en cualquier parte de la referencia', () => {
- const personas=['OSCAR','PIÑA','JOSHUA','IVAN','EMANUEL'];
+ const personas=['OSCAR','PIÑA','JOSHUA','EMANUEL'];
  const filas=personas.flatMap((nombre,i)=>[
   {...movimiento,id:`${i}-a`,descripcion:'PAGO CUENTA DE TERCERO',referencia_visible:`•••• ${nombre} apoyo`,cargo:'100.00'},
   {...movimiento,id:`${i}-b`,descripcion:'SPEI ENVIADO',referencia_visible:`adelanto ${nombre}`,cargo:'200.00'},
  ]);
+ filas.push(
+  {...movimiento,id:'ivan-a',descripcion:'SPEI ENVIADO',referencia_visible:'•••• IVAN | oscar alejandro jime',cargo:'150.00'},
+  {...movimiento,id:'ivan-b',descripcion:'SPEI ENVIADO',referencia_visible:'•••• IVAN | oscar alejandro jime',cargo:'250.00'},
+ );
  const grupos=agruparPendientesPorNombre(filas);
  assert.deepEqual(grupos.map(g=>g.nombre).sort(),personas.sort());
- for(const g of grupos) assert.equal(g.cantidad,2);
+ assert.equal(grupos.find(g=>g.nombre==='OSCAR').cantidad,4);
+ for(const g of grupos.filter(g=>g.nombre!=='OSCAR')) assert.equal(g.cantidad,2);
 });
 test('clasifica en bloque un beneficiario tras elegir categoría y nota, conserva otros y exige información', () => {
  const filas=[
   {...movimiento,id:'oscar-1',descripcion:'SPEI OSCAR',cargo:'200.00'},
   {...movimiento,id:'oscar-2',descripcion:'PAGO OSCAR',cargo:'300.00'},
+  {...movimiento,id:'ivan-1',descripcion:'SPEI IVAN | oscar alej jimenez',cargo:'100.00'},
   {...movimiento,id:'pina-1',descripcion:'SPEI PIÑA',cargo:'100.00'},
   {...movimiento,id:'otro',descripcion:'SPEI STP',cargo:'500.00'},
  ];
@@ -113,8 +119,9 @@ test('clasifica en bloque un beneficiario tras elegir categoría y nota, conserv
  assert.equal(nuevo.version,4);
  assert.equal(nuevo.movimientos[0].revision.clasificacion,'Préstamo por recuperar');
  assert.equal(nuevo.movimientos[1].revision.origen,'confirmacion_lote_beneficiario');
- assert.equal(nuevo.movimientos[2].revision,undefined);
+ assert.equal(nuevo.movimientos[2].revision.clasificacion,'Préstamo por recuperar');
  assert.equal(nuevo.movimientos[3].revision,undefined);
+ assert.equal(nuevo.movimientos[4].revision,undefined);
  assert.throws(()=>clasificarGrupoBeneficiario(paquete,'OSCAR','','nota'),/categoría/);
 });
 test('no permite clasificar juntos un beneficiario si mezcla entradas y salidas', () => {
