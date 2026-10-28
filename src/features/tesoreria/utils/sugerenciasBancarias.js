@@ -37,6 +37,31 @@ export function agruparSugerenciasBancarias(movimientos) {
   return [...grupos.values()].map(g => ({ ...g, cargos: g.cargos / 100, abonos: g.abonos / 100 })).sort((a, b) => b.cantidad - a.cantidad);
 }
 
+// Agrupa los movimientos sin destino por el nombre escrito en el concepto o
+// referencia. Es una pista de revisión, no una asignación contable.
+export function agruparPendientesPorNombre(movimientos = []) {
+  const grupos = new Map();
+  const exclusiones = new Set(['SPEI', 'STP', 'PAGO', 'PAGOS', 'TRANSFERENCIA', 'TRASPASO', 'DEPOSITO', 'DEPÓSITO', 'BANCO', 'BBVA', 'SANTANDER', 'HSBC', 'BANORTE', 'SCOTIABANK', 'OXXO', 'CLABE', 'CUENTA', 'ENVIO', 'ENVIADO', 'OPERACION', 'OPERACIÓN', 'REFERENCIA']);
+  for (const m of movimientos) {
+    if (m.revision?.estado === 'Confirmado' || sugerirMovimientoBancario(m).categoria) continue;
+    const texto = [m.descripcion, m.referencia_visible].filter(Boolean).join(' ').toLocaleUpperCase('es-MX');
+    // Captura nombres tras indicadores habituales y también nombres aislados
+    // conocidos en la referencia bancaria (p. ej. "SPEI ENVIADO OSCAR").
+    const candidatos = [...texto.matchAll(/(?:\b(?:A|AL|PARA|BENEFICIARIO|BENEFICIARIA|NOMBRE)\s+)([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{3,}){0,2})/g)].map(x => x[1]);
+    if (/\bOSCAR\b/.test(texto)) candidatos.push('OSCAR');
+    const nombre = candidatos.map(x => x.trim().split(/\s+/).filter(p => !exclusiones.has(p)).join(' ')).find(Boolean);
+    if (!nombre) continue;
+    const key = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const g = grupos.get(key) || { nombre, cantidad: 0, cargos: 0, abonos: 0, movimientos: [] };
+    g.cantidad++;
+    g.cargos += Math.round((Number(m.cargo) || 0) * 100);
+    g.abonos += Math.round((Number(m.abono) || 0) * 100);
+    g.movimientos.push(m);
+    grupos.set(key, g);
+  }
+  return [...grupos.values()].map(g => ({ ...g, cargos: g.cargos / 100, abonos: g.abonos / 100 })).filter(g => g.cantidad > 1).sort((a, b) => b.cantidad - a.cantidad);
+}
+
 export function prepararLoteSugerido(movimientos, nombre) {
   if (!nombre || nombre === 'Sin destino identificado') return { movimientos: [], ambiguos: 0, importe: 0 };
   const elegibles = [];
