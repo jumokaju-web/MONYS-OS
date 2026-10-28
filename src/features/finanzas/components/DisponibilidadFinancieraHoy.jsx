@@ -17,6 +17,7 @@ import { obtenerComprobacionesRetiros } from "../services/comprobacionesRetirosS
 import { obtenerDeudasFinancieras } from "../../inteligencia/services/deudasFinancierasService";
 import { obtenerControlObligacionesOperativas } from "../../inteligencia/services/obligacionesOperativasService";
 import ComprobacionRetiroCard from "./ComprobacionRetiroCard.jsx";
+import RemanenteSemanalCaja from "./RemanenteSemanalCaja.jsx";
 import ObligacionesOperativas from "./ObligacionesOperativas.jsx";
 import { resumirObligacionesOperativas } from "../utils/obligacionesOperativas";
 import "./DisponibilidadFinancieraHoy.css";
@@ -286,6 +287,7 @@ export default function DisponibilidadFinancieraHoy({
           </article>)}
         </div>}
       </section>
+      <RemanenteSemanalCaja usuario={usuario} resumen={semanaAnterior} />
 
       <div className="disponibilidad-hoy__principal">
         <div>

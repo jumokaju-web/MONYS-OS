@@ -28,7 +28,7 @@ export async function obtenerCortesCajaSicar({ branchIds = [], limiteImportacion
 
   const { data: detalles, error: errorDetalles } = await supabase
     .from("importacion_detalle")
-    .select("importacion_id, numero_fila, datos_originales")
+    .select("id, importacion_id, numero_fila, datos_originales")
     .in("importacion_id", importacionesVigentes.map((item) => item.id))
     .order("numero_fila", { ascending: true });
   if (errorDetalles) {
@@ -38,12 +38,16 @@ export async function obtenerCortesCajaSicar({ branchIds = [], limiteImportacion
   const detallesPorImportacion = new Map();
   for (const detalle of detalles || []) {
     const grupo = detallesPorImportacion.get(detalle.importacion_id) || [];
-    grupo.push(detalle.datos_originales);
+    grupo.push(detalle);
     detallesPorImportacion.set(detalle.importacion_id, grupo);
   }
 
   return importacionesVigentes.map((importacion) => ({
     ...importacion,
-    cortes: detallesPorImportacion.get(importacion.id) || [],
+    cortes: (detallesPorImportacion.get(importacion.id) || []).map((detalle) => ({
+      ...detalle.datos_originales,
+      importacionDetalleId: detalle.id,
+      numeroFila: detalle.numero_fila,
+    })),
   }));
 }
