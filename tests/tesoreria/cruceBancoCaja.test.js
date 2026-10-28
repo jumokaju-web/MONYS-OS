@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {cruzarBancoCaja,resumirCruceBancoCaja} from '../../src/features/tesoreria/utils/cruceBancoCaja.js';
+import {cruzarBancoCaja,resumirCruceBancoCaja,listarBancoSinCoincidencia} from '../../src/features/tesoreria/utils/cruceBancoCaja.js';
 test('coincide solo importe dirección y fecha operación o liquidación; conserva ambigüedad',()=>{
  const b=[{id:'a',cargo:'200.00',abono:'0.00',fecha_operacion:'2026-09-12',fecha_liquidacion:'2026-09-14'}];
  const m={id:'1',monto:200,tipo:'salida',fecha:'2026-09-14'};
@@ -33,4 +33,17 @@ test('resume conciliados, únicos, ambiguos y movimientos sin coincidencia',()=>
  ];
  const conciliaciones=[{id:'link',estado:'ACTIVA',banco_movimiento_id:'a',cash_movement_id:'1'}];
  assert.deepEqual(resumirCruceBancoCaja(banco,caja,conciliaciones),{totalBanco:4,conciliados:1,candidatos:1,ambiguos:1,sinCoincidencia:1});
+});
+test('lista solo movimientos sin vínculo activo ni candidatos exactos para revisarlos explícitamente',()=>{
+ const banco=[
+  {id:'vinculado',cargo:'200.00',abono:'0.00',fecha_operacion:'2026-09-14',fecha_liquidacion:'2026-09-14'},
+  {id:'candidato',cargo:'300.00',abono:'0.00',fecha_operacion:'2026-09-14',fecha_liquidacion:'2026-09-14'},
+  {id:'pendiente',cargo:'900.00',abono:'0.00',fecha_operacion:'2026-09-14',fecha_liquidacion:'2026-09-14'},
+ ];
+ const caja=[
+  {id:'c1',monto:200,tipo:'salida',fecha:'2026-09-14'},
+  {id:'c2',monto:300,tipo:'salida',fecha:'2026-09-14'},
+ ];
+ const conciliaciones=[{id:'link',estado:'ACTIVA',banco_movimiento_id:'vinculado',cash_movement_id:'c1'}];
+ assert.deepEqual(listarBancoSinCoincidencia(banco,caja,conciliaciones).map(m=>m.id),['pendiente']);
 });
