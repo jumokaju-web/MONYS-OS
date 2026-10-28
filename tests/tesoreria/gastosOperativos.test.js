@@ -65,3 +65,24 @@ test('un pago distribuido a otra empresa no se vuelve a contar como salida de su
   assert.equal(resultado.gastosVariables, 12000);
   assert.equal(resultado.utilidadNetaEstimada, -11600);
 });
+
+test('pagos a proveedor y anticipos pendientes siguen en flujo, pero no inflan el gasto sin clasificar', () => {
+  const movimientos = [
+    { tipo: 'salida', estado: 'Pendiente de revisión', categoria: 'anticipo_prestamo', monto: 99711.75, fecha: '2026-10-19' },
+    { tipo: 'salida', estado: 'Pendiente de revisión', categoria: 'sin_clasificar', monto: 4260, fecha: '2026-10-19' },
+  ];
+  const resultado = generarAnalisisFinanciero({
+    movimientos,
+    ventasTotales: 147105.92,
+    costoTotal: 87953.84,
+    utilidadTotal: 59152.08,
+    fechaInicial: '2026-10-19',
+    fechaFinal: '2026-10-25',
+    diasAnalizados: 7,
+  });
+
+  assert.equal(resultado.salidasTesoreria, 103971.75);
+  assert.equal(resultado.gastosSinClasificar, 4260);
+  assert.equal(resultado.movimientosPendientes, 2);
+  assert.equal(resultado.utilidadNetaEstimada, 59152.08);
+});
