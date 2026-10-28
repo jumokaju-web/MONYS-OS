@@ -1,4 +1,5 @@
 import { normalizarFechaSicar } from "./periodoSicar.js";
+import { buscarProveedoresParaPago } from "../../tesoreria/utils/crucePagosProveedores.js";
 
 const PALABRAS_GENERALES = new Set(["A", "AL", "DE", "DEL", "EL", "LA", "LAS", "LO", "LOS", "Y", "PAGO", "PAGOS", "ABONO", "ABONOS", "SALIDA", "CHEQUE", "PROVEEDOR", "COMPRA", "TRANSFERENCIA", "SICAR", "CAJA", "POR", "PARA", "CON", "SA", "CV", "THE", "AND"]);
 
@@ -31,7 +32,7 @@ function compararConceptos(conceptoSicar, conceptoTesoreria) {
   return palabrasClave(conceptoSicar).filter((palabra) => palabrasTesoreria.has(palabra));
 }
 
-export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTesoreria = [], branchId = "") {
+export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTesoreria = [], branchId = "", proveedores = [], catalogoConsultado = false) {
   const cheques = (Array.isArray(chequesSicar) ? chequesSicar : []).filter((fila) =>
     String(fila?.tipoMovimiento ?? fila?.tipo ?? "").toUpperCase() === "SALIDA"
     && String(fila?.metodoPago ?? "").trim().toUpperCase() === "CH",
@@ -44,6 +45,10 @@ export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTes
     const fecha = normalizarFechaSicar(cheque?.fecha);
     const importe = centavos(cheque?.monto ?? cheque?.total);
     const conceptoSicar = String(cheque?.comentario || cheque?.descripcion || "").trim();
+    const proveedoresCandidatos = buscarProveedoresParaPago({
+      banco: { descripcion: conceptoSicar },
+      proveedores,
+    });
     const candidatos = fecha && importe !== null ? movimientos.filter((movimiento) => {
       const tipo = String(movimiento?.movement_type ?? movimiento?.tipo ?? "").toUpperCase();
       const sucursalCompatible = !branchId || !movimiento?.branch_id || movimiento.branch_id === branchId;
@@ -76,6 +81,9 @@ export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTes
       monto: importe === null ? null : importe / 100,
       cajaSicar: String(cheque?.caja ?? "").trim() || "Caja no indicada",
       conceptoSicar,
+      tipoPago: "Pago a proveedor por cheque",
+      proveedoresCandidatos,
+      catalogoProveedoresConsultado: catalogoConsultado,
       candidatos,
     };
   });

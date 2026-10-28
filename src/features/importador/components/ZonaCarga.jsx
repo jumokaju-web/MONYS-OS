@@ -32,6 +32,7 @@ import { generarResumenMovimientosCaja } from "../utils/resumenMovimientosCaja";
 import { cruzarChequesSicarConTesoreria } from "../utils/cruceSicarTesoreria";
 import { adjuntarPeriodoSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../utils/periodoSicar";
 import { obtenerMovimientosParaCruceSicar } from "../../tesoreria/services/tesoreriaService";
+import { obtenerCreditosProveedoresActuales } from "../../inteligencia/services/creditosProveedoresService";
 import { resumirCortesCajaSicar } from "../../finanzas/utils/cortesCajaSicar";
 import { validarSucursalImportacion } from "../utils/validarSucursalImportacion";
 import { validarPeriodosSuperpuestos } from "../utils/validarPeriodosSuperpuestos";
@@ -60,6 +61,18 @@ const REPORTES_ESPERADOS = [
   "Cortes de caja",
   "Créditos de proveedores",
 ];
+
+async function cargarCatalogoProveedoresParaCruce(branchId) {
+  try {
+    const reporte = await obtenerCreditosProveedoresActuales(branchId);
+    return {
+      proveedores: reporte?.fuente === "importacion_sicar" ? reporte.creditos || [] : [],
+      consultado: reporte?.fuente === "importacion_sicar",
+    };
+  } catch {
+    return { proveedores: [], consultado: false };
+  }
+}
 
 function crearIdArchivo(file) {
   return `${file.name}-${file.size}-${file.lastModified}`;
@@ -339,7 +352,8 @@ useEffect(() => {
           desde: fechas[0],
           hasta: fechas.at(-1),
         });
-        resumen = { ...resumenBase, cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, importacion.branch_id) };
+        const catalogoProveedores = await cargarCatalogoProveedoresParaCruce(importacion.branch_id);
+        resumen = { ...resumenBase, cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, importacion.branch_id, catalogoProveedores.proveedores, catalogoProveedores.consultado) };
       }
       setRevisionImportacionSicar({ importacion, resumen });
     } catch (error) {
@@ -481,9 +495,10 @@ if (
               desde: fechas[0],
               hasta: fechas.at(-1),
             });
+            const catalogoProveedores = await cargarCatalogoProveedoresParaCruce(branchIdSeleccionado);
             resumenConCruce = {
               ...resumenBase,
-              cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, branchIdSeleccionado),
+              cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, branchIdSeleccionado, catalogoProveedores.proveedores, catalogoProveedores.consultado),
             };
           } catch (errorCruce) {
             resumenConCruce = {

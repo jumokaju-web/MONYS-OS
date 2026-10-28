@@ -113,6 +113,13 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
           return <article key={`${fila.codigoSicar}-${indice}`} style={{ padding: "10px 0", borderTop: "1px solid #eadfbe" }}>
           <b>{fila.fecha || "Fecha pendiente"} · {fila.codigoSicar || "Cheque sin folio"} · {dinero.format(fila.monto ?? 0)}</b>
           {fila.conceptoSicar && <p>Concepto en SICAR: {fila.conceptoSicar}</p>}
+          {fila.proveedoresCandidatos?.length === 1
+            ? <p><b>Proveedor probable:</b> {fila.proveedoresCandidatos[0].nombre}. Coincide con el último reporte de créditos; falta comprobarlo con la evidencia del cheque.</p>
+            : fila.proveedoresCandidatos?.length > 1
+              ? <p><b>Proveedores posibles:</b> {fila.proveedoresCandidatos.map((proveedor) => proveedor.nombre).join(", ")}. La referencia no distingue cuál recibió el pago.</p>
+              : fila.catalogoProveedoresConsultado
+                ? <p>Pago a proveedor confirmado por cheque; el concepto no coincide con un proveedor del último reporte cargado.</p>
+                : <p>Pago a proveedor confirmado por cheque; MONYS no tiene un reporte de créditos cargado para sugerir el nombre.</p>}
           <p style={{ margin: "4px 0" }}>{fila.estadoCruce === "CANDIDATA_UNICA" ? "Una coincidencia candidata" : fila.estadoCruce === "AMBIGUA" ? `${fila.candidatos.length} coincidencias posibles; revisar antes de vincular` : "Sin coincidencia exacta por fecha e importe"}</p>
           {conciliacion && <p><b>VÍNCULO ACTIVO:</b> confirmado el {new Date(conciliacion.registrado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Tesorería {conciliacion.cash_movement_id}<br /><button type="button" disabled={Boolean(procesando)} onClick={() => anularVinculo(conciliacion)}>{procesando === `anular:${conciliacion.id}` ? "Anulando…" : "Corregir vínculo"}</button></p>}
           {vinculosAnulados.length > 0 && <details><summary>Historial de vínculos corregidos · {vinculosAnulados.length}</summary>{vinculosAnulados.map((vinculo) => <p key={vinculo.id}>{new Date(vinculo.anulado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Motivo: {vinculo.motivo_anulacion}</p>)}</details>}
