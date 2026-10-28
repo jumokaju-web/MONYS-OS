@@ -6,6 +6,11 @@ test('coincide solo importe dirección y fecha operación o liquidación; conser
  assert.equal(cruzarBancoCaja(b,[m,{...m,id:'2'}])[0].candidatos.length,2);
  for(const change of [{tipo:'entrada'},{monto:201},{fecha:'2026-09-15'},{estado:'Cancelado'},{monto:null}])assert.equal(cruzarBancoCaja(b,[{...m,...change}]).length,0);
 });
+test('usa la fecha local de México para timestamps UTC guardados al día siguiente',()=>{
+ const banco=[{id:'b',cargo:'200.00',abono:'0.00',fecha_operacion:'2026-09-14',fecha_liquidacion:'2026-09-14'}];
+ const caja=[{id:'c',monto:200,tipo:'salida',occurred_at:'2026-09-15T02:30:00.000Z'}];
+ assert.equal(cruzarBancoCaja(banco,caja)[0].candidatos[0].id,'c');
+});
 test('un vínculo activo confirma el cruce y evita reutilizar el mismo movimiento de caja',()=>{
  const banco=[
   {id:'a',cargo:'200.00',abono:'0.00',fecha_operacion:'2026-09-12',fecha_liquidacion:'2026-09-14'},

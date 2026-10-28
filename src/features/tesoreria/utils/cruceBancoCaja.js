@@ -1,3 +1,5 @@
+import { fechaOperacionFinanciera } from "./fechaOperacionFinanciera.js";
+
 export function cruzarBancoCaja(banco = [], caja = [], conciliaciones = []) {
  const validos = caja.filter(m => !/cancelado/i.test(m.estado ?? m.status ?? ''));
  const activas = conciliaciones.filter(item => item?.estado === 'ACTIVA');
@@ -10,7 +12,7 @@ export function cruzarBancoCaja(banco = [], caja = [], conciliaciones = []) {
   const candidatos = validos.filter(m => {
    const tipo = String(m.tipo ?? m.movement_type ?? '').toLowerCase();
    const mismaDireccion = salida ? ['salida','egreso'].includes(tipo) : ['entrada','ingreso'].includes(tipo);
-   const fecha = String(m.fecha ?? m.occurred_at ?? '').slice(0,10);
+   const fecha = fechaOperacionFinanciera(m.fecha ?? m.occurred_at);
    const monto = m.monto ?? m.amount;
    const vinculadaA = cajaUsada.get(m.id);
    return (!vinculadaA || vinculadaA === b.id) && mismaDireccion && monto !== null && monto !== undefined && monto !== '' && Number.isFinite(Number(monto)) && Math.round(Number(monto) * 100) === centavos && [b.fecha_operacion,b.fecha_liquidacion].includes(fecha);

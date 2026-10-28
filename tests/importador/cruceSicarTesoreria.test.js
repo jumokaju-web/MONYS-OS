@@ -103,6 +103,17 @@ test("acepta movimientos consolidados del negocio como candidatas de menor alcan
   assert.equal(resultado.filas[0].candidatos[0].alcance, "Registro de negocio sin sucursal especificada");
 });
 
+test("compara la fecha local de México cuando el timestamp de caja queda guardado en UTC al día siguiente", () => {
+  const resultado = cruzarChequesSicarConTesoreria(
+    [cheque("MOV-MX", 20000)],
+    [cash("cierre-mexico", 20000, { occurred_at: "2026-10-20T02:30:00.000Z" })],
+    branchId,
+  );
+
+  assert.equal(resultado.filas[0].estadoCruce, "CANDIDATA_UNICA");
+  assert.equal(resultado.filas[0].candidatos[0].fecha, "2026-10-19");
+});
+
 test("no inventa una coincidencia cuando no hay mismo día, importe o dirección", () => {
   const resultado = cruzarChequesSicarConTesoreria(
     [cheque("MOV-1", 20000)],

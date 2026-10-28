@@ -1,5 +1,6 @@
 import { normalizarFechaSicar } from "./periodoSicar.js";
 import { buscarProveedoresParaPago } from "../../tesoreria/utils/crucePagosProveedores.js";
+import { fechaOperacionFinanciera } from "../../tesoreria/utils/fechaOperacionFinanciera.js";
 
 const PALABRAS_GENERALES = new Set(["A", "AL", "DE", "DEL", "EL", "LA", "LAS", "LO", "LOS", "Y", "PAGO", "PAGOS", "ABONO", "ABONOS", "SALIDA", "CHEQUE", "PROVEEDOR", "COMPRA", "TRANSFERENCIA", "SICAR", "CAJA", "POR", "PARA", "CON", "SA", "CV", "THE", "AND"]);
 
@@ -9,7 +10,7 @@ function centavos(valor) {
 }
 
 function fechaTesoreria(movimiento) {
-  return String(movimiento?.occurred_at ?? movimiento?.fecha ?? "").slice(0, 10);
+  return fechaOperacionFinanciera(movimiento?.fecha ?? movimiento?.occurred_at);
 }
 
 function noCancelado(estado) {
