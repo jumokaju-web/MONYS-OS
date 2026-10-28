@@ -10,6 +10,7 @@ export default defineConfig({
       registerType: "prompt",
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        globIgnores: ["**/pdf.worker.min-*.mjs"],
       },
 
       manifest: {

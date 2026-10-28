@@ -10,6 +10,7 @@ import { useUser } from '../../../context/UserContext';
 import { claveRevisionBancaria, guardarRevisionBancaria, recuperarRevisionBancaria } from '../utils/borradorEstadoBancario';
 import { obtenerFacturasIngresoFlotillaPeriodo } from '../../dashboard/services/facturasIngresoFlotillaService.js';
 import { proponerCrucesFacturasEstadoCuenta } from '../utils/cruceFacturasEstadoCuenta.js';
+import { extraerTextoPdfBancario } from '../utils/extraerTextoPdfBancario.js';
 const categorias = ['Cobro de flotilla', 'Cobro de tienda: conciliar SICAR', 'Transferencia interna', 'Combustible', 'Proveedor', 'Nómina', 'Gasto operativo', 'Pago de crédito', 'Pago de tarjeta', 'Préstamo por recuperar', 'Personal', 'Comisión bancaria / IVA', 'Crédito recibido', 'Recuperación de préstamo', 'Aportación de capital', 'Otro'];
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 const notaComunDeLote = categoria => categoria === 'Préstamo por recuperar'
@@ -41,6 +42,8 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   const [revisionId, setRevisionId] = useState(null);
   const [facturasFlotilla, setFacturasFlotilla] = useState([]);
   const [cargandoFacturasCruce, setCargandoFacturasCruce] = useState(false);
+  const [extraccionPdf, setExtraccionPdf] = useState(null);
+  const [leyendoPdf, setLeyendoPdf] = useState(false);
   useEffect(() => {
     if (!clave || usuario?.role !== 'owner') return undefined;
     let vigente = true;
@@ -189,6 +192,23 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
       setPaquete(aplicado.paquete); setReglasSugeridas(aplicado.sugeridas); setRevisionId(null); setGuardado(''); setError(''); setPagina(0); setFiltro(''); setCuenta(''); setDireccion(''); setGrupo(''); setPendientes(false); setEditando(null);
     } catch (e) { setError(e.message || 'No fue posible leer el archivo.'); }
   };
+  const cargarPdf = async event => {
+    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
+    setLeyendoPdf(true); setError(''); setExtraccionPdf(null);
+    try {
+      const resultado = await extraerTextoPdfBancario(file);
+      setExtraccionPdf({ nombre: file.name, ...resultado });
+      setGuardado('PDF leído en este dispositivo. El contenido queda en vista previa; todavía no se importaron ni clasificaron movimientos.');
+    } catch (e) { setError(e.message || 'No fue posible leer el PDF.'); }
+    finally { setLeyendoPdf(false); }
+  };
+  const descargarTextoPdf = () => {
+    if (!extraccionPdf) return;
+    const contenido = extraccionPdf.lineas.map(({ pagina, texto }) => `[Página ${pagina}] ${texto}`).join('\n');
+    const url = URL.createObjectURL(new Blob([contenido], { type: 'text/plain;charset=utf-8' }));
+    const enlace = document.createElement('a'); enlace.href = url; enlace.download = `${extraccionPdf.nombre.replace(/\.pdf$/i, '')}-texto.txt`; enlace.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const guardarNube = async () => {
     setSincronizando(true); setError('');
     try { const registro = await guardarRevisionBanco(usuario, paquete); aceptarPaqueteGuardado(registro, paquete); setRevisionId(registro.id); setGuardado(`Versión guardada en MONYS: ${registro.id}. Puedes recuperarla con tu usuario, negocio y sucursal.`); }
@@ -220,8 +240,10 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
     setPaquete(actual => ({ ...actual, movimientos: actual.movimientos.map(m => m.id === editando ? { ...m, revision: { estado: 'Confirmado', clasificacion: categoria, nota: nota.trim(), fecha: new Date().toISOString() } } : m) })); setEditando(null); setGuardado('Clasificación confirmada en esta revisión. Pulsa Guardar versión en MONYS para conservar el cambio en otros equipos.'); setError('');
   };
   return <section className="banco-revision"><fieldset className="banco-controles" disabled={sincronizando} aria-busy={sincronizando}>
-    <div className="banco-revision-head"><div><span>CONCILIACIÓN BANCARIA</span><h2>Revisa el destino de tu dinero</h2></div><label className="banco-carga">Abrir paquete bancario<input type="file" accept=".json,application/json" onChange={cargar} /></label></div>
-    <p>Abre el archivo bancario MONYS preparado a partir del estado de cuenta. Se comprobarán movimientos, sumas y saldos antes de mostrarlo. Este paso admite JSON; los PDF se preparan primero.</p>
+    <div className="banco-revision-head"><div><span>CONCILIACIÓN BANCARIA</span><h2>Revisa el destino de tu dinero</h2></div><div className="banco-cargas"><label className="banco-carga">Leer PDF BBVA<input type="file" accept=".pdf,application/pdf" onChange={cargarPdf} disabled={leyendoPdf} /></label><label className="banco-carga banco-carga-secundaria">Abrir paquete MONYS<input type="file" accept=".json,application/json" onChange={cargar} /></label></div></div>
+    <p>Lee el texto seleccionable del estado de cuenta directamente aquí. El paquete MONYS valida movimientos, cargos, abonos y saldos antes de cargarlos.</p>
+    {leyendoPdf && <p role="status">Leyendo el PDF en este dispositivo…</p>}
+    {extraccionPdf && <section className="banco-pdf-preview"><div><h3>Vista previa del estado de cuenta</h3><p><b>{extraccionPdf.nombre}</b> · {extraccionPdf.paginas} páginas · {extraccionPdf.lineas.length} líneas de texto</p><p>MONYS reconoció texto de BBVA, pero esta vista previa no altera saldos. Descarga el texto para conservarlo o compáralo con el estado original.</p><button type="button" onClick={descargarTextoPdf}>Descargar texto extraído</button><button type="button" onClick={() => setExtraccionPdf(null)}>Cerrar vista previa</button></div><details><summary>Revisar texto extraído</summary><pre>{extraccionPdf.lineas.map(({ pagina, texto }) => `[${pagina}] ${texto}`).join('\n')}</pre></details></section>}
     <p className="banco-aviso">Esta revisión no cambia los saldos de Tesorería ni registra ingresos o gastos. Puedes guardarla en este dispositivo con tu usuario, negocio y sucursal, o descargarla para abrirla en otro equipo. Al entrar se carga tu última versión guardada en MONYS. Guarda los cambios antes de salir, actualizar o abrir otro paquete.</p>
     <div className="banco-filtros"><button disabled={!clave} onClick={recuperarAqui}>Recuperar revisión guardada aquí</button>{paquete && <button disabled={!clave} onClick={guardarAqui}>Guardar en este dispositivo</button>}</div>
     {usuario?.role === 'owner' && <div className="banco-nube"><h3>Guardar y continuar en otro equipo</h3><p>Conserva una versión con tu usuario, negocio y sucursal. Guardar no registra otra salida ni reemplaza las versiones anteriores.</p><div className="banco-filtros"><button disabled={sincronizando} onClick={recuperarNube}>Recuperar de MONYS</button><button disabled={sincronizando || !paquete} onClick={guardarNube}>Guardar versión en MONYS</button></div>{!paquete && <small>Abre un paquete o recupera una versión para habilitar el guardado.</small>}</div>}
