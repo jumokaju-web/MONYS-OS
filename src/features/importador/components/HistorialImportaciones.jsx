@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 
-export default function HistorialImportaciones({ branchId, revision = 0, onAbrirConciliacion }) {
+export default function HistorialImportaciones({ branchId, revision = 0, onAbrirConciliacion, onAbrirAbonos }) {
   const [filas, setFilas] = useState([]);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -51,9 +51,11 @@ export default function HistorialImportaciones({ branchId, revision = 0, onAbrir
                 <td>{fila.total_filas ?? "Por confirmar"}</td>
                 <td>{fila.estado || "Por confirmar"}</td>
                 <td>{fila.created_at ? new Date(fila.created_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" }) : "Por confirmar"}</td>
-                <td>{fila.tipo_reporte === "Movimientos de caja" && fila.estado === "procesado"
+                <td>{fila.estado === "procesado" && fila.tipo_reporte === "Movimientos de caja"
                   ? <button type="button" onClick={() => onAbrirConciliacion?.(fila)}>Revisar salidas por cheque</button>
-                  : "—"}</td>
+                  : fila.estado === "procesado" && fila.tipo_reporte === "Abonos de proveedores"
+                    ? <button type="button" onClick={() => onAbrirAbonos?.(fila)}>Abrir abonos y enlazar cheques</button>
+                    : "—"}</td>
               </tr>)}</tbody>
             </table></div>}
     <p>El historial conserva el estado registrado por el importador. Las cargas anteriores se pueden revisar contra Tesorería sin volver a importarlas. No borres ni reimportes automáticamente una carga con error: primero revisa si guardó datos parciales.</p>
