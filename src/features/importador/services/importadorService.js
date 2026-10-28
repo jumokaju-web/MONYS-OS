@@ -3,6 +3,7 @@ import { guardarCargaConfirmada } from '../utils/guardarCargaConfirmada';
 import { prepararDetalleImportacion } from '../utils/prepararDetalleImportacion.js';
 import { supabase } from "../../../supabase";
 import { guardarMovimientosTesoreriaMasivos } from "../../tesoreria/services/tesoreriaService";
+import { normalizarFechaSicar } from "../utils/periodoSicar.js";
 export async function guardarImportacion(carga) {
  if (!Array.isArray(carga.datosNormalizados) || !carga.datosNormalizados.length) throw new Error('No se puede importar sin filas válidas.');
  if (!carga.branchId) throw new Error('Selecciona una sucursal antes de importar.');
@@ -28,16 +29,8 @@ export async function obtenerDetallesImportacion(importacionId) {
  return data || [];
 }
 
-function fechaAExcelSerial(fecha) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return null;
-  const [anio, mes, dia] = fecha.split("-").map(Number);
-  return Math.floor((Date.UTC(anio, mes - 1, dia) - Date.UTC(1899, 11, 30)) / 86400000);
-}
-
 export async function obtenerDetallesMovimientosCajaParaAbonos({ branchId, desde, hasta }) {
-  const inicio = fechaAExcelSerial(desde);
-  const fin = fechaAExcelSerial(hasta);
-  if (!branchId || inicio === null || fin === null || fin < inicio) return [];
+  if (!branchId || !/^\d{4}-\d{2}-\d{2}$/.test(String(desde || "")) || !/^\d{4}-\d{2}-\d{2}$/.test(String(hasta || "")) || hasta < desde) return [];
 
   const consulta = (primero, ultimo) => supabase
     .from("importacion_detalle")
@@ -45,18 +38,19 @@ export async function obtenerDetallesMovimientosCajaParaAbonos({ branchId, desde
     .eq("importaciones.tipo_reporte", "Movimientos de caja")
     .eq("importaciones.branch_id", branchId)
     .eq("importaciones.estado", "procesado")
-    .gte("datos_originales->>fecha", String(inicio))
-    .lte("datos_originales->>fecha", String(fin + 1))
-    .order("numero_fila", { ascending: true })
     .order("importacion_id", { ascending: true })
+    .order("numero_fila", { ascending: true })
     .range(primero, ultimo);
 
   const filas = [];
   for (let inicioPagina = 0; ; inicioPagina += 1000) {
     const { data, error } = await consulta(inicioPagina, inicioPagina + 999);
-    if (error) throw new Error(`No se pudieron consultar los movimientos SICAR del periodo: ${error.message}`);
+    if (error) throw new Error("No se pudieron consultar los movimientos SICAR del periodo: " + error.message);
     const pagina = data || [];
-    filas.push(...pagina);
+    filas.push(...pagina.filter((detalle) => {
+      const fecha = normalizarFechaSicar(detalle.datos_originales?.fecha);
+      return fecha && fecha >= desde && fecha <= hasta;
+    }));
     if (pagina.length < 1000) break;
   }
   return filas;
