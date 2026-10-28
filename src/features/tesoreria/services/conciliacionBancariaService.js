@@ -17,6 +17,19 @@ export async function obtenerConciliacionesBancarias(revisionBancariaId) {
   return data || [];
 }
 
+export async function obtenerConciliacionesBancariasPorMovimientos(cashMovementIds = []) {
+  const ids = [...new Set((Array.isArray(cashMovementIds) ? cashMovementIds : []).filter(Boolean))];
+  if (!ids.length) return [];
+  const { data, error } = await supabase
+    .from('conciliaciones_bancarias')
+    .select('id,revision_bancaria_id,banco_movimiento_id,cash_movement_id,cuenta,fecha_banco,monto,direccion,estado,registrado_en,snapshot')
+    .in('cash_movement_id', ids)
+    .eq('estado', 'ACTIVA')
+    .order('registrado_en', { ascending: false });
+  if (error) throw new Error(`No fue posible consultar la evidencia bancaria vinculada a los cheques: ${error.message}`);
+  return data || [];
+}
+
 export async function guardarConciliacionBancaria({ revisionBancariaId, banco, movimiento, proveedoresSugeridos = [] }) {
   if (!revisionBancariaId || !banco?.id || !movimiento?.id) throw new Error('Falta seleccionar el movimiento bancario y el registro de Tesorería.');
   const salida = Number(banco.cargo) > 0;
