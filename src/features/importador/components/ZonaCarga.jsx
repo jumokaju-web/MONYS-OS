@@ -275,10 +275,15 @@ useEffect(() => {
   const [revisionImportacionSicar, setRevisionImportacionSicar] = useState(null);
   const [cargandoRevisionSicar, setCargandoRevisionSicar] = useState(false);
   const [errorRevisionSicar, setErrorRevisionSicar] = useState("");
+  const [revisionAbonosSicar, setRevisionAbonosSicar] = useState(null);
+  const [cargandoAbonosSicar, setCargandoAbonosSicar] = useState(false);
+  const [errorAbonosSicar, setErrorAbonosSicar] = useState("");
 
   useEffect(() => {
     setRevisionImportacionSicar(null);
     setErrorRevisionSicar("");
+    setRevisionAbonosSicar(null);
+    setErrorAbonosSicar("");
   }, [branchIdSeleccionado]);
 
   const archivoActivo =
@@ -346,6 +351,7 @@ useEffect(() => {
     try {
       setCargandoRevisionSicar(true);
       setRevisionImportacionSicar(null);
+      setRevisionAbonosSicar(null);
       setErrorRevisionSicar("");
       const detalles = await obtenerDetallesImportacion(importacion.id);
       const datos = detalles.map((detalle) => detalle.datos_originales).filter(Boolean);
@@ -370,6 +376,23 @@ useEffect(() => {
       setErrorRevisionSicar(error?.message || "No se pudo abrir la conciliación del reporte guardado.");
     } finally {
       setCargandoRevisionSicar(false);
+    }
+  }
+
+  async function abrirAbonosImportados(importacion) {
+    try {
+      setCargandoAbonosSicar(true);
+      setRevisionAbonosSicar(null);
+      setRevisionImportacionSicar(null);
+      setErrorAbonosSicar("");
+      const detalles = await obtenerDetallesImportacion(importacion.id);
+      const abonos = detalles.map((detalle) => detalle.datos_originales).filter(Boolean);
+      if (!abonos.length) throw new Error("La carga procesada no contiene filas de abonos para revisar.");
+      setRevisionAbonosSicar({ importacion, abonos, resumen: resumirAbonosProveedores(abonos) });
+    } catch (error) {
+      setErrorAbonosSicar(error?.message || "No se pudo abrir el reporte de abonos guardado.");
+    } finally {
+      setCargandoAbonosSicar(false);
     }
   }
 
@@ -1609,7 +1632,25 @@ if (
         branchId={branchIdSeleccionado}
         revision={archivosImportados.length}
         onAbrirConciliacion={abrirConciliacionImportada}
+        onAbrirAbonos={abrirAbonosImportados}
       />
+      {cargandoAbonosSicar && <p role="status">Abriendo el reporte guardado de abonos…</p>}
+      {errorAbonosSicar && <p role="alert">No se pudo abrir el reporte de abonos: {errorAbonosSicar}</p>}
+      {revisionAbonosSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div><h2 style={{ margin: "0 0 4px" }}>Abonos guardados · {revisionAbonosSicar.importacion.archivo_original}</h2><small>{new Date(revisionAbonosSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })} · Revisión sin volver a importar</small></div>
+          <button type="button" onClick={() => setRevisionAbonosSicar(null)}>Cerrar revisión</button>
+        </div>
+        <ResumenAbonosProveedores
+          resumen={revisionAbonosSicar.resumen}
+          abonos={revisionAbonosSicar.abonos}
+          archivoNombre={revisionAbonosSicar.importacion.archivo_original}
+          importacionId={revisionAbonosSicar.importacion.id}
+          organizationId={usuario?.organization_id}
+          businessId={sucursales.find((item) => item.id === revisionAbonosSicar.importacion.branch_id)?.business_id || usuario?.business_id}
+          branchId={revisionAbonosSicar.importacion.branch_id}
+        />
+      </section>}
       {cargandoRevisionSicar && <p role="status">Abriendo movimientos SICAR y comparando con Tesorería…</p>}
       {errorRevisionSicar && <p role="alert">No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
       {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
