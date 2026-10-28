@@ -10,10 +10,11 @@ export async function guardarCargaConfirmada(carga,operaciones){
  validarCarga(carga);
  const id=await identidadCarga(carga);
  const existente=await operaciones.buscar(id);
- if(existente)throw new Error(`Esta información ya tiene una carga ${id} (${existente.estado || 'por revisar'}). Revisa el historial antes de volver a importar; no se duplicaron registros.`);
- let etapa='crear registro pendiente';
+ const reanudable = existente?.estado === 'pendiente' && existente.detallesCount === 0;
+ if(existente && !reanudable)throw new Error(`Esta información ya tiene una carga ${id} (${existente.estado || 'por revisar'}${Number.isInteger(existente.detallesCount) ? `, ${existente.detallesCount} ${existente.detallesCount === 1 ? 'detalle guardado' : 'detalles guardados'}` : ''}). Revisa el historial antes de volver a importar; no se duplicaron registros.`);
+ let etapa=existente ? 'reanudar carga pendiente' : 'crear registro pendiente';
  try {
- const registro=await operaciones.crear({...carga,id,estado:'pendiente'});
+ const registro=existente || await operaciones.crear({...carga,id,estado:'pendiente'});
  if(!registro?.id || registro.id!==id)throw new Error('No se confirmó el registro inicial.');
  etapa='guardar detalles';await operaciones.detalles(registro);
  etapa='guardar datos de destino';await operaciones.destino(registro);
