@@ -47,13 +47,22 @@ export function agruparSugerenciasBancarias(movimientos) {
 export function agruparPendientesPorNombre(movimientos = []) {
   const grupos = new Map();
   const exclusiones = new Set(['SPEI', 'STP', 'PAGO', 'PAGOS', 'TRANSFERENCIA', 'TRASPASO', 'DEPOSITO', 'DEPÓSITO', 'BANCO', 'BBVA', 'SANTANDER', 'HSBC', 'BANORTE', 'SCOTIABANK', 'OXXO', 'CLABE', 'CUENTA', 'ENVIO', 'ENVIADO', 'OPERACION', 'OPERACIÓN', 'REFERENCIA']);
+  const beneficiariosConocidos = [
+    { nombre: 'OSCAR', variantes: ['OSCAR'] },
+    { nombre: 'PIÑA', variantes: ['PINA', 'PINA'] },
+    { nombre: 'JOSHUA', variantes: ['JOSHUA', 'JOSH'] },
+    { nombre: 'IVAN', variantes: ['IVAN'] },
+    { nombre: 'EMANUEL', variantes: ['EMANUEL', 'EMMANUEL'] },
+  ];
   for (const m of movimientos) {
     if (m.revision?.estado === 'Confirmado' || sugerirMovimientoBancario(m).categoria) continue;
     const texto = [m.descripcion, m.referencia_visible].filter(Boolean).join(' ').toLocaleUpperCase('es-MX');
+    const normalizado = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     // Captura nombres tras indicadores habituales y también nombres aislados
     // conocidos en la referencia bancaria (p. ej. "SPEI ENVIADO OSCAR").
     const candidatos = [...texto.matchAll(/(?:\b(?:A|AL|PARA|BENEFICIARIO|BENEFICIARIA|NOMBRE)\s+)([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{3,}){0,2})/g)].map(x => x[1]);
-    if (/\bOSCAR\b/.test(texto)) candidatos.push('OSCAR');
+    const conocido = beneficiariosConocidos.find(persona => persona.variantes.some(variante => new RegExp(`\\b${variante}\\b`).test(normalizado)));
+    if (conocido) candidatos.unshift(conocido.nombre);
     const nombre = candidatos.map(x => x.trim().split(/\s+/).filter(p => !exclusiones.has(p)).join(' ')).find(Boolean);
     if (!nombre) continue;
     const key = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '');

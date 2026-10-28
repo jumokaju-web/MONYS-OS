@@ -91,3 +91,13 @@ test('agrupa por nombre repetido en concepto sin clasificar ni modificar los mov
  assert.deepEqual(grupos[0].movimientos.map(m=>m.id),['oscar-1','oscar-2']);
  assert.equal(JSON.stringify(filas),antes);
 });
+test('agrupa beneficiarios conocidos por separado aunque aparezcan en cualquier parte de la referencia', () => {
+ const personas=['OSCAR','PIÑA','JOSHUA','IVAN','EMANUEL'];
+ const filas=personas.flatMap((nombre,i)=>[
+  {...movimiento,id:`${i}-a`,descripcion:'PAGO CUENTA DE TERCERO',referencia_visible:`•••• ${nombre} apoyo`,cargo:'100.00'},
+  {...movimiento,id:`${i}-b`,descripcion:'SPEI ENVIADO',referencia_visible:`adelanto ${nombre}`,cargo:'200.00'},
+ ]);
+ const grupos=agruparPendientesPorNombre(filas);
+ assert.deepEqual(grupos.map(g=>g.nombre).sort(),personas.sort());
+ for(const g of grupos) assert.equal(g.cantidad,2);
+});
