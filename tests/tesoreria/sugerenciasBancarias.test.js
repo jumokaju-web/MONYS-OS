@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
+import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
 const movimiento = { cargo: '2750.00', abono: '0.00', fecha_operacion: '2026-09-01', fecha_liquidacion: '2026-09-02', categoria: 'Por aclarar' };
 test('un mensaje salarial con misma fecha e importe propone nómina sin aprobar', () => {
  const m = { ...movimiento, evidencia_whatsapp: [{ fecha: '2026-09-01', importe: 275000, texto: 'Pago sueldo Luis' }] };
@@ -70,4 +70,16 @@ test('contador MONYS clasifica todos los grupos seguros y deja las excepciones p
  assert.equal(nuevo.movimientos[2].revision,undefined);
  assert.deepEqual(nuevo.movimientos[3],confirmado);
  assert.deepEqual(nuevo.cuentas,paquete.cuentas);
+});
+test('agrupa por nombre repetido en concepto sin clasificar ni modificar los movimientos', () => {
+ const oscar1={...movimiento,id:'oscar-1',descripcion:'SPEI ENVIADO OSCAR',cargo:'400.00'};
+ const oscar2={...movimiento,id:'oscar-2',descripcion:'PAGO PARA OSCAR',cargo:'900.00'};
+ const otro={...movimiento,id:'otro',descripcion:'SPEI ENVIADO STP',cargo:'22500.00'};
+ const confirm={...movimiento,id:'confirm',descripcion:'SPEI ENVIADO OSCAR',revision:{estado:'Confirmado'}};
+ const filas=[oscar1,oscar2,otro,confirm]; const antes=JSON.stringify(filas);
+ const grupos=agruparPendientesPorNombre(filas);
+ assert.equal(grupos.length,1); assert.equal(grupos[0].nombre,'OSCAR');
+ assert.equal(grupos[0].cantidad,2); assert.equal(grupos[0].cargos,1300);
+ assert.deepEqual(grupos[0].movimientos.map(m=>m.id),['oscar-1','oscar-2']);
+ assert.equal(JSON.stringify(filas),antes);
 });
