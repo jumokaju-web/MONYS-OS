@@ -1,5 +1,7 @@
 import { normalizarFechaSicar } from "./periodoSicar.js";
 
+const PALABRAS_GENERALES = new Set(["A", "AL", "DE", "DEL", "EL", "LA", "LAS", "LO", "LOS", "Y", "PAGO", "PAGOS", "ABONO", "ABONOS", "SALIDA", "CHEQUE", "PROVEEDOR", "COMPRA", "TRANSFERENCIA", "SICAR", "CAJA", "POR", "PARA", "CON", "SA", "CV", "THE", "AND"]);
+
 function centavos(valor) {
   const numero = Number(valor);
   return Number.isFinite(numero) ? Math.round((numero + Number.EPSILON) * 100) : null;
@@ -11,6 +13,22 @@ function fechaTesoreria(movimiento) {
 
 function noCancelado(estado) {
   return !String(estado ?? "").toLocaleLowerCase("es-MX").includes("cancel");
+}
+
+function palabrasClave(valor) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((palabra) => palabra.length >= 2 && !PALABRAS_GENERALES.has(palabra));
+}
+
+function compararConceptos(conceptoSicar, conceptoTesoreria) {
+  const palabrasTesoreria = new Set(palabrasClave(conceptoTesoreria));
+  return palabrasClave(conceptoSicar).filter((palabra) => palabrasTesoreria.has(palabra));
 }
 
 export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTesoreria = [], branchId = "") {
@@ -25,6 +43,7 @@ export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTes
   const coincidencias = cheques.map((cheque) => {
     const fecha = normalizarFechaSicar(cheque?.fecha);
     const importe = centavos(cheque?.monto ?? cheque?.total);
+    const conceptoSicar = String(cheque?.comentario || cheque?.descripcion || "").trim();
     const candidatos = fecha && importe !== null ? movimientos.filter((movimiento) => {
       const tipo = String(movimiento?.movement_type ?? movimiento?.tipo ?? "").toUpperCase();
       const sucursalCompatible = !branchId || !movimiento?.branch_id || movimiento.branch_id === branchId;
@@ -32,25 +51,32 @@ export function cruzarChequesSicarConTesoreria(chequesSicar = [], movimientosTes
         && sucursalCompatible
         && fechaTesoreria(movimiento) === fecha
         && centavos(movimiento?.amount ?? movimiento?.monto) === importe;
-    }) : [];
+    }).map((movimiento) => {
+      const conceptoTesoreria = movimiento.concept ?? movimiento.concepto ?? "Sin concepto";
+      const palabrasCoincidentes = compararConceptos(conceptoSicar, conceptoTesoreria);
+      const sucursalExacta = Boolean(branchId && movimiento.branch_id === branchId);
+      return {
+        id: movimiento.id,
+        concepto: conceptoTesoreria,
+        monto: Number(movimiento.amount ?? movimiento.monto),
+        fecha: fechaTesoreria(movimiento),
+        estado: movimiento.status ?? movimiento.estado ?? "Estado no indicado",
+        categoria: movimiento.expense_category ?? movimiento.categoria ?? "Sin clasificar",
+        branchId: movimiento.branch_id ?? null,
+        alcance: sucursalExacta ? "Sucursal coincidente" : "Registro de negocio sin sucursal especificada",
+        recibo: movimiento.receipt_status ?? "Comprobante no indicado",
+        palabrasCoincidentes,
+      };
+    }).sort((a, b) => b.palabrasCoincidentes.length - a.palabrasCoincidentes.length
+      || Number(b.branchId === branchId) - Number(a.branchId === branchId)) : [];
 
     return {
       codigoSicar: cheque?.codigo ?? "",
       fecha,
       monto: importe === null ? null : importe / 100,
       cajaSicar: String(cheque?.caja ?? "").trim() || "Caja no indicada",
-      conceptoSicar: String(cheque?.comentario ?? "").trim(),
-      candidatos: candidatos.map((movimiento) => ({
-        id: movimiento.id,
-        concepto: movimiento.concept ?? movimiento.concepto ?? "Sin concepto",
-        monto: Number(movimiento.amount ?? movimiento.monto),
-        fecha: fechaTesoreria(movimiento),
-        estado: movimiento.status ?? movimiento.estado ?? "Estado no indicado",
-        categoria: movimiento.expense_category ?? movimiento.categoria ?? "Sin clasificar",
-        branchId: movimiento.branch_id ?? null,
-        alcance: movimiento.branch_id === branchId ? "Sucursal coincidente" : "Registro de negocio sin sucursal especificada",
-        recibo: movimiento.receipt_status ?? "Comprobante no indicado",
-      })),
+      conceptoSicar,
+      candidatos,
     };
   });
 

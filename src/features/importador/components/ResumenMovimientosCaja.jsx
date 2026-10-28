@@ -76,7 +76,7 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
 
   return <section style={{ width: "100%", maxWidth: 1000, margin: "24px auto 0", padding: 20, boxSizing: "border-box", border: "1px solid #ead5df", borderRadius: 18, background: "#fff" }} aria-label="Resumen de movimientos de caja SICAR">
     <h3 style={{ marginTop: 0 }}>Salidas y entradas registradas en SICAR</h3>
-    <p>Son movimientos del reporte de caja; no equivalen automáticamente a ventas, gastos ni pagos a proveedores.</p>
+    <p>En Monys Glam, cada salida SICAR con forma de pago “Cheque” corresponde a un pago a proveedor. El reporte permite identificar el pago, pero puede no indicar si fue abono o liquidación total.</p>
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
         <thead><tr><th style={{ padding: 8 }}>Tipo</th><th style={{ padding: 8 }}>Forma de pago</th><th style={{ padding: 8 }}>Movimientos</th><th style={{ padding: 8 }}>Importe</th></tr></thead>
@@ -89,10 +89,10 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
       </table>
     </div>
     {resumen.salidasCheque.length > 0 && <div style={{ marginTop: 20, padding: 16, borderRadius: 12, background: "#fff8e8", border: "1px solid #ead7a9" }}>
-      <h4 style={{ margin: "0 0 8px" }}>Salidas con cheque: {dinero.format(resumen.totalSalidasCheque)} ({resumen.salidasCheque.length})</h4>
-      <p style={{ marginTop: 0 }}>SICAR indica que estas salidas fueron por cheque. {resumen.chequesSinConcepto} no tienen concepto capturado. MONYS OS no las atribuye automáticamente a un proveedor aunque el movimiento sea cheque.</p>
+      <h4 style={{ margin: "0 0 8px" }}>Pagos a proveedores por cheque: {dinero.format(resumen.totalSalidasCheque)} ({resumen.salidasCheque.length})</h4>
+      <p style={{ marginTop: 0 }}>Regla confirmada para Monys Glam: toda salida con cheque es un pago a proveedor. {resumen.chequesSinConcepto} no tienen concepto capturado para identificar a cuál proveedor; el importe por sí solo no indica si liquidó toda la deuda o fue un abono.</p>
       <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-        <thead><tr><th style={{ padding: 8 }}>Fecha</th><th style={{ padding: 8 }}>Caja</th><th style={{ padding: 8 }}>Importe</th><th style={{ padding: 8 }}>Concepto / beneficiario</th><th style={{ padding: 8 }}>Folio SICAR</th></tr></thead>
+        <thead><tr><th style={{ padding: 8 }}>Fecha</th><th style={{ padding: 8 }}>Caja</th><th style={{ padding: 8 }}>Importe</th><th style={{ padding: 8 }}>Proveedor / concepto</th><th style={{ padding: 8 }}>Folio SICAR</th></tr></thead>
         <tbody>{resumen.salidasCheque.map((fila, indice) => <tr key={`${fila.codigo}-${indice}`}>
           <td style={{ padding: 8, borderTop: "1px solid #eadfbe" }}>{fecha(fila.fecha)}</td><td style={{ padding: 8, borderTop: "1px solid #eadfbe" }}>{fila.caja}</td><td style={{ padding: 8, borderTop: "1px solid #eadfbe", whiteSpace: "nowrap" }}>{dinero.format(fila.monto)}</td><td style={{ padding: 8, borderTop: "1px solid #eadfbe" }}>{fila.concepto || "No indicado en el reporte"}</td><td style={{ padding: 8, borderTop: "1px solid #eadfbe" }}>{fila.codigo || "Sin folio"}</td>
         </tr>)}</tbody>
@@ -112,11 +112,15 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
             : [];
           return <article key={`${fila.codigoSicar}-${indice}`} style={{ padding: "10px 0", borderTop: "1px solid #eadfbe" }}>
           <b>{fila.fecha || "Fecha pendiente"} · {fila.codigoSicar || "Cheque sin folio"} · {dinero.format(fila.monto ?? 0)}</b>
+          {fila.conceptoSicar && <p>Concepto en SICAR: {fila.conceptoSicar}</p>}
           <p style={{ margin: "4px 0" }}>{fila.estadoCruce === "CANDIDATA_UNICA" ? "Una coincidencia candidata" : fila.estadoCruce === "AMBIGUA" ? `${fila.candidatos.length} coincidencias posibles; revisar antes de vincular` : "Sin coincidencia exacta por fecha e importe"}</p>
           {conciliacion && <p><b>VÍNCULO ACTIVO:</b> confirmado el {new Date(conciliacion.registrado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Tesorería {conciliacion.cash_movement_id}<br /><button type="button" disabled={Boolean(procesando)} onClick={() => anularVinculo(conciliacion)}>{procesando === `anular:${conciliacion.id}` ? "Anulando…" : "Corregir vínculo"}</button></p>}
           {vinculosAnulados.length > 0 && <details><summary>Historial de vínculos corregidos · {vinculosAnulados.length}</summary>{vinculosAnulados.map((vinculo) => <p key={vinculo.id}>{new Date(vinculo.anulado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Motivo: {vinculo.motivo_anulacion}</p>)}</details>}
           {!conciliacion && fila.candidatos.map((candidato) => <div key={candidato.id} style={{ margin: "7px 0", padding: 10, borderRadius: 8, background: "#fff" }}>
             <small style={{ display: "block" }}>{candidato.concepto} · {candidato.estado} · {candidato.categoria} · {candidato.alcance} · {candidato.recibo}</small>
+            {candidato.palabrasCoincidentes?.length > 0
+              ? <small style={{ display: "block" }}>Texto parecido con SICAR: {candidato.palabrasCoincidentes.join(", ")}. Sigue siendo una candidata; confirma el comprobante antes de vincular.</small>
+              : fila.conceptoSicar && <small style={{ display: "block" }}>La fecha y el importe coinciden, pero el texto no confirma el mismo beneficiario.</small>}
             {importacionId && detalle?.id
               ? <button type="button" disabled={Boolean(procesando) || cargandoVinculos} onClick={() => confirmarVinculo(fila, candidato)}>{procesando === candidato.id ? "Guardando vínculo…" : "Confirmar que son el mismo movimiento"}</button>
               : <small>Importa primero el reporte para guardar un vínculo con historial.</small>}

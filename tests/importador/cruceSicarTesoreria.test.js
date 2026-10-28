@@ -31,6 +31,34 @@ test("marca ambigüedad si varios movimientos o varios cheques comparten fecha e
   assert.equal(resultado.candidatasUnicas, 0);
 });
 
+test("ordena primero la candidata cuyo concepto comparte el nombre del proveedor sin borrar la ambigüedad", () => {
+  const resultado = cruzarChequesSicarConTesoreria(
+    [{ ...cheque("MOV-PINK", 30000), comentario: "PINK UP" }],
+    [
+      cash("otro-concepto", 30000, { concept: "Compra para local" }),
+      cash("pink-up", 30000, { concept: "Abono proveedor Pink Up" }),
+    ],
+    branchId,
+  );
+
+  assert.equal(resultado.ambiguas, 1);
+  assert.equal(resultado.filas[0].estadoCruce, "AMBIGUA");
+  assert.equal(resultado.filas[0].candidatos[0].id, "pink-up");
+  assert.deepEqual(resultado.filas[0].candidatos[0].palabrasCoincidentes, ["PINK", "UP"]);
+  assert.match(resultado.aclaracion, /No confirma/);
+});
+
+test("usa descripción del cheque como concepto cuando falta comentario", () => {
+  const resultado = cruzarChequesSicarConTesoreria(
+    [{ ...cheque("MOV-PINK", 30000), descripcion: "Abono Pink Up" }],
+    [cash("pink-up", 30000, { concept: "Pago proveedor Pink Up" })],
+    branchId,
+  );
+
+  assert.equal(resultado.filas[0].conceptoSicar, "Abono Pink Up");
+  assert.deepEqual(resultado.filas[0].candidatos[0].palabrasCoincidentes, ["PINK", "UP"]);
+});
+
 test("acepta movimientos consolidados del negocio como candidatas de menor alcance y rechaza otra sucursal", () => {
   const resultado = cruzarChequesSicarConTesoreria(
     [cheque("MOV-1", 20000)],

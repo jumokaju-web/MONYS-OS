@@ -13,6 +13,7 @@ test("separa entradas y salidas por forma de pago sin llamar pago a proveedor", 
   assert.equal(resumen.totalSalidasCheque, 50000);
   assert.equal(resumen.chequesSinConcepto, 1);
   assert.equal(resumen.salidasCheque[0].fecha, "2026-10-19");
+  assert.equal(resumen.salidasCheque[0].tipoPago, "Pago a proveedor por cheque");
   assert.equal(resumen.salidasCheque.find((fila) => fila.monto === 20000).conceptoRegistrado, true);
   assert.deepEqual(resumen.grupos.map(({ tipo, metodo, movimientos, importe }) => ({ tipo, metodo, movimientos, importe })), [
     { tipo: "ENTRADA", metodo: "Efectivo", movimientos: 1, importe: 1000 },
