@@ -337,12 +337,13 @@ function HistorialMovimientos({
         {gruposPendientes.length > 0 && (
           <section aria-label="Movimientos repetidos para revisar juntos" className="movimientos-grupos">
             <h3>Coincidencias para revisar en grupo</h3>
-            <p>MONYS junta registros con la misma sucursal, cuenta, concepto y referencia. La coincidencia ayuda a revisarlos; no confirma por sí sola que tengan el mismo destino.</p>
+            <p>MONYS reúne registros con la misma sucursal, cuenta, concepto y referencia de origen. Esa referencia no confirma quién recibió el dinero; revisa cada renglón antes de clasificarlos juntos.</p>
             {gruposPendientes.map((grupo) => (
               <article key={grupo.id} className="movimientos-grupos__tarjeta">
                 <div>
                   <strong>{grupo.movimientos.length} movimientos · {formatoDinero(grupo.total)}</strong>
                   <p>{grupo.concept}</p>
+                  <small>Cuenta: {grupo.movimientos[0]?.account_name || "Sin cuenta identificada"}</small>
                   {grupo.counterparty && <small>Referencia de origen: {grupo.counterparty}. No confirma quién recibió el dinero.</small>}
                 </div>
                 <details>
@@ -482,6 +483,27 @@ function HistorialMovimientos({
             <h2 id="titulo-revision-grupo">Revisar {grupoEnRevision.movimientos.length} movimientos juntos</h2>
             <p><strong>Total agrupado: {formatoDinero(grupoEnRevision.total)}</strong></p>
             <p>El sistema no alterará fechas, importes ni conceptos originales. Solo actualizará la categoría, su tratamiento financiero y el estado de revisión.</p>
+            <details open>
+              <summary>Movimientos incluidos y sus referencias</summary>
+              <ul>
+                {grupoEnRevision.movimientos.map((movimiento) => {
+                  const fechaValor = movimiento.fecha || movimiento.occurred_at;
+                  const fechaVisible = movimiento.fecha
+                    ? String(movimiento.fecha)
+                    : fechaValor
+                    ? new Date(String(fechaValor).slice(0, 10) + "T12:00:00").toLocaleDateString("es-MX")
+                    : "Fecha no registrada";
+                  return (
+                    <li key={movimiento.id}>
+                      <span>{fechaVisible}</span>{" · "}
+                      <strong>{formatoDinero(movimiento.monto ?? movimiento.amount)}</strong>
+                      <small> · Cuenta: {movimiento.account_name || "Sin cuenta identificada"}</small>
+                      <small> · Referencia de origen: {movimiento.contraparte || movimiento.counterparty || "Sin referencia"}</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
             {grupoEnRevision.concept.toLocaleLowerCase("es-MX").includes("sin comentario") && (
               <p role="note" className="movimiento-grupo-modal__aviso">El reporte de SICAR no incluyó comentarios. Revisa cada fecha e importe antes de confirmar el mismo destino para todo el grupo.</p>
             )}
