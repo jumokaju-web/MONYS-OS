@@ -9,7 +9,9 @@ import {
   anularPagoProveedorSicar,
   obtenerPagosProveedoresSicar,
   registrarPagoProveedorSicar,
+  registrarPagosProveedoresSicar,
 } from "../../tesoreria/services/pagosProveedoresSicarService";
+import { agruparChequesPorProveedor } from "../utils/agruparChequesPorProveedor";
 
 const dinero = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const fecha = (valor) => valor ? new Date(`${valor}T12:00:00`).toLocaleDateString("es-MX") : "Fecha no identificada";
@@ -56,6 +58,12 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
     proveedoresCandidatos: [],
     estadoCruce: "SIN_COINCIDENCIA",
   }));
+  const gruposCheque = agruparChequesPorProveedor(filasChequeRelacion.map((fila, indice) => ({
+    fila,
+    detalle: detallePorCodigo.get(fila.codigoSicar),
+    indice,
+  })).filter((item) => !pagoPorDetalle.has(item.detalle?.id)));
+  const grupoPorIndice = new Map(gruposCheque.flatMap((grupo) => grupo.items.map((item) => [item.indice, grupo])));
 
   async function guardarPago(fila, detalle, clave) {
     if (!detalle?.id) return;
@@ -76,6 +84,29 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
       setPagos(await obtenerPagosProveedoresSicar(importacionId));
     } catch (error) {
       setErrorVinculo(error?.message || "No se pudo guardar el pago a proveedor.");
+    } finally {
+      setProcesando("");
+    }
+  }
+
+  async function guardarGrupoCheque(grupo) {
+    const tipoAplicacion = seleccionesPago[`grupo:${grupo.clave}`]?.tipo || "POR_DETERMINAR";
+    try {
+      setProcesando(`grupo:${grupo.clave}`);
+      setErrorVinculo("");
+      await registrarPagosProveedoresSicar(grupo.items.map(({ fila, detalle }) => ({
+        organizationId, businessId, branchId, importacionId, detalleId: detalle.id,
+        proveedorId: grupo.proveedor.id || null,
+        proveedorNombre: grupo.proveedor.nombre,
+        numeroProveedor: grupo.proveedor.numero_proveedor || grupo.proveedor.numeroProveedor || null,
+        tipoAplicacion,
+        fechaPago: fila.fecha,
+        importePago: fila.monto,
+        evidencia: `Lote confirmado de salidas por cheque SICAR; folio ${fila.codigoSicar || "sin folio"}; concepto: ${fila.conceptoSicar || "sin concepto"}`.slice(0, 500),
+      })));
+      setPagos(await obtenerPagosProveedoresSicar(importacionId));
+    } catch (error) {
+      setErrorVinculo(error?.message || "No se pudo guardar el grupo de cheques.");
     } finally {
       setProcesando("");
     }
@@ -163,6 +194,16 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
         <h4>Registro de pagos a proveedores</h4>
         {resumen.cruceTesoreria && <><p>{resumen.cruceTesoreria.candidatasUnicas} coincidencias únicas con Tesorería · {resumen.cruceTesoreria.ambiguas} ambiguas · {resumen.cruceTesoreria.sinCoincidencia} sin coincidencia exacta.</p><p>{resumen.cruceTesoreria.aclaracion} Una coincidencia candidata no modifica ninguno de los registros.</p></>}
         {!resumen.cruceTesoreria && <p>La comparación con Tesorería no estuvo disponible; puedes registrar proveedor y tipo de aplicación directamente desde el reporte SICAR.</p>}
+        {gruposCheque.length > 0 && <div style={{ display: "grid", gap: 10, margin: "14px 0" }}>
+          <b>Grupos sugeridos · una confirmación por proveedor</b>
+          {gruposCheque.map((grupo) => <article key={grupo.clave} style={{ padding: 14, border: "1px solid #d9c4ce", borderRadius: 10, background: "#fff" }}>
+            <strong>{grupo.proveedor.nombre}</strong> · {grupo.items.length} cheques · {dinero.format(grupo.total)}
+            <details style={{ marginTop: 6 }}><summary>Ver cheques incluidos</summary>{grupo.items.map(({ fila, indice }) => <div key={`${fila.codigoSicar}-${indice}`}>{fila.fecha} · {fila.codigoSicar || "sin folio"} · {dinero.format(fila.monto)}{fila.conceptoSicar ? ` · ${fila.conceptoSicar}` : ""}</div>)}</details>
+            <select aria-label={`Aplicación del grupo ${grupo.proveedor.nombre}`} value={seleccionesPago[`grupo:${grupo.clave}`]?.tipo || "POR_DETERMINAR"} onChange={(evento) => setSeleccionesPago((anterior) => ({ ...anterior, [`grupo:${grupo.clave}`]: { tipo: evento.target.value } }))}><option value="POR_DETERMINAR">Abono o liquidación: por confirmar</option><option value="ABONO">Abonos</option><option value="LIQUIDACION">Liquidaciones totales</option></select>
+            <button type="button" disabled={Boolean(procesando) || cargandoVinculos} onClick={() => guardarGrupoCheque(grupo)}>{procesando === `grupo:${grupo.clave}` ? "Guardando grupo…" : `Confirmar proveedor y guardar ${grupo.items.length} cheques`}</button>
+            <small style={{ display: "block" }}>Confirma solo si todos corresponden a {grupo.proveedor.nombre}. Los saldos no se modifican.</small>
+          </article>)}
+        </div>}
         {filasChequeRelacion.map((fila, indice) => {
           const detalle = detallePorCodigo.get(fila.codigoSicar);
           const conciliacion = detalle?.id ? conciliacionPorDetalle.get(detalle.id) : null;
@@ -184,9 +225,11 @@ export default function ResumenMovimientosCaja({ resumen, importacionId, organiz
           {vinculosAnulados.length > 0 && <details><summary>Historial de vínculos corregidos · {vinculosAnulados.length}</summary>{vinculosAnulados.map((vinculo) => <p key={vinculo.id}>{new Date(vinculo.anulado_en).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · Motivo: {vinculo.motivo_anulacion}</p>)}</details>}
           {(() => {
             const pago = detalle?.id ? pagoPorDetalle.get(detalle.id) : null;
+            const grupo = grupoPorIndice.get(indice);
             const clave = `${fila.codigoSicar}-${indice}`;
             const seleccion = seleccionesPago[clave] || {};
             if (pago) return <p><b>PAGO A PROVEEDOR REGISTRADO:</b> {pago.proveedor_nombre_snapshot} · {pago.tipo_aplicacion === "ABONO" ? "Abono" : pago.tipo_aplicacion === "LIQUIDACION" ? "Liquidación" : "Aplicación por determinar"} · {dinero.format(Number(pago.importe_pago))}<br /><button type="button" disabled={Boolean(procesando)} onClick={() => corregirPago(pago)}>{procesando === `pago-anular:${pago.id}` ? "Corrigiendo…" : "Corregir registro"}</button></p>;
+            if (grupo) return <p><b>Incluido en grupo de {grupo.proveedor.nombre}:</b> {grupo.items.length} cheques por {dinero.format(grupo.total)}. Revisa la confirmación del grupo arriba.</p>;
             return <div style={{ margin: "7px 0", padding: 10, borderRadius: 8, background: "#fff" }}>
               <b>Registrar a qué proveedor se pagó</b>
               {fila.proveedoresCandidatos?.length > 0 ? <select aria-label={`Proveedor del cheque ${fila.codigoSicar}`} value={seleccion.indice ?? (fila.proveedoresCandidatos.length === 1 ? "0" : "")} onChange={(evento) => {
