@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15076)
-Total output lines: 1917
-
 import './InicioJefa.css';
 import CortesHoyDireccion from './components/CortesHoyDireccion';
 import {
@@ -21,6 +18,7 @@ import {
 import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinancieroIA";
 import { obtenerEstadoCorte } from "./utils/estadoCorte";
 import { resumirCorteFinancieroDireccion } from "./utils/resumenFinancieroDireccion";
+import { resumirFlujoFlotilla } from "./utils/resumenFlujoFlotilla.js";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -37,7 +35,7 @@ export default function InicioJefa({
   ventasTotales = 0,
   utilidadTotal = 0,
   disponible = 0,
-  movimientosFlujo: _movimientosFlujo = [],
+  movimientosFlujo = [],
 fechaInicial = null,
 fechaFinal = null,
 movimientos = [],
@@ -253,13 +251,14 @@ movimientos = [],
   const cifrasConsolidadasDisponibles = ventasConsolidadas !== null && utilidadConsolidada !== null;
 
   const metricasFinancieras = datosDashboard?.metricas || {};
+  const movimientosDelCorte = Array.isArray(movimientosFlujo) ? movimientosFlujo : [];
   const costoConsolidado = Math.max(
     ventasConsolidadas - utilidadConsolidada,
     0,
   );
   const diasAnalizados = Number(metricasFinancieras.diasAnalizados) || 0;
   const analisisFinanciero = generarAnalisisFinanciero({
-    movimientos,
+    movimientos: movimientosDelCorte,
     ventasTotales: cifrasConsolidadasDisponibles ? ventasConsolidadas : ventasTotales,
     costoTotal:
       cifrasConsolidadasDisponibles && ventasConsolidadas > 0
@@ -291,31 +290,9 @@ movimientos = [],
     ["Utilidad después de gastos", cifrasConsolidadasDisponibles ? analisisFinanciero.utilidadNetaEstimada : null],
   ];
 
-  const movimientosFlotilla = movimientos.filter((movimiento) => {
-    const referencia = [
-      movimiento?.negocio,
-      movimiento?.categoria,
-      movimiento?.expense_category,
-      movimiento?.concepto,
-      movimiento?.concept,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return referencia.includes("flotilla") || referencia.includes("ruta");
-  });
-
-  const flujoFlotilla = movimientosFlotilla.reduce((total, movimiento) => {
-    const tipo = String(
-      movimiento?.tipo || movimiento?.movement_type || "",
-    ).toLowerCase();
-    const monto = Number(movimiento?.monto ?? movimiento?.amount ?? 0) || 0;
-
-    if (tipo.includes("entrada")) return total + monto;
-    if (tipo.includes("salida")) return total - monto;
-    return total;
-  }, 0);
+  const resumenFlotilla = resumirFlujoFlotilla(movimientosDelCorte);
+  const movimientosFlotilla = resumenFlotilla.movimientos;
+  const flujoFlotilla = resumenFlotilla.neto;
 
   const puntoEquilibrioDisponible = cifrasConsolidadasDisponibles && Number.isFinite(
     Number(analisisFinanciero.puntoEquilibrioVentas),
@@ -372,15 +349,15 @@ movimientos = [],
     },
     {
       id: "flotilla",
-      completada: movimientosFlotilla.length > 0,
-      prioridad: movimientosFlotilla.length > 0 ? "LISTO" : "MEDIO",
+      completada: movimientosFlotilla > 0,
+      prioridad: movimientosFlotilla > 0 ? "LISTO" : "MEDIO",
       titulo:
-        movimientosFlotilla.length > 0
+        movimientosFlotilla > 0
           ? "Flotilla identificada por separado"
           : "Separar el dinero de Flotilla",
       detalle:
-        movimientosFlotilla.length > 0
-          ? `${movimientosFlotilla.length} movimientos ya se reconocen como ruta o flotilla.`
+        movimientosFlotilla > 0
+          ? `${movimientosFlotilla} movimientos operativos de Flotilla están incluidos en este corte.`
           : "Etiquetar ingresos, combustible, mantenimiento y pago por unidad.",
       responsable: "Flotilla + Administración",
       boton: "Abrir Flotilla",
@@ -781,7 +758,16 @@ movimientos = [],
                     <strong>{valor === null ? "Por confirmar" : formatoDinero(valor)}</strong>
                   </div>
                 ))}
-              </d…76 tokens truncated…e={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
+              </div>
+              {!datosFinancierosVigentes && (
+                <div style={estiloAvisoDato}>
+                  Histórico: actualiza reportes antes de decidir.
+                </div>
+              )}
+            </article>
+
+            <article style={estiloPanelFinanciero}>
+              <div style={estiloTituloPanel}>⚖️ Punto de equilibrio</div>
               <strong style={estiloCifraFinanciera}>
                 {puntoEquilibrioDisponible
                   ? formatoDinero(analisisFinanciero.puntoEquilibrioVentas)
@@ -809,13 +795,13 @@ movimientos = [],
             <article style={estiloPanelFinanciero}>
               <div style={estiloTituloPanel}>🚚 Dinero de Flotilla</div>
               <strong style={estiloCifraFinanciera}>
-                {movimientosFlotilla.length > 0
+                {movimientosFlotilla > 0
                   ? formatoDinero(flujoFlotilla)
                   : "Pendiente de separar"}
               </strong>
               <p style={estiloTextoPanel}>
-                {movimientosFlotilla.length > 0
-                  ? `${movimientosFlotilla.length} movimientos identificados por ruta o flotilla.`
+                {movimientosFlotilla > 0
+                  ? `Entradas registradas: ${formatoDinero(resumenFlotilla.entradas)} · salidas operativas: ${formatoDinero(resumenFlotilla.salidas)}. Neto de este corte; transferencias internas excluidas.`
                   : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
               </p>
               <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
