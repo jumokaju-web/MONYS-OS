@@ -19,6 +19,8 @@ import { generarAnalisisFinanciero } from "../inteligencia/ia/directorFinanciero
 import { obtenerEstadoCorte } from "./utils/estadoCorte";
 import { resumirCorteFinancieroDireccion } from "./utils/resumenFinancieroDireccion";
 import { resumirFlujoFlotilla } from "./utils/resumenFlujoFlotilla.js";
+import { obtenerFacturasIngresoFlotillaPeriodo } from "./services/facturasIngresoFlotillaService.js";
+import { resumirFacturasFlotilla } from "./utils/resumenFacturasFlotilla.js";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -130,6 +132,35 @@ movimientos = [],
     errorRecordatorios,
     setErrorRecordatorios,
   ] = useState("");
+
+  const [facturasFlotilla, setFacturasFlotilla] = useState([]);
+  const [errorFacturasFlotilla, setErrorFacturasFlotilla] = useState("");
+  const [cargandoFacturasFlotilla, setCargandoFacturasFlotilla] = useState(false);
+
+  useEffect(() => {
+    let componenteActivo = true;
+    const organizationId = usuario?.organization_id || datosDashboard?.organization_id;
+    if (!organizationId || !fechaInicial || !fechaFinal) {
+      setFacturasFlotilla([]);
+      setErrorFacturasFlotilla("");
+      setCargandoFacturasFlotilla(false);
+      return () => { componenteActivo = false; };
+    }
+    setCargandoFacturasFlotilla(true);
+    setErrorFacturasFlotilla("");
+    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, desde: fechaInicial, hasta: fechaFinal })
+      .then((resultado) => {
+        if (componenteActivo) {
+          setFacturasFlotilla(resultado.facturas);
+          if (!resultado.negocioEncontrado) setErrorFacturasFlotilla("No se pudo identificar una sola empresa de Flotilla para este corte.");
+        }
+      })
+      .catch((error) => {
+        if (componenteActivo) setErrorFacturasFlotilla(error?.message || "No fue posible cargar las facturas de Flotilla.");
+      })
+      .finally(() => { if (componenteActivo) setCargandoFacturasFlotilla(false); });
+    return () => { componenteActivo = false; };
+  }, [datosDashboard?.organization_id, fechaFinal, fechaInicial, usuario?.organization_id]);
 
   useEffect(() => {
     let componenteActivo = true;
@@ -291,6 +322,7 @@ movimientos = [],
   ];
 
   const resumenFlotilla = resumirFlujoFlotilla(movimientosDelCorte);
+  const facturacionFlotilla = resumirFacturasFlotilla(facturasFlotilla);
   const movimientosFlotilla = resumenFlotilla.movimientos;
   const flujoFlotilla = resumenFlotilla.neto;
 
@@ -805,8 +837,9 @@ movimientos = [],
                   : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
               </p>
               <small style={{ ...estiloTextoPanel, display: "block", marginTop: "7px", opacity: 0.82 }}>
-                Este flujo no es utilidad ni dinero disponible. Las facturas de servicio aún requieren registro separado y conciliación bancaria.
+                Este flujo no es utilidad ni dinero disponible. Facturado por servicio: {cargandoFacturasFlotilla ? "Consultando…" : errorFacturasFlotilla ? "Pendiente de consulta" : formatoDinero(facturacionFlotilla.totalFacturado)} · {cargandoFacturasFlotilla || errorFacturasFlotilla ? "conciliación pendiente" : `${facturacionFlotilla.cantidadPendiente} facturas pendientes de conciliación bancaria`}.
               </small>
+              {errorFacturasFlotilla && <small role="status" style={{ ...estiloTextoPanel, color: "#9b233e" }}>{errorFacturasFlotilla}</small>}
               <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
                 Abrir Flotilla →
               </button>
