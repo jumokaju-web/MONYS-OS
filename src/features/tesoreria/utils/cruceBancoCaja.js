@@ -32,3 +32,8 @@ export function resumirCruceBancoCaja(banco = [], caja = [], conciliaciones = []
   sinCoincidencia: Math.max(0, banco.length - conciliados - candidatos - ambiguos),
  };
 }
+
+export function listarBancoSinCoincidencia(banco = [], caja = [], conciliaciones = []) {
+ const conCruce = new Set(cruzarBancoCaja(banco, caja, conciliaciones).map(item => item.banco.id));
+ return banco.filter(movimiento => !conCruce.has(movimiento.id));
+}
