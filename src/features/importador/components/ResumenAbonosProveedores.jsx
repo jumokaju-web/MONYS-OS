@@ -7,6 +7,7 @@ import {
 import { obtenerDetallesMovimientosCajaParaAbonos } from "../services/importadorService.js";
 import { obtenerMovimientosParaCruceSicar } from "../../tesoreria/services/tesoreriaService.js";
 import { cruzarAbonosConMovimientosSicar, detectarPosiblesDuplicadosAbono } from "../utils/conciliarAbonosProveedorSicar.js";
+import { prepararRegistrosEnlaceAbonos } from "../utils/prepararRegistrosEnlaceAbonos.js";
 
 const dinero = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const fechaLocal = (valor) => valor ? new Date(`${valor}T12:00:00`).toLocaleDateString("es-MX") : "Fecha no identificada";
@@ -74,30 +75,28 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
     return [...grupos.values()].map((grupo) => ({ ...grupo, total: grupo.totalCentavos / 100 }));
   }, [filas, pagosGuardados]);
 
-  async function registrarGrupo(grupo) {
+  const cantidadChequesEnlazables = gruposConfirmables.reduce((total, grupo) => total + grupo.items.length, 0);
+
+  async function registrarGrupos(grupos) {
     if (!importacionId) {
       setMensaje("Importa primero este reporte para dejar enlazada la evidencia SICAR.");
       return;
     }
     try {
-      setGuardandoProveedor(grupo.nombre);
+      setGuardandoProveedor("todos");
       setErrorCruce("");
       setMensaje("");
-      const registros = grupo.items.map(({ fila, detalle }) => ({
+      const registros = prepararRegistrosEnlaceAbonos(grupos, {
         organizationId: organizationId || usuario?.organization_id,
         businessId: businessId || usuario?.business_id,
         branchId,
-        importacionId: detalle.importacion_id,
-        detalleId: detalle.id,
-        proveedorNombre: fila.proveedorNombre,
-        tipoAplicacion: "POR_DETERMINAR",
-        fechaPago: fila.fecha,
-        importePago: fila.monto,
-        evidencia: `Importación de abonos ${importacionId}; archivo ${archivoNombre}; renglón ${fila.codigo}; folio ${fila.folioCheque || "sin folio"}; Caja ${fila.caja}; forma ${fila.metodoPago}; movimiento ${detalle.codigo || `renglón ${detalle.numero_fila}`}; aplicación a factura por confirmar.`.slice(0, 500),
-      }));
+        importacionId,
+        archivoNombre,
+      });
       const guardados = await registrarPagosProveedoresSicar(registros);
-      setPagosGuardados((anteriores) => new Set([...anteriores, ...grupo.items.map(({ detalle }) => detalle.id)]));
-      setMensaje(`${guardados.length} abono${guardados.length === 1 ? "" : "s"} de ${grupo.nombre} enlazado${guardados.length === 1 ? "" : "s"}. No se redujo el saldo del proveedor; la aplicación a factura sigue por confirmar.`);
+      setPagosGuardados((anteriores) => new Set([...anteriores, ...grupos.flatMap((grupo) => grupo.items.map(({ detalle }) => detalle.id))]));
+      const proveedores = [...new Set(grupos.map((grupo) => grupo.nombre))];
+      setMensaje(`${guardados.length} cheque${guardados.length === 1 ? "" : "s"} enlazado${guardados.length === 1 ? "" : "s"} con ${proveedores.length} proveedor${proveedores.length === 1 ? "" : "es"}. No se modificaron saldos ni movimientos; la aplicación a facturas queda por confirmar.`);
     } catch (error) {
       setErrorCruce(error?.message || "No se pudo guardar la atribución del proveedor.");
     } finally {
@@ -151,9 +150,9 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
         <strong>Revisión de posible duplicado · {fila.proveedorNombre} · {dinero.format(fila.monto)}</strong>
         {fila.posiblesDuplicados.map((movimiento) => <p key={movimiento.id}>{new Date(movimiento.occurred_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · {movimiento.concept} · {movimiento.counterparty || "sin referencia"} · la coincidencia no confirma duplicidad.</p>)}
       </article>)}
-      {puedeRegistrar && gruposConfirmables.map((grupo) => <button key={grupo.nombre} type="button" disabled={!importacionId || Boolean(guardandoProveedor)} onClick={() => registrarGrupo(grupo)} style={{ margin: "12px 10px 0 0" }}>
-        {guardandoProveedor === grupo.nombre ? "Guardando…" : `Enlazar ${grupo.items.length} cheque${grupo.items.length === 1 ? "" : "s"} de ${grupo.nombre} · ${dinero.format(grupo.total)}`}
-      </button>)}
+      {puedeRegistrar && cantidadChequesEnlazables > 0 && <button type="button" disabled={!importacionId || Boolean(guardandoProveedor)} onClick={() => registrarGrupos(gruposConfirmables)} style={{ margin: "12px 10px 0 0" }}>
+        {guardandoProveedor === "todos" ? "Enlazando…" : `Enlazar los ${cantidadChequesEnlazables} cheques exactos de ${gruposConfirmables.length} proveedores`}
+      </button>}
       {filas.some((fila) => fila.metodoPago === "EF") && <p>Los pagos en efectivo se conservan en el reporte, pero el registro de atribución actual cubre cheques. No se guardaron como cheques ni se confundieron con gasto operativo.</p>}
       {gruposConfirmables.length === 0 && !cargandoCruce && !errorCruce && <p>Por ahora no hay cheques con coincidencia única disponibles para enlazar.</p>}
       <p>La aplicación a facturas y la diferencia entre abono parcial y liquidación total quedan por confirmar.</p>
