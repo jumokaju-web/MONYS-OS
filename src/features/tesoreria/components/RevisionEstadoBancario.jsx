@@ -8,6 +8,8 @@ import CruceBancoCaja from './CruceBancoCaja';
 import DiagnosticoEstadoBancario from './DiagnosticoEstadoBancario';
 import { useUser } from '../../../context/UserContext';
 import { claveRevisionBancaria, guardarRevisionBancaria, recuperarRevisionBancaria } from '../utils/borradorEstadoBancario';
+import { obtenerFacturasIngresoFlotillaPeriodo } from '../../dashboard/services/facturasIngresoFlotillaService.js';
+import { proponerCrucesFacturasEstadoCuenta } from '../utils/cruceFacturasEstadoCuenta.js';
 const categorias = ['Cobro de flotilla', 'Cobro de tienda: conciliar SICAR', 'Transferencia interna', 'Combustible', 'Proveedor', 'Nómina', 'Gasto operativo', 'Pago de crédito', 'Pago de tarjeta', 'Préstamo por recuperar', 'Personal', 'Comisión bancaria / IVA', 'Crédito recibido', 'Recuperación de préstamo', 'Aportación de capital', 'Otro'];
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 const notaComunDeLote = categoria => categoria === 'Préstamo por recuperar'
@@ -37,6 +39,8 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   const [revisarComisiones, setRevisarComisiones] = useState(false);
   const [revisarTerminales, setRevisarTerminales] = useState(false);
   const [revisionId, setRevisionId] = useState(null);
+  const [facturasFlotilla, setFacturasFlotilla] = useState([]);
+  const [cargandoFacturasCruce, setCargandoFacturasCruce] = useState(false);
   useEffect(() => {
     if (!clave || usuario?.role !== 'owner') return undefined;
     let vigente = true;
@@ -72,6 +76,25 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
   }, [grupoLote]);
   const [revisarClasificacionSegura, setRevisarClasificacionSegura] = useState(false);
   const resumen = useMemo(() => paquete ? validarEstadoBancario(paquete) : null, [paquete]);
+  const periodoEstado = useMemo(() => {
+    const cuentas = paquete?.cuentas || [];
+    return cuentas.length ? {
+      desde: cuentas.map((item) => item.desde).sort()[0],
+      hasta: cuentas.map((item) => item.hasta).sort().at(-1),
+    } : null;
+  }, [paquete?.cuentas]);
+  useEffect(() => {
+    const organizationId = usuario?.organization_id;
+    if (!organizationId || !periodoEstado) { setFacturasFlotilla([]); return undefined; }
+    let vigente = true;
+    setCargandoFacturasCruce(true);
+    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, ...periodoEstado })
+      .then((resultado) => { if (vigente) setFacturasFlotilla(resultado.facturas); })
+      .catch((e) => { if (vigente) setError(e.message || 'No se pudieron consultar facturas de Flotilla.'); })
+      .finally(() => { if (vigente) setCargandoFacturasCruce(false); });
+    return () => { vigente = false; };
+  }, [usuario?.organization_id, periodoEstado]);
+  const crucesFacturas = useMemo(() => proponerCrucesFacturasEstadoCuenta(facturasFlotilla, paquete), [facturasFlotilla, paquete]);
   const filtrados = useMemo(() => (paquete?.movimientos || []).filter(m => (!cuenta || m.cuenta === cuenta) && (!grupo || (sugerirMovimientoBancario(m).categoria || 'Sin destino identificado') === grupo) && coincideBeneficiarioBancario(m, personaGrupo) && (!direccion || (direccion === 'entrada' ? Number(m.abono) > 0 : Number(m.cargo) > 0)) && (!pendientes || m.revision?.estado !== 'Confirmado') && [m.descripcion, m.referencia_visible, m.categoria, m.revision?.clasificacion, m.revision?.nota].join(' ').toLowerCase().includes(filtro.toLowerCase())), [paquete, cuenta, pendientes, filtro, direccion, grupo, personaGrupo]);
   useEffect(() => {
     if (!grupo && !personaGrupo) return;
@@ -208,6 +231,11 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
     {resumen && <>
       <div className="banco-resumen"><article><small>Saldo al cierre del estado</small><strong>{dinero(resumen.saldo)}</strong><small>No equivale a dinero disponible hoy</small></article><article><small>Control bancario</small><strong>{resumen.movimientos} movimientos</strong><small>{resumen.cuentas.length} cuentas cuadran</small></article><article><small>Por clasificar</small><strong>{paquete.movimientos.filter(m => m.revision?.estado !== 'Confirmado').length}</strong><small>Las pistas del banco requieren revisión</small></article></div>
       <div className="banco-cuentas">{resumen.cuentas.map(c => <article key={c.terminacion}><b>Cuenta ·{c.terminacion}</b><p>{c.desde} a {c.hasta}</p><p>Abonos {dinero(c.abonos)} · Cargos {dinero(c.cargos)}</p><strong>{dinero(c.final)} al cierre</strong></article>)}</div>
+      <section className="banco-sugerencias">
+        <h3>Cruce mensual · facturas pagadas de Flotilla</h3>
+        <p>MONYS compara importe exacto y fecha del cobro contra abonos del estado de cuenta, con una ventana de tres días. Solo sugiere candidatos; no confirma ni cambia saldos.</p>
+        {cargandoFacturasCruce ? <p>Consultando facturas del periodo…</p> : crucesFacturas.length === 0 ? <p>No hay facturas pagadas pendientes de cruzar en este periodo.</p> : <div className="banco-lista">{crucesFacturas.map(({ factura, candidatos, estado }) => <article key={factura.id}><div><b>Factura {factura.folio} · {factura.emisor}</b><p>Servicio {factura.periodo_desde} al {factura.periodo_hasta} · Cobro registrado {factura.pagada_en ? new Date(factura.pagada_en).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' }) : 'fecha pendiente'}</p><p>{estado === 'COINCIDENCIA_UNICA' ? 'Una coincidencia posible; falta confirmar.' : estado === 'AMBIGUA' ? 'Varias coincidencias; requiere revisión.' : 'Sin coincidencia exacta en importe y fecha.'}</p>{candidatos.map((movimiento) => <div key={movimiento.id} style={{ marginTop: 8, padding: 10, borderRadius: 8, background: '#faf5f8' }}><b>{movimiento.fecha_operacion} · Cuenta ·{movimiento.cuenta} · {dinero(movimiento.abono)}</b><p>{movimiento.descripcion}</p><small>Referencia: {movimiento.referencia_visible || 'No disponible'}</small><br/><button type="button" onClick={() => { setCuenta(movimiento.cuenta); setDireccion('entrada'); setFiltro(movimiento.descripcion || ''); setPendientes(false); setPagina(0); }}>Ver abono en el estado</button></div>)}</div><strong>{dinero(factura.total)}</strong></article>)}</div>}
+      </section>
       <div className="banco-filtros"><input aria-label="Buscar movimiento bancario" placeholder="Nombre, concepto o referencia" value={filtro} onChange={e => { setFiltro(e.target.value); setPagina(0); }} /><select aria-label="Cuenta bancaria" value={cuenta} onChange={e => { setCuenta(e.target.value); setPagina(0); }}><option value="">Todas las cuentas</option>{resumen.cuentas.map(c => <option key={c.terminacion} value={c.terminacion}>·{c.terminacion}</option>)}</select><select aria-label="Tipo de movimiento bancario" value={direccion} onChange={e => { setDireccion(e.target.value); setPagina(0); }}><option value="">Entradas y salidas</option><option value="entrada">Solo entradas</option><option value="salida">Solo salidas</option></select><label><input type="checkbox" checked={pendientes} onChange={e => { setPendientes(e.target.checked); setPagina(0); }} /> Solo pendientes</label><button onClick={descargar}>Descargar mi revisión</button></div>{reglasBancarias.length > 0 && <p className="banco-aviso">MONYS conserva {reglasBancarias.filter(r => r.categoria && !r.conflicto).length} reglas de clasificaciones anteriores. {reglasSugeridas ? `Encontró ${reglasSugeridas} coincidencias para revisar.` : 'Las usará cuando encuentre los mismos patrones.'} Ninguna se confirma automáticamente.</p>}
       {usuario?.role === 'owner' && planComisiones?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · comisiones identificadas</h3><p>{planComisiones.movimientos.length} cargos por {dinero(planComisiones.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Conceptos explícitos del banco; los otros pagos quedan fuera de este bloque.</p><button onClick={() => setRevisarComisiones(v => !v)}>{revisarComisiones ? 'Cerrar revisión del bloque' : 'Revisar comisiones juntas'}</button>{revisarComisiones && <div><p>Se clasificarán como Comisión bancaria / IVA y se guardará una nueva versión en MONYS. La asignación a negocio, sucursal o uso personal sigue pendiente. Los saldos bancarios se conservan y los movimientos de caja no cambian.</p><details><summary>Ver los {planComisiones.movimientos.length} cargos del bloque</summary><div className="banco-lista">{planComisiones.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.cargo)}</strong></article>)}</div></details><button onClick={guardarComisiones}>Clasificar {planComisiones.movimientos.length} comisiones y guardar en MONYS</button></div>}</section>}
       {usuario?.role === 'owner' && planTerminales?.movimientos.length > 0 && <section className="banco-sugerencias"><h3>Avanza por bloque · cobros de terminal</h3><p>{planTerminales.movimientos.length} abonos por {dinero(planTerminales.importe)} · {cuenta ? `Cuenta ·${cuenta}` : 'Todas las cuentas'}. Identificados por el banco; falta conciliarlos con SICAR.</p><button onClick={() => setRevisarTerminales(v => !v)}>{revisarTerminales ? 'Cerrar revisión de terminales' : 'Revisar cobros de terminal juntos'}</button>{revisarTerminales && <div><p>Se clasificarán como Cobro de tienda: conciliar SICAR y se guardará una nueva versión. Esta acción no agrega ventas ni confirma que coinciden con caja.</p><details><summary>Ver los {planTerminales.movimientos.length} abonos del bloque</summary><div className="banco-lista">{planTerminales.movimientos.map(m => <article key={m.id}><div><b>{m.descripcion}</b><p>{m.fecha_operacion} · Cuenta ·{m.cuenta}</p></div><strong>{dinero(m.abono)}</strong></article>)}</div></details><button onClick={guardarTerminales}>Identificar {planTerminales.movimientos.length} cobros y guardar en MONYS</button></div>}</section>}
