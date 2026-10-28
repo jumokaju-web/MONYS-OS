@@ -370,3 +370,58 @@ test("resta obligaciones operativas de la caja y exige revisión vigente para li
   const confirmado = resumirDisponibilidadFinanciera({ ...base, obligacionesOperativasConfirmadas: true });
   assert.equal(confirmado.dineroLibre, 8000);
 });
+
+test("bloquea liquidez consolidada y dinero libre si hay un turno de caja abierto", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    obligacionesOperativasConfirmadas: true,
+    sesionesCajaAbiertas: 1,
+    sesionesCajaConsultadas: true,
+  });
+  assert.equal(resumen.liquidezLocalizada, null);
+  assert.equal(resumen.dineroLibre, null);
+  assert.equal(resumen.bloqueoConsolidacion, true);
+  assert.ok(resumen.faltantes.some((item) => item.id === "sesiones-caja"));
+});
+
+test("bloquea consolidación con movimientos de Tesorería pendientes o si no se pudo consultar", () => {
+  const base = {
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    obligacionesOperativasConfirmadas: true,
+    sesionesCajaConsultadas: true,
+  };
+  const pendiente = resumirDisponibilidadFinanciera({ ...base, movimientosPendientes: 3, movimientosPendientesConsultados: true });
+  assert.equal(pendiente.liquidezLocalizada, null);
+  assert.equal(pendiente.dineroLibre, null);
+  assert.ok(pendiente.faltantes.some((item) => item.id === "movimientos-pendientes"));
+
+  const sinConsulta = resumirDisponibilidadFinanciera({ ...base, movimientosPendientesConsultados: false });
+  assert.equal(sinConsulta.liquidezLocalizada, null);
+  assert.equal(sinConsulta.dineroLibre, null);
+  assert.equal(sinConsulta.prioridad.destino, "bancos");
+});
+
+test("una diferencia de caja impide sumar bancos y efectivo como liquidez consolidada", () => {
+  const resumen = resumirDisponibilidadFinanciera({
+    hoy: "2026-10-15",
+    cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
+    cierre: { ...cierreCompleto, efectivoEntregado: 0, diferencias: 1 },
+    creditosProveedores: proveedoresConfirmados,
+    deudasConsultadas: true,
+    obligacionesOperativas: { completas: true, compromisos7Dias: 0 },
+    obligacionesOperativasConfirmadas: true,
+  });
+  assert.equal(resumen.liquidezLocalizada, null);
+  assert.equal(resumen.dineroLibre, null);
+  assert.equal(resumen.bloqueoConsolidacion, true);
+});
