@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
+import { sugerirMovimientoBancario, agruparSugerenciasBancarias, agruparPendientesPorNombre, clasificarGrupoBeneficiario, actualizarReglasBancarias, aplicarReglasBancarias, prepararLoteSugerido, clasificarLoteSugerido, prepararClasificacionSegura, clasificarSugerenciasSeguras } from '../../src/features/tesoreria/utils/sugerenciasBancarias.js';
 const movimiento = { cargo: '2750.00', abono: '0.00', fecha_operacion: '2026-09-01', fecha_liquidacion: '2026-09-02', categoria: 'Por aclarar' };
 test('un mensaje salarial con misma fecha e importe propone nómina sin aprobar', () => {
  const m = { ...movimiento, evidencia_whatsapp: [{ fecha: '2026-09-01', importe: 275000, texto: 'Pago sueldo Luis' }] };
@@ -125,4 +125,23 @@ test('no permite clasificar juntos un beneficiario si mezcla entradas y salidas'
   {...movimiento,id:'oscar-entrada',descripcion:'ABONO OSCAR',cargo:'0',abono:'200.00'},
  ]};
  assert.throws(()=>clasificarGrupoBeneficiario(paquete,'OSCAR','Personal','Pago a Oscar'),/mezcla salidas y entradas/);
+});
+test('recuerda clasificaciones confirmadas y las vuelve sugerencias pendientes en otro estado', () => {
+ const confirmado=(id,fecha,cargo)=>({...movimiento,id,fecha_operacion:fecha,fecha_liquidacion:fecha,cuenta:'0035',descripcion:'SPEI ENVIADO Mercado Pago',referencia_visible:'oscar alejandro jimenez',cargo,abono:'0.00',revision:{estado:'Confirmado',clasificacion:'Préstamo por recuperar',nota:'Adelanto recuperable confirmado.'}});
+ const estadoAnterior={version:1,cuentas:[],movimientos:[confirmado('a','2026-09-01','200.00'),confirmado('b','2026-09-02','300.00')]};
+ const conReglas=actualizarReglasBancarias(estadoAnterior);
+ assert.equal(conReglas.reglas_bancarias.length,1);
+ const nuevo={version:1,cuentas:[],movimientos:[{...movimiento,id:'nuevo',cuenta:'0035',descripcion:'SPEI ENVIADO Mercado Pago',referencia_visible:'OSCAR ALEJANDRO JIMENEZ',fecha_operacion:'2026-10-01',fecha_liquidacion:'2026-10-01'}]};
+ const aplicado=aplicarReglasBancarias(nuevo,conReglas.reglas_bancarias);
+ assert.equal(aplicado.sugeridas,1);
+ assert.equal(aplicado.paquete.movimientos[0].revision.estado,'Por revisar');
+ assert.equal(sugerirMovimientoBancario(aplicado.paquete.movimientos[0]).categoria,'Préstamo por recuperar');
+ assert.equal(aplicado.paquete.movimientos[0].revision.origen,'regla_historica_monys');
+});
+test('no aprende un patrón histórico que ya tuvo dos clasificaciones distintas', () => {
+ const fila=(id,categoria)=>({...movimiento,id,cuenta:'0035',descripcion:'SPEI ENVIADO Mercado Pago',referencia_visible:'oscar alejandro jimenez',revision:{estado:'Confirmado',clasificacion:categoria,nota:'Aclaración de titular.'}});
+ const guardado=actualizarReglasBancarias({movimientos:[fila('a','Préstamo por recuperar'),fila('b','Personal')]});
+ assert.equal(guardado.reglas_bancarias[0].conflicto,true);
+ const nuevo={movimientos:[{...movimiento,id:'nuevo',cuenta:'0035',descripcion:'SPEI ENVIADO Mercado Pago',referencia_visible:'oscar alejandro jimenez'}]};
+ assert.equal(aplicarReglasBancarias(nuevo,guardado.reglas_bancarias).sugeridas,0);
 });

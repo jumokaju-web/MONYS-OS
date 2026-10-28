@@ -1,5 +1,6 @@
 import { supabase } from '../../../supabase';
 import { validarEstadoBancario } from '../utils/validarEstadoBancario';
+import { actualizarReglasBancarias } from '../utils/sugerenciasBancarias';
 async function contexto(usuario) {
  if (!usuario?.auth_user_id || !usuario?.organization_id || !usuario?.business_id || !usuario?.branch_id || usuario.role !== 'owner') throw new Error('Se requiere una sesión de propietaria con negocio y sucursal.');
  const {data,error}=await supabase.auth.getUser();
@@ -8,9 +9,9 @@ async function contexto(usuario) {
 }
 const fallar = error => { throw new Error(`No se pudo acceder al guardado bancario: ${error.message}. Conserva tu revisión descargada. La tabla y sus permisos deben estar habilitados.`); };
 export async function guardarRevisionBanco(usuario,paquete) {
- validarEstadoBancario(paquete); const scope=await contexto(usuario);
- const {data,error}=await supabase.from('revisiones_bancarias').insert({...scope,paquete}).select('id,created_at').single();
- if(error)fallar(error); if(!data?.id)throw new Error('No se confirmó el guardado. Descarga tu revisión.'); return data;
+ const paqueteConReglas=actualizarReglasBancarias(paquete); validarEstadoBancario(paqueteConReglas); const scope=await contexto(usuario);
+ const {data,error}=await supabase.from('revisiones_bancarias').insert({...scope,paquete:paqueteConReglas}).select('id,created_at').single();
+ if(error)fallar(error); if(!data?.id)throw new Error('No se confirmó el guardado. Descarga tu revisión.'); return {...data,paquete:paqueteConReglas};
 }
 export async function recuperarRevisionBanco(usuario) {
  const scope=await contexto(usuario);let query=supabase.from('revisiones_bancarias').select('id,created_at,paquete');
