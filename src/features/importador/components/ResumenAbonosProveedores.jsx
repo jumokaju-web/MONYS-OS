@@ -62,7 +62,7 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
   const gruposConfirmables = useMemo(() => {
     const grupos = new Map();
     for (const fila of filas) {
-      if (fila.metodoPago !== "CH" || fila.estadoCruce !== "COINCIDENCIA_UNICA" || fila.posiblesDuplicados.length > 0) continue;
+      if (fila.metodoPago !== "CH" || fila.estadoCruce !== "COINCIDENCIA_UNICA") continue;
       const detalle = fila.coincidencias[0];
       if (pagosGuardados.has(detalle.id)) continue;
       const nombre = String(fila.proveedorNombre || "").trim();
@@ -76,6 +76,11 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
   }, [filas, pagosGuardados]);
 
   const cantidadChequesEnlazables = gruposConfirmables.reduce((total, grupo) => total + grupo.items.length, 0);
+  const filasCheque = filas.filter((fila) => fila.metodoPago === "CH");
+  const cantidadChequesEnlazados = filasCheque.filter((fila) =>
+    fila.estadoCruce === "COINCIDENCIA_UNICA" && pagosGuardados.has(fila.coincidencias[0]?.id)
+  ).length;
+  const cantidadChequesConCruce = filasCheque.filter((fila) => fila.estadoCruce === "COINCIDENCIA_UNICA").length;
 
   async function registrarGrupos(grupos) {
     if (!importacionId) {
@@ -127,12 +132,16 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
           <tbody>{filas.map((fila) => {
             const detalle = fila.estadoCruce === "COINCIDENCIA_UNICA" ? fila.coincidencias[0] : null;
             const pagoRegistrado = detalle && pagosGuardados.has(detalle.id);
-            const estado = fila.posiblesDuplicados.length > 0
-              ? `Posible registro repetido · ${fila.posiblesDuplicados.length} salida${fila.posiblesDuplicados.length === 1 ? "" : "s"} de Tesorería`
-              : fila.estadoCruce === "COINCIDENCIA_UNICA"
-              ? pagoRegistrado ? "Proveedor ya enlazado" : `Coincidencia única · ${detalle.codigo || `renglón ${detalle.numero_fila}`}`
-              : fila.estadoCruce === "AMBIGUA" ? `${fila.coincidencias.length} filas posibles · revisar`
-                : "Sin coincidencia exacta";
+            const estado = fila.estadoCruce === "COINCIDENCIA_UNICA"
+              ? pagoRegistrado
+                ? "Proveedor ya enlazado"
+                : fila.posiblesDuplicados.length > 0
+                  ? `Coincidencia SICAR exacta · revisar ${fila.posiblesDuplicados.length} movimiento${fila.posiblesDuplicados.length === 1 ? "" : "s"} de Tesorería`
+                  : `Coincidencia única · ${detalle.codigo || `renglón ${detalle.numero_fila}`}`
+              : fila.posiblesDuplicados.length > 0
+                ? `Coincidencia parecida en Tesorería · no confirma duplicidad`
+                : fila.estadoCruce === "AMBIGUA" ? `${fila.coincidencias.length} filas SICAR posibles · revisar`
+                  : "Sin coincidencia exacta en movimientos SICAR";
             return <tr key={fila.codigo}>
               <td style={{ padding: 8, borderBottom: "1px solid #f1e8ec" }}>{fechaLocal(fila.fecha)} · {fila.hora || "sin hora"}</td>
               <td style={{ padding: 8, borderBottom: "1px solid #f1e8ec" }}>{fila.proveedorNombre}<small style={{ display: "block" }}>Representante: {fila.representante || "sin dato"}</small></td>
@@ -147,14 +156,18 @@ export default function ResumenAbonosProveedores({ resumen, abonos = [], archivo
         </table>
       </div>
       {filas.filter((fila) => fila.posiblesDuplicados.length > 0).map((fila) => <article key={`duplicado-${fila.codigo}`} role="note" style={{ marginTop: 8, padding: 10, border: "1px solid #edc58c", borderRadius: 10, background: "#fff8ec" }}>
-        <strong>Revisión de posible duplicado · {fila.proveedorNombre} · {dinero.format(fila.monto)}</strong>
-        {fila.posiblesDuplicados.map((movimiento) => <p key={movimiento.id}>{new Date(movimiento.occurred_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · {movimiento.concept} · {movimiento.counterparty || "sin referencia"} · la coincidencia no confirma duplicidad.</p>)}
+        <strong>Coincidencia para revisar en Tesorería · {fila.proveedorNombre} · {dinero.format(fila.monto)}</strong>
+        {fila.posiblesDuplicados.map((movimiento) => <p key={movimiento.id}>{new Date(movimiento.occurred_at).toLocaleString("es-MX", { timeZone: "America/Mexico_City" })} · {movimiento.concept} · {movimiento.counterparty || "sin referencia"} · mismo proveedor, fecha e importe no bastan para confirmar un duplicado.</p>)}
       </article>)}
-      {puedeRegistrar && cantidadChequesEnlazables > 0 && <button type="button" disabled={!importacionId || Boolean(guardandoProveedor)} onClick={() => registrarGrupos(gruposConfirmables)} style={{ margin: "12px 10px 0 0" }}>
-        {guardandoProveedor === "todos" ? "Enlazando…" : `Enlazar los ${cantidadChequesEnlazables} cheques exactos de ${gruposConfirmables.length} proveedores`}
+      {filasCheque.length > 0 && <p role="status" style={{ padding: 12, borderRadius: 10, background: "#f7f1f4" }}>
+        Cheques: {filasCheque.length} reportados · {cantidadChequesEnlazados} ya enlazados · {cantidadChequesEnlazables} listos para enlazar
+        {cantidadChequesConCruce < filasCheque.length ? ` · ${filasCheque.length - cantidadChequesConCruce} requieren revisión del cruce SICAR` : ""}.
+      </p>}
+      {puedeRegistrar && cantidadChequesEnlazables > 0 && <button type="button" disabled={!importacionId || Boolean(guardandoProveedor)} onClick={() => registrarGrupos(gruposConfirmables)} style={{ minHeight: 44, padding: "10px 16px", margin: "12px 10px 0 0", border: 0, borderRadius: 9, background: "#6d3553", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+        {guardandoProveedor === "todos" ? "Enlazando…" : `Enlazar ${cantidadChequesEnlazables} cheques exactos`}
       </button>}
       {filas.some((fila) => fila.metodoPago === "EF") && <p>Los pagos en efectivo se conservan en el reporte, pero el registro de atribución actual cubre cheques. No se guardaron como cheques ni se confundieron con gasto operativo.</p>}
-      {gruposConfirmables.length === 0 && !cargandoCruce && !errorCruce && <p>Por ahora no hay cheques con coincidencia única disponibles para enlazar.</p>}
+      {cantidadChequesEnlazables === 0 && !cargandoCruce && !errorCruce && <p>Por ahora no hay cheques con coincidencia única pendientes de enlace.</p>}
       <p>La aplicación a facturas y la diferencia entre abono parcial y liquidación total quedan por confirmar.</p>
     </section>
   );
