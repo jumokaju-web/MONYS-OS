@@ -14,6 +14,7 @@ import {
   ejecutarEvaluacionTareaIA,
 } from "../services/tareasOperativasService";
 
+import { fechaConsejoValida } from '../utils/seguimientoConsejo';
 import RutinaTienda from "./RutinaTienda";
 import ControlDiarioSucursal from "./ControlDiarioSucursal";
 import { fechaActualMexico } from "../services/asistenciaOperativaService";
@@ -69,6 +70,7 @@ function etiquetaPrioridad(
 
 
 export default function OperacionHoy({
+  fechaInicial = null,
   organizationId = null,
   businessId = null,
   branchId = null,
@@ -115,6 +117,8 @@ export default function OperacionHoy({
     fechaActualMexico();
 
 
+  const [fechaConsulta,setFechaConsulta]=useState(()=>fechaConsejoValida(fechaInicial)?fechaInicial:fechaActualMexico());
+
   async function cargarTareas() {
   try {
     setCargando(true);
@@ -124,7 +128,7 @@ export default function OperacionHoy({
     const data =
       await obtenerTareasOperativas({
         branchId,
-        fecha: fechaHoy,
+        fecha: fechaConsulta,
       });
 
  
@@ -182,7 +186,7 @@ export default function OperacionHoy({
     cargarTareas();
   }, [
     branchId,
-    fechaHoy,
+    fechaConsulta,
   ]);
 
 
@@ -510,6 +514,8 @@ export default function OperacionHoy({
           >
             {fechaHoy}
           </p>
+          <label>Consultar tareas del día<input type="date" value={fechaConsulta} onChange={e=>{if(fechaConsejoValida(e.target.value))setFechaConsulta(e.target.value);}} /></label>
+          <p>La consulta cambia las tareas visibles; asistencia, rutina y nuevas tareas siguen correspondiendo a hoy.</p>
         </div>
 
         <div
