@@ -366,6 +366,10 @@ export async function analizarPatronesCierresIA({
     );
   }
 
+  if (data.guardado === false) {
+    throw new Error(data.advertencia || "El análisis no se guardó. Selecciona una sucursal y vuelve a intentarlo; no se crearán tareas desde un resultado sin guardar.");
+  }
 
   return data;
 }
+

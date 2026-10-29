@@ -1,16 +1,62 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { createClient } from
-  "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.7";
 
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
+
+function rechazar(status, mensaje) {
+  throw Object.assign(new Error(mensaje), { status });
+}
+
+async function sesionAutorizada(req, roles = null) {
+  const authorization = req.headers.get("Authorization") || "";
+  const token = /^Bearer\s+(\S+)$/i.exec(authorization)?.[1];
+  if (!token) rechazar(401, "Inicia sesión para usar el análisis operativo.");
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anonKey) rechazar(503, "No se pudo verificar el acceso.");
+  const cliente = createClient(url, anonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: identidad, error: errorIdentidad } = await cliente.auth.getUser(token);
+  if (errorIdentidad || !identidad?.user?.id || identidad.user.is_anonymous === true) {
+    rechazar(401, "La sesión no es válida. Inicia sesión de nuevo.");
+  }
+  const { data: perfil, error: errorPerfil } = await cliente.from("usuarios")
+    .select("auth_user_id, organization_id, business_id, branch_id, role, active")
+    .eq("auth_user_id", identidad.user.id).maybeSingle();
+  if (errorPerfil) rechazar(503, "No se pudo verificar tu autorización.");
+  if (!perfil || perfil.auth_user_id !== identidad.user.id || perfil.active !== true
+    || !perfil.organization_id || (roles && !roles.includes(perfil.role))) {
+    rechazar(403, "Tu cuenta no tiene autorización para este análisis.");
+  }
+  return { cliente, perfil, usuarioId: identidad.user.id, url };
+}
+
+async function verificarSucursal(cliente, perfil, branchId) {
+  if (!branchId) rechazar(403, "El recurso no tiene una sucursal autorizada.");
+  const { data: sucursal, error: errorSucursal } = await cliente.from("branches")
+    .select("id, business_id").eq("id", branchId).maybeSingle();
+  if (errorSucursal || sucursal?.id !== branchId || !sucursal?.business_id) rechazar(403, "No se pudo autorizar la sucursal.");
+  const { data: negocio, error: errorNegocio } = await cliente.from("businesses")
+    .select("id, organization_id").eq("id", sucursal.business_id).maybeSingle();
+  if (errorNegocio || !negocio || negocio.id !== sucursal.business_id || negocio.organization_id !== perfil.organization_id
+    || (perfil.business_id && perfil.business_id !== negocio.id)
+    || (!["owner", "admin"].includes(perfil.role)
+      && (perfil.branch_id !== branchId || perfil.business_id !== negocio.id))) {
+    rechazar(403, "El recurso está fuera de tu organización o alcance operativo.");
+  }
+  return sucursal;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,58 +69,17 @@ Deno.serve(async (req) => {
   }
 
 
+  if (req.method !== "POST") return new Response(JSON.stringify({ ok: false, error: "Método no permitido." }), {
+    status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
   try {
-    const {
-      cierreId,
-    } = await req.json();
-
-
-    if (!cierreId) {
-      throw new Error(
-        "Falta cierreId."
-      );
-    }
-
-
-    const supabaseUrl =
-      Deno.env.get(
-        "SUPABASE_URL"
-      );
-
-    const serviceRoleKey =
-      Deno.env.get(
-        "SUPABASE_SERVICE_ROLE_KEY"
-      );
-
-    const openAiKey =
-      Deno.env.get(
-        "OPENAI_API_KEY"
-      );
-
-
-    if (
-      !supabaseUrl ||
-      !serviceRoleKey
-    ) {
-      throw new Error(
-        "Falta configuración de Supabase."
-      );
-    }
-
-
-    if (!openAiKey) {
-      throw new Error(
-        "Falta OPENAI_API_KEY."
-      );
-    }
-
-
-    const supabase =
-      createClient(
-        supabaseUrl,
-        serviceRoleKey
-      );
-
+    const sesion = await sesionAutorizada(req);
+    const { cliente: supabase, perfil, usuarioId, url } = sesion;
+    const body = await req.json();
+    const cierreId = typeof body?.cierreId === "string" ? body.cierreId.trim() : null;
+    if (!cierreId) rechazar(400, "Falta cierreId.");
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
 
     const {
       data: cierre,
@@ -85,6 +90,7 @@ Deno.serve(async (req) => {
       )
       .select(`
         id,
+        created_by,
         branch_id,
         responsable,
         turno,
@@ -104,17 +110,14 @@ Deno.serve(async (req) => {
       .single();
 
 
-    if (errorCierre) {
-      throw errorCierre;
+    if (errorCierre || !cierre || cierre.id !== cierreId) rechazar(403, "No tienes acceso a este cierre.");
+    await verificarSucursal(supabase, perfil, cierre.branch_id);
+    if (!["owner", "admin"].includes(perfil.role) && cierre.created_by !== usuarioId) {
+      rechazar(403, "Solo puedes analizar tus propios cierres.");
     }
-
-
-    if (!cierre) {
-      throw new Error(
-        "No se encontró el cierre."
-      );
-    }
-
+    if (!openAiKey) throw new Error("Falta OPENAI_API_KEY.");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRoleKey) rechazar(503, "No se pudo preparar el guardado del análisis.");
 
     const respuestaIA =
       await fetch(
@@ -361,9 +364,20 @@ urgente = requiere atención inmediata
       );
 
 
+    // cierres_turno_analisis no permite INSERT al usuario por sus políticas.
+    // La clave privilegiada se usa EXCLUSIVAMENTE para persistir este resultado,
+    // tras revalidar el mismo recurso con el cliente RLS. Nunca realiza lecturas.
+    const { data: cierreVigente, error: errorVigente } = await supabase.from("cierres_turno")
+      .select("id, branch_id, created_by").eq("id", cierreId).single();
+    if (errorVigente || !cierreVigente || cierreVigente.branch_id !== cierre.branch_id
+      || cierreVigente.created_by !== cierre.created_by) rechazar(403, "El cierre dejó de estar autorizado.");
+    await verificarSucursal(supabase, perfil, cierreVigente.branch_id);
+    const escritorResultado = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     const {
       error: errorGuardarAnalisis,
-    } = await supabase
+    } = await escritorResultado
       .from(
         "cierres_turno_analisis"
       )
@@ -444,7 +458,7 @@ urgente = requiere atención inmediata
             : "Error desconocido.",
       }),
       {
-        status: 400,
+        status: error?.status || 400,
 
         headers: {
           ...corsHeaders,
