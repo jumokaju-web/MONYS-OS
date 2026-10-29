@@ -34,3 +34,24 @@ test("la decisión explica el presupuesto pendiente y muestra cinco prioridades"
   assert.doesNotMatch(html, /Producto 5/);
   await server.close();
 });
+
+test("el historial no convierte un presupuesto pendiente en cero", async () => {
+  process.env.VITE_SUPABASE_URL = "https://example.supabase.co";
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "test-only-placeholder";
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" });
+  try {
+    const { DecisionFinancieraPlan } = await server.ssrLoadModule("/src/features/inventario/components/HistorialCompraMaestra.jsx");
+    const html = renderToString(React.createElement(DecisionFinancieraPlan, { plan: { resumen: { decisionFinanciera: {
+      estado: "PENDIENTE_DATOS",
+      compraAutorizable: false,
+      inversionPropuesta: 1000,
+      capacidadAutorizable: null,
+      faltanteParaAutorizar: null,
+    } } } }));
+    assert.match(html, /Presupuesto pendiente de confirmar/);
+    assert.equal((html.match(/Pendiente/g) || []).length >= 2, true);
+    assert.doesNotMatch(html, /\$0\.00/);
+  } finally {
+    await server.close();
+  }
+});

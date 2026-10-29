@@ -15,8 +15,9 @@ function formatearNumero(valor) {
 }
 
 function formatearDinero(valor) {
+  if (valor === null || valor === undefined || valor === "") return "Pendiente";
   return Number(
-    valor || 0
+    valor
   ).toLocaleString(
     "es-MX",
     {
@@ -77,7 +78,7 @@ function obtenerTextoEstado(
   }
 }
 
-function DecisionFinancieraPlan({
+export function DecisionFinancieraPlan({
   plan,
 }) {
   const decision =
