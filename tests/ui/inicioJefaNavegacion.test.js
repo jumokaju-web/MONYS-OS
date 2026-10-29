@@ -22,7 +22,9 @@ test("la portada de Dirección abre compacta y ofrece navegación por botones", 
     assert.match(html, />Gráficas</);
     assert.match(html, />Operación</);
     assert.match(html, />Áreas</);
-    assert.match(html, /Lo que necesita tu atención/);
+    assert.match(html, /Tu negocio hoy/);
+    assert.match(html, /🏠/);
+    assert.match(html, /📈/);
     assert.doesNotMatch(html, /Del rescate a un negocio franquiciable/);
   } finally {
     await server.close();
