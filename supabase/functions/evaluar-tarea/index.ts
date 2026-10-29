@@ -1,16 +1,46 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-import { createClient } from
-  "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.7";
 
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
+
+function rechazar(status, mensaje) {
+  throw Object.assign(new Error(mensaje), { status });
+}
+
+async function sesionAutorizada(req, roles = null) {
+  const authorization = req.headers.get("Authorization") || "";
+  const token = /^Bearer\s+(\S+)$/i.exec(authorization)?.[1];
+  if (!token) rechazar(401, "Inicia sesión para usar el análisis operativo.");
+  const url = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anonKey) rechazar(503, "No se pudo verificar el acceso.");
+  const cliente = createClient(url, anonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: identidad, error: errorIdentidad } = await cliente.auth.getUser(token);
+  if (errorIdentidad || !identidad?.user?.id || identidad.user.is_anonymous === true) {
+    rechazar(401, "La sesión no es válida. Inicia sesión de nuevo.");
+  }
+  const { data: perfil, error: errorPerfil } = await cliente.from("usuarios")
+    .select("auth_user_id, organization_id, business_id, branch_id, role, active")
+    .eq("auth_user_id", identidad.user.id).maybeSingle();
+  if (errorPerfil) rechazar(503, "No se pudo verificar tu autorización.");
+  if (!perfil || perfil.auth_user_id !== identidad.user.id || perfil.active !== true
+    || !perfil.organization_id || (roles && !roles.includes(perfil.role))) {
+    rechazar(403, "Tu cuenta no tiene autorización para este análisis.");
+  }
+  return { cliente, perfil, usuarioId: identidad.user.id, url };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,64 +53,23 @@ Deno.serve(async (req) => {
   }
 
 
+  if (req.method !== "POST") return new Response(JSON.stringify({ ok: false, error: "Método no permitido." }), {
+    status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
   let tareaId = null;
   let supabase = null;
+  let tareaAutorizada = false;
 
 
   try {
-    const body =
-      await req.json();
-
-    tareaId =
-      body?.tareaId || null;
-
-
-    if (!tareaId) {
-      throw new Error(
-        "Falta tareaId."
-      );
-    }
-
-
-    const supabaseUrl =
-      Deno.env.get(
-        "SUPABASE_URL"
-      );
-
-    const serviceRoleKey =
-      Deno.env.get(
-        "SUPABASE_SERVICE_ROLE_KEY"
-      );
-
-    const openAiKey =
-      Deno.env.get(
-        "OPENAI_API_KEY"
-      );
-
-
-    if (
-      !supabaseUrl ||
-      !serviceRoleKey
-    ) {
-      throw new Error(
-        "Falta configuración de Supabase."
-      );
-    }
-
-
-    if (!openAiKey) {
-      throw new Error(
-        "Falta OPENAI_API_KEY."
-      );
-    }
-
-
-    supabase =
-      createClient(
-        supabaseUrl,
-        serviceRoleKey
-      );
-
+    const sesion = await sesionAutorizada(req);
+    supabase = sesion.cliente;
+    const { perfil, usuarioId } = sesion;
+    const body = await req.json();
+    tareaId = typeof body?.tareaId === "string" ? body.tareaId.trim() : null;
+    if (!tareaId) rechazar(400, "Falta tareaId.");
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
 
     const {
       data: tarea,
@@ -91,6 +80,10 @@ Deno.serve(async (req) => {
       )
       .select(`
         id,
+        organization_id,
+        business_id,
+        branch_id,
+        responsable_usuario_id,
         titulo,
         descripcion,
         area,
@@ -106,10 +99,18 @@ Deno.serve(async (req) => {
       .single();
 
 
-    if (errorTarea) {
-      throw errorTarea;
+    if (errorTarea || !tarea || tarea.id !== tareaId || tarea.organization_id !== perfil.organization_id) {
+      rechazar(403, "No tienes acceso a esta tarea.");
     }
-
+    if (perfil.role !== "owner" && (tarea.business_id !== perfil.business_id
+      || tarea.branch_id !== perfil.branch_id
+      || (perfil.role !== "admin" && tarea.responsable_usuario_id !== usuarioId))) {
+      rechazar(403, "La tarea está fuera de tu alcance operativo.");
+    }
+    // El rescate nunca se habilita por un ID aportado por el cliente: únicamente
+    // después de leer y autorizar la tarea con la sesión y las políticas RLS.
+    tareaAutorizada = true;
+    if (!openAiKey) throw new Error("Falta OPENAI_API_KEY.");
 
     const {
       data: evidencias,
@@ -605,6 +606,7 @@ revision_humana = evidencia insuficiente o ambigua
      * en ANALIZANDO.
      */
     if (
+      tareaAutorizada &&
       supabase &&
       tareaId
     ) {
@@ -665,7 +667,7 @@ revision_humana = evidencia insuficiente o ambigua
           mensajeError,
       }),
       {
-        status: 400,
+        status: error?.status || 400,
 
         headers: {
           ...corsHeaders,
