@@ -673,7 +673,7 @@ export function directorRHIA({
     ==========================================
   */
 
-  const accionesPrioritarias =
+  const agendaCompleta =
     [...alertas]
       .sort(
         (a, b) =>
@@ -683,8 +683,9 @@ export function directorRHIA({
           obtenerNivelPrioridad(
             b.prioridad
           )
-      )
-      .slice(0, 5);
+      );
+
+  const accionesPrioritarias = agendaCompleta.slice(0, 5);
 
   /*
     ==========================================
@@ -816,6 +817,7 @@ export function directorRHIA({
 
     recomendaciones,
 
+    agendaCompleta,
     accionesPrioritarias,
 
     generadoEn:

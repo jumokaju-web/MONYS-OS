@@ -1282,7 +1282,7 @@ function generarAccionesPrioritarias(
       ] || 4)
   );
 
-  return acciones.slice(0, 5);
+  return acciones;
 }
 
 export function directorComercialIA(
@@ -1325,7 +1325,7 @@ export function directorComercialIA(
   );
 
 
-const accionesPrioritarias =
+const agendaCompleta =
   generarAccionesPrioritarias(
     indicadores,
     inventarioProductoLider
@@ -1357,7 +1357,8 @@ const accionesPrioritarias =
 
     planAccion,
 
-    accionesPrioritarias,
+    agendaCompleta,
+    accionesPrioritarias: agendaCompleta.slice(0, 5),
 
     generadoEn:
       new Date().toISOString(),

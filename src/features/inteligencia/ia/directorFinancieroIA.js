@@ -1193,6 +1193,7 @@ ventasSobrePuntoEquilibrio,
     alertasFinancieras,
     decisionPrioritaria,
 
+    agendaCompleta: accionesPrioritarias,
     accionesPrioritarias:
       accionesPrioritariasTop,
 
