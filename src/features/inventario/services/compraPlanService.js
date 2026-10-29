@@ -1,4 +1,5 @@
 import { supabase } from "../../../supabase";
+import { construirResumenPlanCompra } from "../utils/resumenPlanCompra";
 
 function convertirNumero(valor) {
   const numero = Number(valor);
@@ -342,99 +343,7 @@ export async function guardarPlanCompra({
   let planId = null;
 
   try {
-    const inversionPropuesta =
-      Math.max(
-        0,
-        convertirNumero(
-          decisionFinanciera
-            ?.inversionPropuesta ??
-            compraMaestra
-              ?.inversionTotal
-        )
-      );
-
-    const capacidadAutorizable =
-      Math.max(
-        0,
-        convertirNumero(
-          decisionFinanciera
-            ?.capacidadAutorizable
-        )
-      );
-
-    const compraAutorizable =
-      decisionFinanciera
-        ?.compraAutorizable === true;
-
-    const faltanteParaAutorizar =
-      Math.max(
-        0,
-        convertirNumero(
-          decisionFinanciera
-            ?.faltanteParaAutorizar
-        ) ||
-          inversionPropuesta -
-            capacidadAutorizable
-      );
-
-    const resumen = {
-      totalProductosRevisionInventario:
-        convertirNumero(
-          compraMaestra
-            ?.totalProductosRevisionInventario
-        ),
-
-      totalTraspasos:
-        planTraspasos.length,
-
-      totalPiezasTraspaso:
-        planTraspasos.reduce(
-          (
-            total,
-            traspaso
-          ) =>
-            total +
-            Math.max(
-              0,
-              convertirNumero(
-                traspaso
-                  ?.cantidadSugerida
-              )
-            ),
-          0
-        ),
-
-      fechaGeneracion:
-        new Date()
-          .toISOString(),
-
-      version:
-        "compra_maestra_v1",
-
-      decisionFinanciera: {
-        compraAutorizable,
-
-        estado:
-          compraAutorizable
-            ? "AUTORIZABLE"
-            : "NO_AUTORIZABLE",
-
-        inversionPropuesta,
-
-        capacidadAutorizable,
-
-        faltanteParaAutorizar,
-
-        motivo:
-          limpiarTexto(
-            decisionFinanciera
-              ?.motivo
-          ) ||
-          (compraAutorizable
-            ? "La inversión propuesta está dentro de la capacidad financiera disponible."
-            : "La inversión propuesta supera la capacidad financiera disponible."),
-      },
-    };
+    const resumen = construirResumenPlanCompra({ compraMaestra, decisionFinanciera });
 
     const {
       data: planGuardado,
@@ -626,7 +535,8 @@ export async function guardarPlanCompra({
 }
 
 export async function obtenerHistorialPlanesCompra(
-  limite = 20
+  limite = 20,
+  businessId = null
 ) {
   const limiteSeguro = Math.max(
     1,
@@ -636,10 +546,7 @@ export async function obtenerHistorialPlanesCompra(
     )
   );
 
-  const {
-    data,
-    error,
-  } = await supabase
+  let consulta = supabase
     .from("compra_planes")
     .select(`
       id,
@@ -653,7 +560,16 @@ export async function obtenerHistorialPlanesCompra(
       inversion_total,
       resumen,
       created_at
-    `)
+    `);
+
+  if (businessId) {
+    consulta = consulta.eq("business_id", businessId);
+  }
+
+  const {
+    data,
+    error,
+  } = await consulta
     .order(
       "fecha_plan",
       {
@@ -880,7 +796,8 @@ function normalizarTraspasosParaComparar(
 }
 
 export async function verificarPlanActualGuardado(
-  compraMaestra
+  compraMaestra,
+  businessId = null
 ) {
   if (!compraMaestra) {
     return {
@@ -889,10 +806,7 @@ export async function verificarPlanActualGuardado(
     };
   }
 
-  const {
-    data: planes,
-    error: errorPlan,
-  } = await supabase
+  let consultaPlan = supabase
     .from("compra_planes")
     .select(`
       id,
@@ -901,7 +815,16 @@ export async function verificarPlanActualGuardado(
       total_cubierto_por_traspasos,
       total_piezas_comprar,
       inversion_total
-    `)
+    `);
+
+  if (businessId) {
+    consultaPlan = consultaPlan.eq("business_id", businessId);
+  }
+
+  const {
+    data: planes,
+    error: errorPlan,
+  } = await consultaPlan
     .order(
       "fecha_plan",
       {

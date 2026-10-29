@@ -10,6 +10,7 @@ import {
 import {
   generarRecomendacionesRebalanceo,
 } from "./rebalanceoInventarioService";
+import { calcularMargenComercial } from "../utils/margenProducto";
 
 const DIAS_COBERTURA_OBJETIVO = 30;
 
@@ -24,6 +25,12 @@ function convertirNumero(valor) {
 function limpiarTexto(valor) {
   return String(valor ?? "")
     .trim();
+}
+
+function fechaCorta(valor) {
+  if (!valor) return null;
+  const fecha = valor instanceof Date ? valor : new Date(valor);
+  return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString().slice(0, 10);
 }
 
 function normalizarTexto(valor) {
@@ -126,6 +133,14 @@ function obtenerPrecioCompra(
         0
     )
   );
+}
+
+function obtenerPrecioVenta(detalle) {
+  const originales = obtenerDatosOriginales(detalle);
+  return Math.max(0, convertirNumero(
+    detalle?.precioVenta ?? detalle?.precio_venta ??
+    originales.precioVenta ?? originales.precio_venta ?? 0
+  ));
 }
 
 function obtenerCantidadVendida(
@@ -294,10 +309,14 @@ function construirMapaInventario(
 
         existencia,
 
-        precioCompra:
-          obtenerPrecioCompra(
-            detalle
-          ),
+        precioCompra: obtenerPrecioCompra(detalle),
+
+        precioVenta: obtenerPrecioVenta(detalle),
+
+        margenPorcentaje: calcularMargenComercial(
+          obtenerPrecioCompra(detalle),
+          obtenerPrecioVenta(detalle)
+        ),
       });
     }
   }
@@ -526,20 +545,16 @@ function calcularNecesidadSucursal({
   };
 }
 
-export async function generarCompraMaestra() {
-  const [
-    inventariosPorSucursal,
-    ventasPorSucursal,
-    sucursales,
-    recomendacionesRebalanceo,
-  ] = await Promise.all([
-    obtenerUltimosInventariosPorSucursal(),
-
-    obtenerUltimasVentasPorSucursal(),
-
-    obtenerSucursalesInventario(),
-
-    generarRecomendacionesRebalanceo(),
+export async function generarCompraMaestra(businessId = null) {
+  const sucursales = await obtenerSucursalesInventario(businessId);
+  const branchIds = sucursales.map((sucursal) => sucursal?.id).filter(Boolean);
+  if (businessId && branchIds.length === 0) {
+    throw new Error("El negocio activo no tiene sucursales disponibles para calcular Compra Maestra.");
+  }
+  const [inventariosPorSucursal, ventasPorSucursal, recomendacionesRebalanceo] = await Promise.all([
+    obtenerUltimosInventariosPorSucursal(branchIds),
+    obtenerUltimasVentasPorSucursal(branchIds),
+    generarRecomendacionesRebalanceo(businessId),
   ]);
 
   const mapaVentasPorSucursal =
@@ -756,6 +771,12 @@ export async function generarCompraMaestra() {
           precioCompra:
             producto.precioCompra,
 
+          precioVenta:
+            producto.precioVenta,
+
+          margenPorcentaje:
+            producto.margenPorcentaje,
+
           compraTotal: 0,
 
           necesidadTotalAntesTraspasos:
@@ -810,6 +831,14 @@ export async function generarCompraMaestra() {
       ) {
         actual.precioCompra =
           producto.precioCompra;
+      }
+
+      if (
+        (!Number.isFinite(actual.margenPorcentaje) || actual.margenPorcentaje <= 0) &&
+        Number.isFinite(producto.margenPorcentaje) && producto.margenPorcentaje > 0
+      ) {
+        actual.precioVenta = producto.precioVenta;
+        actual.margenPorcentaje = producto.margenPorcentaje;
       }
 
       productosConsolidados.set(
@@ -977,6 +1006,34 @@ const totalCubiertoPorTraspasos =
       0
     );
 
+  const fuentes = (sucursales || []).map((sucursal) => {
+    const branchId = sucursal?.id;
+    const inventario = (inventariosPorSucursal || []).find(
+      (item) => String(item?.branch_id) === String(branchId)
+    );
+    const ventas = (ventasPorSucursal || []).find(
+      (item) => String(item?.branch_id) === String(branchId)
+    );
+    return {
+      branchId,
+      sucursal: sucursal?.name || "Sucursal",
+      inventarioDisponible: Boolean(inventario),
+      ventasDisponibles: Boolean(ventas),
+      inventarioImportadoEn: fechaCorta(inventario?.importacion?.created_at),
+      ventasImportadasEn: fechaCorta(ventas?.importacion?.created_at),
+      periodoVentasInicio: fechaCorta(ventas?.periodo?.fechaInicio),
+      periodoVentasFin: fechaCorta(ventas?.periodo?.fechaFin),
+    };
+  });
+  const periodosVentas = [...new Set(
+    fuentes
+      .filter((fuente) => fuente.periodoVentasInicio && fuente.periodoVentasFin)
+      .map((fuente) => `${fuente.periodoVentasInicio}|${fuente.periodoVentasFin}`)
+  )];
+  const fuentesCompletas = fuentes.length > 0 && fuentes.every(
+    (fuente) => fuente.inventarioDisponible && fuente.ventasDisponibles
+  );
+
   return {
     coberturaObjetivoDias:
       DIAS_COBERTURA_OBJETIVO,
@@ -994,6 +1051,14 @@ const totalCubiertoPorTraspasos =
     totalCubiertoPorTraspasos,
 
     inversionTotal,
+
+    fuentes,
+
+    calidadDatos: {
+      fuentesCompletas,
+      periodosVentasAlineados: fuentesCompletas && periodosVentas.length === 1,
+      periodosVentas,
+    },
 
        productos,
 
