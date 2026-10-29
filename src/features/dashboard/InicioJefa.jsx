@@ -20,7 +20,7 @@ import { obtenerEstadoCorte } from "./utils/estadoCorte";
 import { resumirCorteFinancieroDireccion } from "./utils/resumenFinancieroDireccion";
 import { resumirFlujoFlotilla } from "./utils/resumenFlujoFlotilla.js";
 import { obtenerFacturasIngresoFlotillaPeriodo } from "./services/facturasIngresoFlotillaService.js";
-import { resumirFacturasFlotilla } from "./utils/resumenFacturasFlotilla.js";
+import { resumirExpedienteSemanalFlotilla } from "../finanzas/utils/expedienteSemanalFlotilla.js";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -148,7 +148,7 @@ movimientos = [],
     }
     setCargandoFacturasFlotilla(true);
     setErrorFacturasFlotilla("");
-    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, desde: fechaInicial, hasta: fechaFinal })
+    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, desde: fechaInicial, hasta: fechaFinal, criterio: "servicio_o_cobro" })
       .then((resultado) => {
         if (componenteActivo) {
           setFacturasFlotilla(resultado.facturas);
@@ -322,7 +322,7 @@ movimientos = [],
   ];
 
   const resumenFlotilla = resumirFlujoFlotilla(movimientosDelCorte);
-  const facturacionFlotilla = resumirFacturasFlotilla(facturasFlotilla);
+  const expedienteFlotilla = resumirExpedienteSemanalFlotilla({ facturas: facturasFlotilla, desde: fechaInicial, hasta: fechaFinal });
   const movimientosFlotilla = resumenFlotilla.movimientos;
   const flujoFlotilla = resumenFlotilla.neto;
 
@@ -837,7 +837,7 @@ movimientos = [],
                   : "Falta etiquetar ingresos, combustible, mantenimiento y pagos por ruta."}
               </p>
               <small style={{ ...estiloTextoPanel, display: "block", marginTop: "7px", opacity: 0.82 }}>
-                Este flujo no es utilidad ni dinero disponible. Facturado por servicio: {cargandoFacturasFlotilla ? "Consultando…" : errorFacturasFlotilla ? "Pendiente de consulta" : formatoDinero(facturacionFlotilla.totalFacturado)} · {cargandoFacturasFlotilla || errorFacturasFlotilla ? "conciliación pendiente" : `${facturacionFlotilla.cantidadPendiente} facturas pendientes de conciliación bancaria`}.
+                Este flujo no es utilidad ni dinero disponible. Servicio del corte: {cargandoFacturasFlotilla ? "Consultando…" : errorFacturasFlotilla || expedienteFlotilla.servicio.total === null ? "Por confirmar" : formatoDinero(expedienteFlotilla.servicio.total)} · Cobros reportados en la semana: {cargandoFacturasFlotilla ? "Consultando…" : errorFacturasFlotilla || expedienteFlotilla.cobros.total === null ? "Por confirmar" : formatoDinero(expedienteFlotilla.cobros.total)}. Los cobros pueden corresponder a servicios de otra semana; consulta el expediente del cierre para comprobar los enlaces bancarios. No se suman de nuevo al flujo.
               </small>
               {errorFacturasFlotilla && <small role="status" style={{ ...estiloTextoPanel, color: "#9b233e" }}>{errorFacturasFlotilla}</small>}
               <button type="button" onClick={abrirFlotilla} style={estiloBotonPanel}>
