@@ -61,6 +61,7 @@ function obtenerAntiguedadDias(fecha) {
     saldoTotal: 0,
   },
   onAbrirImportador,
+  onAbrirBancos,
   onAbrirValor,
   vistaInicial = "inicio",
 }) {
@@ -630,7 +631,7 @@ const historial =
   }
 
   if (vistaFinanciera === "cierre") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CierreSemanalFinanciero onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} /></section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CierreSemanalFinanciero onAbrirBancos={onAbrirBancos} onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} /></section>;
   }
 
   if (vistaFinanciera === "panorama") {
@@ -684,7 +685,7 @@ const historial =
       {encabezadoCentroFinanciero()}
       <EquilibrioDiario alcance={hayDatosConsolidados ? "Todas las sucursales · consolidado" : branchId} key={`${branchId}-${metricas.fechaInicial}-${metricas.fechaFinal}`} />
       <FlujoCaja13Semanas metricas={metricas} />
-      <CierreSemanalFinanciero onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
+      <CierreSemanalFinanciero onAbrirBancos={onAbrirBancos} onAbrirImportador={onAbrirImportador} revisionFuentes={JSON.stringify(movimientos.map((m) => [m.id, m.monto ?? m.amount, m.estado ?? m.status, m.categoria ?? m.expense_category, m.expense_behavior, m.fecha ?? m.occurred_at, m.concepto ?? m.concept]))} consolidacionValida={hayDatosConsolidados && sucursalesDashboard.length >= 2} motivo={consolidacion.motivo} metricas={metricas} analisis={analisisFinanciero} formatoDinero={formatoDinero} />
       {mensajeDecision && (
         <div
           style={{

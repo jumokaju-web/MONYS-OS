@@ -2,16 +2,21 @@ import { useState } from 'react';
 import { useUser } from '../../../../context/UserContext';
 import { claveBorradorCierre, leerBorradorCierre, guardarBorradorCierre } from '../../utils/borradorCierreFinanciero';
 import { validarCicloLunesDomingo } from '../../utils/cicloFinancieroSemanal.js';
+import ExpedienteSemanalFlotilla from '../../../finanzas/components/ExpedienteSemanalFlotilla.jsx';
 
-export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo, revisionFuentes = "", onAbrirImportador }) {
+export default function CierreSemanalFinanciero({ metricas = {}, analisis, formatoDinero, consolidacionValida = false, motivo, revisionFuentes = "", onAbrirImportador, onAbrirBancos }) {
   const { usuario } = useUser();
   const [borradores, setBorradores] = useState({});
-  const inicio = metricas.fechaInicial;
-  const fin = metricas.fechaFinal;
+  const [expedienteFlotilla, setExpedienteFlotilla] = useState(null);
+  const fechaTexto = (valor) => valor instanceof Date && !Number.isNaN(valor.getTime()) ? valor.toISOString().slice(0, 10) : valor;
+  const inicio = fechaTexto(metricas.fechaInicial);
+  const fin = fechaTexto(metricas.fechaFinal);
   const periodo = `${inicio || 'Sin fecha'} · ${fin || 'Sin fecha'}`;
   const clave = claveBorradorCierre(usuario, inicio, fin);
   const cicloSemanal = validarCicloLunesDomingo(inicio, fin);
-  const revision = JSON.stringify([consolidacionValida, metricas.diasAnalizados, analisis.ventasTotales, analisis.costoTotal, analisis.utilidadTotal, analisis.gastosFijos, analisis.gastosVariables, analisis.movimientosPendientes, revisionFuentes]);
+  const claveExpediente = JSON.stringify([usuario?.auth_user_id, usuario?.organization_id, usuario?.business_id, usuario?.branch_id, usuario?.role, inicio, fin]);
+  const evidenciaFlotillaLista = expedienteFlotilla?.clave === claveExpediente && expedienteFlotilla?.consultado === true && expedienteFlotilla?.completo === true;
+  const revision = JSON.stringify([consolidacionValida, metricas.diasAnalizados, analisis.ventasTotales, analisis.costoTotal, analisis.utilidadTotal, analisis.gastosFijos, analisis.gastosVariables, analisis.movimientosPendientes, revisionFuentes, expedienteFlotilla?.clave === claveExpediente ? expedienteFlotilla?.revision : null]);
   const identidad = JSON.stringify([clave, revision]);
   let almacenado;
   try { almacenado = leerBorradorCierre(window.localStorage, clave, revision); }
@@ -34,7 +39,7 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
   const pendientes = controles.filter(([clave]) => !confirmado[clave]);
   const dias = Number(metricas.diasAnalizados);
   const tienePeriodo = Boolean(inicio && fin && dias === 7 && cicloSemanal.valido);
-  const listo = consolidacionValida && tienePeriodo && pendientes.length === 0 && analisis.movimientosPendientes === 0;
+  const listo = consolidacionValida && tienePeriodo && pendientes.length === 0 && analisis.movimientosPendientes === 0 && evidenciaFlotillaLista;
   const equilibrio = analisis.puntoEquilibrioVentas;
   const objetivoDiario = listo && equilibrio !== null && Number.isFinite(equilibrio) ? equilibrio / dias : null;
   const exportar = () => {
@@ -48,6 +53,7 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
       ['Gastos variables revisados', analisis.gastosVariables, 'Registros cargados'],
       ['Resultado después de gastos registrados', listo ? analisis.utilidadNetaEstimada : '', listo ? 'Estimación del corte' : 'Pendiente de completar'],
       ['Meta diaria provisional del corte', objetivoDiario ?? '', 'Usa los gastos clasificados dentro de esta semana; faltan los gastos mensuales que no se capturaron en el corte'],
+      ['Evidencia de cobros de Flotilla y banco del corte', evidenciaFlotillaLista ? 'Consultada sin bloqueos detectados' : 'Pendiente', 'Las casillas manuales no sustituyen los enlaces bancarios'],
       ...controles.map(([clave, etiqueta]) => [etiqueta, confirmado[clave] ? 'Confirmado' : 'Pendiente', 'Borrador de revisión, no cierre contable definitivo']),
     ];
     const csv = '\uFEFF' + filas.map((fila) => fila.map((celda) => `"${String(celda).replaceAll('"', '""')}"`).join(',')).join('\r\n');
@@ -67,10 +73,12 @@ export default function CierreSemanalFinanciero({ metricas = {}, analisis, forma
       <p>Importa primero, revisa los pendientes y luego confirma la lista del cierre. Conserva los archivos originales para revisar diferencias.</p>
       {typeof onAbrirImportador === 'function' && <button type="button" onClick={onAbrirImportador}>Abrir Importador de reportes SICAR</button>}
     </details>
-    <p><strong>{periodo}</strong> · {listo ? 'Base confirmada para revisión final' : `${pendientes.length} comprobaciones pendientes`}</p>
+    <p><strong>{periodo}</strong> · {listo ? 'Base confirmada para revisión final' : `${pendientes.length + (evidenciaFlotillaLista ? 0 : 1)} comprobaciones pendientes`}</p>
     <p>{cicloSemanal.valido ? "Ciclo confirmado: lunes a domingo. Este es el corte que revisarás el lunes siguiente." : cicloSemanal.motivo}</p>
     <p>{consolidacionValida ? "Las sucursales tienen un corte comparable." : (motivo || "Falta confirmar el mismo corte de las dos sucursales.")}</p>
     <p><strong>Revisión del lunes:</strong> el dinero que se retire se calcula después de comprobar el efectivo contado, los bancos y los compromisos reservados de la semana. Ese retiro es un movimiento de caja, no un gasto ni utilidad.</p>
+    <ExpedienteSemanalFlotilla usuario={usuario} desde={inicio} hasta={fin} onEstado={setExpedienteFlotilla} onAbrirBancos={onAbrirBancos} />
+    {!evidenciaFlotillaLista && <p role="status"><strong>El cierre sigue pendiente de evidencia.</strong> Marcar las casillas no resuelve cobros sin enlace o un banco que no muestra el corte.</p>}
     <p>Confirma cada punto después de revisar los reportes. El avance se conserva en este dispositivo por usuario y periodo. No se sincroniza entre dispositivos ni sustituye un cierre contable definitivo.</p>
     <p role="status">{borrador.estado === 'error' ? 'No se pudo guardar el avance en este dispositivo. Descarga el cierre para conservarlo.' : borrador.estado === 'sin_identidad' ? 'Falta identificar usuario, negocio o periodo para guardar el borrador.' : borrador.estado === 'datos_cambiaron' ? 'Los datos cambiaron desde tu última revisión. Confirma nuevamente los puntos con los reportes actualizados.' : borrador.estado === 'recuperado' ? 'Avance recuperado de este dispositivo.' : borrador.estado === 'guardado' ? 'Avance guardado en este dispositivo.' : 'Marca las comprobaciones para guardar tu avance.'}</p>
     {controles.map(([clave, etiqueta]) => <label key={clave} style={{ display: 'block', padding: '8px 0' }}><input type="checkbox" checked={Boolean(confirmado[clave])} onChange={(evento) => cambiarConfirmacion(clave, evento.target.checked)} /> {etiqueta}</label>)}

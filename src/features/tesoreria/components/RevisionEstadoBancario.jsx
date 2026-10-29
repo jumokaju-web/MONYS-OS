@@ -92,10 +92,11 @@ function RevisionBancariaSesion({ clave, usuario, movimientos, creditosProveedor
     const organizationId = usuario?.organization_id;
     if (!organizationId || !periodoEstado) { setFacturasFlotilla([]); return undefined; }
     let vigente = true;
+    setFacturasFlotilla([]);
     setCargandoFacturasCruce(true);
-    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, ...periodoEstado })
+    obtenerFacturasIngresoFlotillaPeriodo({ organizationId, ...periodoEstado, criterio: 'cobro' })
       .then((resultado) => { if (vigente) setFacturasFlotilla(resultado.facturas); })
-      .catch((e) => { if (vigente) setError(e.message || 'No se pudieron consultar facturas de Flotilla.'); })
+      .catch((e) => { if (vigente) { setFacturasFlotilla([]); setError(e.message || 'No se pudieron consultar facturas de Flotilla.'); } })
       .finally(() => { if (vigente) setCargandoFacturasCruce(false); });
     return () => { vigente = false; };
   }, [usuario?.organization_id, periodoEstado]);
