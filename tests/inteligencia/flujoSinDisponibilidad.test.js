@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { generarAnalisisFinanciero } from "../../src/features/inteligencia/ia/directorFinancieroIA.js";
 import { generarDecisionCEO } from "../../src/features/inteligencia/ia/ceo/directorGeneralIA.js";
 import { directorRHIA } from "../../src/features/inteligencia/directores/directorRHIA.js";
+import { createServer } from "vite";
+import React from "react";
+import { renderToString } from "react-dom/server";
 
 test("flujo positivo sin saldo confirmado no autoriza resurtido ni inventa reserva", () => {
   const financiero = generarAnalisisFinanciero({ movimientos: [
@@ -34,4 +37,24 @@ test("un valor de disponibilidad sin confirmación no habilita compras en direcc
   assert.equal(decision.dineroDisponible, null);
   assert.equal(decision.presupuestoCompraAutorizado, 0);
   assert.equal(decision.comprasAutorizadas.length, 0);
+});
+
+test("un presupuesto nunca excede el dinero confirmado aunque inventario y capacidad sean mayores", () => {
+  const decision = generarDecisionCEO({ analisisFinanciero: { disponibilidadConfirmada: true, dineroDisponible: 1000, capacidadCompra: 10000 },
+    analisisInventario: { resumen: { inversionSugerida: 9000 }, sugerenciasCompra: [{ codigo: "P1", inversionEstimada: 9000 }] } });
+  assert.equal(decision.presupuestoCompraAutorizado, 1000);
+  assert.equal(decision.comprasAutorizadas.length, 0);
+});
+
+test("CEO muestra presupuesto por confirmar cuando no hay liquidez comprobada", async () => {
+  process.env.VITE_SUPABASE_URL = "https://example.supabase.co";
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "test-only-placeholder";
+  const server = await createServer({ server: { middlewareMode: true }, appType: "custom" });
+  try {
+    const { default: Panel } = await server.ssrLoadModule("/src/features/inteligencia/components/PanelCEOIA.jsx");
+    const decisionCEO = generarDecisionCEO({ analisisFinanciero: generarAnalisisFinanciero({}) });
+    const html = renderToString(React.createElement(Panel, { decisionCEO }));
+    assert.match(html, /Presupuesto por confirmar/);
+    assert.doesNotMatch(html, /Presupuesto autorizado/);
+  } finally { await server.close(); }
 });
