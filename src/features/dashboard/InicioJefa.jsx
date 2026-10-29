@@ -69,7 +69,7 @@ movimientos = [],
   contenidoSicar = null,
   contenidoCierre = null,
 }) {
-  const [menuMasAbierto, setMenuMasAbierto] = useState(false);
+  const [vistaPrincipal, setVistaPrincipal] = useState("resumen");
 
     const formatearFechaPeriodo = (valor) => {
     if (!valor) {
@@ -107,6 +107,11 @@ movimientos = [],
     }
     panel.open = true;
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function abrirVistaPrincipal(vista) {
+    setVistaPrincipal(vista);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   const detallePeriodo =
     estadoVentasCorte === "listo"
@@ -474,21 +479,10 @@ movimientos = [],
       <Header />
       <nav className="owner-sidebar" aria-label="Navegación del negocio">
         <span>ESPACIO DE DIRECCIÓN</span>
-        <button aria-current="page" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>◈ Inicio</button>
-        <button onClick={abrirOperacionCompleta}>📋 Tareas y cortes</button>
-        <button onClick={abrirFinanzas}>$ Finanzas</button>
-        <button type="button" aria-expanded={menuMasAbierto} onClick={() => setMenuMasAbierto((abierto) => !abierto)}>
-          {menuMasAbierto ? "− Menos áreas" : "+ Más áreas"}
-        </button>
-        {menuMasAbierto && <div className="owner-sidebar__more">
-          <button onClick={abrirJuntaDirectiva}>Junta Directiva IA</button>
-          <button onClick={abrirMarketing}>Crecimiento · Marketing</button>
-          <button onClick={abrirFlotilla}>Flotilla</button>
-          <button onClick={abrirEmpleados}>Personal y permisos · RH</button>
-          <button onClick={abrirInventario}>Inventario</button>
-          <button onClick={abrirCentroValor}>Valor generado</button>
-          <button onClick={abrirImportador}>Subir reportes</button>
-        </div>}
+        <button aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}>◈ Resumen</button>
+        <button aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}>▥ Gráficas</button>
+        <button onClick={abrirOperacionCompleta}>✓ Operación</button>
+        <button aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}>☷ Áreas</button>
         <small>MONYS OS<br/>Tu centro de decisión y ejecución</small>
       </nav>
 
@@ -500,7 +494,60 @@ movimientos = [],
           textAlign: "left",
         }}
       >
-        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Tu equipo, tu dinero y tus decisiones en un mismo lugar.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas y cortes de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
+        <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Elige qué necesitas revisar; cada botón abre solamente esa sección.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
+
+        <nav className="owner-launcher" aria-label="Secciones principales de Dirección">
+          <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>◈</span><b>Resumen</b><small>Lo importante de hoy</small></button>
+          <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>▥</span><b>Gráficas</b><small>Ventas y sucursales</small></button>
+          <button type="button" onClick={abrirOperacionCompleta}><span>✓</span><b>Operación</b><small>Tareas, cortes y fotos</small></button>
+          <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☷</span><b>Áreas</b><small>Todos los módulos</small></button>
+        </nav>
+
+        {vistaPrincipal === "resumen" && <section className="owner-focus-view" aria-labelledby="owner-resumen-title">
+          <div className="owner-focus-heading"><div><span>RESUMEN EJECUTIVO</span><h2 id="owner-resumen-title">Lo que necesita tu atención</h2></div><button type="button" onClick={abrirJuntaDirectiva}>Abrir Junta IA →</button></div>
+          <p className="owner-period">Datos del corte: {cifrasConsolidadasDisponibles ? `${formatearFechaPeriodo(consolidacionFinanciera.fechaInicial)} al ${formatearFechaPeriodo(consolidacionFinanciera.fechaFinal)}` : consolidacionFinanciera.motivo || detallePeriodo}.</p>
+          <section className="owner-results" aria-label="Resultados principales del corte">
+            <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(ventasConsolidadas) : consolidacionFinanciera.motivo || detallePeriodo}</strong><span>Registradas en SICAR</span></div>
+            <div><small>Utilidad bruta</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(utilidadConsolidada) : "Por confirmar"}</strong><span>Antes de gastos operativos</span></div>
+            <div><small>Dinero disponible</small><strong>Confirmar saldos</strong><span>No se calcula como si todas las ventas fueran efectivo</span></div>
+          </section>
+          <article className="owner-priority-card"><span>PRIORIDAD RECOMENDADA</span><h3>{decisionDelDia.titulo}</h3><p>{decisionDelDia.detalle}</p><button type="button" onClick={decisionDelDia.accion || undefined} disabled={!decisionDelDia.accion}>{decisionDelDia.boton}</button></article>
+          <nav className="owner-next-actions" aria-label="Decisiones rápidas">
+            <button type="button" onClick={abrirCompraMaestra}><b>Qué comprar</b><span>Reposición priorizada e inversión</span></button>
+            <button type="button" onClick={abrirDirectorFinanciero}><b>Qué pagar</b><span>Deudas, vencimientos y capacidad</span></button>
+            <button type="button" onClick={abrirTesoreria}><b>Dónde se gasta</b><span>Ingresos, salidas y conciliación</span></button>
+            <button type="button" onClick={abrirOperacionCompleta}><b>Qué hizo el equipo</b><span>Tareas, cortes y evidencias</span></button>
+          </nav>
+        </section>}
+
+        {vistaPrincipal === "graficas" && <section className="owner-focus-view" aria-labelledby="owner-graficas-title">
+          <div className="owner-focus-heading"><div><span>RESULTADOS Y TENDENCIAS</span><h2 id="owner-graficas-title">Gráficas del negocio</h2></div><button type="button" onClick={abrirImportador}>Actualizar datos →</button></div>
+          <CortesHoyDireccion usuario={usuario} sucursales={sucursalesDashboard} />
+          {!cargandoSucursales && !errorSucursales && sucursalesDashboard.length > 0 && <TendenciaSemanalSucursales sucursales={sucursalesDashboard} onAbrirImportador={abrirImportador} organizationId={usuario?.organization_id || datosDashboard?.organization_id} businessId={usuario?.business_id || datosDashboard?.business_id} branchId={usuario?.branch_id || datosDashboard?.branch_id} onAbrirValor={abrirCentroValor} />}
+          <PulsoVentasDireccion usuario={usuario} sucursales={sucursalesDashboard} />
+          <div className="owner-branches-compact">
+            {sucursalesDashboard.map((sucursal) => <SucursalCard key={sucursal.id} sucursal={sucursal} formatoDinero={formatoDinero} />)}
+          </div>
+        </section>}
+
+        {vistaPrincipal === "areas" && <section className="owner-focus-view" aria-labelledby="owner-areas-title">
+          <div className="owner-focus-heading"><div><span>CENTROS DE TRABAJO</span><h2 id="owner-areas-title">¿A dónde quieres entrar?</h2></div></div>
+          <div className="owner-area-grid">
+            <button type="button" onClick={abrirFinanzas}><span>💰</span><b>Finanzas</b><small>Flujo, resultados y compromisos</small></button>
+            <button type="button" onClick={abrirInventario}><span>📦</span><b>Inventario</b><small>Existencias y cobertura</small></button>
+            <button type="button" onClick={abrirCompraMaestra}><span>🛒</span><b>Compra Maestra</b><small>Qué comprar y traspasar</small></button>
+            <button type="button" onClick={abrirMarketing}><span>📣</span><b>Marketing</b><small>Campañas y crecimiento</small></button>
+            <button type="button" onClick={abrirFlotilla}><span>🚚</span><b>Flotilla</b><small>Rutas, evidencias y dinero</small></button>
+            <button type="button" onClick={abrirEmpleados}><span>👥</span><b>Equipo</b><small>Personal, puestos y permisos</small></button>
+            <button type="button" onClick={abrirJuntaDirectiva}><span>🧠</span><b>Junta Directiva</b><small>Riesgos y decisiones</small></button>
+            <button type="button" onClick={abrirTesoreria}><span>🏦</span><b>Tesorería</b><small>Conciliación y movimientos</small></button>
+            <button type="button" onClick={abrirImportador}><span>📄</span><b>Subir reportes</b><small>Actualizar información SICAR</small></button>
+            <button type="button" onClick={abrirUsuarios}><span>🔐</span><b>Usuarios</b><small>Accesos y roles</small></button>
+          </div>
+          <button className="owner-full-dashboard" type="button" onClick={() => abrirVistaPrincipal("completo")}>Ver tablero completo y análisis avanzados</button>
+        </section>}
+
+        {vistaPrincipal === "completo" && <>
         {contenidoOperacion && <BloquePlegable id="operacion-completa-direccion" titulo="📋 Tareas y fotos del equipo">{contenidoOperacion}</BloquePlegable>}
         <p className="owner-period">Datos del corte: {cifrasConsolidadasDisponibles ? `${formatearFechaPeriodo(consolidacionFinanciera.fechaInicial)} al ${formatearFechaPeriodo(consolidacionFinanciera.fechaFinal)}` : consolidacionFinanciera.motivo || detallePeriodo}. Las ventas de hoy requieren su reporte.</p>
         <details className="owner-period-sources">
@@ -1528,7 +1575,15 @@ movimientos = [],
         )}
           </div>
         </details>
+        </>}
       </section>
+
+      <nav className="owner-bottom-nav" aria-label="Navegación móvil de Dirección">
+        <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>◈</span>Resumen</button>
+        <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>▥</span>Gráficas</button>
+        <button type="button" onClick={abrirOperacionCompleta}><span>✓</span>Operación</button>
+        <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☷</span>Áreas</button>
+      </nav>
     </main>
   );
 }
