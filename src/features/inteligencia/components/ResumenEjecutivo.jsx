@@ -104,7 +104,9 @@ function ResumenEjecutivo({
     analisisFinanciero?.balance
   );
 
-  const resumen = crearResumen({
+  const resumen = analisisFinanciero.disponibilidadConfirmada !== true
+    ? "Las ventas y el flujo del periodo están visibles. Falta conciliar saldos de bancos, cajas y obligaciones para evaluar disponibilidad y autorizar compras."
+    : crearResumen({
     porcentajeSalud,
     ventasTotales,
     utilidadTotal,
@@ -232,7 +234,7 @@ function ResumenEjecutivo({
                   fontSize: "24px",
                 }}
               >
-                {porcentajeSalud}%
+                {analisisFinanciero.disponibilidadConfirmada ? `${porcentajeSalud}%` : "Por confirmar"}
               </strong>
             </div>
 
@@ -265,7 +267,7 @@ function ResumenEjecutivo({
                   fontSize: "14px",
                 }}
               >
-                💵 Dinero disponible
+                💵 Flujo neto del periodo
               </span>
 
               <strong

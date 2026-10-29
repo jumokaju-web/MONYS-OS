@@ -196,7 +196,12 @@ export function resumirDisponibilidadFinanciera({
     : null;
   // MONYS no cuenta aún con renta, nómina, impuestos, servicios y otros costos fijos
   // confirmados para esta vista. El residual conocido no equivale a dinero libre.
-  const calculable = fuentesConocidas && obligacionesOperativasConfirmadas;
+  const retirosCompletos = controlRetiros.pendientes === 0
+    && controlRetiros.diferencias === 0
+    && comprobacionRetiros.pendientes === 0
+    && comprobacionRetiros.reportados === 0
+    && comprobacionRetiros.diferencias === 0;
+  const calculable = fuentesConocidas && obligacionesOperativasConfirmadas && retirosCompletos;
   const dineroLibre = calculable ? remanenteRegistrado : null;
 
   // Present every blocker together so the CEO can see the work remaining,
@@ -239,6 +244,9 @@ export function resumirDisponibilidadFinanciera({
   }
   if (controlRetiros.pendientes > 0 || controlRetiros.diferencias > 0) {
     faltantes.push({ id: "retiros", titulo: `Aclarar ${controlRetiros.pendientes} retiros y ${controlRetiros.diferencias} diferencias`, destino: "equipo" });
+  }
+  if (comprobacionRetiros.pendientes > 0 || comprobacionRetiros.reportados > 0 || comprobacionRetiros.diferencias > 0) {
+    faltantes.push({ id: "comprobaciones-retiros", titulo: `Comprobar ${comprobacionRetiros.pendientes + comprobacionRetiros.reportados + comprobacionRetiros.diferencias} retiros pendientes de revisión`, destino: "equipo" });
   }
 
   let prioridad;
@@ -391,3 +399,4 @@ export function resumirDisponibilidadFinanciera({
     prioridad,
   };
 }
+

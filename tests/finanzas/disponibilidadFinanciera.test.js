@@ -83,7 +83,7 @@ test("separa efectivo resguardado para evitar sumarlo dos veces", () => {
   });
   assert.equal(resumen.liquidezLocalizada, 13000);
   assert.equal(resumen.efectivoResguardado, 8000);
-  assert.equal(resumen.dineroLibre, 9000);
+  assert.equal(resumen.dineroLibre, null);
   assert.equal(resumen.controlRetiros.pendientes, 1);
   assert.match(resumen.prioridad.titulo, /destino del efectivo retirado/i);
 });
@@ -171,7 +171,7 @@ test("acepta cero proveedores solo con confirmación vigente y conserva el saldo
     obligacionesOperativasConfirmadas: true,
     hoy: "2026-10-15",
     cuentas: [{ id: "b1", saldo: 10000, fechaSaldo: "2026-10-15T21:00:00-06:00" }],
-    cierre: cierreCompleto,
+    cierre: { ...cierreCompleto, efectivoEntregado: 0 },
     creditosProveedores: {
       importacion: null,
       confirmacion: { fecha_corte: "2026-10-15", confirmado_en: "2026-10-15T12:00:00-06:00" },
@@ -249,7 +249,7 @@ test("prefiere el corte oficial y separa el efectivo retirado", () => {
   assert.equal(resumen.efectivoCajas, 1250);
   assert.equal(resumen.efectivoResguardado, 9750);
   assert.equal(resumen.liquidezLocalizada, 11250);
-  assert.equal(resumen.dineroLibre, 7250);
+  assert.equal(resumen.dineroLibre, null);
 });
 
 test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial completo", () => {
@@ -266,7 +266,7 @@ test("mantiene el cierre del equipo como respaldo cuando no hay corte oficial co
   });
   assert.equal(resumen.fuenteCajas, "CIERRE_EQUIPO");
   assert.equal(resumen.efectivoCajas, 3000);
-  assert.equal(resumen.dineroLibre, 9000);
+  assert.equal(resumen.dineroLibre, null);
 });
 
 test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible", () => {
@@ -283,7 +283,7 @@ test("prioriza aclarar el destino del retiro sin sumarlo como dinero disponible"
     },
     creditosProveedores: proveedoresConfirmados,
   });
-  assert.equal(resumen.dineroLibre, 9000);
+  assert.equal(resumen.dineroLibre, null);
   assert.equal(resumen.controlRetiros.pendientes, 1);
   assert.match(resumen.prioridad.titulo, /destino del efectivo retirado/i);
 });
@@ -425,3 +425,4 @@ test("una diferencia de caja impide sumar bancos y efectivo como liquidez consol
   assert.equal(resumen.dineroLibre, null);
   assert.equal(resumen.bloqueoConsolidacion, true);
 });
+

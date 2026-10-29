@@ -244,7 +244,7 @@ utilidadPromedioDiaria,
 
 entradasTesoreria,
     salidasTesoreria,
-    dineroDisponible,
+    flujoNetoTesoreria,
 
     movimientosPendientes,
     porcentajeGastos,
@@ -634,11 +634,11 @@ const historial =
   }
 
   if (vistaFinanciera === "panorama") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<TableroVisualFinanciero ventas={ventasTotales} costos={costoTotal} utilidadBruta={utilidadTotal} gastosFijos={gastosFijos} gastosVariables={gastosVariables} gastosSinClasificar={gastosSinClasificar} utilidadNeta={utilidadNetaEstimada} margenBruto={margenUtilidad} margenNeto={margenConGastos} puntoEquilibrio={puntoEquilibrioVentas} diasAnalizados={metricas.diasAnalizados} fechaInicial={metricas.fechaInicial} entradas={entradasTesoreria} salidas={salidasTesoreria} disponible={dineroDisponible} reserva={reservaRecomendada} movimientosPendientes={movimientosPendientes} vencimientos={[{ etiqueta: "7 días", valor: vencimientos7Dias }, { etiqueta: "15 días", valor: vencimientos15Dias }, { etiqueta: "30 días", valor: vencimientos30Dias }, { etiqueta: "60 días", valor: vencimientos60Dias }, { etiqueta: "90 días", valor: vencimientos90Dias }]} sucursales={sucursalesDashboard} baseVigente={ventasVigentes} fechaCorte={metricas.fechaFinal || null} /><TendenciaSemanalSucursales sucursales={sucursalesDashboard} onAbrirImportador={onAbrirImportador} organizationId={organizationId} businessId={businessId} branchId={branchId} onAbrirValor={onAbrirValor} /></section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<TableroVisualFinanciero ventas={ventasTotales} costos={costoTotal} utilidadBruta={utilidadTotal} gastosFijos={gastosFijos} gastosVariables={gastosVariables} gastosSinClasificar={gastosSinClasificar} utilidadNeta={utilidadNetaEstimada} margenBruto={margenUtilidad} margenNeto={margenConGastos} puntoEquilibrio={puntoEquilibrioVentas} diasAnalizados={metricas.diasAnalizados} fechaInicial={metricas.fechaInicial} entradas={entradasTesoreria} salidas={salidasTesoreria} disponible={flujoNetoTesoreria} reserva={reservaRecomendada} movimientosPendientes={movimientosPendientes} vencimientos={[{ etiqueta: "7 días", valor: vencimientos7Dias }, { etiqueta: "15 días", valor: vencimientos15Dias }, { etiqueta: "30 días", valor: vencimientos30Dias }, { etiqueta: "60 días", valor: vencimientos60Dias }, { etiqueta: "90 días", valor: vencimientos90Dias }]} sucursales={sucursalesDashboard} baseVigente={ventasVigentes} fechaCorte={metricas.fechaFinal || null} /><TendenciaSemanalSucursales sucursales={sucursalesDashboard} onAbrirImportador={onAbrirImportador} organizationId={organizationId} businessId={businessId} branchId={branchId} onAbrirValor={onAbrirValor} /></section>;
   }
 
   if (vistaFinanciera === "rescate") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={dineroDisponible} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={flujoNetoTesoreria} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
   }
 
   if (vistaFinanciera === "proveedores") {
@@ -861,7 +861,7 @@ const historial =
         fechaInicial={metricas.fechaInicial}
         entradas={entradasTesoreria}
         salidas={salidasTesoreria}
-        disponible={dineroDisponible}
+        disponible={flujoNetoTesoreria}
         reserva={reservaRecomendada}
         movimientosPendientes={movimientosPendientes}
         vencimientos={[
@@ -903,7 +903,7 @@ const historial =
         organizationId={organizationId}
         businessId={businessId}
         branchId={branchId}
-        flujoNetoPeriodo={dineroDisponible}
+        flujoNetoPeriodo={flujoNetoTesoreria}
         reservaRecomendada={reservaRecomendada}
         baseFinancieraVigente={ventasVigentes}
         movimientosPendientes={movimientosPendientes}
@@ -1046,7 +1046,7 @@ const historial =
         <TarjetaIndicador
          titulo="Flujo neto del periodo"
           valor={formatoDinero(
-            dineroDisponible
+            flujoNetoTesoreria
           )}
           icono="💵"
         />

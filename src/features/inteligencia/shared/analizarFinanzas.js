@@ -37,7 +37,7 @@ function obtenerNivelRiesgo({
   if (balance < 0) {
     return {
       nivel: "critico",
-      etiqueta: "Riesgo financiero alto",
+      etiqueta: "Flujo del periodo negativo",
       porcentaje: 90,
     };
   }
@@ -51,7 +51,7 @@ function obtenerNivelRiesgo({
   if (porcentajeSalidas >= 85) {
     return {
       nivel: "alto",
-      etiqueta: "Liquidez comprometida",
+      etiqueta: "Salidas elevadas frente a entradas",
       porcentaje: 75,
     };
   }
@@ -71,75 +71,20 @@ function obtenerNivelRiesgo({
   };
 }
 
-function calcularCapacidadCompra({
-  balance,
-  nivelRiesgo,
-}) {
-  if (balance <= 0) {
-    return 0;
-  }
-
-  const porcentajeDisponible = {
-    critico: 0,
-    alto: 0.1,
-    medio: 0.2,
-    bajo: 0.35,
-    "sin-datos": 0,
-  };
-
-  const factor =
-    porcentajeDisponible[
-      nivelRiesgo?.nivel
-    ] || 0;
-
-  return Math.round(balance * factor);
+// El flujo de un periodo no acredita saldos iniciales ni obligaciones.
+// Este motor no recibe una disponibilidad conciliada: no puede autorizar compras.
+function calcularCapacidadCompra() {
+  return null;
 }
 
-function crearRecomendacion({
-  totalEntradas,
-  totalSalidas,
-  balance,
-  nivelRiesgo,
-  capacidadCompra,
-}) {
-  if (
-    totalEntradas === 0 &&
-    totalSalidas === 0
-  ) {
-    return (
-      "Registra entradas y salidas para que el Director " +
-      "Financiero pueda calcular la liquidez real."
-    );
+function crearRecomendacion({ totalEntradas, totalSalidas, balance }) {
+  if (totalEntradas === 0 && totalSalidas === 0) {
+    return "Registra entradas y salidas para analizar el flujo del periodo. Confirma saldos de bancos, cajas y obligaciones antes de decidir compras.";
   }
-
   if (balance < 0) {
-    return (
-      "Las salidas superan a las entradas. " +
-      "Detén compras no esenciales y revisa pagos pendientes."
-    );
+    return "Las salidas superan a las entradas del periodo. Revisa pagos pendientes y confirma saldos y obligaciones antes de autorizar compras.";
   }
-
-  if (nivelRiesgo.nivel === "alto") {
-    return (
-      "La mayor parte de los ingresos ya fue utilizada. " +
-      "Evita nuevas compras grandes hasta recuperar flujo."
-    );
-  }
-
-  if (nivelRiesgo.nivel === "medio") {
-    return (
-      `Mantén las compras nuevas por debajo de $${capacidadCompra.toLocaleString(
-        "es-MX"
-      )} MXN y revisa los próximos pagos.`
-    );
-  }
-
-  return (
-    `El flujo se encuentra estable. La capacidad estimada ` +
-    `de compra es de hasta $${capacidadCompra.toLocaleString(
-      "es-MX"
-    )} MXN sin comprometer demasiado la liquidez.`
-  );
+  return "El flujo del periodo es positivo o está equilibrado; no equivale al saldo disponible. La capacidad de compra está por confirmar hasta conciliar bancos, cajas y obligaciones.";
 }
 
 function analizarFinanzas(contexto) {
@@ -154,9 +99,7 @@ function analizarFinanzas(contexto) {
     financiero?.totalSalidas || 0
   );
 
-  const balance = Number(
-    financiero?.balance || 0
-  );
+  const balance = totalEntradas - totalSalidas;
 
   const porcentajeSalidas =
     calcularPorcentajeSalidas({
@@ -185,37 +128,12 @@ function analizarFinanzas(contexto) {
       capacidadCompra,
     });
 
-    const planAccion = [];
-
-if (balance <= 0) {
-  planAccion.push(
-    "Detener compras no esenciales."
-  );
-} else {
-  planAccion.push(
-    `Comprar mercancía hasta $${capacidadCompra.toLocaleString(
-      "es-MX"
-    )}.`
-  );
-}
-
-if (nivelRiesgo.nivel === "alto") {
-  planAccion.push(
-    "Priorizar liquidez antes de nuevas inversiones."
-  );
-}
-
-if (nivelRiesgo.nivel === "medio") {
-  planAccion.push(
-    "Revisar pagos programados para esta semana."
-  );
-}
-
-if (nivelRiesgo.nivel === "bajo") {
-  planAccion.push(
-    "Mantener el flujo de efectivo actual."
-  );
-}
+  const planAccion = [
+    "Confirmar saldos de bancos y cajas y revisar las obligaciones próximas antes de autorizar compras.",
+  ];
+  if (balance < 0) {
+    planAccion.push("Revisar las salidas que superan a las entradas del periodo.");
+  }
 
     const saludFinanciera = Math.max(
   0,
@@ -233,6 +151,10 @@ if (nivelRiesgo.nivel === "bajo") {
     totalEntradas,
     totalSalidas,
     balance,
+    flujoNetoTesoreria: balance,
+    dineroDisponible: null,
+    disponibilidadConfirmada: false,
+    planAccion,
     porcentajeSalidas,
     nivelRiesgo,
     capacidadCompra,

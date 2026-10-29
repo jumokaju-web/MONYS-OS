@@ -397,11 +397,8 @@ const {
     entradasTesoreria -
     salidasTesoreria;
 
-  /*
-    Se conserva este nombre temporalmente
-    para no romper los componentes existentes.
-  */
-  const dineroDisponible =
+  // El flujo solo describe movimientos del periodo; no acredita liquidez actual.
+  const flujoNetoPeriodo =
     flujoNetoTesoreria;
 
   /*
@@ -624,7 +621,7 @@ const {
   // ======================================================
 
   if (
-    dineroDisponible < 0 ||
+    flujoNetoPeriodo < 0 ||
     utilidad < 0
   ) {
     nivel = "🔴";
@@ -633,10 +630,10 @@ const {
 
     const problemas = [];
 
-    if (dineroDisponible < 0) {
+    if (flujoNetoPeriodo < 0) {
       problemas.push(
         `el flujo de Tesorería presenta un saldo negativo de ${formatoDinero(
-          dineroDisponible
+          flujoNetoPeriodo
         )}`
       );
     }
@@ -701,7 +698,7 @@ recomendacion =
 
     } else if (
       margen > 0 &&
-      dineroDisponible >= 0
+      flujoNetoPeriodo >= 0
     ) {
       nivel = "🟢";
 
@@ -733,7 +730,7 @@ recomendacion =
         )}, margen de ${formatoPorcentaje(
           margen
         )} y flujo neto del periodo de ${formatoDinero(
-          dineroDisponible
+          flujoNetoPeriodo
         )}.`;
 
       recomendacion =
@@ -774,7 +771,7 @@ recomendacion =
         `Los gastos operativos clasificados representan ${formatoPorcentaje(
           porcentajeGastos
         )} de ${nombreBasePorcentajeGastos}. El flujo neto del periodo es ${formatoDinero(
-          dineroDisponible
+          flujoNetoPeriodo
         )}.`;
 
       recomendacion =
@@ -787,7 +784,7 @@ recomendacion =
 
       mensaje =
         `Las entradas superan las salidas. El flujo neto del periodo es ${formatoDinero(
-          dineroDisponible
+          flujoNetoPeriodo
         )}.`;
 
       recomendacion =
@@ -862,7 +859,7 @@ recomendacion =
     bancos, obligaciones confirmadas e
     inventario necesario.
   */
-  const capacidadCompra = 0;
+  const capacidadCompra = null;
 
   // ======================================================
   // ALERTAS
@@ -870,7 +867,7 @@ recomendacion =
 
   const alertasFinancieras = [];
 
-  if (dineroDisponible < 0) {
+  if (flujoNetoPeriodo < 0) {
     alertasFinancieras.push(
       "El flujo de efectivo está en negativo."
     );
@@ -937,7 +934,7 @@ recomendacion =
  let decisionPrioritaria =
   "Mantener el control financiero y continuar alimentando MONYS OS.";
 
-if (dineroDisponible < 0) {
+if (flujoNetoPeriodo < 0) {
   decisionPrioritaria =
     "Prioridad máxima: recuperar liquidez y revisar salidas antes de autorizar nuevas compras.";
 } else if (saldoProveedoresVencidos > 0) {
@@ -999,13 +996,13 @@ if (dineroDisponible < 0) {
     });
   };
 
-  if (dineroDisponible < 0) {
+  if (flujoNetoPeriodo < 0) {
     agregarAccion({
       prioridad: "CRITICA",
       titulo: "Recuperar liquidez",
       descripcion:
         `El flujo disponible está en ${formatoDinero(
-          dineroDisponible
+          flujoNetoPeriodo
         )}. Revisa cobros pendientes y detén salidas no indispensables.`,
       impacto: "ALTO",
     });
@@ -1149,7 +1146,8 @@ salidasTesoreriaBrutas,
 traspasosCaja,
 salidasTesoreria,
 flujoNetoTesoreria,
-dineroDisponible,
+dineroDisponible: null,
+disponibilidadConfirmada: false,
 gastosOperativos,
 
     movimientosPendientes,

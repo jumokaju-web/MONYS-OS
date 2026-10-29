@@ -368,17 +368,16 @@ export function directorRHIA({
     ==========================================
   */
 
-  const dineroDisponible =
-    convertirNumero(
-      analisisFinanciero
-        ?.dineroDisponible
-    );
+  const dineroDisponible = analisisFinanciero?.disponibilidadConfirmada === true
+    && analisisFinanciero?.dineroDisponible !== null
+    && analisisFinanciero?.dineroDisponible !== undefined
+    && Number.isFinite(Number(analisisFinanciero.dineroDisponible))
+    ? Number(analisisFinanciero.dineroDisponible) : null;
 
-  const reservaRecomendada =
-    convertirNumero(
-      analisisFinanciero
-        ?.reservaRecomendada
-    );
+  const reservaRecomendada = analisisFinanciero?.reservaRecomendada !== null
+    && analisisFinanciero?.reservaRecomendada !== undefined
+    && Number.isFinite(Number(analisisFinanciero.reservaRecomendada))
+    ? Number(analisisFinanciero.reservaRecomendada) : null;
 
   const vencimientos30Dias =
     convertirNumero(
