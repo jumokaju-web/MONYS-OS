@@ -633,7 +633,7 @@ const semaforoComercial =
               "1px solid rgba(255,255,255,0.18)",
           }}
         >
-          <div>✅ Presupuesto autorizado</div>
+          <div>{decisionCEO.estadoLiquidez === "PENDIENTE_VALIDAR_SALDOS" ? "⏳ Presupuesto por confirmar" : "✅ Presupuesto autorizado"}</div>
 
           <strong
             style={{
@@ -643,7 +643,7 @@ const semaforoComercial =
             }}
           >
             {formatearDinero(
-              decisionCEO.presupuestoCompraAutorizado
+              decisionCEO.estadoLiquidez === "PENDIENTE_VALIDAR_SALDOS" ? null : decisionCEO.presupuestoCompraAutorizado
             )}
           </strong>
         </div>

@@ -146,8 +146,8 @@ export function generarDecisionCEO({
   // 1. REVISIÓN DE LIQUIDEZ
   // ======================================================
 
-  let estadoLiquidez =
-    "PENDIENTE_VALIDAR_SALDOS";
+  let estadoLiquidez = dineroDisponible !== null && capacidadCompra !== null
+    ? "CONFIRMADA" : "PENDIENTE_VALIDAR_SALDOS";
 
   if (
     (dineroDisponible !== null && dineroDisponible < 0) ||
@@ -180,6 +180,7 @@ export function generarDecisionCEO({
       Math.max(
         0,
         Math.min(
+          dineroDisponible,
           capacidadCompra,
           inversionInventario
         )
