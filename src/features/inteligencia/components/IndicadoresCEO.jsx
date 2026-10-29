@@ -8,6 +8,7 @@ function limitar(valor) {
 }
 
 function BarraIndicador({ icono, titulo, valor, detalle }) {
+  const pendiente = valor === null || valor === undefined;
   const porcentaje = limitar(valor);
 
   return (
@@ -31,7 +32,7 @@ function BarraIndicador({ icono, titulo, valor, detalle }) {
           {icono} {titulo}
         </strong>
         <strong style={{ color: "#b44178", fontSize: "19px" }}>
-          {porcentaje.toFixed(0)}%
+          {pendiente ? "Por confirmar" : `${porcentaje.toFixed(0)}%`}
         </strong>
       </div>
 
@@ -77,7 +78,9 @@ function IndicadoresCEO({
   const metricas = datosDashboard?.metricas || {};
   const margen = convertirNumero(metricas.margenUtilidad);
   const saludVentas = convertirNumero(saludNegocio.saludVentas);
-  const saludLiquidez = convertirNumero(saludNegocio.saludLiquidez);
+  const saludLiquidez = analisisFinanciero.disponibilidadConfirmada === true
+    ? convertirNumero(saludNegocio.saludLiquidez)
+    : null;
   const porcentajeSalidas = convertirNumero(
     analisisFinanciero.porcentajeSalidas
   );
@@ -134,7 +137,7 @@ function IndicadoresCEO({
           icono="💵"
           titulo="Liquidez"
           valor={saludLiquidez}
-          detalle="Capacidad actual para sostener la operación."
+          detalle="Requiere saldos de bancos y cajas y obligaciones conciliadas."
         />
 
         <BarraIndicador

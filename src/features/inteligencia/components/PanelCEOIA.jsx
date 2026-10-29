@@ -6,6 +6,7 @@
 import CentroAccionesCEO from "./CentroAccionesCEO";
 
 function formatearDinero(valor) {
+  if (valor === null || valor === undefined || !Number.isFinite(Number(valor))) return "Por confirmar";
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -589,7 +590,7 @@ const semaforoComercial =
             }}
           >
             {formatearDinero(
-              decisionCEO.dineroDisponible
+              decisionCEO.flujoNetoTesoreria
             )}
           </strong>
           <small style={{ display: "block", marginTop: 6, opacity: 0.82, lineHeight: 1.35 }}>

@@ -8,15 +8,18 @@ function construirMensaje({ datosDashboard, analisisFinanciero, saludNegocio }) 
   const ventas = convertirNumero(metricas.ventasTotales);
   const margen = convertirNumero(metricas.margenUtilidad);
   const balance = convertirNumero(analisisFinanciero?.balance);
-  const capacidadCompra = convertirNumero(analisisFinanciero?.capacidadCompra);
   const salud = convertirNumero(saludNegocio?.porcentajeGeneral);
 
   if (ventas <= 0) {
     return "Aún no tengo suficientes datos comerciales para emitir una decisión completa. Importa el reporte de SICAR y registra los movimientos de Tesorería para generar un diagnóstico confiable.";
   }
 
+  if (analisisFinanciero.disponibilidadConfirmada !== true || analisisFinanciero.capacidadCompra == null) {
+    return `Las ventas registradas suman ${formatearDinero(ventas)} y el flujo neto del periodo es ${formatearDinero(balance)}. Confirma saldos de bancos y cajas y revisa las obligaciones próximas antes de autorizar compras. La capacidad de compra está por confirmar.`;
+  }
+
   if (balance < 0) {
-    return `La prioridad de hoy es recuperar liquidez. Aunque las ventas suman ${formatearDinero(ventas)}, el flujo disponible es negativo. Recomiendo detener compras no esenciales, revisar pagos inmediatos y concentrar los cobros pendientes.`;
+    return `Las salidas superan a las entradas del periodo. Revisa pagos inmediatos y cobros pendientes; el flujo no sustituye la conciliación de saldos.`;
   }
 
   if (margen > 0 && margen < 25) {
@@ -24,11 +27,11 @@ function construirMensaje({ datosDashboard, analisisFinanciero, saludNegocio }) 
   }
 
   if (salud >= 80) {
-    return `El negocio presenta una condición favorable con ${salud.toFixed(0)}% de salud. Puedes mantener la operación y destinar hasta ${formatearDinero(capacidadCompra)} a compras prudentes, priorizando productos de alta rotación y evitando comprometer el efectivo.`;
+    return `El negocio presenta una condición favorable con ${salud.toFixed(0)}% de salud. Revisa el presupuesto de compra autorizado, los productos de alta rotación y las obligaciones antes de comprometer efectivo.`;
   }
 
   if (salud >= 60) {
-    return `La operación se encuentra estable, pero requiere disciplina. Mantén controladas las salidas, utiliza con cautela la capacidad de compra de ${formatearDinero(capacidadCompra)} y enfoca las decisiones en productos rentables.`;
+    return `La operación se encuentra estable, pero requiere disciplina. Mantén controladas las salidas, revisa el presupuesto de compra autorizado y enfoca las decisiones en productos rentables.`;
   }
 
   return "La salud general requiere atención. Conviene revisar primero el flujo de efectivo, el margen y los gastos antes de tomar nuevas decisiones de compra o expansión.";

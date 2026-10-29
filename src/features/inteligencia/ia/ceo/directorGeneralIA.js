@@ -12,6 +12,12 @@ function convertirNumero(valor) {
     : 0;
 }
 
+function numeroConfirmado(valor) {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
 function formatoDinero(valor) {
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -100,25 +106,19 @@ export function generarDecisionCEO({
   const resumenInventario =
     inventario.resumen || {};
 
-  const dineroDisponible =
-    convertirNumero(
-      financiero.dineroDisponible
-    );
+  const dineroDisponible = financiero.disponibilidadConfirmada === true
+    ? numeroConfirmado(financiero.dineroDisponible) : null;
+  const flujoNetoTesoreria = numeroConfirmado(financiero.flujoNetoTesoreria);
 
   const vencimientos30Dias =
     convertirNumero(
       financiero.vencimientos30Dias
     );
 
-  const capacidadCompra =
-    convertirNumero(
-      financiero.capacidadCompra
-    );
+  const capacidadCompra = dineroDisponible !== null
+    ? numeroConfirmado(financiero.capacidadCompra) : null;
 
-  const reservaRecomendada =
-    convertirNumero(
-      financiero.reservaRecomendada
-    );
+  const reservaRecomendada = numeroConfirmado(financiero.reservaRecomendada);
 
   const porcentajeGastos =
     convertirNumero(
@@ -150,16 +150,16 @@ export function generarDecisionCEO({
     "PENDIENTE_VALIDAR_SALDOS";
 
   if (
-    dineroDisponible < 0 ||
+    (dineroDisponible !== null && dineroDisponible < 0) ||
     (
       vencimientos30Dias > 0 &&
-      capacidadCompra <= 0
+      capacidadCompra !== null && capacidadCompra <= 0
     )
   ) {
     estadoLiquidez =
       "CRITICA";
   } else if (
-    porcentajeGastos >= 90
+    dineroDisponible !== null && porcentajeGastos >= 90
   ) {
     estadoLiquidez =
       "AJUSTADA";
@@ -175,7 +175,7 @@ export function generarDecisionCEO({
     estadoLiquidez === "CRITICA"
   ) {
     presupuestoCompraAutorizado = 0;
-  } else {
+  } else if (dineroDisponible !== null && capacidadCompra !== null) {
     presupuestoCompraAutorizado =
       Math.max(
         0,
@@ -421,7 +421,7 @@ export function generarDecisionCEO({
   ) {
     if (
       vencimientos30Dias > 0 &&
-      capacidadCompra <= 0
+      capacidadCompra !== null && capacidadCompra <= 0
     ) {
       estadoGeneral =
         "Liquidez comprometida por obligaciones próximas";
@@ -478,6 +478,8 @@ export function generarDecisionCEO({
     estadoLiquidez,
 
     dineroDisponible,
+
+    flujoNetoTesoreria,
 
     reservaRecomendada,
 

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.110.7";
 
 // ======================================================
 // MONYS OS
@@ -62,6 +63,42 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify identity with Auth, then authorize using the current database
+    // profile through the caller's RLS scope. A signed anon JWT is not a user.
+    const authorization = req.headers.get("Authorization") || "";
+    const token = /^Bearer\s+(\S+)$/i.exec(authorization)?.[1];
+    const rechazar = (status, error) => new Response(
+      JSON.stringify({ ok: false, error }),
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+    if (!token) return rechazar(401, "Inicia sesión para crear campañas.");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !anonKey) {
+      return rechazar(503, "No se pudo verificar el acceso. Intenta más tarde.");
+    }
+    const clienteUsuario = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: identidad, error: errorIdentidad } = await clienteUsuario.auth.getUser(token);
+    if (errorIdentidad || !identidad?.user?.id || identidad.user.is_anonymous === true) {
+      return rechazar(401, "La sesión no es válida. Inicia sesión de nuevo.");
+    }
+    const { data: perfil, error: errorPerfil } = await clienteUsuario
+      .from("usuarios")
+      .select("auth_user_id, organization_id, role, active")
+      .eq("auth_user_id", identidad.user.id)
+      .maybeSingle();
+    if (errorPerfil) {
+      return rechazar(503, "No se pudo verificar tu autorización. Intenta más tarde.");
+    }
+    if (!perfil || perfil.auth_user_id !== identidad.user.id || perfil.active !== true
+      || !perfil.organization_id || !["owner", "admin", "marketing"].includes(perfil.role)) {
+      return rechazar(403, "Tu cuenta no tiene autorización para crear campañas.");
+    }
+
     const body: EntradaCampana =
       await req.json();
 

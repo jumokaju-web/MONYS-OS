@@ -5,7 +5,7 @@
 
 import {
   analizarFinanzas as analizarFinanzasBase,
-} from "../../inteligencia/shared/analizarFinanzas";
+} from "../../inteligencia/shared/analizarFinanzas.js";
 
 export function analizarFinanzas(
   datosDashboard = {}
@@ -24,7 +24,7 @@ export function analizarFinanzas(
       prioridad: "media",
       titulo: "Finanzas",
       descripcion:
-        "Registra entradas y salidas para que el Director Financiero pueda evaluar la liquidez real.",
+        "Registra entradas y salidas para que el Director Financiero pueda analizar el flujo del periodo. Confirma saldos y obligaciones antes de decidir compras.",
     });
 
     return {
@@ -42,23 +42,18 @@ export function analizarFinanzas(
         : analisis.nivelRiesgo.nivel === "medio"
           ? "media"
           : "baja",
-    titulo: "Salud financiera",
+    titulo: "Indicador del flujo registrado",
     descripcion:
-      `La salud financiera es de ${analisis.saludFinanciera}%. ` +
+      `El indicador del flujo registrado es de ${analisis.saludFinanciera}%. No acredita disponibilidad ni solvencia. ` +
       analisis.recomendacion,
   });
 
-  if (analisis.balance > 0) {
-    resumen.push({
-      tipo: "capacidad-compra",
-      prioridad: "baja",
-      titulo: "Capacidad de compra",
-      descripcion:
-        `El Director Financiero estima una capacidad prudente de compra de hasta $${analisis.capacidadCompra.toLocaleString(
-          "es-MX"
-        )} MXN.`,
-    });
-  }
+  resumen.push({
+    tipo: "capacidad-compra-pendiente",
+    prioridad: "media",
+    titulo: "Capacidad de compra por confirmar",
+    descripcion: "Confirma saldos de bancos y cajas y las obligaciones próximas. El flujo positivo del periodo no autoriza nuevas compras.",
+  });
 
   if (analisis.balance < 0) {
     resumen.push({

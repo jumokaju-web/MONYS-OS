@@ -18,6 +18,7 @@ function convertirNumero(valor) {
 }
 
 function formatearDinero(valor) {
+  if (valor === null || valor === undefined) return "Por confirmar";
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -254,7 +255,7 @@ function PanelEjecutivoIA({
                 lineHeight: "1",
               }}
             >
-              {saludNegocio.porcentajeGeneral}%
+              {analisis.disponibilidadConfirmada ? `${saludNegocio.porcentajeGeneral}%` : "Por confirmar"}
             </p>
 
             <h3
@@ -264,7 +265,7 @@ function PanelEjecutivoIA({
                 fontSize: "20px",
               }}
             >
-              {saludNegocio.icono} {saludNegocio.estado}
+              {analisis.disponibilidadConfirmada ? `${saludNegocio.icono} ${saludNegocio.estado}` : "Saldos y obligaciones por conciliar"}
             </h3>
           </div>
 
@@ -323,7 +324,7 @@ function PanelEjecutivoIA({
                   fontWeight: "700",
                 }}
               >
-                💰 Salud de liquidez
+                💰 Indicador de flujo
               </p>
 
               <strong
@@ -366,7 +367,7 @@ function PanelEjecutivoIA({
               lineHeight: "1.7",
             }}
           >
-            {saludNegocio.recomendacion}
+            {analisis.disponibilidadConfirmada ? saludNegocio.recomendacion : analisis.recomendacion}
           </p>
         </div>
       </div>
@@ -523,7 +524,7 @@ function PanelEjecutivoIA({
           fontSize: "21px",
         }}
       >
-        💰 Flujo real de Tesorería
+        💰 Flujo registrado de Tesorería
       </h3>
 
       <div
@@ -554,11 +555,11 @@ function PanelEjecutivoIA({
 
         <TarjetaEjecutiva
           icono="💵"
-          titulo="Dinero disponible"
+          titulo="Flujo neto del periodo"
           valor={formatearDinero(
             analisis.balance
           )}
-          detalle="Resultado de entradas menos salidas."
+          detalle="Entradas menos salidas; no es el saldo de bancos y cajas."
         />
 
         <TarjetaEjecutiva
@@ -567,14 +568,14 @@ function PanelEjecutivoIA({
           valor={formatearDinero(
             analisis.capacidadCompra
           )}
-          detalle="Estimación prudente para proteger la liquidez."
+          detalle="Confirma saldos de bancos, cajas y obligaciones antes de autorizar compras."
         />
 
         <TarjetaEjecutiva
         icono="❤️"
-        titulo="Salud financiera"
+        titulo="Indicador del flujo registrado"
         valor={`${analisis.saludFinanciera}%`}
-        detalle="Calificación general basada en flujo, salidas y nivel de riesgo."
+        detalle="Indicador del periodo; no acredita disponibilidad ni solvencia."
         />
 
       </div>
