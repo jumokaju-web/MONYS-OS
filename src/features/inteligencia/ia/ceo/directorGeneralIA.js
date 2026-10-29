@@ -84,16 +84,16 @@ export function generarDecisionCEO({
 
   const accionesFinancieras =
     Array.isArray(
-      financiero.accionesPrioritarias
+      financiero.agendaCompleta || financiero.accionesPrioritarias
     )
-      ? financiero.accionesPrioritarias
+      ? (financiero.agendaCompleta || financiero.accionesPrioritarias)
       : [];
 
   const accionesComerciales =
     Array.isArray(
-      comercial.accionesPrioritarias
+      comercial.agendaCompleta || comercial.accionesPrioritarias
     )
-      ? comercial.accionesPrioritarias
+      ? (comercial.agendaCompleta || comercial.accionesPrioritarias)
       : [];
 
   const sugerenciasCompra =
@@ -405,7 +405,7 @@ export function generarDecisionCEO({
   );
 
   const decisionesTop =
-    decisiones.slice(0, 7);
+    decisiones.slice(0, 3);
 
   // ======================================================
   // 6. MENSAJE DEL CEO
@@ -496,8 +496,8 @@ export function generarDecisionCEO({
 
     comprasPospuestas,
 
-    decisiones:
-      decisionesTop,
+    decisiones,
+    decisionesDestacadas: decisionesTop,
 
     resumen: {
       decisionesTotales:

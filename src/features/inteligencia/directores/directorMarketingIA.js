@@ -328,7 +328,7 @@ export function directorMarketingIA({
     );
   }
 
-  const accionesPrioritarias =
+  const agendaCompleta =
     [...oportunidades]
       .sort(
         (a, b) =>
@@ -338,8 +338,9 @@ export function directorMarketingIA({
           obtenerNivelPrioridad(
             b.prioridad
           )
-      )
-      .slice(0, 5);
+      );
+
+  const accionesPrioritarias = agendaCompleta.slice(0, 5);
 
   let estadoGeneral =
     "Marketing estable";
@@ -393,6 +394,7 @@ export function directorMarketingIA({
 
     recomendaciones,
 
+    agendaCompleta,
     accionesPrioritarias,
 
     actualizacionDatos,

@@ -689,7 +689,7 @@ const semaforoComercial =
             fontSize: "22px",
           }}
         >
-          🎯 Decisiones finales del Consejo
+          🎯 Tres prioridades principales
         </h3>
 
         <p
@@ -709,13 +709,14 @@ const semaforoComercial =
             marginTop: "18px",
           }}
         >
+          {decisiones.slice(3).some((d) => d.prioridad === "CRITICA") && <p role="alert">Hay propuestas críticas adicionales en la agenda completa. Revísalas antes de cerrar tu planificación.</p>}
           {decisiones.length === 0 ? (
             <div>
               No hay decisiones ejecutivas
               pendientes con la información actual.
             </div>
           ) : (
-            decisiones.map(
+            decisiones.slice(0, 3).map(
               (decision, index) => {
                 const estilo =
                   obtenerEstiloPrioridad(
@@ -779,6 +780,14 @@ const semaforoComercial =
           )}
         </div>
       </div>
+
+      {decisiones.length > 3 && <details style={{ marginTop: 16, padding: 18, borderRadius: 14, background: "#fff", color: "#382a35" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 800 }}>Ver agenda ejecutiva completa · {decisiones.length} propuestas</summary>
+        <p>Además de las tres destacadas, conserva estas propuestas para revisar y dar seguimiento. No son autorizaciones de gasto.</p>
+        {decisiones.slice(3).map((decision, index) => <article key={`${decision.area}-${decision.titulo}-${index}`} style={{ padding: 12, marginTop: 10, border: "1px solid #ead8e2", borderRadius: 12 }}>
+          <small>{decision.area} · {decision.prioridad || "Por revisar"}</small><h4>{decision.titulo}</h4><p>{decision.descripcion}</p>
+        </article>)}
+      </details>}
 
       <div
         style={{
