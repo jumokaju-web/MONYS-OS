@@ -197,6 +197,7 @@ function CentroInteligencia({
   volverAlDashboard,
   onAbrirImportador,
   onAbrirTesoreria,
+  onAbrirOperacion,
   importacionId,
   onAbrirValor,
 }) {
@@ -633,7 +634,7 @@ const analisisRH =
         setDirectorAbierto(id);
       }} />
       {typeof onAbrirValor === "function" && <section className="junta"><span className="junta-label">DIRECCIÓN · EJECUCIÓN · VALOR ECONÓMICO</span><h2>¿Qué cambió gracias a nuestras acciones?</h2><p>Registra pruebas con línea base y evidencia, revisa resultados y consulta por separado los ingresos por vender MONYS OS.</p><button type="button" onClick={onAbrirValor}>Abrir Centro de Valor →</button></section>}
-      <JuntaDirectiva analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => setDirectorAbierto(id)} />
+      <JuntaDirectiva onAbrirOperacion={onAbrirOperacion} analisisConectados={{ datosDashboard, financiero: analisisFinancieroCEO, comercial: analisisComercialCEO, inventario: analisisInventarioCEO, marketing: analisisMarketing, rh: analisisRH }} sucursales={sucursalesDashboard} movimientos={movimientos || []} importacionId={importacionId} onAbrirImportador={onAbrirImportador} onAbrirDirector={(id) => setDirectorAbierto(id)} />
       {mostrarConsejoAnterior && (
       <div aria-hidden="true">
       {directorAbierto ? (

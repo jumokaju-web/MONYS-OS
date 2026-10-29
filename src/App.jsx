@@ -114,6 +114,7 @@ function App() {
     setPantallaActual,
   ] = useState("dashboard");
   const [directorInicial, setDirectorInicial] = useState(null);
+  const [fechaOperacionInicial, setFechaOperacionInicial] = useState(null);
   const [iniciativaValorInicial, setIniciativaValorInicial] = useState(null);
   const [seccionRescateBacklog, setSeccionRescateBacklog] = useState("vencidas");
   const [scrollDashboardAntesRescate, setScrollDashboardAntesRescate] = useState(0);
@@ -992,7 +993,7 @@ const disponible =
           ← Volver al inicio
         </button>
         <div id="operacion-equipo">
-          <OperacionHoy
+          <OperacionHoy fechaInicial={fechaOperacionInicial}
             organizationId={datosDashboard?.organization_id || usuario?.organization_id || null}
             businessId={datosDashboard?.business_id || usuario?.business_id || null}
             branchId={datosDashboard?.branch_id || usuario?.branch_id || null}
@@ -1272,7 +1273,7 @@ if (
     }
 
     return (
-      <CentroInteligencia directorInicial={directorInicial} onAbrirValor={abrirCentroValor}
+      <CentroInteligencia onAbrirOperacion={(fecha)=>{setFechaOperacionInicial(fecha);setPantallaActual("operacion");}} directorInicial={directorInicial} onAbrirValor={abrirCentroValor}
         onAbrirTesoreria={() => setPantallaActual("tesoreria")}
         datosDashboard={
           datosDashboard

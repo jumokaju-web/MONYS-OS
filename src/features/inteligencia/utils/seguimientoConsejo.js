@@ -22,3 +22,14 @@ export function resumirSeguimientoConsejo(tareas = [], hoy = fechaConsejoHoy()) 
 export function tituloPropuestaConsejo(propuesta, periodo) {
   return `[Consejo] ${propuesta.titulo.trim()} · ${periodo || 'Sin corte'}`;
 }
+
+export function construirResultadoConsejo({ resumen, evidencia, siguienteAccion }) {
+  const campos = [resumen, evidencia, siguienteAccion].map(v => String(v || '').trim());
+  if (campos.some(v => !v || v.length > 4000)) throw new Error('Completa resultado, evidencia y siguiente acción (máximo 4000 caracteres por campo).');
+  return JSON.stringify({ tipo: 'revision_consejo', resumen: campos[0], evidencia: campos[1], siguienteAccion: campos[2], alcance: 'Resultado reportado; pendiente de verificación. No acredita impacto económico.' });
+}
+export function leerResultadoConsejo(valor) {
+  if (!valor) return null;
+  if (typeof valor === 'object') return valor;
+  try { return JSON.parse(valor); } catch { return { resumen: String(valor) }; }
+}

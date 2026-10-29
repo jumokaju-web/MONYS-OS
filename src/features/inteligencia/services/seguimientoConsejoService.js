@@ -1,4 +1,4 @@
-import { fechaConsejoValida, tituloPropuestaConsejo } from '../utils/seguimientoConsejo';
+import { construirResultadoConsejo, fechaConsejoValida, tituloPropuestaConsejo } from '../utils/seguimientoConsejo';
 import { supabase } from '../../../supabase';
 import { crearTareaOperativa } from './tareasOperativasService';
 function validarAlcance(usuario) {
@@ -19,4 +19,16 @@ export async function tomarPropuestaConsejo({usuario,propuesta,fecha,periodo}) {
  if(errorConsulta) throw new Error('No se pudo comprobar el seguimiento existente. No se creó otra tarea.');
  if(existente?.length) return {...existente[0], existente: true};
  return crearTareaOperativa({organizationId:usuario.organization_id,businessId:usuario.business_id,branchId:usuario.branch_id,titulo,descripcion:propuesta.descripcion,area:'general',responsable:usuario.nombre,prioridad:'alta',fecha,creadaPor:usuario.nombre,requiereEvidencia:true,criterioExito:'Adjuntar evidencia de la revisión, registrar resultado y siguiente acción. Crear esta tarea no autoriza gasto ni ejecución de la propuesta.',instrucciones:`Fuente: ${propuesta.fuente}. Cruce: ${propuesta.cruce}`});
+}
+
+export async function guardarResultadoConsejo({ usuario, tareaId, resumen, evidencia, siguienteAccion }) {
+ validarAlcance(usuario);
+ const resultado = construirResultadoConsejo({ resumen, evidencia, siguienteAccion });
+ if (!tareaId) throw new Error('Selecciona una tarea del Consejo.');
+ const {data: sesion,error: errorSesion}=await supabase.auth.getUser();
+ if(errorSesion || sesion?.user?.id !== usuario.auth_user_id) throw new Error('La sesión cambió. Vuelve a cargar tu cuenta.');
+ const {data,error}=await supabase.from('tareas_operativas').update({resultado, requiere_revision:true, evaluacion_estado:'revision_humana', updated_at:new Date().toISOString()})
+ .eq('id',tareaId).eq('organization_id',usuario.organization_id).eq('business_id',usuario.business_id).eq('branch_id',usuario.branch_id).like('titulo','[Consejo]%').neq('estado','cancelada').select('id').single();
+ if(error || !data) throw new Error('No se pudo guardar el resultado. Comprueba tu acceso y actualiza el seguimiento.');
+ return data;
 }
