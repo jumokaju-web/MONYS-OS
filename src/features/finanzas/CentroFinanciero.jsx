@@ -8,6 +8,7 @@ import BandejaCapturasEquipo from './components/BandejaCapturasEquipo';
 import DisponibilidadFinancieraHoy from './components/DisponibilidadFinancieraHoy';
 import CentroDecisionesFinancieras from './components/CentroDecisionesFinancieras';
 import CortesCajaSicar from './components/CortesCajaSicar';
+import PreparacionCierre from './components/PreparacionCierre.jsx';
 
 const areas = [
   ['direccion', 'Dirección hoy', 'Prioridad, alertas y siguiente paso'],
@@ -25,7 +26,7 @@ const vistasEquipo = [
   ['disponible', 'Dinero disponible', 'Cuánto puedes usar hoy'],
 ];
 
-export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, movimientos, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
+export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, movimientos, cargandoMovimientos = false, errorMovimientos = false, cargandoTiendas = false, errorTiendas = false, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
   const [creditos, setCreditos] = useState({ importacion: null, creditos: [], saldoTotal: 0 });
   const [errorCreditos, setErrorCreditos] = useState('');
   const [tab, setTab] = useState('direccion');
@@ -91,7 +92,10 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
       </nav>
 
       <section ref={areaActivaRef} className="finanzas-area-activa" aria-live="polite">
-        {tab === 'direccion' && <CentroDecisionesFinancieras movimientos={movimientos} creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} onAbrirArea={abrirArea} onAbrirImportador={onAbrirImportador} />}
+        {tab === 'direccion' && <>
+          <PreparacionCierre sucursales={sucursalesDashboard} movimientos={movimientos} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoTiendas={cargandoTiendas} errorTiendas={errorTiendas} onAbrirArea={abrirArea} />
+          <CentroDecisionesFinancieras cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} onReintentarMovimientos={onMovimientoGuardado} movimientos={movimientos} creditosProveedores={creditos} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} onAbrirArea={abrirArea} onAbrirImportador={onAbrirImportador} />
+        </>}
         {tab === 'equipo' && <section className="finanzas-equipo-centro" aria-label="Capturas del equipo">
           {vistaEquipo === 'menu' ? <>
             <header className="finanzas-equipo-intro">

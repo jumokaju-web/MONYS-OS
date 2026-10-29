@@ -13,7 +13,8 @@ function diasDesde(fecha) {
   return Math.max(0, Math.floor((Date.now() - valor.getTime()) / 86400000));
 }
 
-export function resumirCentroDecisionesFinancieras({ movimientos = [], creditosProveedores = {}, datosDashboard = {}, sucursalesDashboard = [] } = {}) {
+export function resumirCentroDecisionesFinancieras({ movimientos = [], cargandoMovimientos = false, errorMovimientos = false, creditosProveedores = {}, datosDashboard = {}, sucursalesDashboard = [] } = {}) {
+  const movimientosConsultados = !cargandoMovimientos && !errorMovimientos && Array.isArray(movimientos);
   const listaMovimientos = Array.isArray(movimientos) ? movimientos : [];
   const pendientes = listaMovimientos.filter((movimiento) => String(movimiento?.estado || movimiento?.status || "") === PENDIENTE_REVISION);
   const cancelados = listaMovimientos.filter((movimiento) => String(movimiento?.estado || movimiento?.status || "") === "Cancelado").length;
@@ -43,7 +44,9 @@ export function resumirCentroDecisionesFinancieras({ movimientos = [], creditosP
   const sucursales = Array.isArray(sucursalesDashboard) ? sucursalesDashboard.length : 0;
 
   let prioridad;
-  if (pendientes.length > 0) {
+  if (!movimientosConsultados) {
+    prioridad = { nivel: "alta", etiqueta: "CONSULTA PENDIENTE", titulo: cargandoMovimientos ? "Consultando los movimientos" : "No se pudieron comprobar los movimientos", detalle: "Una consulta pendiente o fallida no significa que existan cero movimientos por revisar.", accion: "Volver a consultar", destino: "reintentar", evidencia: "PENDIENTE · fuente de Tesorería sin confirmar" };
+  } else if (pendientes.length > 0) {
     prioridad = { nivel: "alta", etiqueta: "ACCIÓN DE HOY", titulo: `Resolver ${pendientes.length} ${pendientes.length === 1 ? "movimiento pendiente" : "movimientos pendientes"}`, detalle: "Mientras no estén clasificados y revisados, MONYS no debe tratarlos como una base financiera cerrada.", accion: "Abrir movimientos", destino: "control", evidencia: `REAL · ${listaMovimientos.length} movimientos consultados` };
   } else if (!creditosProveedores?.importacion && !creditosProveedores?.disponible) {
     prioridad = { nivel: "alta", etiqueta: "DATO FALTANTE", titulo: "Cargar los saldos de proveedores", detalle: "Sin obligaciones actualizadas no es seguro decidir cuánto dinero está libre para comprar o pagar.", accion: "Cargar reporte", destino: "importador", evidencia: "PENDIENTE · no hay importación vigente de proveedores" };
@@ -55,7 +58,7 @@ export function resumirCentroDecisionesFinancieras({ movimientos = [], creditosP
     prioridad = { nivel: "bien", etiqueta: "SIGUIENTE DECISIÓN", titulo: "Confirmar cuánto dinero puedes usar hoy", detalle: "Revisa bancos, cajas y compromisos próximos antes de autorizar compras o pagos.", accion: "Calcular disponibilidad", destino: "disponible", evidencia: "REAL · movimientos y reportes principales sin bloqueo inmediato" };
   }
 
-  return { prioridad, pendientes: pendientes.length, revisados: Math.max(0, listaMovimientos.length - pendientes.length - cancelados), totalMovimientos: listaMovimientos.length, ventas, utilidad, saldoProveedores, fechaFinal, antiguedadVentas, sucursales, alcanceVentas: consolidacion.disponible ? "Todas las sucursales · cortes comparables" : faltaConsolidadoComparable ? "Cortes distintos · total pendiente" : "Corte de la sucursal seleccionada" };
+  return { prioridad, pendientes: movimientosConsultados ? pendientes.length : null, revisados: movimientosConsultados ? Math.max(0, listaMovimientos.length - pendientes.length - cancelados) : null, totalMovimientos: movimientosConsultados ? listaMovimientos.length : null, ventas, utilidad, saldoProveedores, fechaFinal, antiguedadVentas, sucursales, alcanceVentas: consolidacion.disponible ? "Todas las sucursales · cortes comparables" : faltaConsolidadoComparable ? "Cortes distintos · total pendiente" : "Corte de la sucursal seleccionada" };
 }
 import { consolidarFinanzasSucursales } from "../../inteligencia/shared/resumenSucursalesFinanciero.js";
 
