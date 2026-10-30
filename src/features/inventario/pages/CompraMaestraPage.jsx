@@ -12,6 +12,8 @@ import DetalleCompraSucursal from "../components/DetalleCompraSucursal";
 import PlanTraspasos from "../components/PlanTraspasos";
 import ListaMaestraCompra from "../components/ListaMaestraCompra";
 import HistorialCompraMaestra from "../components/HistorialCompraMaestra";
+import DecisionCompraInteligente from "../components/DecisionCompraInteligente";
+import { construirDecisionCompra } from "../utils/decisionCompra";
 
 import {
   guardarPlanCompra,
@@ -32,6 +34,12 @@ function convertirNumero(valor) {
   return Number.isFinite(numero)
     ? numero
     : 0;
+}
+
+function numeroONulo(valor) {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
 }
 
 function formatearDinero(valor) {
@@ -59,6 +67,7 @@ function formatearNumero(valor) {
 
 export default function CompraMaestraPage({
   volverAlDashboard,
+  businessId = null,
   datosDashboard = null,
   movimientos = [],
 }) {
@@ -232,11 +241,15 @@ const analisisFinancieroCompra =
       contextoProveedores.creditos,
   });
 
-const capacidadCompraAutorizable =
-  convertirNumero(
-    analisisFinancieroCompra
-      ?.capacidadCompra
-  );
+const capacidadCompraAutorizable = numeroONulo(
+  analisisFinancieroCompra?.capacidadCompra
+);
+
+  const decisionCompra = construirDecisionCompra({
+    compraMaestra,
+    capacidadCompra: capacidadCompraAutorizable,
+    disponibilidadConfirmada: analisisFinancieroCompra?.disponibilidadConfirmada === true,
+  });
 
   const inversionCompraPropuesta =
     convertirNumero(
@@ -244,7 +257,7 @@ const capacidadCompraAutorizable =
     );
 
   const compraSuperaCapacidad =
-    !cargandoContextoFinanciero &&
+    decisionCompra.presupuestoConfirmado &&
     inversionCompraPropuesta >
       capacidadCompraAutorizable;
 
@@ -252,7 +265,7 @@ const capacidadCompraAutorizable =
     Math.max(
       0,
       inversionCompraPropuesta -
-        capacidadCompraAutorizable
+        (capacidadCompraAutorizable || 0)
     );
 
   async function guardarPlanActual() {
@@ -271,6 +284,18 @@ const capacidadCompraAutorizable =
       const resultado =
         await guardarPlanCompra({
           compraMaestra,
+          businessId,
+          decisionFinanciera: {
+            inversionPropuesta: decisionCompra.inversionPropuesta,
+            capacidadAutorizable: decisionCompra.capacidadCompra,
+            compraAutorizable: decisionCompra.listoParaAutorizar,
+            estado: decisionCompra.estado,
+            faltanteParaAutorizar: decisionCompra.faltanteParaAutorizar,
+            productosCriticos: decisionCompra.productosCriticos,
+            productosSinCosto: decisionCompra.productosSinCosto,
+            productosSinMargen: decisionCompra.productosSinMargen,
+            motivo: decisionCompra.bloqueos.join(" ") || "La propuesta está lista para revisión humana de autorización.",
+          },
         });
 
       setPlanGuardado(true);
@@ -308,7 +333,7 @@ const capacidadCompraAutorizable =
         setError("");
 
         const resultado =
-          await generarCompraMaestra();
+          await generarCompraMaestra(businessId);
 
         if (!activo) {
           return;
@@ -321,7 +346,8 @@ const capacidadCompraAutorizable =
                 try {
           const verificacion =
             await verificarPlanActualGuardado(
-              resultado
+              resultado,
+              businessId
             );
 
           if (!activo) {
@@ -380,7 +406,7 @@ const capacidadCompraAutorizable =
     return () => {
       activo = false;
     };
-  }, []);
+  }, [businessId]);
 
   if (cargando) {
     return (
@@ -637,6 +663,12 @@ const capacidadCompraAutorizable =
         })}
       </div>
 
+      <DecisionCompraInteligente
+        decision={decisionCompra}
+        onVerCompra={() => setSeccionActiva("compra")}
+        onVerTraspasos={() => setSeccionActiva("traspasos")}
+      />
+
       <div
         style={{
           display: "grid",
@@ -824,12 +856,12 @@ const capacidadCompraAutorizable =
           marginBottom: "28px",
           padding: "20px",
           borderRadius: "18px",
-          border: cargandoContextoFinanciero
+          border: cargandoContextoFinanciero || !decisionCompra.presupuestoConfirmado
             ? "1px solid #d9e8ff"
             : compraSuperaCapacidad
               ? "1px solid #efb7b7"
               : "1px solid #b9dfc7",
-          backgroundColor: cargandoContextoFinanciero
+          backgroundColor: cargandoContextoFinanciero || !decisionCompra.presupuestoConfirmado
             ? "#f4f8ff"
             : compraSuperaCapacidad
               ? "#fff5f5"
@@ -840,7 +872,7 @@ const capacidadCompraAutorizable =
           style={{
             display: "block",
             fontSize: "18px",
-            color: cargandoContextoFinanciero
+            color: cargandoContextoFinanciero || !decisionCompra.presupuestoConfirmado
               ? "#315b86"
               : compraSuperaCapacidad
                 ? "#a52d2d"
@@ -849,12 +881,14 @@ const capacidadCompraAutorizable =
         >
           {cargandoContextoFinanciero
             ? "⏳ Calculando capacidad financiera..."
+            : !decisionCompra.presupuestoConfirmado
+              ? "ℹ️ Presupuesto de compra pendiente de confirmar"
             : compraSuperaCapacidad
               ? "⛔ La compra completa no es autorizable"
               : "✅ La compra está dentro de la capacidad financiera"}
         </strong>
 
-        {!cargandoContextoFinanciero && (
+        {!cargandoContextoFinanciero && decisionCompra.presupuestoConfirmado && (
           <div
             style={{
               display: "grid",
@@ -1067,7 +1101,7 @@ const capacidadCompraAutorizable =
 
       {seccionActiva ===
         "historial" && (
-        <HistorialCompraMaestra />
+        <HistorialCompraMaestra businessId={businessId} />
       )}
 
       {seccionActiva ===
