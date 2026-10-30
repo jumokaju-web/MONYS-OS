@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -14,6 +15,7 @@ import ListaMaestraCompra from "../components/ListaMaestraCompra";
 import HistorialCompraMaestra from "../components/HistorialCompraMaestra";
 import DecisionCompraInteligente from "../components/DecisionCompraInteligente";
 import { construirDecisionCompra } from "../utils/decisionCompra";
+import { cambiarSeccionCompraMaestra } from "../utils/navegacionCompraMaestra";
 
 import {
   guardarPlanCompra,
@@ -125,6 +127,19 @@ export default function CompraMaestraPage({
     seccionActiva,
     setSeccionActiva,
   ] = useState("resumen");
+
+  const navegacionSeccionesRef = useRef(null);
+
+  function cambiarSeccion(seccion) {
+    cambiarSeccionCompraMaestra({
+      seccion,
+      actualizar: setSeccionActiva,
+      enfocar: () => navegacionSeccionesRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    });
+  }
 
   const [
     contextoProveedores,
@@ -595,6 +610,8 @@ const capacidadCompraAutorizable = numeroONulo(
       </div>
 
               <div
+        ref={navegacionSeccionesRef}
+        aria-label="Secciones de Compra Maestra"
         style={{
           display: "flex",
           gap: "10px",
@@ -632,11 +649,7 @@ const capacidadCompraAutorizable = numeroONulo(
             <button
               key={seccion.id}
               type="button"
-              onClick={() =>
-                setSeccionActiva(
-                  seccion.id
-                )
-              }
+              onClick={() => cambiarSeccion(seccion.id)}
               style={{
                 padding:
                   "11px 16px",
@@ -663,10 +676,11 @@ const capacidadCompraAutorizable = numeroONulo(
         })}
       </div>
 
+      {seccionActiva === "resumen" && <>
       <DecisionCompraInteligente
         decision={decisionCompra}
-        onVerCompra={() => setSeccionActiva("compra")}
-        onVerTraspasos={() => setSeccionActiva("traspasos")}
+        onVerCompra={() => cambiarSeccion("compra")}
+        onVerTraspasos={() => cambiarSeccion("traspasos")}
       />
 
       <div
@@ -1064,7 +1078,7 @@ const capacidadCompraAutorizable = numeroONulo(
               : "💾 Guardar plan actual"}
         </button>
       </div>
-
+      </>}
 
           {seccionActiva ===
         "resumen" && (
