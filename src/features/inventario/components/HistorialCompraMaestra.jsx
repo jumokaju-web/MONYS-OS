@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -14,8 +15,9 @@ function formatearNumero(valor) {
 }
 
 function formatearDinero(valor) {
+  if (valor === null || valor === undefined || valor === "") return "Pendiente";
   return Number(
-    valor || 0
+    valor
   ).toLocaleString(
     "es-MX",
     {
@@ -76,7 +78,7 @@ function obtenerTextoEstado(
   }
 }
 
-function DecisionFinancieraPlan({
+export function DecisionFinancieraPlan({
   plan,
 }) {
   const decision =
@@ -106,6 +108,9 @@ function DecisionFinancieraPlan({
   const compraAutorizable =
     decision
       ?.compraAutorizable === true;
+  const presupuestoPendiente = ["PRESUPUESTO_PENDIENTE", "PENDIENTE_DATOS"].includes(
+    String(decision?.estado || "").toUpperCase()
+  );
 
   return (
     <div
@@ -113,11 +118,15 @@ function DecisionFinancieraPlan({
         marginTop: "16px",
         padding: "16px",
         borderRadius: "14px",
-        border: compraAutorizable
+        border: presupuestoPendiente
+          ? "1px solid #b9d6ef"
+          : compraAutorizable
           ? "1px solid #b9dfc7"
           : "1px solid #efb7b7",
         backgroundColor:
-          compraAutorizable
+          presupuestoPendiente
+            ? "#f4f8ff"
+            : compraAutorizable
             ? "#f3fbf6"
             : "#fff5f5",
       }}
@@ -125,12 +134,16 @@ function DecisionFinancieraPlan({
       <strong
         style={{
           display: "block",
-          color: compraAutorizable
+          color: presupuestoPendiente
+            ? "#315b86"
+            : compraAutorizable
             ? "#207a4a"
             : "#a52d2d",
         }}
       >
-        {compraAutorizable
+        {presupuestoPendiente
+          ? "ℹ️ Presupuesto pendiente de confirmar"
+          : compraAutorizable
           ? "✅ Compra financieramente autorizable"
           : "⛔ Compra no autorizable"}
       </strong>
@@ -221,7 +234,7 @@ function DecisionFinancieraPlan({
   );
 }
 
-export default function HistorialCompraMaestra() {
+export default function HistorialCompraMaestra({ businessId = null }) {
   const [
     planes,
     setPlanes,
@@ -237,14 +250,15 @@ export default function HistorialCompraMaestra() {
     setError,
   ] = useState("");
 
-  async function cargarHistorial() {
+  const cargarHistorial = useCallback(async function cargarHistorial() {
     try {
       setCargando(true);
       setError("");
 
       const resultado =
         await obtenerHistorialPlanesCompra(
-          20
+          20,
+          businessId
         );
 
       setPlanes(
@@ -265,11 +279,11 @@ export default function HistorialCompraMaestra() {
     } finally {
       setCargando(false);
     }
-  }
+  }, [businessId]);
 
   useEffect(() => {
     cargarHistorial();
-  }, []);
+  }, [cargarHistorial]);
 
   return (
     <section
