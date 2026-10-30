@@ -13,7 +13,9 @@ test("exporta y lee XLSX real preservando códigos de texto, decimales, fecha SI
   const libro = XLSX.utils.book_new();
   const hoja = XLSX.utils.aoa_to_sheet([
     ["Código", "Producto", "Fecha", "Cantidad", "Precio", "Importe"],
-    ["001234567890", "Corrector Saniye", new Date("2026-10-12T00:00:00Z"), 2, 12.5, 25],
+    // Mediodía evita que el serial de Excel cambie de día según la zona horaria
+    // donde corre la prueba; SICAR importa una fecha comercial, no un instante UTC.
+    ["001234567890", "Corrector Saniye", new Date("2026-10-12T12:00:00Z"), 2, 12.5, 25],
   ]);
   hoja.F2 = { t: "n", f: "D2*E2", v: 25 };
   XLSX.utils.book_append_sheet(libro, hoja, "Ventas SICAR");
