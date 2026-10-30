@@ -56,11 +56,15 @@ export async function agregarProducto(producto) {
   =========================================================
 */
 
-export async function obtenerSucursalesInventario() {
-  const { data, error } = await supabase
+export async function obtenerSucursalesInventario(businessId = null) {
+  let consulta = supabase
     .from("branches")
     .select("id, business_id, name, active")
-    .eq("active", true)
+    .eq("active", true);
+
+  if (businessId) consulta = consulta.eq("business_id", businessId);
+
+  const { data, error } = await consulta
     .order("name", { ascending: true });
 
   if (error) {

@@ -1125,6 +1125,7 @@ if (
 
   return (
    <CompraMaestraPage
+  businessId={usuario?.business_id || datosDashboard?.business_id || null}
   datosDashboard={
     datosDashboard
   }

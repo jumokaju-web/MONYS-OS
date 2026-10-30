@@ -675,11 +675,9 @@ export async function obtenerUltimosInventariosPorSucursal(branchIds = []) {
   return ultimasPorSucursal;
 }
 
-export async function obtenerUltimasVentasPorSucursal() {
-  const {
-    data: importaciones,
-    error,
-  } = await supabase
+export async function obtenerUltimasVentasPorSucursal(branchIds = []) {
+  const ids = [...new Set((branchIds || []).filter(Boolean))];
+  let consulta = supabase
     .from("importaciones")
     .select(`
       id,
@@ -688,19 +686,16 @@ export async function obtenerUltimasVentasPorSucursal() {
       branch_id,
       created_at
     `)
-    .eq(
-      "tipo_reporte",
-      "Ventas por artículo"
-    )
-    .eq(
-      "estado",
-      "procesado"
-    )
-    .not(
-      "branch_id",
-      "is",
-      null
-    )
+    .eq("tipo_reporte", "Ventas por artículo")
+    .eq("estado", "procesado")
+    .not("branch_id", "is", null);
+
+  if (ids.length) consulta = consulta.in("branch_id", ids);
+
+  const {
+    data: importaciones,
+    error,
+  } = await consulta
     .order("created_at", {
       ascending: false,
     });
