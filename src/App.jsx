@@ -170,7 +170,7 @@ function App() {
   function puedeAdministrarUsuarios() {
     return (
       esOwner ||
-      esAdmin
+      puede("gestionar_estado_usuarios")
     );
   }
 

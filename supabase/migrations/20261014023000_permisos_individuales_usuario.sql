@@ -88,6 +88,7 @@ declare
   v_previous boolean;
   v_actualizados integer := 0;
   v_permisos_validos constant text[] := array[
+    'gestionar_estado_usuarios',
     'ver_finanzas',
     'ver_ventas',
     'ver_inventario',

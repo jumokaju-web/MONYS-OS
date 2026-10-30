@@ -48,8 +48,10 @@ const FORMULARIO_INICIAL = {
 export default function CentroUsuarios({
   volverAlDashboard,
 }) {
-  const { usuario: usuarioActual } = useUser();
+  const { usuario: usuarioActual, tienePermiso } = useUser();
   const esPropietaria = usuarioActual?.role === "owner";
+  const puedeGestionarEstado =
+    esPropietaria || tienePermiso("gestionar_estado_usuarios");
   const [usuarios, setUsuarios] =
     useState([]);
 
@@ -58,6 +60,9 @@ export default function CentroUsuarios({
 
   const [sucursales, setSucursales] =
     useState([]);
+
+  const [filtroSucursal, setFiltroSucursal] =
+    useState("todas");
 
   const [cargando, setCargando] =
     useState(true);
@@ -187,6 +192,42 @@ export default function CentroUsuarios({
       sucursales,
       formulario.business_id,
     ]);
+
+  const sucursalPorId = useMemo(
+    () => new Map(sucursales.map((sucursal) => [sucursal.id, sucursal.name])),
+    [sucursales]
+  );
+
+  const sucursalesConUsuarios = useMemo(() => {
+    const conteos = new Map();
+
+    usuarios.forEach((usuario) => {
+      const clave = usuario.branch_id || "sin-sucursal";
+      conteos.set(clave, (conteos.get(clave) || 0) + 1);
+    });
+
+    return [
+      { id: "todas", name: "Todas", total: usuarios.length },
+      ...sucursales
+        .filter((sucursal) => conteos.has(sucursal.id))
+        .map((sucursal) => ({
+          id: sucursal.id,
+          name: sucursal.name,
+          total: conteos.get(sucursal.id),
+        })),
+      ...(conteos.has("sin-sucursal")
+        ? [{ id: "sin-sucursal", name: "Sin sucursal", total: conteos.get("sin-sucursal") }]
+        : []),
+    ];
+  }, [sucursales, usuarios]);
+
+  const usuariosVisibles = useMemo(() => {
+    if (filtroSucursal === "todas") return usuarios;
+    if (filtroSucursal === "sin-sucursal") {
+      return usuarios.filter((usuario) => !usuario.branch_id);
+    }
+    return usuarios.filter((usuario) => usuario.branch_id === filtroSucursal);
+  }, [filtroSucursal, usuarios]);
 
   function actualizarCampo(evento) {
     const {
@@ -626,7 +667,7 @@ async function guardarCambiosPermisos() {
           </button>
         ) : (
           <span style={{ color: "#766a70", fontSize: "13px", fontWeight: 700 }}>
-            Consulta de accesos · Mónica autoriza los cambios
+            Puedes activar o pausar personal; Mónica conserva permisos y eliminación
           </span>
         )}
       </div>
@@ -1103,12 +1144,59 @@ async function guardarCambiosPermisos() {
         !error &&
         usuarios.length > 0 && (
           <div
+            aria-label="Filtrar usuarios por sucursal"
+            style={{
+              display: "flex",
+              gap: "8px",
+              overflowX: "auto",
+              paddingBottom: "12px",
+              marginBottom: "4px",
+            }}
+          >
+            {sucursalesConUsuarios.map((sucursal) => (
+              <button
+                key={sucursal.id}
+                type="button"
+                aria-pressed={filtroSucursal === sucursal.id}
+                onClick={() => setFiltroSucursal(sucursal.id)}
+                style={{
+                  flex: "none",
+                  padding: "10px 14px",
+                  borderRadius: "999px",
+                  border: filtroSucursal === sucursal.id
+                    ? "1px solid #5e3048"
+                    : "1px solid #d8cbd2",
+                  background: filtroSucursal === sucursal.id ? "#5e3048" : "#ffffff",
+                  color: filtroSucursal === sucursal.id ? "#ffffff" : "#5e3048",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                {sucursal.name} · {sucursal.total}
+              </button>
+            ))}
+          </div>
+        )}
+
+      {!cargando &&
+        !error &&
+        usuarios.length > 0 &&
+        usuariosVisibles.length === 0 && (
+          <div style={{ padding: "28px", textAlign: "center", color: "#766a70" }}>
+            No hay usuarios en esta sucursal.
+          </div>
+        )}
+
+      {!cargando &&
+        !error &&
+        usuariosVisibles.length > 0 && (
+          <div
             style={{
               display: "grid",
               gap: "14px",
             }}
           >
-            {usuarios.map(
+            {usuariosVisibles.map(
               (usuario) => (
                 <article
                   key={usuario.id}
@@ -1210,12 +1298,12 @@ async function guardarCambiosPermisos() {
                         Sucursal:
                       </strong>{" "}
                       {usuario.branch_id
-                        ? "Asignada"
+                        ? sucursalPorId.get(usuario.branch_id) || "Asignada"
                         : "Todas / No aplica"}
                     </span>
                   </div>
 
-                  {esPropietaria && usuario.role !==
+                  {puedeGestionarEstado && usuario.role !==
                     "owner" && (
                     <div
                       style={{
@@ -1225,7 +1313,7 @@ async function guardarCambiosPermisos() {
                         marginTop: "18px",
                       }}
                     >
-                      <button
+                      {esPropietaria && <button
                           type="button"
                           onClick={() => abrirEditorPermisos(usuario)}
                           style={{
@@ -1239,8 +1327,8 @@ async function guardarCambiosPermisos() {
                           }}
                         >
                           🔐 Editar permisos
-                        </button>
-                      <button
+                        </button>}
+                      {esPropietaria && <button
                         type="button"
                         onClick={() =>
                           cambiarEstado(
@@ -1271,7 +1359,7 @@ async function guardarCambiosPermisos() {
                         {usuario.active
                           ? "⏸ Pausar"
                           : "▶ Reactivar"}
-                      </button>
+                      </button>}
 
                       <button
                         type="button"

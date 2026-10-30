@@ -27,6 +27,11 @@ export async function obtenerPermisosPorRol(role) {
 
 export const PERMISOS_MONYS = [
   {
+    permission: "gestionar_estado_usuarios",
+    label: "Activar o pausar personal",
+    description: "Consultar el directorio y activar o pausar usuarios, sin cambiar roles ni eliminarlos.",
+  },
+  {
     permission: "ver_finanzas",
     label: "Finanzas y dinero",
     description: "Consultar y registrar movimientos financieros.",
