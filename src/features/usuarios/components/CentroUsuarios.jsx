@@ -34,6 +34,16 @@ const ROLES = [
   { value: "consulta", label: "Consulta" },
 ];
 
+const ROLES_OPERATIVOS_PERSONAL = new Set([
+  "encargada",
+  "vendedora",
+  "marketing",
+  "chofer",
+  "compras",
+  "capturista",
+  "consulta",
+]);
+
 const FORMULARIO_INICIAL = {
   nombre: "",
   correo: "",
@@ -52,6 +62,8 @@ export default function CentroUsuarios({
   const esPropietaria = usuarioActual?.role === "owner";
   const puedeGestionarEstado =
     esPropietaria || tienePermiso("gestionar_estado_usuarios");
+  const puedeGestionarPersonal =
+    esPropietaria || tienePermiso("gestionar_personal_operativo");
   const [usuarios, setUsuarios] =
     useState([]);
 
@@ -649,7 +661,7 @@ async function guardarCambiosPermisos() {
             : "s"}
         </strong>
 
-        {esPropietaria ? (
+        {puedeGestionarPersonal ? (
           <button
             type="button"
             onClick={abrirFormulario}
@@ -875,7 +887,9 @@ async function guardarCambiosPermisos() {
                   Selecciona un rol
                 </option>
 
-                {ROLES.map(
+                {ROLES
+                  .filter((role) => esPropietaria || ROLES_OPERATIVOS_PERSONAL.has(role.value))
+                  .map(
                   (rol) => (
                     <option
                       key={

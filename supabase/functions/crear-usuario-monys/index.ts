@@ -24,6 +24,16 @@ const ROLES_PERMITIDOS = [
   "consulta",
 ];
 
+const ROLES_OPERATIVOS_PERSONAL = new Set([
+  "encargada",
+  "vendedora",
+  "marketing",
+  "chofer",
+  "compras",
+  "capturista",
+  "consulta",
+]);
+
 const DOMINIO_TELEFONO_INTERNO =
   "acceso.telefono.monys.local";
 
@@ -235,17 +245,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    const { data: permisoPersonal, error: errorPermisoPersonal } =
+      await supabaseAdmin
+        .from("user_permission_overrides")
+        .select("allowed")
+        .eq("usuario_id", usuarioSolicitante.id)
+        .eq("permission", "gestionar_personal_operativo")
+        .maybeSingle();
+
+    if (errorPermisoPersonal) {
+      throw errorPermisoPersonal;
+    }
+
     const puedeCrearUsuarios =
       usuarioSolicitante.role ===
         "owner" ||
       usuarioSolicitante.role ===
-        "admin";
+        "admin" ||
+      permisoPersonal?.allowed === true;
 
     if (!puedeCrearUsuarios) {
       return respuesta(
         {
           error:
-            "Solamente Owner o Administrador pueden crear usuarios.",
+            "Tu cuenta no tiene permiso para crear personal.",
         },
         403
       );
@@ -366,6 +389,20 @@ Deno.serve(async (req) => {
             "El rol seleccionado no es válido.",
         },
         400
+      );
+    }
+
+    const esPropietariaOAdmin =
+      usuarioSolicitante.role === "owner" ||
+      usuarioSolicitante.role === "admin";
+
+    if (!esPropietariaOAdmin && !ROLES_OPERATIVOS_PERSONAL.has(role)) {
+      return respuesta(
+        {
+          error:
+            "Kary puede crear únicamente perfiles operativos de personal.",
+        },
+        403
       );
     }
 

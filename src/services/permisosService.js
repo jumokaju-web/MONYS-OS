@@ -27,6 +27,11 @@ export async function obtenerPermisosPorRol(role) {
 
 export const PERMISOS_MONYS = [
   {
+    permission: "gestionar_personal_operativo",
+    label: "Supervisar personal y tiendas",
+    description: "Organizar empleadas, sucursales, horarios, responsabilidades y operación diaria, sin nómina ni decisiones de propietaria.",
+  },
+  {
     permission: "gestionar_estado_usuarios",
     label: "Activar o pausar personal",
     description: "Consultar el directorio y activar o pausar usuarios, sin cambiar roles ni eliminarlos.",
