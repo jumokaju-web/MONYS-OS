@@ -1328,7 +1328,7 @@ async function guardarCambiosPermisos() {
                         >
                           🔐 Editar permisos
                         </button>}
-                      {esPropietaria && <button
+                      <button
                         type="button"
                         onClick={() =>
                           cambiarEstado(
@@ -1359,9 +1359,9 @@ async function guardarCambiosPermisos() {
                         {usuario.active
                           ? "⏸ Pausar"
                           : "▶ Reactivar"}
-                      </button>}
+                      </button>
 
-                      <button
+                      {esPropietaria && <button
                         type="button"
                         onClick={() =>
                           eliminarUsuario(
@@ -1386,7 +1386,7 @@ async function guardarCambiosPermisos() {
                         }}
                       >
                         🗑 Eliminar
-                      </button>
+                      </button>}
                     </div>
                   )}
                 </article>

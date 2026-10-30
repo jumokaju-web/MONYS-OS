@@ -27,6 +27,8 @@ test("el panel separa sucursales y reserva permisos y eliminación a Mónica", a
   assert.match(panel, /Filtrar usuarios por sucursal/);
   assert.match(panel, /sucursalPorId\.get\(usuario\.branch_id\)/);
   assert.match(panel, /puedeGestionarEstado && usuario\.role/);
-  assert.match(panel, /esPropietaria && <button/);
+  assert.match(panel, /esPropietaria && <button[\s\S]*Editar permisos/);
+  assert.match(panel, /<button[\s\S]*cambiarEstado[\s\S]*Pausar/);
+  assert.match(panel, /esPropietaria && <button[\s\S]*eliminarUsuario[\s\S]*Eliminar/);
   assert.match(app, /puede\("gestionar_estado_usuarios"\)/);
 });
