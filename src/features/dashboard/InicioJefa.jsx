@@ -21,6 +21,7 @@ import { resumirCorteFinancieroDireccion } from "./utils/resumenFinancieroDirecc
 import { resumirFlujoFlotilla } from "./utils/resumenFlujoFlotilla.js";
 import { obtenerFacturasIngresoFlotillaPeriodo } from "./services/facturasIngresoFlotillaService.js";
 import { resumirExpedienteSemanalFlotilla } from "../finanzas/utils/expedienteSemanalFlotilla.js";
+import { crearNavegacionDireccion } from "./utils/navegacionDireccion.js";
 
 function antiguedadEnDias(fecha) {
   if (!fecha) return null;
@@ -70,6 +71,19 @@ movimientos = [],
   contenidoCierre = null,
 }) {
   const [vistaPrincipal, setVistaPrincipal] = useState("resumen");
+  const navegar = crearNavegacionDireccion({
+    abrirOperacion: abrirOperacionCompleta,
+    abrirFinanzas,
+    abrirInventario,
+    abrirCompraMaestra,
+    abrirMarketing,
+    abrirFlotilla,
+    abrirEquipo: abrirEmpleados,
+    abrirJunta: abrirJuntaDirectiva,
+    abrirTesoreria,
+    abrirReportes: abrirImportador,
+    abrirUsuarios,
+  });
 
     const formatearFechaPeriodo = (valor) => {
     if (!valor) {
@@ -481,7 +495,7 @@ movimientos = [],
         <span>ESPACIO DE DIRECCIÓN</span>
         <button aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}>◈ Resumen</button>
         <button aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}>▥ Gráficas</button>
-        <button onClick={abrirOperacionCompleta}>✓ Operación</button>
+        <button onClick={navegar.operacion}>✅ Operación</button>
         <button aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}>☷ Áreas</button>
         <small>MONYS OS<br/>Tu centro de decisión y ejecución</small>
       </nav>
@@ -497,14 +511,14 @@ movimientos = [],
         <header className="owner-command-header"><div><span>MONYS OS · CENTRO DE DIRECCIÓN</span><h1>Hola, Mónica</h1><p>Elige qué necesitas revisar; cada botón abre solamente esa sección.</p></div><div className="owner-command-actions"><button type="button" onClick={abrirOperacionCompleta}>📋 Tareas de hoy</button><button type="button" onClick={abrirImportador}>＋ Subir reportes</button></div></header>
 
         <nav className="owner-launcher" aria-label="Secciones principales de Dirección">
-          <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>◈</span><b>Resumen</b><small>Lo importante de hoy</small></button>
-          <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>▥</span><b>Gráficas</b><small>Ventas y sucursales</small></button>
-          <button type="button" onClick={abrirOperacionCompleta}><span>✓</span><b>Operación</b><small>Tareas, cortes y fotos</small></button>
-          <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☷</span><b>Áreas</b><small>Todos los módulos</small></button>
+          <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>🏠</span><b>Resumen</b><small>Lo importante de hoy</small></button>
+          <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>📈</span><b>Gráficas</b><small>Ventas y sucursales</small></button>
+          <button type="button" onClick={navegar.operacion}><span>✅</span><b>Operación</b><small>Tareas, cortes y fotos</small></button>
+          <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☰</span><b>Áreas</b><small>Todos los módulos</small></button>
         </nav>
 
         {vistaPrincipal === "resumen" && <section className="owner-focus-view" aria-labelledby="owner-resumen-title">
-          <div className="owner-focus-heading"><div><span>RESUMEN EJECUTIVO</span><h2 id="owner-resumen-title">Lo que necesita tu atención</h2></div><button type="button" onClick={abrirJuntaDirectiva}>Abrir Junta IA →</button></div>
+          <div className="owner-focus-heading"><div><span>RESUMEN EJECUTIVO</span><h2 id="owner-resumen-title">Tu negocio hoy</h2></div></div>
           <p className="owner-period">Datos del corte: {cifrasConsolidadasDisponibles ? `${formatearFechaPeriodo(consolidacionFinanciera.fechaInicial)} al ${formatearFechaPeriodo(consolidacionFinanciera.fechaFinal)}` : consolidacionFinanciera.motivo || detallePeriodo}.</p>
           <section className="owner-results" aria-label="Resultados principales del corte">
             <div><small>Ventas del corte</small><strong>{estadoVentasCorte === "listo" && cifrasConsolidadasDisponibles ? formatoDinero(ventasConsolidadas) : consolidacionFinanciera.motivo || detallePeriodo}</strong><span>Registradas en SICAR</span></div>
@@ -513,10 +527,10 @@ movimientos = [],
           </section>
           <article className="owner-priority-card"><span>PRIORIDAD RECOMENDADA</span><h3>{decisionDelDia.titulo}</h3><p>{decisionDelDia.detalle}</p><button type="button" onClick={decisionDelDia.accion || undefined} disabled={!decisionDelDia.accion}>{decisionDelDia.boton}</button></article>
           <nav className="owner-next-actions" aria-label="Decisiones rápidas">
-            <button type="button" onClick={abrirCompraMaestra}><b>Qué comprar</b><span>Reposición priorizada e inversión</span></button>
+            <button type="button" onClick={navegar.compraMaestra}><b>Qué comprar</b><span>Reposición priorizada e inversión</span></button>
             <button type="button" onClick={abrirDirectorFinanciero}><b>Qué pagar</b><span>Deudas, vencimientos y capacidad</span></button>
-            <button type="button" onClick={abrirTesoreria}><b>Dónde se gasta</b><span>Ingresos, salidas y conciliación</span></button>
-            <button type="button" onClick={abrirOperacionCompleta}><b>Qué hizo el equipo</b><span>Tareas, cortes y evidencias</span></button>
+            <button type="button" onClick={navegar.tesoreria}><b>Dónde se gasta</b><span>Ingresos, salidas y conciliación</span></button>
+            <button type="button" onClick={navegar.operacion}><b>Qué hizo el equipo</b><span>Tareas, cortes y evidencias</span></button>
           </nav>
         </section>}
 
@@ -533,16 +547,16 @@ movimientos = [],
         {vistaPrincipal === "areas" && <section className="owner-focus-view" aria-labelledby="owner-areas-title">
           <div className="owner-focus-heading"><div><span>CENTROS DE TRABAJO</span><h2 id="owner-areas-title">¿A dónde quieres entrar?</h2></div></div>
           <div className="owner-area-grid">
-            <button type="button" onClick={abrirFinanzas}><span>💰</span><b>Finanzas</b><small>Flujo, resultados y compromisos</small></button>
-            <button type="button" onClick={abrirInventario}><span>📦</span><b>Inventario</b><small>Existencias y cobertura</small></button>
-            <button type="button" onClick={abrirCompraMaestra}><span>🛒</span><b>Compra Maestra</b><small>Qué comprar y traspasar</small></button>
-            <button type="button" onClick={abrirMarketing}><span>📣</span><b>Marketing</b><small>Campañas y crecimiento</small></button>
-            <button type="button" onClick={abrirFlotilla}><span>🚚</span><b>Flotilla</b><small>Rutas, evidencias y dinero</small></button>
-            <button type="button" onClick={abrirEmpleados}><span>👥</span><b>Equipo</b><small>Personal, puestos y permisos</small></button>
-            <button type="button" onClick={abrirJuntaDirectiva}><span>🧠</span><b>Junta Directiva</b><small>Riesgos y decisiones</small></button>
-            <button type="button" onClick={abrirTesoreria}><span>🏦</span><b>Tesorería</b><small>Conciliación y movimientos</small></button>
-            <button type="button" onClick={abrirImportador}><span>📄</span><b>Subir reportes</b><small>Actualizar información SICAR</small></button>
-            <button type="button" onClick={abrirUsuarios}><span>🔐</span><b>Usuarios</b><small>Accesos y roles</small></button>
+            <button type="button" onClick={navegar.finanzas}><span>💰</span><b>Finanzas</b><small>Flujo, resultados y compromisos</small></button>
+            <button type="button" onClick={navegar.inventario}><span>📦</span><b>Inventario</b><small>Existencias y cobertura</small></button>
+            <button type="button" onClick={navegar.compraMaestra}><span>🛒</span><b>Compra Maestra</b><small>Qué comprar y traspasar</small></button>
+            <button type="button" onClick={navegar.marketing}><span>📣</span><b>Marketing</b><small>Campañas y crecimiento</small></button>
+            <button type="button" onClick={navegar.flotilla}><span>🚚</span><b>Flotilla</b><small>Rutas, evidencias y dinero</small></button>
+            <button type="button" onClick={navegar.equipo}><span>👥</span><b>Equipo</b><small>Personal, puestos y permisos</small></button>
+            <button type="button" onClick={navegar.junta}><span>🧠</span><b>Junta Directiva</b><small>Riesgos y decisiones</small></button>
+            <button type="button" onClick={navegar.tesoreria}><span>🏦</span><b>Tesorería</b><small>Conciliación y movimientos</small></button>
+            <button type="button" onClick={navegar.reportes}><span>📄</span><b>Subir reportes</b><small>Actualizar información SICAR</small></button>
+            <button type="button" onClick={navegar.usuarios}><span>🔐</span><b>Usuarios</b><small>Accesos y roles</small></button>
           </div>
           <button className="owner-full-dashboard" type="button" onClick={() => abrirVistaPrincipal("completo")}>Ver tablero completo y análisis avanzados</button>
         </section>}
@@ -1579,10 +1593,10 @@ movimientos = [],
       </section>
 
       <nav className="owner-bottom-nav" aria-label="Navegación móvil de Dirección">
-        <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>◈</span>Resumen</button>
-        <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>▥</span>Gráficas</button>
-        <button type="button" onClick={abrirOperacionCompleta}><span>✓</span>Operación</button>
-        <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☷</span>Áreas</button>
+        <button type="button" aria-current={vistaPrincipal === "resumen" ? "page" : undefined} onClick={() => abrirVistaPrincipal("resumen")}><span>🏠</span>Resumen</button>
+        <button type="button" aria-current={vistaPrincipal === "graficas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("graficas")}><span>📈</span>Gráficas</button>
+        <button type="button" onClick={navegar.operacion}><span>✅</span>Operación</button>
+        <button type="button" aria-current={vistaPrincipal === "areas" ? "page" : undefined} onClick={() => abrirVistaPrincipal("areas")}><span>☰</span>Áreas</button>
       </nav>
     </main>
   );
