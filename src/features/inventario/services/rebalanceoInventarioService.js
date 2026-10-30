@@ -540,15 +540,15 @@ function calcularPrioridad({
   return "BAJA";
 }
 
-export async function generarAnalisisRebalanceo() {
-  const [
-    inventariosPorSucursal,
-    ventasPorSucursal,
-    sucursales,
-  ] = await Promise.all([
-    obtenerUltimosInventariosPorSucursal(),
-    obtenerUltimasVentasPorSucursal(),
-    obtenerSucursalesInventario(),
+export async function generarAnalisisRebalanceo(businessId = null) {
+  const sucursales = await obtenerSucursalesInventario(businessId);
+  const branchIds = sucursales.map((sucursal) => sucursal?.id).filter(Boolean);
+  if (businessId && branchIds.length === 0) {
+    return { recomendaciones: [], pendientesValidacion: [] };
+  }
+  const [inventariosPorSucursal, ventasPorSucursal] = await Promise.all([
+    obtenerUltimosInventariosPorSucursal(branchIds),
+    obtenerUltimasVentasPorSucursal(branchIds),
   ]);
 
   if (
@@ -1127,9 +1127,9 @@ export async function generarAnalisisRebalanceo() {
   };
 }
 
-export async function generarRecomendacionesRebalanceo() {
+export async function generarRecomendacionesRebalanceo(businessId = null) {
   const analisis =
-    await generarAnalisisRebalanceo();
+    await generarAnalisisRebalanceo(businessId);
 
   return analisis.recomendaciones;
 }
