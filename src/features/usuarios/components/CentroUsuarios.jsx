@@ -1398,3 +1398,306 @@ async function guardarCambiosPermisos() {
                     </span>
 
                     <span>
+                      <strong>
+                        Negocio:
+                      </strong>{" "}
+                      {usuario.business_id
+                        ? "Asignado"
+                        : "Corporativo"}
+                    </span>
+
+                    <span>
+                      <strong>
+                        Sucursal:
+                      </strong>{" "}
+                      {usuario.branch_id
+                        ? sucursalPorId.get(usuario.branch_id) || "Asignada"
+                        : "Todas / No aplica"}
+                    </span>
+                  </div>
+
+                  {puedeGestionarEstado && usuario.role !==
+                    "owner" && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "18px",
+                      }}
+                    >
+                      {esPropietaria && <button
+                          type="button"
+                          onClick={() => abrirEditorPermisos(usuario)}
+                          style={{
+                            padding: "9px 14px",
+                            borderRadius: "9px",
+                            border: "1px solid #bba2af",
+                            background: "#f8f0f4",
+                            color: "#5e3048",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🔐 Editar permisos
+                        </button>}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          cambiarEstado(
+                            usuario
+                          )
+                        }
+                        style={{
+                          padding:
+                            "9px 14px",
+                          borderRadius:
+                            "9px",
+                          border:
+                            "1px solid #d7c6cf",
+                          background:
+                            usuario.active
+                              ? "#fff8df"
+                              : "#eef8f2",
+                          color:
+                            usuario.active
+                              ? "#8a6800"
+                              : "#236b45",
+                          fontWeight:
+                            "800",
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        {usuario.active
+                          ? "⏸ Pausar"
+                          : "▶ Reactivar"}
+                      </button>
+
+                      {esPropietaria && <button
+                        type="button"
+                        onClick={() =>
+                          eliminarUsuario(
+                            usuario
+                          )
+                        }
+                        style={{
+                          padding:
+                            "9px 14px",
+                          borderRadius:
+                            "9px",
+                          border:
+                            "1px solid #efb8b8",
+                          background:
+                            "#fff3f3",
+                          color:
+                            "#a52d2d",
+                          fontWeight:
+                            "800",
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        🗑 Eliminar
+                      </button>}
+                    </div>
+                  )}
+                </article>
+              )
+            )}
+          </div>
+        )}
+    </div>
+  );
+}
+
+function EditorPermisos({
+  usuario,
+  configuracion,
+  valores,
+  motivo,
+  error,
+  cargando,
+  guardando,
+  onAlternar,
+  onMotivo,
+  onGuardar,
+  onCerrar,
+}) {
+  return (
+    <section
+      style={{
+        padding: "22px",
+        marginBottom: "20px",
+        borderRadius: "16px",
+        background: "#ffffff",
+        border: "2px solid #d7c6cf",
+        boxShadow: "0 10px 28px rgba(94,48,72,0.10)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "14px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, color: "#2c2030" }}>
+            🔐 Permisos de {usuario.nombre}
+          </h2>
+          <p style={{ margin: "7px 0 0", color: "#766a70" }}>
+            Activa solamente las secciones que esta persona debe usar.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onCerrar}
+          disabled={guardando}
+          style={{
+            padding: "9px 13px",
+            borderRadius: "9px",
+            border: "1px solid #d7c6cf",
+            background: "#ffffff",
+            color: "#5e3048",
+            fontWeight: "800",
+            cursor: guardando ? "not-allowed" : "pointer",
+          }}
+        >
+          ✕ Cerrar
+        </button>
+      </div>
+
+      {error && (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "#fff4f4",
+            border: "1px solid #efc0c0",
+            color: "#9b3030",
+            fontWeight: "700",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {cargando ? (
+        <p style={{ color: "#766a70" }}>Cargando permisos...</p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: "12px",
+            marginTop: "18px",
+          }}
+        >
+          {configuracion.map((permiso) => {
+            const activo = Boolean(valores[permiso.permission]);
+            return (
+              <button
+                key={permiso.permission}
+                type="button"
+                role="switch"
+                aria-checked={activo}
+                onClick={() => onAlternar(permiso.permission)}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "14px",
+                  padding: "15px",
+                  borderRadius: "12px",
+                  border: activo
+                    ? "1px solid #82c49f"
+                    : "1px solid #e1d5db",
+                  background: activo ? "#eef8f2" : "#faf7f8",
+                  color: "#2c2030",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <span>
+                  <strong style={{ display: "block" }}>{permiso.label}</strong>
+                  <small style={{ color: "#766a70" }}>
+                    {permiso.description}
+                  </small>
+                </span>
+                <span
+                  style={{
+                    minWidth: "88px",
+                    padding: "7px 9px",
+                    borderRadius: "999px",
+                    background: activo ? "#2f8657" : "#a34a4a",
+                    color: "#ffffff",
+                    fontSize: "12px",
+                    fontWeight: "900",
+                    textAlign: "center",
+                  }}
+                >
+                  {activo ? "ACTIVADO" : "SIN ACCESO"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!cargando && (
+        <div style={{ marginTop: "18px" }}>
+          <label
+            style={{
+              display: "grid",
+              gap: "7px",
+              color: "#51484d",
+              fontWeight: "700",
+            }}
+          >
+            Motivo del cambio
+            <input
+              value={motivo}
+              onChange={(evento) => onMotivo(evento.target.value)}
+              placeholder="Ej. Nueva responsabilidad de flotilla"
+              style={estiloCampo}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={onGuardar}
+            disabled={guardando}
+            style={{
+              marginTop: "14px",
+              padding: "11px 18px",
+              borderRadius: "10px",
+              border: "none",
+              background: guardando ? "#d8cbd2" : "#5e3048",
+              color: "#ffffff",
+              fontWeight: "900",
+              cursor: guardando ? "not-allowed" : "pointer",
+            }}
+          >
+            {guardando ? "Guardando..." : "Guardar permisos"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const estiloCampo = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "11px 12px",
+  borderRadius: "10px",
+  border:
+    "1px solid #d8cbd2",
+  background: "#ffffff",
+  color: "#2c2030",
+  fontSize: "15px",
+  outline: "none",
+};
