@@ -28,6 +28,20 @@ function fechaLegible(fecha) {
   return dia && mes && anio ? `${dia}/${mes}/${anio}` : fecha;
 }
 
+function fechaHoyMexico() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function filtrosDeHoy() {
+  const hoy = fechaHoyMexico();
+  return { desde: hoy, hasta: hoy, buscar: '', tipo: '', nivel: '' };
+}
+
 const etiquetasCategoria = {
   retiro_caja: "Retiro de caja",
   proveedor: "Proveedor / mercancía",
@@ -77,7 +91,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
   const [seguimientosCierre, setSeguimientosCierre] = useState(new Map());
 
   const solicitud = useRef(0);
-  const [filtros, setFiltros] = useState({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' });
+  const [filtros, setFiltros] = useState(filtrosDeHoy);
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
   const [actualizadoEn, setActualizadoEn] = useState(null);
   const rangoInvalido = Boolean(filtros.desde && filtros.hasta && filtros.desde > filtros.hasta);
@@ -223,7 +237,8 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
         <label>Origen<select value={filtros.tipo} onChange={e => cambiarFiltro('tipo', e.target.value)}><option value="">Todos</option><option value="caja">Tiendas</option><option value="flotilla">Flotilla</option></select></label>
         <label>Atención<select value={filtros.nivel} onChange={e => cambiarFiltro('nivel', e.target.value)}><option value="">Todo, por prioridad</option><option value="diferencia">Diferencias por aclarar</option><option value="incompleto">Datos incompletos</option><option value="evidencia">Comprobar foto o apertura</option><option value="revision">Revisión de comprobantes</option></select></label>
         {esOwner && <label>Revisión<select disabled={!revisionDisponible} value={filtroRevision} onChange={e => setFiltroRevision(e.target.value)}><option value="">Todos los estados</option>{Object.entries(etiquetasRevision).map(([id, texto]) => <option key={id} value={id}>{texto}</option>)}</select></label>}
-        <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Limpiar filtros</button>
+        <button type="button" onClick={() => { setFiltroRevision(''); setFiltros(filtrosDeHoy()); }}>Ver solo hoy</button>
+        <button type="button" onClick={() => { setFiltroRevision(''); setFiltros({ desde: '', hasta: '', buscar: '', tipo: '', nivel: '' }); }}>Ver historial</button>
       </div>
       {rangoInvalido && <p role="alert">La fecha inicial debe ser anterior o igual a la final.</p>}
       {esOwner && <section className="cortes-seguimiento" aria-label="Seguimiento de revisiones">
