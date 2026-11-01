@@ -125,6 +125,7 @@ export default function DisponibilidadFinancieraHoy({
       }
       const cierreResumido = resumirCierreDiarioDireccion({
         capturas: capturasFinancieras,
+        cierres,
         sucursales: [
           ...(sucursales || []),
           ...(usuario?.branch_id && usuario?.sucursal

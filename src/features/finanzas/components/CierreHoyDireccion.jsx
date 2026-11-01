@@ -14,7 +14,7 @@ function AccionSeguimiento({ caja, sucursal, fecha, seguimiento, usuario, onGuar
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   if (caja.estado === "completo") return null;
-  const destinatario = caja.captura?.cierre?.responsable || "";
+  const destinatario = caja.responsable || caja.captura?.cierre?.responsable || "";
   const mensaje = mensajeSeguimientoCierre({ fecha: fechaLegible(fecha), sucursal: sucursal.nombre, caja: caja.nombre, estado: caja.estado, destinatario });
 
   function abrirWhatsApp() {
@@ -35,6 +35,7 @@ function AccionSeguimiento({ caja, sucursal, fecha, seguimiento, usuario, onGuar
           fecha,
           branchId: sucursal.branchId,
           cajaId: caja.cajaId,
+          sesionCajaId: caja.sesionCajaId,
           tipo: caja.estado === "incompleto" ? "importes" : "cierre",
           destinatario: destinatario || `Encargada de ${sucursal.nombre}`,
           registradoPor: usuario?.nombre,
@@ -57,26 +58,27 @@ function AccionSeguimiento({ caja, sucursal, fecha, seguimiento, usuario, onGuar
 
 export default function CierreHoyDireccion({ resumen, cargando, error, onActualizar, seguimientos = new Map(), usuario }) {
   const todoCerrado = resumen.cajasEsperadas > 0 && resumen.cajasFaltantes === 0 && resumen.cajasIncompletas === 0;
+  const sinActividad = !cargando && !error && resumen.cajasEsperadas === 0;
   return (
     <section className={`cierre-hoy ${todoCerrado ? "esta-completo" : "requiere-atencion"}`} aria-label="Cierre de hoy para Dirección">
       <header>
-        <div><span>CIERRE DE HOY · {fechaLegible(resumen.fecha)}</span><h2>{cargando ? "Consultando cajas…" : error ? "No se pudo confirmar el cierre" : todoCerrado ? "Todas las cajas reportaron" : "Todavía hay cajas por confirmar"}</h2><p>Venta, efectivo y pendientes del día en una sola vista.</p></div>
+        <div><span>CIERRE DE HOY · {fechaLegible(resumen.fecha)}</span><h2>{cargando ? "Consultando cajas…" : error ? "No se pudo confirmar el cierre" : sinActividad ? "Aún no hay cajas registradas" : todoCerrado ? "Todos los tramos reportaron" : "Todavía hay cortes por confirmar"}</h2><p>Venta, efectivo y pendientes del día en una sola vista.</p></div>
         <button type="button" onClick={onActualizar} disabled={cargando}>{cargando ? "Actualizando…" : "Actualizar ahora"}</button>
       </header>
       <div className="cierre-hoy-totales">
         <div><small>Venta SICAR reportada</small><strong>{cargando || error ? "—" : moneda.format(resumen.ventaSicar)}</strong></div>
         <div><small>Efectivo que quedó</small><strong>{cargando || error ? "—" : moneda.format(resumen.efectivoFinal)}</strong></div>
         <div><small>Efectivo retirado</small><strong>{cargando || error ? "—" : moneda.format(resumen.efectivoEntregado)}</strong></div>
-        <div><small>Cajas listas</small><strong>{cargando || error ? "—" : `${resumen.cajasCompletas} de ${resumen.cajasEsperadas}`}</strong></div>
+        <div><small>Cortes recibidos</small><strong>{cargando || error ? "—" : `${resumen.cajasCompletas} de ${resumen.cajasEsperadas}`}</strong></div>
       </div>
       {!cargando && !error && <div className="cierre-hoy-sucursales">
         {resumen.sucursales.map((sucursal) => <article key={sucursal.branchId}>
-          <div><h3>{sucursal.nombre}</h3><small>{sucursal.faltantes ? `${sucursal.faltantes} sin cerrar` : sucursal.incompletas ? `${sucursal.incompletas} sin importes completos` : "Cierre recibido"}</small></div>
-          <div className="cierre-hoy-cajas">{sucursal.cajas.map((caja) => <div className="cierre-hoy-caja" key={caja.cajaId}><span className={`estado-${caja.estado}`}>{caja.nombre}: {caja.estado === "completo" ? "lista" : caja.estado === "incompleto" ? "aclarar" : "falta"}</span>{caja.turnosReportados?.length > 0 && <small>{caja.turnosReportados.map((turno) => ({ MATUTINO: "mañana", VESPERTINO: "tarde/noche", COMPLETO: "día completo", SIN_TURNO: "turno por confirmar" })[turno] || turno).join(" · ")}</small>}<AccionSeguimiento caja={caja} sucursal={sucursal} fecha={resumen.fecha} seguimiento={seguimientos.get(claveSeguimientoCierre({ fecha: resumen.fecha, branchId: sucursal.branchId, cajaId: caja.cajaId }))} usuario={usuario} onGuardado={onActualizar} /></div>)}</div>
+          <div><h3>{sucursal.nombre}</h3><small>{sucursal.faltantes ? `${sucursal.faltantes} sin cerrar` : sucursal.incompletas ? `${sucursal.incompletas} sin importes completos` : sucursal.cajas.length ? "Cierre recibido" : "Sin tramos registrados"}</small></div>
+          <div className="cierre-hoy-cajas">{sucursal.cajas.map((caja) => <div className="cierre-hoy-caja" key={caja.segmentoId || caja.cajaId}><span className={`estado-${caja.estado}`}>{caja.nombre}: {caja.estado === "completo" ? "lista" : caja.estado === "incompleto" ? "aclarar" : "falta"}</span>{caja.responsable && <small>{caja.responsable}</small>}{caja.turnosReportados?.length > 0 && <small>{caja.turnosReportados.map((turno) => ({ MATUTINO: "mañana", VESPERTINO: "tarde/noche", COMPLETO: "día completo", SIN_TURNO: "turno por confirmar" })[turno] || turno).join(" · ")}</small>}<AccionSeguimiento caja={caja} sucursal={sucursal} fecha={resumen.fecha} seguimiento={seguimientos.get(claveSeguimientoCierre({ fecha: resumen.fecha, branchId: sucursal.branchId, cajaId: caja.cajaId, sesionCajaId: caja.sesionCajaId }))} usuario={usuario} onGuardado={onActualizar} /></div>)}</div>
         </article>)}
       </div>}
-      {!cargando && !error && resumen.diferencias > 0 && <p className="cierre-hoy-alerta">{resumen.diferencias} {resumen.diferencias === 1 ? "caja necesita" : "cajas necesitan"} revisar diferencias antes de decidir con el dinero.</p>}
-      {!cargando && !error && !todoCerrado && <p className="cierre-hoy-nota">Los totales incluyen únicamente cajas con importes completos. Lo faltante no se sustituye por cero.</p>}
+      {!cargando && !error && resumen.diferencias > 0 && <p className="cierre-hoy-alerta">{resumen.diferencias} {resumen.diferencias === 1 ? "corte necesita" : "cortes necesitan"} revisar diferencias antes de decidir con el dinero.</p>}
+      {!cargando && !error && resumen.cajasEsperadas > 0 && !todoCerrado && <p className="cierre-hoy-nota">Los totales incluyen únicamente tramos de caja con importes completos. Lo faltante no se sustituye por cero.</p>}
     </section>
   );
 }

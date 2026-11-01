@@ -131,7 +131,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
           <button type="button" onClick={() => abrir('CAJA')} style={{ minHeight: 48, padding: '12px 16px', border: 0, borderRadius: 12, background: '#a82c68', color: '#fff', fontWeight: 850 }}>Abrir caja y corte →</button>
           <small>Elige la caja que utilizaste. Si ya vas a cerrar y no registraste apertura, usa “Registrar cierre de hoy sin apertura previa”.</small>
         </section>}
-        <RegistroEntradaOperativa usuario={usuario} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)} onEstadoCambio={setEstadoJornada}/>
+        <RegistroEntradaOperativa usuario={usuario} branchId={branchId} puedeCaja={puedeCaja} onAbrirCaja={() => abrir('CAJA')} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)} onEstadoCambio={setEstadoJornada}/>
         <div className="tienda-home-intro">
           <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
           <h2>Haz lo importante y deja evidencia</h2>

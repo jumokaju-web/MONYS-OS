@@ -80,6 +80,7 @@ export default function CentroDireccionCEO({
     const cierres = valor(5, []);
     const cierre = resumirCierreDiarioDireccion({
       capturas: extraerCapturasFinancieras(cierres),
+      cierres,
       sucursales,
     });
     const proveedoresParaCaja = proveedores.fuenteCompleta

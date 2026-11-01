@@ -1,4 +1,6 @@
 import { supabase } from "../../../supabase";
+import { obtenerCierresTurno } from "./cierresTurnoService";
+import { obtenerSesionesCajaActivas } from "../utils/capturasFinancierasEquipo";
 
 export function fechaActualMexico() {
   const partes = new Intl.DateTimeFormat("en-CA", {
@@ -44,6 +46,17 @@ export async function obtenerEntradaEmpleado({ usuarioId, fecha } = {}) {
     .maybeSingle();
   revisarError(error, "No pudimos consultar tu entrada");
   return data || null;
+}
+
+function mismoResponsable(a, b) {
+  return String(a || "").trim().toLocaleLowerCase("es-MX") === String(b || "").trim().toLocaleLowerCase("es-MX");
+}
+
+export async function obtenerCajaActivaEmpleado({ branchId, responsable } = {}) {
+  if (!branchId || !String(responsable || "").trim()) return null;
+  const cierres = await obtenerCierresTurno({ branchId, limite: 100 });
+  return Object.values(obtenerSesionesCajaActivas(cierres))
+    .find((sesion) => mismoResponsable(sesion?.responsable, responsable)) || null;
 }
 
 export async function registrarEntradaOperativa({ usuario, fecha = fechaActualMexico() } = {}) {

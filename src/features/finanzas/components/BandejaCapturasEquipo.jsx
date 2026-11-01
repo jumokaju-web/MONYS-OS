@@ -85,6 +85,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
   const [revisionDisponible, setRevisionDisponible] = useState(false);
   const [filtroRevision, setFiltroRevision] = useState('');
   const [capturas, setCapturas] = useState([]);
+  const [cierres, setCierres] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [sesionesCajaActivas, setSesionesCajaActivas] = useState([]);
@@ -108,6 +109,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
     setRevisionDisponible(false);
     setErrorRevisiones('');
     setCapturas([]);
+    setCierres([]);
     setSesionesCajaActivas([]);
     setSeguimientosCierre(new Map());
     setActualizadoEn(null);
@@ -118,6 +120,7 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
       const cierres = await obtenerCierresTurno({ branchId: alcanceBranchId, limite: 100 });
       if (actual !== solicitud.current) return;
       setLimiteAlcanzado(cierres.length === 100);
+      setCierres(cierres);
       setActualizadoEn(new Date());
       setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
       setSeguimientosCierre(indexarSeguimientosCierre(cierres));
@@ -197,11 +200,12 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
   }, [visibles]);
   const resumenCierreHoy = useMemo(() => resumirCierreDiarioDireccion({
     capturas,
+    cierres,
     sucursales: [
       ...(sucursales || []),
       ...(usuario?.branch_id && usuario?.sucursal ? [{ id: usuario.branch_id, nombre: usuario.sucursal }] : []),
     ],
-  }), [capturas, sucursales, usuario?.branch_id, usuario?.sucursal]);
+  }), [capturas, cierres, sucursales, usuario?.branch_id, usuario?.sucursal]);
 
   if (vista === 'cierre') {
     return (

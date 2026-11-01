@@ -1,7 +1,7 @@
 const MARCADOR = "MONYS_SEGUIMIENTO_CIERRE_V1";
 
-export function claveSeguimientoCierre({ fecha, branchId, cajaId } = {}) {
-  return [fecha, branchId, cajaId].map((valor) => String(valor || "").trim()).join("|");
+export function claveSeguimientoCierre({ fecha, branchId, cajaId, sesionCajaId } = {}) {
+  return [fecha, branchId, cajaId, sesionCajaId].map((valor) => String(valor || "").trim()).join("|");
 }
 
 export function crearObservacionesSeguimientoCierre(datos = {}) {
@@ -9,6 +9,7 @@ export function crearObservacionesSeguimientoCierre(datos = {}) {
     fecha: String(datos.fecha || "").trim(),
     branchId: String(datos.branchId || "").trim(),
     cajaId: String(datos.cajaId || "").trim(),
+    sesionCajaId: String(datos.sesionCajaId || "").trim(),
     tipo: datos.tipo === "importes" ? "importes" : "cierre",
     destinatario: String(datos.destinatario || "Encargada de sucursal").trim(),
     registradoPor: String(datos.registradoPor || "Dirección").trim(),

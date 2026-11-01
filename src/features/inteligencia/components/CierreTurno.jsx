@@ -570,6 +570,8 @@ export default function CierreTurno({
       if (registro?.fecha !== fechaOperativaMexico()) return false;
       const datos = leerCorteCaja(registro?.observaciones);
       if (datos?.cajaId !== cajaId) return false;
+      if (sesionCajaActiva?.sesionCajaId) return datos?.sesionCajaId === sesionCajaActiva.sesionCajaId;
+      if (datos?.sesionCajaId) return false;
       return !datos.turnoCaja || datos.turnoCaja === formulario.turnoCaja;
     });
     if (corteExistente) {
@@ -1616,7 +1618,7 @@ export default function CierreTurno({
             <option value="">Selecciona mañana, noche o día completo</option>
             {TURNOS_CORTE.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
           </select>
-          <small style={{ display: 'block', marginTop: '5px', color: '#725d68', fontWeight: 600 }}>Permite que Caja 1 tenga un corte de mañana y otro de noche sin confundirlos como duplicados.</small>
+          <small style={{ display: 'block', marginTop: '5px', color: '#725d68', fontWeight: 600 }}>Cada vez que una empleada toma la caja se crea un tramo distinto, aunque otra persona la use en el mismo turno.</small>
         </label>
 
 

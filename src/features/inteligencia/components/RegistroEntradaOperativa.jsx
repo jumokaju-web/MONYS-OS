@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   fechaActualMexico,
+  obtenerCajaActivaEmpleado,
   obtenerEntradaEmpleado,
   registrarEntradaOperativa,
   registrarSalidaOperativa,
@@ -8,7 +9,7 @@ import {
 
 import HorarioDelDiaEmpleado from "./HorarioDelDiaEmpleado";
 
-export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada, onEstadoCambio }) {
+export default function RegistroEntradaOperativa({ usuario, branchId, puedeCaja = false, onAbrirCaja, onEntradaRegistrada, onEstadoCambio }) {
   const [entrada, setEntrada] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -72,7 +73,17 @@ export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada,
 
   async function registrarSalida() {
     setGuardando(true); setError("");
-    try { setEntrada(await registrarSalidaOperativa({ entradaId: entrada.id, usuarioId: usuario.auth_user_id })); }
+    try {
+      if (puedeCaja) {
+        const cajaActiva = await obtenerCajaActivaEmpleado({ branchId, responsable: usuario?.nombre });
+        if (cajaActiva) {
+          setError(`Antes de registrar tu salida entrega ${cajaActiva.cajaNombre || cajaActiva.cajaId} y envía su corte.`);
+          onAbrirCaja?.(cajaActiva);
+          return;
+        }
+      }
+      setEntrada(await registrarSalidaOperativa({ entradaId: entrada.id, usuarioId: usuario.auth_user_id }));
+    }
     catch (e) { setError(e.message); }
     finally { setGuardando(false); }
   }
@@ -89,7 +100,10 @@ export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada,
         <div style={{ display: "grid", gap: 8 }}>
           <p role="status" style={{ margin: 0, color: "#327653", fontWeight: 750 }}>✅ Entrada registrada a las {hora}.</p>
           {entrada.salida_at ? <p role="status">Salida registrada a las {new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit" }).format(new Date(entrada.salida_at))}.</p>
-            : <button type="button" disabled={guardando} onClick={registrarSalida} style={{ minHeight: 44 }}>{guardando ? "Registrando…" : "Registrar mi salida"}</button>}
+            : <>
+              {puedeCaja && <button type="button" disabled={guardando} onClick={() => onAbrirCaja?.()} style={{ minHeight: 44 }}>Registrar qué caja tomo</button>}
+              <button type="button" disabled={guardando} onClick={registrarSalida} style={{ minHeight: 44 }}>{guardando ? "Revisando caja…" : "Registrar mi salida"}</button>
+            </>}
         </div>
       ) : (
         <>
@@ -100,7 +114,7 @@ export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada,
           {!usuario?.empleado_id && <small style={{ color: "#8a5368" }}>Pide a Dirección vincular tu usuario a tu ficha de empleada.</small>}
         </>
       )}
-      {entrada && <small>Registrar salida no sustituye el cierre de caja ni las tareas pendientes.</small>}
+      {entrada && <small>{puedeCaja ? "Si tomaste Caja 1 o Caja 2, MONYS te pedirá entregarla antes de permitir la salida." : "Registrar salida no sustituye las tareas pendientes."}</small>}
       {error && <small role="alert" style={{ color: "#a52d2d" }}>{error}</small>}
     </section>
   );
