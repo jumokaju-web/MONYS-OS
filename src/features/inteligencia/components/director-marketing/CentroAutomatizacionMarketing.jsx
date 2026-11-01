@@ -7,6 +7,7 @@ import {
 } from "../../services/automatizacionMarketingService";
 
 import "./CentroAutomatizacionMarketing.css";
+import CentroClientesAgencia from "./CentroClientesAgencia";
 
 const CANALES = [
   ["META", "Instagram y Facebook", "◎"],
@@ -268,6 +269,11 @@ export default function CentroAutomatizacionMarketing({
           </p>
         </article>
       </div>
+
+      <CentroClientesAgencia
+        usuario={usuario}
+        organizationId={organizationId}
+      />
 
       {mensaje && <p className="marketing-auto__message">{mensaje}</p>}
       {error && <p className="marketing-auto__error">{error}</p>}
