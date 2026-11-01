@@ -93,19 +93,25 @@
   font-weight: 900;
 }
 
-.growth-paid-channel__icon--meta {
-  background: #e8f1ff;
-  color: #1877f2;
+.growth-paid-channel__icon--instagram {
+  background: linear-gradient(135deg, #ffe0ef, #eee3ff);
+  color: #a21caf;
 }
 
-.growth-paid-channel__icon--openai {
-  background: #e9f8f4;
-  color: #087f69;
+.growth-paid-channel__icon--facebook {
+  background: #e8f1ff;
+  color: #1877f2;
 }
 
 .growth-paid-channel__icon--tiktok {
   background: #18181b;
   color: #ffffff;
+}
+
+.growth-paid-channel__icon--tiktokshop {
+  background: #18181b;
+  color: #69f6ea;
+  font-size: 11px;
 }
 
 .growth-paid-channel__icon--mercadolibre {
@@ -117,6 +123,22 @@
 .growth-paid-channel__icon--whatsapp {
   background: #dcfce7;
   color: #15803d;
+}
+
+.growth-paid-channel__tasks {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.growth-paid-channel__tasks span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #fff4f8;
+  color: #7d3157;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .growth-paid-channel__brand h4 {
