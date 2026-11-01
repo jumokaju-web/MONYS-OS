@@ -23,9 +23,9 @@ const CANALES = [
   "MERCADO_LIBRE",
 ];
 
-function etiquetaEstado(estado) {
+function etiquetaEstado(publicacion) {
   const estadoNormalizado = String(
-    estado || "BORRADOR"
+    publicacion?.estado || "BORRADOR"
   ).toUpperCase();
 
   if (estadoNormalizado === "PROGRAMADA") {
@@ -37,7 +37,9 @@ function etiquetaEstado(estado) {
   }
 
   if (estadoNormalizado === "PENDIENTE_APROBACION") {
-    return "Pendiente de Mónica";
+    return publicacion?.requiere_autorizacion_duena
+      ? "Pendiente de Mónica"
+      : "Lista para revisión de Kary";
   }
 
   if (estadoNormalizado === "REQUIERE_AJUSTES") {
@@ -174,6 +176,8 @@ export default function CentroPublicacionesMarketing({
     "INSTAGRAM",
     "FACEBOOK",
   ]);
+  const [tipoCampana, setTipoCampana] = useState("ORGANICA");
+  const [presupuestoPropuesto, setPresupuestoPropuesto] = useState(0);
 
   const [publicaciones, setPublicaciones] =
     useState([]);
@@ -196,6 +200,8 @@ export default function CentroPublicacionesMarketing({
   ].includes(
     String(usuario?.role || "").toLowerCase()
   );
+  const esMarketing = String(usuario?.role || "").toLowerCase() === "marketing";
+  const puedeRevisar = esPropietaria || esMarketing;
 
   const productos = useMemo(
     () =>
@@ -295,6 +301,8 @@ export default function CentroPublicacionesMarketing({
         canales,
         contenidosPorCanal:
           contenidosDesdeKit(kit, canales, productos),
+        tipoCampana,
+        presupuestoPropuesto,
       });
 
       setMensaje(
@@ -331,9 +339,15 @@ export default function CentroPublicacionesMarketing({
   }
 
   async function resolver(publicacionId, aprobar) {
+    const publicacion = publicaciones.find(
+      (elemento) => elemento.id === publicacionId
+    );
+    const esPagada = publicacion?.tipo_campana === "PAGADA";
     const confirmacion = window.confirm(
       aprobar
-        ? "¿Autorizas este contenido para que Kary pueda publicarlo manualmente? Esta acción no publica en redes ni autoriza gasto."
+        ? esPagada
+          ? `¿Autorizas el contenido y un presupuesto máximo de $${Number(publicacion?.presupuesto_propuesto || 0).toLocaleString("es-MX")} MXN? MONYS todavía no enviará el gasto hasta conectar el canal.`
+          : "¿Autorizas este contenido orgánico para programación? No incluye gasto."
         : "¿Quieres devolver este contenido a Kary para que haga ajustes?"
     );
 
@@ -347,12 +361,14 @@ export default function CentroPublicacionesMarketing({
         publicacionId,
         aprobar,
         observaciones: aprobar
-          ? "Autorizada para publicación."
+          ? esPagada
+            ? "Contenido y presupuesto autorizados."
+            : "Contenido orgánico autorizado."
           : "Requiere ajustes antes de publicar.",
       });
       setMensaje(
         aprobar
-          ? "Contenido autorizado. Quedó listo para publicación manual; MONYS todavía no lo publicó en redes."
+          ? "Contenido autorizado. Quedó listo para programar; la publicación externa se activará al conectar el canal."
           : "Publicación devuelta para ajustes."
       );
       await cargarPublicaciones();
@@ -430,7 +446,7 @@ export default function CentroPublicacionesMarketing({
             }}
           >
             {soloRevision
-              ? "Mónica decide qué contenido puede pasar a publicación manual."
+              ? "Kary revisa dentro de sus límites; Mónica autoriza las excepciones y el gasto mayor."
               : "Varios productos, varios canales y autorización humana."}
           </div>
         </div>
@@ -473,6 +489,73 @@ export default function CentroPublicacionesMarketing({
 
       {!soloRevision && (
         <>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "8px",
+          marginTop: "14px",
+        }}
+      >
+        {[
+          ["ORGANICA", "Orgánica", "Sin gasto publicitario"],
+          ["PAGADA", "Pagada", "Con presupuesto y autorización"],
+        ].map(([valor, titulo, detalle]) => (
+          <button
+            key={valor}
+            type="button"
+            onClick={() => setTipoCampana(valor)}
+            aria-pressed={tipoCampana === valor}
+            style={{
+              padding: "11px",
+              border: tipoCampana === valor
+                ? "2px solid #8f2b5c"
+                : "1px solid #dfcbd5",
+              borderRadius: "12px",
+              background: tipoCampana === valor ? "#fff0f6" : "#fff",
+              color: "#5d3548",
+              textAlign: "left",
+              cursor: "pointer",
+            }}
+          >
+            <strong style={{ display: "block", fontSize: "12px" }}>
+              {tipoCampana === valor ? "✓ " : ""}{titulo}
+            </strong>
+            <small style={{ display: "block", marginTop: "3px" }}>{detalle}</small>
+          </button>
+        ))}
+      </div>
+
+      {tipoCampana === "PAGADA" && (
+        <label
+          style={{
+            display: "grid",
+            gap: "6px",
+            marginTop: "12px",
+            color: "#684b59",
+            fontSize: "12px",
+            fontWeight: "800",
+          }}
+        >
+          Presupuesto máximo propuesto (MXN)
+          <input
+            type="number"
+            min="1"
+            step="50"
+            value={presupuestoPropuesto}
+            onChange={(evento) => setPresupuestoPropuesto(evento.target.value)}
+            style={{
+              padding: "11px",
+              border: "1px solid #ddc3d0",
+              borderRadius: "12px",
+              font: "inherit",
+            }}
+          />
+          <small style={{ color: "#826d78", fontWeight: "600" }}>
+            Si excede el límite configurado, solamente Mónica podrá autorizarla.
+          </small>
+        </label>
+      )}
       <label
         style={{
           display: "grid",
@@ -608,7 +691,7 @@ export default function CentroPublicacionesMarketing({
                       .map((item) => item.nombre)
                       .join(", ") || "Publicación"}
                   </strong>
-                  <span>{etiquetaEstado(publicacion.estado)}</span>
+                  <span>{etiquetaEstado(publicacion)}</span>
                 </div>
 
                 <div
@@ -620,6 +703,19 @@ export default function CentroPublicacionesMarketing({
                 >
                   {(publicacion.canales || [])
                     .join(" · ")}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    color: publicacion.tipo_campana === "PAGADA" ? "#8a4d00" : "#176b4b",
+                    fontSize: "10px",
+                    fontWeight: "900",
+                  }}
+                >
+                  {publicacion.tipo_campana === "PAGADA"
+                    ? `Campaña pagada · presupuesto propuesto $${Number(publicacion.presupuesto_propuesto || 0).toLocaleString("es-MX")} MXN`
+                    : "Campaña orgánica · sin gasto publicitario"}
                 </div>
 
                 {publicacion.programada_para && (
@@ -715,9 +811,10 @@ export default function CentroPublicacionesMarketing({
                   </button>
                 )}
 
-                {esPropietaria &&
+                {puedeRevisar &&
                   publicacion.estado ===
-                    "PENDIENTE_APROBACION" && (
+                    "PENDIENTE_APROBACION" &&
+                  !(esMarketing && publicacion.requiere_autorizacion_duena) && (
                     <div
                       style={{
                         display: "flex",
@@ -766,7 +863,25 @@ export default function CentroPublicacionesMarketing({
                     </div>
                   )}
 
-                {esPropietaria &&
+                {esMarketing &&
+                  publicacion.estado === "PENDIENTE_APROBACION" &&
+                  publicacion.requiere_autorizacion_duena && (
+                    <div
+                      style={{
+                        marginTop: "9px",
+                        padding: "9px 10px",
+                        borderRadius: "9px",
+                        background: "#fff7e5",
+                        color: "#7a5710",
+                        fontSize: "10px",
+                        fontWeight: "800",
+                      }}
+                    >
+                      El presupuesto supera la autorización de Kary. Esperando a Mónica.
+                    </div>
+                  )}
+
+                {puedeRevisar &&
                   ["APROBADA", "PROGRAMADA"].includes(
                     publicacion.estado
                   ) && (

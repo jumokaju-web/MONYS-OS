@@ -2,7 +2,7 @@ import { supabase } from "../../../supabase";
 
 const POLITICA_INICIAL = {
   moneda: "MXN",
-  publicarOrganicoAutomatico: false,
+  publicarOrganicoAutomatico: true,
   publicarPagadoAutomatico: false,
   limitePorCampana: 0,
   limiteDiario: 0,

@@ -95,6 +95,8 @@ export async function crearBorradorPublicacion({
   canales = [],
   contenidosPorCanal = {},
   programadaPara = null,
+  tipoCampana = "ORGANICA",
+  presupuestoPropuesto = 0,
 } = {}) {
   const canalesLimpios =
     limpiarCanales(canales);
@@ -109,6 +111,21 @@ export async function crearBorradorPublicacion({
     productos: productosLimpios,
     contenidosPorCanal,
   });
+
+  const tipoNormalizado = String(tipoCampana || "ORGANICA").toUpperCase();
+  const presupuestoNormalizado = Number(presupuestoPropuesto || 0);
+
+  if (!["ORGANICA", "PAGADA"].includes(tipoNormalizado)) {
+    throw new Error("El tipo de campaña no es válido.");
+  }
+
+  if (!Number.isFinite(presupuestoNormalizado) || presupuestoNormalizado < 0) {
+    throw new Error("El presupuesto propuesto no es válido.");
+  }
+
+  if (tipoNormalizado === "PAGADA" && presupuestoNormalizado <= 0) {
+    throw new Error("Indica el presupuesto de la campaña pagada.");
+  }
 
   const { data, error } = await supabase
     .from("marketing_publicaciones")
@@ -125,6 +142,10 @@ export async function crearBorradorPublicacion({
         programadaPara || null,
       estado: "BORRADOR",
       requiere_autorizacion: true,
+      tipo_campana: tipoNormalizado,
+      presupuesto_propuesto:
+        tipoNormalizado === "PAGADA" ? presupuestoNormalizado : 0,
+      moneda: "MXN",
       updated_at: new Date().toISOString(),
     })
     .select()
