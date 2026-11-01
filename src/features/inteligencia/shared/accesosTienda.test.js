@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   crearRutaTurnoTienda,
   resolverAccesosTienda,
+  resolverSiguienteAccionTurno,
 } from "./accesosTienda.js";
 
 test("una vendedora sin responsabilidad de caja no puede abrir el cierre", () => {
@@ -65,4 +66,40 @@ test("la ruta conserva caja y cierre cuando la responsabilidad está habilitada"
     titulo: "Caja y cierre",
     descripcion: "Completa caja antes de terminar.",
   });
+});
+
+test("la siguiente acción exige entrada antes de mostrar las tareas", () => {
+  const accion = resolverSiguienteAccionTurno({
+    jornadaCargando: false,
+    entradaRegistrada: false,
+    tareasCargando: false,
+    tareasPendientes: 4,
+  });
+
+  assert.equal(accion.id, "ENTRADA");
+});
+
+test("la siguiente acción prioriza trabajo iniciado sobre trabajo pendiente", () => {
+  const accion = resolverSiguienteAccionTurno({
+    jornadaCargando: false,
+    entradaRegistrada: true,
+    tareasCargando: false,
+    tareasPendientes: 3,
+    tareasEnProceso: 1,
+  });
+
+  assert.equal(accion.id, "TAREAS");
+  assert.match(accion.titulo, /Continúa/);
+});
+
+test("cero tareas no se interpreta como turno terminado", () => {
+  const accion = resolverSiguienteAccionTurno({
+    jornadaCargando: false,
+    entradaRegistrada: true,
+    salidaRegistrada: false,
+    tareasCargando: false,
+  });
+
+  assert.equal(accion.id, "PLAN");
+  assert.match(accion.descripcion, /no significa que el turno terminó/i);
 });

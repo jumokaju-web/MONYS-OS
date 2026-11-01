@@ -288,6 +288,7 @@ export default function OperacionEmpleado({
   usuario = null,
   datosDashboard = null,
   revisionAsistencia = 0,
+  onResumenCambio = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
 
@@ -986,6 +987,15 @@ export default function OperacionEmpleado({
             100
         )
       : 0;
+
+  useEffect(() => {
+    onResumenCambio?.({
+      cargando,
+      pendientes,
+      enProceso,
+      terminadas: terminadas.length,
+    });
+  }, [cargando, pendientes, enProceso, terminadas.length, onResumenCambio]);
 
   // Cada persona ve como prioridad únicamente el trabajo de su operación.
   // Growth conserva su filtro de marketing; tienda usa todas sus tareas asignadas.

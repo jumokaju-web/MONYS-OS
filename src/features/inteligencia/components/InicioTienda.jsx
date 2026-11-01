@@ -7,12 +7,14 @@ import PerfilOperativoEmpleado from './PerfilOperativoEmpleado';
 import IncidenciaTienda from './IncidenciaTienda';
 import AsistenteWhatsAppTienda from './AsistenteWhatsAppTienda';
 import { borrarBorradoresUsuario } from '../utils/borradorCorte';
-import { crearRutaTurnoTienda } from '../shared/accesosTienda';
+import { crearRutaTurnoTienda, resolverSiguienteAccionTurno } from '../shared/accesosTienda';
 
 export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, puedeRegistrarIncidencias = false, puedeCaja = false, cerrarSesion }) {
   const [vista, setVista] = useState('HOY');
   const [revisionTareas, setRevisionTareas] = useState(0);
   const [visitadas, setVisitadas] = useState(['HOY']);
+  const [estadoJornada, setEstadoJornada] = useState({ cargando: true, entradaRegistrada: false, salidaRegistrada: false });
+  const [resumenTareas, setResumenTareas] = useState({ cargando: true, pendientes: 0, enProceso: 0, terminadas: 0 });
   const destino = useRef(null);
   const primeraVista = useRef(true);
   const opciones = [
@@ -27,6 +29,14 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     puedeWhatsApp,
     puedeRegistrarIncidencias,
     puedeCaja,
+  });
+  const siguienteAccion = resolverSiguienteAccionTurno({
+    jornadaCargando: estadoJornada.cargando,
+    entradaRegistrada: estadoJornada.entradaRegistrada,
+    salidaRegistrada: estadoJornada.salidaRegistrada,
+    tareasCargando: resumenTareas.cargando,
+    tareasPendientes: resumenTareas.pendientes,
+    tareasEnProceso: resumenTareas.enProceso,
   });
   const detalleVista = {
     WHATSAPP: {
@@ -51,6 +61,15 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     },
   };
   function abrir(id) { setVista(id); setVisitadas(v => v.includes(id) ? v : [...v, id]); }
+  function abrirSiguienteAccion() {
+    if (siguienteAccion.id === 'ENTRADA') {
+      document.getElementById('employee-attendance')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (siguienteAccion.id === 'TAREAS' || siguienteAccion.id === 'PLAN') {
+      document.getElementById('employee-work-today')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
   function salir() {
     try { borrarBorradoresUsuario(window.localStorage, usuario); } catch { /* El cierre de sesión debe continuar aunque el navegador bloquee almacenamiento. */ }
     cerrarSesion();
@@ -70,13 +89,19 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>Hola, {usuario?.nombre || 'equipo'}</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
     <div className={`tienda-contenido${vista !== 'HOY' ? ' tienda-contenido--subvista' : ''}`}>
       <section className="tienda-home" hidden={vista !== 'HOY'} ref={vista === 'HOY' ? destino : null} tabIndex={-1} aria-label="Trabajo de hoy">
+        <section aria-label="Siguiente acción" style={{ display: 'grid', gap: 8, padding: 16, marginBottom: 14, border: '1px solid #d9b5c9', borderRadius: 16, background: 'linear-gradient(135deg,#6f3154 0%,#8f2858 100%)', color: '#fff' }}>
+          <small style={{ fontWeight: 900, letterSpacing: '.08em', opacity: .82 }}>SIGUIENTE ACCIÓN</small>
+          <strong style={{ fontSize: 20 }}>{siguienteAccion.titulo}</strong>
+          <p style={{ margin: 0, lineHeight: 1.45, color: '#f7eaf1' }}>{siguienteAccion.descripcion}</p>
+          {!['REVISANDO', 'FINALIZADO'].includes(siguienteAccion.id) && <button type="button" onClick={abrirSiguienteAccion} style={{ minHeight: 46, marginTop: 4, border: 0, borderRadius: 12, background: '#fff', color: '#76254f', fontWeight: 900 }}>{siguienteAccion.id === 'ENTRADA' ? 'Ir a registrar entrada' : siguienteAccion.id === 'TAREAS' ? 'Abrir mi trabajo' : 'Revisar y actualizar tareas'}</button>}
+        </section>
         {puedeCaja && <section aria-label="Acceso directo a caja y corte" style={{ display: 'grid', gap: 8, padding: '16px', marginBottom: 14, border: '1px solid #dfbfd2', borderRadius: 16, background: '#fff' }}>
           <strong style={{ color: '#76254f' }}>Caja y corte de mi turno</strong>
           <p style={{ margin: 0, lineHeight: 1.45 }}>Aquí registras los importes y la foto del corte. Cambiar el estado de la tarea no envía el corte.</p>
           <button type="button" onClick={() => abrir('CAJA')} style={{ minHeight: 48, padding: '12px 16px', border: 0, borderRadius: 12, background: '#a82c68', color: '#fff', fontWeight: 850 }}>Abrir caja y corte →</button>
           <small>Elige la caja que utilizaste. Si ya vas a cerrar y no registraste apertura, usa “Registrar cierre de hoy sin apertura previa”.</small>
         </section>}
-        <RegistroEntradaOperativa usuario={usuario} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)}/>
+        <RegistroEntradaOperativa usuario={usuario} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)} onEstadoCambio={setEstadoJornada}/>
         <div className="tienda-home-intro">
           <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
           <h2>Haz lo importante y deja evidencia</h2>
@@ -87,7 +112,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
         </div>
         <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
         <div className="tienda-trabajo-titulo"><p className="tienda-kicker">TRABAJO ASIGNADO</p><h2>Tu día en una sola vista</h2><p>Empieza por lo pendiente y actualiza cada tarea cuando cambie su estado.</p></div>
-        <OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard}/>
+        <div id="employee-work-today" style={{ scrollMarginTop: 92 }}><OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard} onResumenCambio={setResumenTareas}/></div>
         <details className="tienda-perfil"><summary>Mi perfil y reglas de trabajo</summary><PerfilOperativoEmpleado usuario={usuario}/></details>
       </section>
       {vistaActual && <header className="tienda-pagina-header" ref={destino} tabIndex={-1}>

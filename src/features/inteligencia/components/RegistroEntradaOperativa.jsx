@@ -8,7 +8,7 @@ import {
 
 import HorarioDelDiaEmpleado from "./HorarioDelDiaEmpleado";
 
-export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada }) {
+export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada, onEstadoCambio }) {
   const [entrada, setEntrada] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -39,6 +39,14 @@ export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada 
     cargar();
     return () => { vigente = false; };
   }, [usuario?.auth_user_id, fecha]);
+
+  useEffect(() => {
+    onEstadoCambio?.({
+      cargando,
+      entradaRegistrada: Boolean(entrada?.entrada_at),
+      salidaRegistrada: Boolean(entrada?.salida_at),
+    });
+  }, [cargando, entrada?.entrada_at, entrada?.salida_at, onEstadoCambio]);
 
   async function registrar() {
     setError("");
@@ -74,7 +82,7 @@ export default function RegistroEntradaOperativa({ usuario, onEntradaRegistrada 
     : null;
 
   return (
-    <section aria-label="Registro de entrada" style={{ display: "grid", gap: "8px", margin: "0 0 14px", padding: "14px 16px", border: "1px solid #edc7d8", borderRadius: "16px", background: "linear-gradient(135deg,#fff 0%,#fff3f8 100%)" }}>
+    <section id="employee-attendance" aria-label="Registro de entrada" style={{ display: "grid", gap: "8px", margin: "0 0 14px", padding: "14px 16px", border: "1px solid #edc7d8", borderRadius: "16px", background: "linear-gradient(135deg,#fff 0%,#fff3f8 100%)", scrollMarginTop: "92px" }}>
       <div style={{ color: "#76254f", fontWeight: 900 }}>🕘 Mi jornada de hoy</div>
       <HorarioDelDiaEmpleado usuario={usuario} entrada={entrada} key={fecha} />
       {entrada ? (
