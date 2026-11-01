@@ -15,6 +15,7 @@ import {
 import { obtenerClientesAgenciaMarketing } from "../../services/clientesAgenciaMarketingService";
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
 import CalendarioCampanasMarketing from "./CalendarioCampanasMarketing";
+import CentroResultadosCampanas from "./CentroResultadosCampanas";
 
 import "./CentroPublicacionesMarketing.css";
 
@@ -547,6 +548,12 @@ export default function CentroPublicacionesMarketing({
       </div>
 
       <CalendarioCampanasMarketing
+        publicaciones={publicacionesOrdenadas}
+        clientesPorId={clientesPorId}
+      />
+
+      <CentroResultadosCampanas
+        organizationId={organizationId}
         publicaciones={publicacionesOrdenadas}
         clientesPorId={clientesPorId}
       />
