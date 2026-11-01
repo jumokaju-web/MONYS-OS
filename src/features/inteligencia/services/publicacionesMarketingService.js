@@ -89,6 +89,7 @@ function validarBorrador({
 export async function crearBorradorPublicacion({
   organizationId,
   businessId,
+  clienteAgenciaId,
   branchId = null,
   campanaId = null,
   productos = [],
@@ -127,11 +128,16 @@ export async function crearBorradorPublicacion({
     throw new Error("Indica el presupuesto de la campaña pagada.");
   }
 
+  if (!clienteAgenciaId) {
+    throw new Error("Selecciona el negocio o cliente de esta campaña.");
+  }
+
   const { data, error } = await supabase
     .from("marketing_publicaciones")
     .insert({
       organization_id: organizationId,
       business_id: businessId,
+      cliente_agencia_id: clienteAgenciaId,
       branch_id: branchId || null,
       campana_id: campanaId || null,
       productos: productosLimpios,

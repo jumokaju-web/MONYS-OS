@@ -12,7 +12,10 @@ import {
   resolverAprobacionPublicacion,
   solicitarAprobacionPublicacion,
 } from "../../services/publicacionesMarketingService";
+import { obtenerClientesAgenciaMarketing } from "../../services/clientesAgenciaMarketingService";
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
+
+import "./CentroPublicacionesMarketing.css";
 
 const CANALES = [
   "TIKTOK",
@@ -178,6 +181,8 @@ export default function CentroPublicacionesMarketing({
   ]);
   const [tipoCampana, setTipoCampana] = useState("ORGANICA");
   const [presupuestoPropuesto, setPresupuestoPropuesto] = useState(0);
+  const [clientesAgencia, setClientesAgencia] = useState([]);
+  const [clienteAgenciaId, setClienteAgenciaId] = useState("");
 
   const [publicaciones, setPublicaciones] =
     useState([]);
@@ -202,6 +207,16 @@ export default function CentroPublicacionesMarketing({
   );
   const esMarketing = String(usuario?.role || "").toLowerCase() === "marketing";
   const puedeRevisar = esPropietaria || esMarketing;
+
+  const clienteSeleccionado = useMemo(
+    () => clientesAgencia.find((cliente) => cliente.id === clienteAgenciaId) || null,
+    [clientesAgencia, clienteAgenciaId]
+  );
+
+  const clientesPorId = useMemo(
+    () => new Map(clientesAgencia.map((cliente) => [cliente.id, cliente])),
+    [clientesAgencia]
+  );
 
   const productos = useMemo(
     () =>
@@ -276,6 +291,42 @@ export default function CentroPublicacionesMarketing({
     cargarPublicaciones();
   }, [cargarPublicaciones]);
 
+  useEffect(() => {
+    let vigente = true;
+
+    async function cargarClientes() {
+      if (!organizationId) {
+        return;
+      }
+
+      try {
+        const registros = await obtenerClientesAgenciaMarketing({ organizationId });
+        if (!vigente) {
+          return;
+        }
+
+        const activos = registros.filter((cliente) => cliente.estado === "ACTIVO");
+        setClientesAgencia(activos);
+        setClienteAgenciaId((actual) => {
+          if (activos.some((cliente) => cliente.id === actual)) {
+            return actual;
+          }
+
+          return activos.find((cliente) => cliente.tipo === "INTERNO")?.id || activos[0]?.id || "";
+        });
+      } catch (errorClientes) {
+        if (vigente) {
+          setError(errorClientes?.message || "No fue posible cargar los negocios de la agencia.");
+        }
+      }
+    }
+
+    cargarClientes();
+    return () => {
+      vigente = false;
+    };
+  }, [organizationId]);
+
   function cambiarCanal(canal) {
     setCanales((actuales) =>
       actuales.includes(canal)
@@ -295,6 +346,7 @@ export default function CentroPublicacionesMarketing({
       await crearBorradorPublicacion({
         organizationId,
         businessId,
+        clienteAgenciaId,
         branchId,
         campanaId: campana?.id || null,
         productos,
@@ -412,6 +464,7 @@ export default function CentroPublicacionesMarketing({
       businessId={businessId}
     />
     <section
+      className="marketing-publisher"
       style={{
         marginTop: "16px",
         padding: "16px",
@@ -421,6 +474,11 @@ export default function CentroPublicacionesMarketing({
           "linear-gradient(145deg, #fff8fc, #ffffff)",
       }}
     >
+      <div className="marketing-publisher__steps" aria-label="Flujo para publicar una campaña">
+        <div className={clienteAgenciaId ? "is-ready" : ""}><b>1</b><span><strong>Marca</strong><small>Elegir negocio</small></span></div>
+        <div className={productos.length && canales.length ? "is-ready" : ""}><b>2</b><span><strong>Campaña</strong><small>Contenido y canales</small></span></div>
+        <div><b>3</b><span><strong>Revisión</strong><small>Aprobar y programar</small></span></div>
+      </div>
       <div
         style={{
           display: "flex",
@@ -489,6 +547,28 @@ export default function CentroPublicacionesMarketing({
 
       {!soloRevision && (
         <>
+      <div className="marketing-publisher__brand">
+        <label htmlFor="marketing-client">¿Para qué negocio es esta campaña?</label>
+        <select
+          id="marketing-client"
+          value={clienteAgenciaId}
+          onChange={(evento) => setClienteAgenciaId(evento.target.value)}
+        >
+          <option value="">Selecciona un negocio o cliente</option>
+          {clientesAgencia.map((cliente) => (
+            <option key={cliente.id} value={cliente.id}>
+              {cliente.nombre} · {cliente.tipo === "INTERNO" ? "Negocio propio" : "Cliente externo"}
+            </option>
+          ))}
+        </select>
+        {clienteSeleccionado && (
+          <div>
+            <b>{clienteSeleccionado.nombre.slice(0, 1).toUpperCase()}</b>
+            <span><strong>{clienteSeleccionado.nombre}</strong><small>{clienteSeleccionado.objetivo_principal || "Objetivo por definir"}</small></span>
+            <i>{clienteSeleccionado.tipo === "INTERNO" ? "Monys" : "Agencia"}</i>
+          </div>
+        )}
+      </div>
       <div
         style={{
           display: "grid",
@@ -622,7 +702,7 @@ export default function CentroPublicacionesMarketing({
       <button
         type="button"
         onClick={guardarBorrador}
-        disabled={guardando || !kit}
+        disabled={guardando || !kit || !clienteAgenciaId}
         style={{
           width: "100%",
           marginTop: "14px",
@@ -632,8 +712,8 @@ export default function CentroPublicacionesMarketing({
           background: "#7a234f",
           color: "#fff",
           fontWeight: "900",
-          cursor: kit ? "pointer" : "not-allowed",
-          opacity: kit ? 1 : 0.55,
+          cursor: kit && clienteAgenciaId ? "pointer" : "not-allowed",
+          opacity: kit && clienteAgenciaId ? 1 : 0.55,
         }}
       >
         {guardando
@@ -692,6 +772,10 @@ export default function CentroPublicacionesMarketing({
                       .join(", ") || "Publicación"}
                   </strong>
                   <span>{etiquetaEstado(publicacion)}</span>
+                </div>
+
+                <div className="marketing-publisher__client-badge">
+                  {clientesPorId.get(publicacion.cliente_agencia_id)?.nombre || "Campaña anterior · cliente por asignar"}
                 </div>
 
                 <div
