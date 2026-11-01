@@ -8,6 +8,7 @@ import {
   obtenerUsuarios,
   obtenerNegociosActivos,
   obtenerSucursalesActivas,
+  obtenerEmpleadasSinAcceso,
   validarNuevoUsuario,
   crearPerfilUsuario,
   cambiarEstadoUsuario,
@@ -52,8 +53,20 @@ const FORMULARIO_INICIAL = {
   role: "",
   business_id: "",
   branch_id: "",
+  empleado_id: "",
   active: true,
 };
+
+function rolSugeridoPorPuesto(puesto = "") {
+  const texto = String(puesto).toLocaleLowerCase("es-MX");
+
+  if (texto.includes("encargad")) return "encargada";
+  if (texto.includes("marketing") || texto.includes("redes")) return "marketing";
+  if (texto.includes("chofer") || texto.includes("repart")) return "chofer";
+  if (texto.includes("compra")) return "compras";
+  if (texto.includes("captur")) return "capturista";
+  return "vendedora";
+}
 
 export default function CentroUsuarios({
   volverAlDashboard,
@@ -71,6 +84,9 @@ export default function CentroUsuarios({
     useState([]);
 
   const [sucursales, setSucursales] =
+    useState([]);
+
+  const [empleadasSinAcceso, setEmpleadasSinAcceso] =
     useState([]);
 
   const [filtroSucursal, setFiltroSucursal] =
@@ -162,9 +178,11 @@ export default function CentroUsuarios({
       const [
         registrosNegocios,
         registrosSucursales,
+        registrosEmpleadas,
       ] = await Promise.all([
         obtenerNegociosActivos(),
         obtenerSucursalesActivas(),
+        obtenerEmpleadasSinAcceso(),
       ]);
 
       setNegocios(
@@ -173,6 +191,10 @@ export default function CentroUsuarios({
 
       setSucursales(
         registrosSucursales || []
+      );
+
+      setEmpleadasSinAcceso(
+        registrosEmpleadas || []
       );
     } catch (errorCarga) {
       console.error(
@@ -204,6 +226,16 @@ export default function CentroUsuarios({
       sucursales,
       formulario.business_id,
     ]);
+
+  const empleadasDeSucursal = useMemo(() => {
+    if (!formulario.branch_id) return [];
+
+    return empleadasSinAcceso.filter(
+      (empleada) =>
+        empleada.branch_id === formulario.branch_id &&
+        empleada.business_id === formulario.business_id
+    );
+  }, [empleadasSinAcceso, formulario.branch_id, formulario.business_id]);
 
   const sucursalPorId = useMemo(
     () => new Map(sucursales.map((sucursal) => [sucursal.id, sucursal.name])),
@@ -257,6 +289,34 @@ export default function CentroUsuarios({
         ...anterior,
         business_id: value,
         branch_id: "",
+        empleado_id: "",
+      }));
+
+      return;
+    }
+
+    if (name === "branch_id") {
+      setFormulario((anterior) => ({
+        ...anterior,
+        branch_id: value,
+        empleado_id: "",
+      }));
+
+      return;
+    }
+
+    if (name === "empleado_id") {
+      const empleada = empleadasSinAcceso.find(
+        (item) => item.id === value
+      );
+
+      setFormulario((anterior) => ({
+        ...anterior,
+        empleado_id: value,
+        nombre: empleada?.nombre || anterior.nombre,
+        role: empleada
+          ? rolSugeridoPorPuesto(empleada.puesto)
+          : anterior.role,
       }));
 
       return;
@@ -314,6 +374,7 @@ export default function CentroUsuarios({
       );
 
       await cargarUsuarios();
+      await cargarCatalogos();
 
       setFormulario(
         FORMULARIO_INICIAL
@@ -998,6 +1059,44 @@ async function guardarCambiosPermisos() {
                 )}
               </select>
             </label>
+
+            <label
+              style={{
+                display: "grid",
+                gap: "7px",
+                color: "#51484d",
+                fontWeight: "700",
+              }}
+            >
+              Ficha de empleada
+
+              <select
+                name="empleado_id"
+                value={formulario.empleado_id}
+                onChange={actualizarCampo}
+                disabled={!formulario.branch_id || cargandoCatalogos}
+                style={estiloCampo}
+              >
+                <option value="">
+                  {!formulario.branch_id
+                    ? "Primero selecciona una sucursal"
+                    : empleadasDeSucursal.length
+                      ? "Selecciona a la empleada"
+                      : "No hay fichas disponibles en esta sucursal"}
+                </option>
+
+                {empleadasDeSucursal.map((empleada) => (
+                  <option key={empleada.id} value={empleada.id}>
+                    {empleada.nombre} · {empleada.puesto || "Puesto pendiente"}
+                  </option>
+                ))}
+              </select>
+
+              <small style={{ color: "#766a70", fontWeight: 600 }}>
+                Al elegirla, MONYS completa su nombre y rol y deja su acceso
+                listo para registrar entrada, tareas y evidencias.
+              </small>
+            </label>
           </div>
 
           <label
@@ -1299,306 +1398,3 @@ async function guardarCambiosPermisos() {
                     </span>
 
                     <span>
-                      <strong>
-                        Negocio:
-                      </strong>{" "}
-                      {usuario.business_id
-                        ? "Asignado"
-                        : "Corporativo"}
-                    </span>
-
-                    <span>
-                      <strong>
-                        Sucursal:
-                      </strong>{" "}
-                      {usuario.branch_id
-                        ? sucursalPorId.get(usuario.branch_id) || "Asignada"
-                        : "Todas / No aplica"}
-                    </span>
-                  </div>
-
-                  {puedeGestionarEstado && usuario.role !==
-                    "owner" && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                        marginTop: "18px",
-                      }}
-                    >
-                      {esPropietaria && <button
-                          type="button"
-                          onClick={() => abrirEditorPermisos(usuario)}
-                          style={{
-                            padding: "9px 14px",
-                            borderRadius: "9px",
-                            border: "1px solid #bba2af",
-                            background: "#f8f0f4",
-                            color: "#5e3048",
-                            fontWeight: "800",
-                            cursor: "pointer",
-                          }}
-                        >
-                          🔐 Editar permisos
-                        </button>}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          cambiarEstado(
-                            usuario
-                          )
-                        }
-                        style={{
-                          padding:
-                            "9px 14px",
-                          borderRadius:
-                            "9px",
-                          border:
-                            "1px solid #d7c6cf",
-                          background:
-                            usuario.active
-                              ? "#fff8df"
-                              : "#eef8f2",
-                          color:
-                            usuario.active
-                              ? "#8a6800"
-                              : "#236b45",
-                          fontWeight:
-                            "800",
-                          cursor:
-                            "pointer",
-                        }}
-                      >
-                        {usuario.active
-                          ? "⏸ Pausar"
-                          : "▶ Reactivar"}
-                      </button>
-
-                      {esPropietaria && <button
-                        type="button"
-                        onClick={() =>
-                          eliminarUsuario(
-                            usuario
-                          )
-                        }
-                        style={{
-                          padding:
-                            "9px 14px",
-                          borderRadius:
-                            "9px",
-                          border:
-                            "1px solid #efb8b8",
-                          background:
-                            "#fff3f3",
-                          color:
-                            "#a52d2d",
-                          fontWeight:
-                            "800",
-                          cursor:
-                            "pointer",
-                        }}
-                      >
-                        🗑 Eliminar
-                      </button>}
-                    </div>
-                  )}
-                </article>
-              )
-            )}
-          </div>
-        )}
-    </div>
-  );
-}
-
-function EditorPermisos({
-  usuario,
-  configuracion,
-  valores,
-  motivo,
-  error,
-  cargando,
-  guardando,
-  onAlternar,
-  onMotivo,
-  onGuardar,
-  onCerrar,
-}) {
-  return (
-    <section
-      style={{
-        padding: "22px",
-        marginBottom: "20px",
-        borderRadius: "16px",
-        background: "#ffffff",
-        border: "2px solid #d7c6cf",
-        boxShadow: "0 10px 28px rgba(94,48,72,0.10)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "14px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, color: "#2c2030" }}>
-            🔐 Permisos de {usuario.nombre}
-          </h2>
-          <p style={{ margin: "7px 0 0", color: "#766a70" }}>
-            Activa solamente las secciones que esta persona debe usar.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onCerrar}
-          disabled={guardando}
-          style={{
-            padding: "9px 13px",
-            borderRadius: "9px",
-            border: "1px solid #d7c6cf",
-            background: "#ffffff",
-            color: "#5e3048",
-            fontWeight: "800",
-            cursor: guardando ? "not-allowed" : "pointer",
-          }}
-        >
-          ✕ Cerrar
-        </button>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "#fff4f4",
-            border: "1px solid #efc0c0",
-            color: "#9b3030",
-            fontWeight: "700",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {cargando ? (
-        <p style={{ color: "#766a70" }}>Cargando permisos...</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "12px",
-            marginTop: "18px",
-          }}
-        >
-          {configuracion.map((permiso) => {
-            const activo = Boolean(valores[permiso.permission]);
-            return (
-              <button
-                key={permiso.permission}
-                type="button"
-                role="switch"
-                aria-checked={activo}
-                onClick={() => onAlternar(permiso.permission)}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "14px",
-                  padding: "15px",
-                  borderRadius: "12px",
-                  border: activo
-                    ? "1px solid #82c49f"
-                    : "1px solid #e1d5db",
-                  background: activo ? "#eef8f2" : "#faf7f8",
-                  color: "#2c2030",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <span>
-                  <strong style={{ display: "block" }}>{permiso.label}</strong>
-                  <small style={{ color: "#766a70" }}>
-                    {permiso.description}
-                  </small>
-                </span>
-                <span
-                  style={{
-                    minWidth: "88px",
-                    padding: "7px 9px",
-                    borderRadius: "999px",
-                    background: activo ? "#2f8657" : "#a34a4a",
-                    color: "#ffffff",
-                    fontSize: "12px",
-                    fontWeight: "900",
-                    textAlign: "center",
-                  }}
-                >
-                  {activo ? "ACTIVADO" : "SIN ACCESO"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {!cargando && (
-        <div style={{ marginTop: "18px" }}>
-          <label
-            style={{
-              display: "grid",
-              gap: "7px",
-              color: "#51484d",
-              fontWeight: "700",
-            }}
-          >
-            Motivo del cambio
-            <input
-              value={motivo}
-              onChange={(evento) => onMotivo(evento.target.value)}
-              placeholder="Ej. Nueva responsabilidad de flotilla"
-              style={estiloCampo}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={onGuardar}
-            disabled={guardando}
-            style={{
-              marginTop: "14px",
-              padding: "11px 18px",
-              borderRadius: "10px",
-              border: "none",
-              background: guardando ? "#d8cbd2" : "#5e3048",
-              color: "#ffffff",
-              fontWeight: "900",
-              cursor: guardando ? "not-allowed" : "pointer",
-            }}
-          >
-            {guardando ? "Guardando..." : "Guardar permisos"}
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-const estiloCampo = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "11px 12px",
-  borderRadius: "10px",
-  border:
-    "1px solid #d8cbd2",
-  background: "#ffffff",
-  color: "#2c2030",
-  fontSize: "15px",
-  outline: "none",
-};
