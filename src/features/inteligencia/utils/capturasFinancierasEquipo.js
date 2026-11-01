@@ -252,7 +252,14 @@ export function leerLiquidacionFlotilla(texto) {
 
 export function extraerCapturaFinanciera(cierre) {
   const corte = leerCorteCaja(cierre?.observaciones);
-  if (corte) return { tipo: "caja", datos: corte, cierre };
+  if (corte) return {
+    tipo: "caja",
+    datos: {
+      ...corte,
+      registroIncompleto: corte.registroIncompleto === true || corte.recuperado === true,
+    },
+    cierre,
+  };
 
   const flotilla = leerLiquidacionFlotilla(cierre?.observaciones);
   if (flotilla) return { tipo: "flotilla", datos: flotilla, cierre };

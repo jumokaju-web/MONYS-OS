@@ -177,6 +177,16 @@ export async function subirFotoCorteCaja({ archivo, branchId = null }) {
   return { archivoPath: ruta, archivoUrl: data?.publicUrl || null };
 }
 
+export async function crearUrlTemporalEvidenciaCorte(archivoPath) {
+  const ruta = String(archivoPath || "").trim();
+  if (!ruta) return null;
+  const { data, error } = await supabase.storage
+    .from("tareas-evidencias")
+    .createSignedUrl(ruta, 60 * 60);
+  if (error) throw new Error(`No fue posible abrir la evidencia recuperada: ${error.message}`);
+  return data?.signedUrl || null;
+}
+
 
 export async function obtenerCierresTurno({
   branchId = null,

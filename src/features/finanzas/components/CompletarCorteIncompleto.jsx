@@ -48,14 +48,16 @@ export default function CompletarCorteIncompleto({ captura, usuario, onGuardado 
       branchId: cierre.branch_id,
       cajaId: datos.cajaId,
       corteSinApertura: true,
-      fotoCorte: foto,
+      fotoCorte: foto || datos.fotoCortePath,
       formulario,
     });
     if (validacion) { setError(validacion); return; }
 
     try {
       setGuardando(true);
-      const evidencia = await subirFotoCorteCaja({ archivo: foto, branchId: cierre.branch_id });
+      const evidencia = foto
+        ? await subirFotoCorteCaja({ archivo: foto, branchId: cierre.branch_id })
+        : { archivoPath: datos.fotoCortePath, archivoUrl: datos.fotoCorteUrl || null };
       await guardarCierreTurno({
         branchId: cierre.branch_id,
         responsable,
@@ -97,8 +99,8 @@ export default function CompletarCorteIncompleto({ captura, usuario, onGuardado 
       </div>
       <p>Captura exactamente lo que aparece en SICAR y el efectivo contado. El registro original se conservará.</p>
       <label className="completar-corte-foto">Foto del reporte SICAR
-        <input required type="file" accept="image/*" capture="environment" onChange={e => setFoto(e.target.files?.[0] || null)} />
-        <small>{foto ? `Lista: ${foto.name}` : "Obligatoria para comprobar los importes"}</small>
+        <input required={!datos.fotoCortePath} type="file" accept="image/*" capture="environment" onChange={e => setFoto(e.target.files?.[0] || null)} />
+        <small>{foto ? `Lista: ${foto.name}` : datos.fotoCortePath ? "Ya existe una fotografía recuperada; puedes conservarla." : "Obligatoria para comprobar los importes"}</small>
       </label>
       <div className="completar-corte-grid">
         {campos.map(([nombre, etiqueta]) => <label key={nombre}>{etiqueta}<input required type="number" inputMode="decimal" min="0" step="0.01" value={formulario[nombre]} onChange={e => setFormulario(actual => ({ ...actual, [nombre]: e.target.value }))} placeholder="$0.00" /></label>)}

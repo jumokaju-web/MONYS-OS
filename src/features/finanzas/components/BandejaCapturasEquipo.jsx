@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
+import { crearUrlTemporalEvidenciaCorte, obtenerCierresTurno } from "../../inteligencia/services/cierresTurnoService";
 import {
   extraerCapturasFinancieras,
   obtenerSesionesCajaActivas,
@@ -108,10 +108,29 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
       setSesionesCajaActivas(!esOwner && branchId ? Object.values(obtenerSesionesCajaActivas(cierres)) : []);
       setSeguimientosCierre(indexarSeguimientosCierre(cierres));
       const recibidas = extraerCapturasFinancieras(cierres);
-      setCapturas(recibidas);
+      const recibidasConEvidencia = await Promise.all(recibidas.map(async (captura) => {
+        if (captura.tipo !== 'caja') return captura;
+        async function firmar(ruta) {
+          try { return await crearUrlTemporalEvidenciaCorte(ruta); }
+          catch (errorFirma) { console.warn(errorFirma); return null; }
+        }
+        const [fotoPrincipal, fotoSecundaria] = await Promise.all([
+          firmar(captura.datos.fotoCortePath),
+          firmar(captura.datos.fotoCortePathSecundaria),
+        ]);
+        return {
+          ...captura,
+          datos: {
+            ...captura.datos,
+            fotoCorteUrl: fotoPrincipal || captura.datos.fotoCorteUrl || null,
+            fotoCorteUrlSecundaria: fotoSecundaria || null,
+          },
+        };
+      }));
+      setCapturas(recibidasConEvidencia);
       if (esOwner) {
         try {
-          const resultados = await obtenerRevisionesCortes(recibidas.filter(c => c.tipo === 'caja').map(c => c.cierre.id));
+          const resultados = await obtenerRevisionesCortes(recibidasConEvidencia.filter(c => c.tipo === 'caja').map(c => c.cierre.id));
           if (actual !== solicitud.current) return;
           setRevisiones(Object.fromEntries(resultados.map(r => [r.cierre_id, r])));
           setRevisionDisponible(true);
@@ -347,6 +366,11 @@ export default function BandejaCapturasEquipo({ branchId, sucursales = [], vista
                     rel="noreferrer"
                   >
                     Ver foto del corte de SICAR →
+                  </a>
+                )}
+                {datos.fotoCorteUrlSecundaria && (
+                  <a className="captura-evidencia-corte" href={datos.fotoCorteUrlSecundaria} target="_blank" rel="noreferrer">
+                    Ver segunda foto recuperada →
                   </a>
                 )}
               </>

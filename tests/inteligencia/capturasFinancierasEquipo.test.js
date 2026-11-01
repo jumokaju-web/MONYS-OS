@@ -309,3 +309,28 @@ test("Dirección completa un cierre anterior sin borrar el registro original", (
   assert.equal(captura.datos.diferenciaCaja, 0);
   assert.equal(extraerCapturasFinancieras([complemento, cierre]).length, 1);
 });
+
+test("un corte recuperado conserva ambas fotos pero no inventa importes", () => {
+  const cierre = {
+    id: "recuperado-1",
+    branch_id: "general-anaya",
+    responsable: "Karla Yoselin",
+    turno: "cierre_caja_recuperado",
+    fecha: "2026-11-01",
+    observaciones: crearObservacionesCorte({
+      cajaId: "POR_CONFIRMAR",
+      cajaNombre: "Caja por identificar",
+      recuperado: true,
+      fotoCortePath: "tarea/foto-1.jpg",
+      fotoCortePathSecundaria: "tarea/foto-2.jpg",
+    }),
+  };
+
+  const [captura] = extraerCapturasFinancieras([cierre]);
+  assert.equal(captura.tipo, "caja");
+  assert.equal(captura.datos.registroIncompleto, true);
+  assert.equal(captura.datos.fotoCortePath, "tarea/foto-1.jpg");
+  assert.equal(captura.datos.fotoCortePathSecundaria, "tarea/foto-2.jpg");
+  assert.equal(captura.datos.ventaSicar, undefined);
+  assert.equal(captura.datos.efectivoFinal, undefined);
+});
