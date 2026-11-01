@@ -14,6 +14,7 @@ import {
 } from "../../services/publicacionesMarketingService";
 import { obtenerClientesAgenciaMarketing } from "../../services/clientesAgenciaMarketingService";
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
+import CalendarioCampanasMarketing from "./CalendarioCampanasMarketing";
 
 import "./CentroPublicacionesMarketing.css";
 
@@ -545,6 +546,11 @@ export default function CentroPublicacionesMarketing({
         ya se publicó.
       </div>
 
+      <CalendarioCampanasMarketing
+        publicaciones={publicacionesOrdenadas}
+        clientesPorId={clientesPorId}
+      />
+
       {!soloRevision && (
         <>
       <div className="marketing-publisher__brand">
@@ -751,6 +757,8 @@ export default function CentroPublicacionesMarketing({
             (publicacion) => (
               <article
                 key={publicacion.id}
+                id={`marketing-publicacion-${publicacion.id}`}
+                tabIndex={-1}
                 style={{
                   padding: "11px",
                   border: "1px solid #eadce3",
