@@ -9,10 +9,15 @@ import {
   crearBorradorPublicacion,
   obtenerPublicacionesMarketing,
   programarPublicacionMarketing,
+  rechazarPublicacionMarketing,
   resolverAprobacionPublicacion,
   solicitarAprobacionPublicacion,
 } from "../../services/publicacionesMarketingService";
 import { obtenerClientesAgenciaMarketing } from "../../services/clientesAgenciaMarketingService";
+import {
+  clasificarPublicacionesContenido,
+  validarComentarioDecision,
+} from "../../utils/bandejaContenidoMarketing";
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
 import CalendarioCampanasMarketing from "./CalendarioCampanasMarketing";
 import CentroResultadosCampanas from "./CentroResultadosCampanas";
@@ -200,6 +205,9 @@ export default function CentroPublicacionesMarketing({
 
   const [fechasProgramacion, setFechasProgramacion] =
     useState({});
+  const [comentariosRevision, setComentariosRevision] = useState({});
+  const [vistaCola, setVistaCola] = useState(soloRevision ? "REVISION" : "TRABAJO");
+  const [resolviendoId, setResolviendoId] = useState("");
 
   const esPropietaria = [
     "owner",
@@ -257,6 +265,20 @@ export default function CentroPublicacionesMarketing({
     (publicacion) =>
       publicacion.estado === "PENDIENTE_APROBACION"
   ).length;
+
+  const publicacionesVisibles = useMemo(
+    () => clasificarPublicacionesContenido(publicacionesOrdenadas, vistaCola),
+    [publicacionesOrdenadas, vistaCola]
+  );
+
+  const conteosCola = useMemo(
+    () => ({
+      REVISION: clasificarPublicacionesContenido(publicaciones, "REVISION").length,
+      TRABAJO: clasificarPublicacionesContenido(publicaciones, "TRABAJO").length,
+      HISTORIAL: clasificarPublicacionesContenido(publicaciones, "HISTORIAL").length,
+    }),
+    [publicaciones]
+  );
 
   const cargarPublicaciones = useCallback(async () => {
     if (!organizationId) {
@@ -397,6 +419,18 @@ export default function CentroPublicacionesMarketing({
       (elemento) => elemento.id === publicacionId
     );
     const esPagada = publicacion?.tipo_campana === "PAGADA";
+    let comentario = "";
+
+    try {
+      comentario = validarComentarioDecision(
+        aprobar ? "APROBAR" : "AJUSTAR",
+        comentariosRevision[publicacionId]
+      );
+    } catch (errorComentario) {
+      setError(errorComentario.message);
+      return;
+    }
+
     const confirmacion = window.confirm(
       aprobar
         ? esPagada
@@ -410,15 +444,16 @@ export default function CentroPublicacionesMarketing({
     }
 
     try {
+      setResolviendoId(publicacionId);
       setError("");
       await resolverAprobacionPublicacion({
         publicacionId,
         aprobar,
         observaciones: aprobar
-          ? esPagada
-            ? "Contenido y presupuesto autorizados."
-            : "Contenido orgánico autorizado."
-          : "Requiere ajustes antes de publicar.",
+          ? comentario || (esPagada
+              ? "Contenido y presupuesto autorizados."
+              : "Contenido orgánico autorizado.")
+          : comentario,
       });
       setMensaje(
         aprobar
@@ -426,11 +461,39 @@ export default function CentroPublicacionesMarketing({
           : "Publicación devuelta para ajustes."
       );
       await cargarPublicaciones();
+      setComentariosRevision((actuales) => ({ ...actuales, [publicacionId]: "" }));
     } catch (errorResolucion) {
       setError(
         errorResolucion?.message ||
           "No fue posible resolver la autorización."
       );
+    } finally {
+      setResolviendoId("");
+    }
+  }
+
+  async function rechazar(publicacionId) {
+    let comentario = "";
+    try {
+      comentario = validarComentarioDecision("RECHAZAR", comentariosRevision[publicacionId]);
+    } catch (errorComentario) {
+      setError(errorComentario.message);
+      return;
+    }
+
+    if (!window.confirm("¿Rechazar definitivamente esta propuesta? Permanecerá en el historial para auditoría.")) return;
+
+    try {
+      setResolviendoId(publicacionId);
+      setError("");
+      await rechazarPublicacionMarketing({ publicacionId, observaciones: comentario });
+      setMensaje("Propuesta rechazada. Se conservó en el historial y no se publicará.");
+      setComentariosRevision((actuales) => ({ ...actuales, [publicacionId]: "" }));
+      await cargarPublicaciones();
+    } catch (errorRechazo) {
+      setError(errorRechazo?.message || "No fue posible rechazar la propuesta.");
+    } finally {
+      setResolviendoId("");
     }
   }
 
@@ -495,8 +558,8 @@ export default function CentroPublicacionesMarketing({
             style={{ color: "#7a234f" }}
           >
             {soloRevision
-              ? "Autorizaciones de publicación"
-              : "Publicación multicanal"}
+              ? "Bandeja de aprobación"
+              : "Fábrica de contenido"}
           </strong>
           <div
             style={{
@@ -506,8 +569,8 @@ export default function CentroPublicacionesMarketing({
             }}
           >
             {soloRevision
-              ? "Kary revisa dentro de sus límites; Mónica autoriza las excepciones y el gasto mayor."
-              : "Varios productos, varios canales y autorización humana."}
+              ? "Revisa una propuesta a la vez: aprobar, pedir cambios o rechazar. Kary trabaja dentro de sus límites y Mónica autoriza las excepciones."
+              : "Convierte un producto y un objetivo en piezas por canal, listas para revisión y calendario."}
           </div>
         </div>
 
@@ -526,6 +589,24 @@ export default function CentroPublicacionesMarketing({
             : `${publicaciones.length} en cola`}
         </span>
       </div>
+
+      <nav className="marketing-publisher__queue-tabs" aria-label="Vistas de la fábrica de contenido">
+        {[
+          ["REVISION", "Por revisar"],
+          ["TRABAJO", "En preparación"],
+          ["HISTORIAL", "Historial"],
+        ].map(([valor, etiqueta]) => (
+          <button
+            key={valor}
+            type="button"
+            className={vistaCola === valor ? "is-active" : ""}
+            aria-pressed={vistaCola === valor}
+            onClick={() => setVistaCola(valor)}
+          >
+            <span>{conteosCola[valor]}</span>{etiqueta}
+          </button>
+        ))}
+      </nav>
 
       <div
         role="status"
@@ -760,7 +841,7 @@ export default function CentroPublicacionesMarketing({
             Cargando cola...
           </div>
         ) : (
-          publicacionesOrdenadas.slice(0, 8).map(
+          publicacionesVisibles.slice(0, 8).map(
             (publicacion) => (
               <article
                 key={publicacion.id}
@@ -829,6 +910,13 @@ export default function CentroPublicacionesMarketing({
                     Programada: {new Date(
                       publicacion.programada_para
                     ).toLocaleString("es-MX")}
+                  </div>
+                )}
+
+                {publicacion.observaciones_aprobacion && (
+                  <div className="marketing-publisher__review-note">
+                    <strong>Comentario de revisión</strong>
+                    <span>{publicacion.observaciones_aprobacion}</span>
                   </div>
                 )}
 
@@ -914,51 +1002,50 @@ export default function CentroPublicacionesMarketing({
                   publicacion.estado ===
                     "PENDIENTE_APROBACION" &&
                   !(esMarketing && publicacion.requiere_autorizacion_duena) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        marginTop: "9px",
-                      }}
-                    >
+                    <div className="marketing-publisher__decision">
+                      <label>
+                        Comentario para el equipo
+                        <textarea
+                          rows={2}
+                          value={comentariosRevision[publicacion.id] || ""}
+                          onChange={(evento) => setComentariosRevision((actuales) => ({
+                            ...actuales,
+                            [publicacion.id]: evento.target.value,
+                          }))}
+                          placeholder="Obligatorio para pedir cambios o rechazar"
+                          maxLength={500}
+                        />
+                      </label>
+                      <div>
                       <button
                         type="button"
+                        disabled={resolviendoId === publicacion.id}
                         onClick={() =>
                           resolver(publicacion.id, true)
                         }
-                        style={{
-                          flex: 1,
-                          padding: "9px 10px",
-                          border: "none",
-                          borderRadius: "9px",
-                          background: "#247a50",
-                          color: "#ffffff",
-                          fontSize: "10px",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                        }}
+                        className="is-approve"
                       >
-                        Aprobar contenido
+                        ✓ Aprobar
                       </button>
                       <button
                         type="button"
+                        disabled={resolviendoId === publicacion.id}
                         onClick={() =>
                           resolver(publicacion.id, false)
                         }
-                        style={{
-                          flex: 1,
-                          padding: "9px 10px",
-                          border: "1px solid #b94848",
-                          borderRadius: "9px",
-                          background: "#fff5f5",
-                          color: "#9f2f2f",
-                          fontSize: "10px",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                        }}
+                        className="is-adjust"
                       >
-                        Pedir ajustes
+                        ↻ Pedir cambios
                       </button>
+                      <button
+                        type="button"
+                        disabled={resolviendoId === publicacion.id}
+                        onClick={() => rechazar(publicacion.id)}
+                        className="is-reject"
+                      >
+                        × Rechazar
+                      </button>
+                      </div>
                     </div>
                   )}
 
@@ -1043,7 +1130,7 @@ export default function CentroPublicacionesMarketing({
           )
         )}
 
-        {!cargando && publicaciones.length === 0 && (
+        {!cargando && publicacionesVisibles.length === 0 && (
           <div
             style={{
               padding: "14px",
@@ -1057,8 +1144,10 @@ export default function CentroPublicacionesMarketing({
             }}
           >
             {soloRevision
-              ? "Todavía no hay contenido enviado por Kary para autorización."
-              : "Todavía no hay publicaciones en esta cola."}
+              ? vistaCola === "REVISION"
+                ? "No hay propuestas esperando tu decisión."
+                : "No hay contenido en esta sección."
+              : "No hay contenido en esta sección de la fábrica."}
           </div>
         )}
       </div>

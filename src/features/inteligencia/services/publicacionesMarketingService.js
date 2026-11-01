@@ -294,6 +294,31 @@ export async function resolverAprobacionPublicacion({
   return data;
 }
 
+export async function rechazarPublicacionMarketing({
+  publicacionId,
+  observaciones,
+} = {}) {
+  const comentario = String(observaciones || "").trim();
+
+  if (!publicacionId) {
+    throw new Error("Falta identificar la publicación.");
+  }
+  if (comentario.length < 5) {
+    throw new Error("Explica brevemente por qué se rechaza.");
+  }
+
+  const { data, error } = await supabase.rpc(
+    "rechazar_publicacion_marketing",
+    {
+      p_publicacion_id: publicacionId,
+      p_observaciones: comentario,
+    }
+  );
+
+  if (error) throw error;
+  return data;
+}
+
 export async function programarPublicacionMarketing({
   publicacionId,
   programadaPara,
