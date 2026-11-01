@@ -45,7 +45,7 @@ export async function obtenerConfiguracionAutomatizacionMarketing({
     supabase
       .from("marketing_cuentas_canal")
       .select(
-        "id, proveedor, nombre_cuenta, estado, capacidades, ultima_sincronizacion, ultimo_error"
+        "id, cliente_agencia_id, proveedor, nombre_cuenta, estado, capacidades, ultima_sincronizacion, ultimo_error, solicitada_por, solicitada_en"
       )
       .eq("organization_id", organizationId)
       .eq("business_id", businessId)
@@ -110,3 +110,48 @@ export async function guardarPoliticaAutomatizacionMarketing({
 }
 
 export const politicaInicialMarketing = POLITICA_INICIAL;
+
+export async function prepararConexionMarketing({
+  organizationId,
+  businessId,
+  clienteAgenciaId,
+  proveedor,
+} = {}) {
+  const proveedorNormalizado = String(proveedor || "").toUpperCase();
+  const proveedoresPermitidos = ["META", "TIKTOK", "TIKTOK_SHOP", "WHATSAPP", "MERCADO_LIBRE"];
+
+  if (!organizationId || !businessId || !clienteAgenciaId) {
+    throw new Error("Selecciona el negocio o cliente que autorizará la conexión.");
+  }
+  if (!proveedoresPermitidos.includes(proveedorNormalizado)) {
+    throw new Error("El canal seleccionado no es válido.");
+  }
+
+  const { data: sesion, error: errorSesion } = await supabase.auth.getUser();
+  if (errorSesion || !sesion?.user?.id) {
+    throw new Error("Tu sesión no está disponible. Vuelve a entrar antes de preparar la conexión.");
+  }
+
+  const { data, error } = await supabase
+    .from("marketing_cuentas_canal")
+    .insert({
+      organization_id: organizationId,
+      business_id: businessId,
+      cliente_agencia_id: clienteAgenciaId,
+      proveedor: proveedorNormalizado,
+      estado: "PENDIENTE",
+      solicitada_por: sesion.user.id,
+      solicitada_en: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("Este canal ya está preparado para el cliente seleccionado.");
+    }
+    throw error;
+  }
+
+  return data;
+}

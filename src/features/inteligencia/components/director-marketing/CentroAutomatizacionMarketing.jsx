@@ -4,7 +4,9 @@ import {
   guardarPoliticaAutomatizacionMarketing,
   obtenerConfiguracionAutomatizacionMarketing,
   politicaInicialMarketing,
+  prepararConexionMarketing,
 } from "../../services/automatizacionMarketingService";
+import { obtenerClientesAgenciaMarketing } from "../../services/clientesAgenciaMarketingService";
 
 import "./CentroAutomatizacionMarketing.css";
 import CentroClientesAgencia from "./CentroClientesAgencia";
@@ -39,6 +41,9 @@ export default function CentroAutomatizacionMarketing({
 }) {
   const [politica, setPolitica] = useState(politicaInicialMarketing);
   const [conexiones, setConexiones] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [clienteConexionId, setClienteConexionId] = useState("");
+  const [preparandoCanal, setPreparandoCanal] = useState("");
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -47,16 +52,21 @@ export default function CentroAutomatizacionMarketing({
   const puedeConfigurar = ["owner", "admin"].includes(
     String(usuario?.role || "").toLowerCase()
   );
+  const puedePreparar = ["owner", "admin", "marketing"].includes(
+    String(usuario?.role || "").toLowerCase()
+  );
 
   const conexionesPorProveedor = useMemo(
     () =>
       new Map(
-        conexiones.map((conexion) => [
+        conexiones
+          .filter((conexion) => conexion.cliente_agencia_id === clienteConexionId)
+          .map((conexion) => [
           String(conexion.proveedor || "").toUpperCase(),
           conexion,
         ])
       ),
-    [conexiones]
+    [conexiones, clienteConexionId]
   );
 
   useEffect(() => {
@@ -66,15 +76,24 @@ export default function CentroAutomatizacionMarketing({
       try {
         setCargando(true);
         setError("");
-        const resultado =
-          await obtenerConfiguracionAutomatizacionMarketing({
+        const [resultado, clientesAgencia] = await Promise.all([
+          obtenerConfiguracionAutomatizacionMarketing({
             organizationId,
             businessId,
-          });
+          }),
+          obtenerClientesAgenciaMarketing({ organizationId }),
+        ]);
 
         if (vigente) {
           setPolitica(resultado.politica);
           setConexiones(resultado.conexiones);
+          const activos = clientesAgencia.filter((cliente) => cliente.estado === "ACTIVO");
+          setClientes(activos);
+          setClienteConexionId((actual) =>
+            activos.some((cliente) => cliente.id === actual)
+              ? actual
+              : activos.find((cliente) => cliente.tipo === "INTERNO")?.id || activos[0]?.id || ""
+          );
         }
       } catch (errorCarga) {
         if (vigente) {
@@ -115,6 +134,26 @@ export default function CentroAutomatizacionMarketing({
       );
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function prepararConexion(proveedor) {
+    try {
+      setPreparandoCanal(proveedor);
+      setError("");
+      setMensaje("");
+      const conexion = await prepararConexionMarketing({
+        organizationId,
+        businessId,
+        clienteAgenciaId: clienteConexionId,
+        proveedor,
+      });
+      setConexiones((actuales) => [...actuales, conexion]);
+      setMensaje("Canal preparado. El siguiente paso será autorizarlo en la página oficial del proveedor; MONYS no pedirá la contraseña.");
+    } catch (errorConexion) {
+      setError(errorConexion?.message || "No fue posible preparar la conexión.");
+    } finally {
+      setPreparandoCanal("");
     }
   }
 
@@ -243,6 +282,18 @@ export default function CentroAutomatizacionMarketing({
             <i>{conexiones.filter((c) => c.estado === "CONECTADA").length} conectadas</i>
           </div>
 
+          <label className="marketing-auto__client-select">
+            Conexiones de
+            <select value={clienteConexionId} onChange={(evento) => setClienteConexionId(evento.target.value)}>
+              <option value="">Selecciona un negocio o cliente</option>
+              {clientes.map((cliente) => (
+                <option key={cliente.id} value={cliente.id}>
+                  {cliente.nombre} · {cliente.tipo === "INTERNO" ? "Negocio propio" : "Cliente externo"}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="marketing-auto__channel-list">
             {CANALES.map(([proveedor, nombre, icono]) => {
               const conexion = conexionesPorProveedor.get(proveedor);
@@ -254,18 +305,28 @@ export default function CentroAutomatizacionMarketing({
                     <strong>{nombre}</strong>
                     <small>{conexion?.nombre_cuenta || "Cuenta por autorizar"}</small>
                   </span>
-                  <i className={conectada ? "is-connected" : ""}>
-                    {conectada ? "Conectada" : "Pendiente"}
-                  </i>
+                  {conexion ? (
+                    <i className={conectada ? "is-connected" : ""}>
+                      {conectada ? "Conectada" : conexion.estado === "AUTORIZANDO" ? "Autorizando" : "Preparada"}
+                    </i>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!puedePreparar || !clienteConexionId || preparandoCanal === proveedor}
+                      onClick={() => prepararConexion(proveedor)}
+                    >
+                      {preparandoCanal === proveedor ? "Preparando…" : "Preparar"}
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
 
           <p>
-            El botón de conexión se activará con la aplicación oficial de cada
-            plataforma. El acceso ocurrirá en la propia red; MONYS no guardará
-            correos ni contraseñas externas.
+            “Preparar” solamente organiza el canal y deja lista la autorización.
+            La conexión real se completará en la página oficial de cada plataforma;
+            MONYS no guardará correos, contraseñas ni tokens en tablas públicas.
           </p>
         </article>
       </div>
