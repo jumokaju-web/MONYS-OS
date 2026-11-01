@@ -99,6 +99,12 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
     <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>{saludoTurno()}, {primerNombre} 🌸</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
     <div className={`tienda-contenido${vista !== 'HOY' ? ' tienda-contenido--subvista' : ''}`}>
       <section className="tienda-home" hidden={vista !== 'HOY'} ref={vista === 'HOY' ? destino : null} tabIndex={-1} aria-label="Trabajo de hoy">
+        {usuario?.cobertura_sucursal && <section role="status" style={{ display: 'grid', gap: 7, padding: 16, marginBottom: 14, border: '2px solid #a82c68', borderRadius: 16, background: '#fff4f8', color: '#50263a' }}>
+          <small style={{ fontWeight: 900, letterSpacing: '.08em', color: '#9a3568' }}>COBERTURA AUTORIZADA DE HOY</small>
+          <strong style={{ fontSize: 20 }}>Estás operando en {usuario.cobertura_sucursal.nombre}</strong>
+          <p style={{ margin: 0, lineHeight: 1.45 }}>Entradas, tareas y cortes se registrarán en esta sucursal únicamente durante el {usuario.cobertura_sucursal.fecha}.</p>
+          {usuario.cobertura_sucursal.motivo && <small>Motivo: {usuario.cobertura_sucursal.motivo}</small>}
+        </section>}
         {operaSola && <section className="tienda-modo-sola" aria-label="Modo sola en tienda">
           <div><span aria-hidden="true">🌸</span><div><small>MODO SOLA EN TIENDA</small><strong>Primero atiende a la clienta</strong></div></div>
           <p>MONYS organiza lo demás alrededor de la venta. Los conteos pueden esperar a un momento tranquilo y nunca deben hacerte perder una clienta.</p>

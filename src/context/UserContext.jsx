@@ -13,6 +13,15 @@ import {
 
 const UserContext = createContext(null);
 
+function fechaActualMexico() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export function UserProvider({
   children,
 }) {
@@ -130,6 +139,26 @@ export function UserProvider({
         empleadoDB = empleadoRelacionado;
       }
 
+      let branchIdEfectiva = usuarioDB.branch_id;
+      let coberturaSucursal = null;
+
+      if (empleadoDB?.id) {
+        const { data: coberturaHoy, error: errorCobertura } = await supabase
+          .from("empleado_horario_excepcion")
+          .select("id, branch_id, fecha, estado, motivo")
+          .eq("empleado_id", empleadoDB.id)
+          .eq("fecha", fechaActualMexico())
+          .eq("estado", "TRABAJA")
+          .maybeSingle();
+
+        if (errorCobertura) {
+          console.warn("No fue posible comprobar la cobertura de sucursal:", errorCobertura);
+        } else if (coberturaHoy?.branch_id && coberturaHoy.branch_id !== usuarioDB.branch_id) {
+          branchIdEfectiva = coberturaHoy.branch_id;
+          coberturaSucursal = coberturaHoy;
+        }
+      }
+
       let nombreNegocio =
         "Corporativo";
 
@@ -165,7 +194,7 @@ export function UserProvider({
       /*
         Carga el nombre real de la sucursal.
       */
-      if (usuarioDB.branch_id) {
+      if (branchIdEfectiva) {
         const {
           data: sucursalDB,
           error: errorSucursal,
@@ -174,7 +203,7 @@ export function UserProvider({
           .select("name")
           .eq(
             "id",
-            usuarioDB.branch_id
+            branchIdEfectiva
           )
           .maybeSingle();
 
@@ -195,6 +224,8 @@ export function UserProvider({
         business_id:
           usuarioDB.business_id,
         branch_id:
+          branchIdEfectiva,
+        home_branch_id:
           usuarioDB.branch_id,
         auth_user_id:
           usuarioDB.auth_user_id,
@@ -220,6 +251,12 @@ export function UserProvider({
           nombreNegocio,
         sucursal:
           nombreSucursal,
+        cobertura_sucursal: coberturaSucursal
+          ? {
+              ...coberturaSucursal,
+              nombre: nombreSucursal,
+            }
+          : null,
       });
     } catch (error) {
       console.error(
