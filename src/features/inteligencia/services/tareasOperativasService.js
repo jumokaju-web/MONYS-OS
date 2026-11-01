@@ -208,6 +208,7 @@ export async function crearTareaOperativa({
   creadaPor = null,
   requiereEvidencia = false,
   criterioExito = null,
+  detalleInventario = [],
 }) {
   const tituloLimpio =
     String(titulo || "").trim();
@@ -354,6 +355,11 @@ export async function crearTareaOperativa({
             criterioExito
           ).trim()
         : null,
+
+    detalle_inventario:
+      Array.isArray(detalleInventario)
+        ? detalleInventario
+        : [],
 
     updated_at:
       new Date().toISOString(),

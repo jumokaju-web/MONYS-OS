@@ -36,6 +36,11 @@ import { obtenerMargenRealBaseCampana } from "../shared/margenBaseCampana";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import { crearResultadoPulsoVentas, validarValoresPulsoVentas } from "../shared/pulsoVentas";
 import { crearResultadoRevisionTraspaso, leerRevisionTraspaso, validarCapturaRevisionTraspaso } from "../../inventario/shared/revisionTraspaso";
+import {
+  crearCapturaConteoInicial,
+  crearResultadoConteoInventario,
+  validarCapturaConteoInventario,
+} from "../../inventario/shared/conteoFisico";
 
 import CentroTrabajoGrowth from "./director-marketing/CentroTrabajoGrowth";
 import CentroPublicacionesMarketing from "./director-marketing/CentroPublicacionesMarketing";
@@ -828,10 +833,22 @@ export default function OperacionEmpleado({
       }
 
       if (nuevoEstado === "terminada" && esConteoInventario) {
-        resultadoSeguimiento = String(resultadoCapturado || "").trim();
-        if (!resultadoSeguimiento) {
-          setError("Registra la existencia física de los productos antes de terminar el conteo.");
-          return;
+        const detalleInventario = Array.isArray(tarea?.detalle_inventario)
+          ? tarea.detalle_inventario
+          : [];
+        if (detalleInventario.length > 0) {
+          try {
+            resultadoSeguimiento = crearResultadoConteoInventario(detalleInventario, resultadoCapturado || {});
+          } catch (errorConteo) {
+            setError(errorConteo.message);
+            return;
+          }
+        } else {
+          resultadoSeguimiento = String(resultadoCapturado || "").trim();
+          if (!resultadoSeguimiento) {
+            setError("Registra la existencia física de los productos antes de terminar el conteo.");
+            return;
+          }
         }
       }
 
@@ -2313,9 +2330,16 @@ export default function OperacionEmpleado({
               ).startsWith("PULSO DE VENTAS:");
               const revisionTraspaso = leerRevisionTraspaso(tarea);
               const esRevisionTraspaso = Boolean(revisionTraspaso);
-              const resultadoConteo = String(
-                resultadosConteoInventario[tarea.id] ?? tarea.resultado ?? ""
-              );
+              const detalleConteo = Array.isArray(tarea.detalle_inventario)
+                ? tarea.detalle_inventario
+                : [];
+              const conteoEstructurado = esConteoInventario && detalleConteo.length > 0;
+              const resultadoConteo = conteoEstructurado
+                ? (resultadosConteoInventario[tarea.id] ?? crearCapturaConteoInicial(detalleConteo, tarea.resultado))
+                : String(resultadosConteoInventario[tarea.id] ?? tarea.resultado ?? "");
+              const conteoListo = conteoEstructurado
+                ? validarCapturaConteoInventario(detalleConteo, resultadoConteo).valido
+                : String(resultadoConteo).trim().length > 0;
               const pulsoVentas = resultadosPulsoVentas[tarea.id] || {
                 personas: "",
                 ventas: "",
@@ -2331,7 +2355,7 @@ export default function OperacionEmpleado({
               const pulsoListo = pulsoVentasCompleto(pulsoVentas);
               const requiereFotoFinal = tarea.requiere_evidencia === true;
               const puedeTerminarTarea = (!requiereFotoFinal || tieneFinal) &&
-                (!esConteoInventario || resultadoConteo.trim().length > 0) &&
+                (!esConteoInventario || conteoListo) &&
                 (!esPulsoVentas || pulsoListo) &&
                 (!esRevisionTraspaso || revisionLista);
 
@@ -2499,7 +2523,15 @@ export default function OperacionEmpleado({
 />
 )}
 
-{esConteoInventario && tarea.estado === "en_proceso" && (
+{esConteoInventario && tarea.estado === "en_proceso" && conteoEstructurado && (
+  <CapturaConteoInventario
+    detalle={detalleConteo}
+    capturas={resultadoConteo}
+    onChange={(capturas) => setResultadosConteoInventario((actual) => ({ ...actual, [tarea.id]: capturas }))}
+  />
+)}
+
+{esConteoInventario && tarea.estado === "en_proceso" && !conteoEstructurado && (
   <label style={{ display: "grid", gap: "7px", marginTop: "13px", color: "#4c3944", fontWeight: 800 }}>
     Existencia física por producto
     <textarea
@@ -2911,6 +2943,94 @@ function FormularioResultadoCRM({ onGuardar }) {
         {guardando ? "Guardando resultado..." : "Guardar resultado y terminar"}
       </button>
     </form>
+  );
+}
+
+function CapturaConteoInventario({ detalle = [], capturas = {}, onChange }) {
+  const validacion = validarCapturaConteoInventario(detalle, capturas);
+
+  function actualizar(productoId, campo, valor) {
+    onChange?.({
+      ...capturas,
+      [productoId]: {
+        ...(capturas?.[productoId] || {}),
+        [campo]: valor,
+      },
+    });
+  }
+
+  return (
+    <section style={{ display: "grid", gap: "10px", marginTop: "13px" }} aria-label="Conteo físico por producto">
+      <div style={{ padding: "12px", borderRadius: "12px", background: "#f5fbf7", border: "1px solid #cfe7d7" }}>
+        <strong style={{ display: "block", color: "#245d3b" }}>Cuenta un producto a la vez</strong>
+        <small style={{ display: "block", marginTop: "4px", color: "#5d6a60", lineHeight: 1.4 }}>
+          SICAR es la referencia. Escribe las piezas físicas; MONYS calculará la diferencia, pero no modificará el inventario.
+        </small>
+      </div>
+
+      {detalle.map((producto, indice) => {
+        const captura = capturas?.[producto.id] || {};
+        const fisicoTexto = captura.existenciaFisica ?? "";
+        const fisico = fisicoTexto === "" ? null : Number(fisicoTexto);
+        const fisicoValido = Number.isInteger(fisico) && fisico >= 0;
+        const sistema = Number.isFinite(Number(producto.existenciaSistema))
+          ? Number(producto.existenciaSistema)
+          : null;
+        const diferencia = fisicoValido && sistema !== null ? fisico - sistema : null;
+
+        return (
+          <article key={producto.id} style={{ padding: "12px", border: "1px solid #e4d4dc", borderRadius: "13px", background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
+              <div>
+                <small style={{ color: "#8a6e7c", fontWeight: 800 }}>PRODUCTO {indice + 1} DE {detalle.length}</small>
+                <strong style={{ display: "block", marginTop: "3px", color: "#34252d" }}>{producto.producto}</strong>
+                <small style={{ display: "block", marginTop: "3px", color: "#77636d" }}>
+                  {producto.codigo ? `Código ${producto.codigo} · ` : ""}SICAR: {sistema ?? "pendiente"}
+                </small>
+              </div>
+              {diferencia !== null && (
+                <span style={{ flexShrink: 0, padding: "5px 8px", borderRadius: "999px", background: diferencia === 0 ? "#e8f6ed" : "#fff0df", color: diferencia === 0 ? "#246b45" : "#8a5a12", fontSize: "12px", fontWeight: 900 }}>
+                  {diferencia === 0 ? "Coincide" : `Diferencia ${diferencia > 0 ? "+" : ""}${diferencia}`}
+                </span>
+              )}
+            </div>
+
+            <label style={{ display: "grid", gap: "5px", marginTop: "10px", color: "#4c3944", fontWeight: 800 }}>
+              Piezas físicas
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                required
+                value={fisicoTexto}
+                onChange={(event) => actualizar(producto.id, "existenciaFisica", event.target.value)}
+                style={{ minHeight: "44px", padding: "9px 11px", border: "1px solid #dfc8d4", borderRadius: "10px", font: "inherit" }}
+              />
+            </label>
+
+            {diferencia !== null && diferencia !== 0 && (
+              <label style={{ display: "grid", gap: "5px", marginTop: "9px", color: "#7a4c13", fontWeight: 800 }}>
+                Explica la diferencia
+                <textarea
+                  rows={2}
+                  required
+                  maxLength={300}
+                  value={captura.observacion || ""}
+                  onChange={(event) => actualizar(producto.id, "observacion", event.target.value)}
+                  placeholder="Ej. pieza dañada, producto en exhibición o entrada aún no registrada"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", border: "1px solid #e0c89e", borderRadius: "10px", font: "inherit" }}
+                />
+              </label>
+            )}
+          </article>
+        );
+      })}
+
+      <small role="status" style={{ padding: "9px 11px", borderRadius: "10px", background: validacion.valido ? "#e8f6ed" : "#fff7e8", color: validacion.valido ? "#246b45" : "#765c27", fontWeight: 750 }}>
+        {validacion.valido ? "✓ Conteo completo y listo para guardar." : validacion.mensaje}
+      </small>
+    </section>
   );
 }
 

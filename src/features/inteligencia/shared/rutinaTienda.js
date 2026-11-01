@@ -1,5 +1,6 @@
 import { resolverResponsabilidadesEmpleado } from "./responsabilidadesEmpleado.js";
 import { resolverHorarioEmpleado } from "./horarioEmpleado.js";
+import { prepararDetalleConteoInventario } from "../../inventario/shared/conteoFisico.js";
 
 function fechaValida(fecha) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return false;
@@ -36,7 +37,7 @@ function elegirConMenorCarga(candidatos, historial, fecha, perfiles = new Map(),
   return empatados[semilla % empatados.length];
 }
 
-function crearTarea({ fecha, empleado, titulo, descripcion, instrucciones, criterioExito, prioridad = "normal", area = "tienda" }) {
+function crearTarea({ fecha, empleado, titulo, descripcion, instrucciones, criterioExito, prioridad = "normal", area = "tienda", detalleInventario = [] }) {
   return {
     fecha,
     area,
@@ -49,6 +50,7 @@ function crearTarea({ fecha, empleado, titulo, descripcion, instrucciones, crite
     responsable: empleado.nombre || "Equipo de tienda",
     responsableUsuarioId: empleado.auth_user_id || empleado.usuario_id || null,
     requiereEvidencia: false,
+    detalleInventario,
   };
 }
 
@@ -350,6 +352,7 @@ export function construirRutinaInteligente({
           ].join("\n"),
           criterioExito: `Existencia física registrada para los ${lote.length} ${lote.length === 1 ? "producto" : "productos"} del lote; diferencias reportadas a Dirección.`,
           prioridad: "alta",
+          detalleInventario: prepararDetalleConteoInventario(lote),
         }));
       }
       if (inventarioCritico.length > productosAsignados) {
