@@ -1,6 +1,15 @@
 import { supabase } from "../../../supabase";
 import { normalizarTelefonoAcceso } from "../../auth/utils/identificadorAcceso";
 
+const ROLES_QUE_REQUIEREN_FICHA = new Set([
+  "encargada",
+  "vendedora",
+  "marketing",
+  "chofer",
+  "compras",
+  "capturista",
+]);
+
 /*
   ==========================================
   USUARIOS
@@ -98,6 +107,30 @@ export async function obtenerSucursalesActivas() {
   return data || [];
 }
 
+export async function obtenerEmpleadasSinAcceso() {
+  const { data, error } = await supabase.functions.invoke(
+    "crear-usuario-monys",
+    {
+      body: {
+        accion: "listar_empleadas_sin_acceso",
+      },
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.error ||
+        "No fue posible cargar las fichas de empleadas disponibles."
+    );
+  }
+
+  return data.empleadas || [];
+}
+
 /*
   ==========================================
   VALIDACIÓN DEL NUEVO USUARIO
@@ -149,6 +182,12 @@ export function validarNuevoUsuario({
   if (!role) {
     throw new Error(
       "Debes seleccionar un rol."
+    );
+  }
+
+  if (ROLES_QUE_REQUIEREN_FICHA.has(role) && !empleado_id) {
+    throw new Error(
+      "Selecciona la ficha de la empleada para que pueda registrar su trabajo."
     );
   }
 
