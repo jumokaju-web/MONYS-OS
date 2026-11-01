@@ -34,6 +34,15 @@ const ROLES_OPERATIVOS_PERSONAL = new Set([
   "consulta",
 ]);
 
+const ROLES_QUE_REQUIEREN_FICHA = new Set([
+  "encargada",
+  "vendedora",
+  "marketing",
+  "chofer",
+  "compras",
+  "capturista",
+]);
+
 const DOMINIO_TELEFONO_INTERNO =
   "acceso.telefono.monys.local";
 
@@ -283,6 +292,26 @@ Deno.serve(async (req) => {
     const body =
       await req.json();
 
+    if (body?.accion === "listar_empleadas_sin_acceso") {
+      const { data: empleadas, error: errorEmpleadas } =
+        await supabaseAdmin
+          .from("empleados")
+          .select("id, organization_id, business_id, branch_id, nombre, puesto, active")
+          .eq("organization_id", usuarioSolicitante.organization_id)
+          .eq("active", true)
+          .is("usuario_id", null)
+          .order("nombre", { ascending: true });
+
+      if (errorEmpleadas) {
+        throw errorEmpleadas;
+      }
+
+      return respuesta({
+        ok: true,
+        empleadas: empleadas || [],
+      });
+    }
+
     const nombre =
       String(
         body?.nombre || ""
@@ -387,6 +416,16 @@ Deno.serve(async (req) => {
         {
           error:
             "El rol seleccionado no es válido.",
+        },
+        400
+      );
+    }
+
+    if (ROLES_QUE_REQUIEREN_FICHA.has(role) && !empleadoId) {
+      return respuesta(
+        {
+          error:
+            "Selecciona la ficha de la empleada para que pueda registrar su trabajo.",
         },
         400
       );
