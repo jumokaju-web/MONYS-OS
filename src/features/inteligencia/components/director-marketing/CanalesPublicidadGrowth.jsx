@@ -114,7 +114,7 @@ export default function CanalesPublicidadGrowth() {
           </p>
         </div>
         <span className="growth-paid-channels__guard">
-          Mónica controla publicación y gasto
+          Kary aprueba · Mónica define límites de gasto
         </span>
       </div>
 
@@ -157,9 +157,9 @@ export default function CanalesPublicidadGrowth() {
         ))}
       </div>
       <p className="growth-paid-channels__note">
-        Preparar una campaña no significa publicarla. Hasta completar cada
-        conexión oficial, MONYS crea borradores y Kary publica manualmente
-        después de la autorización correspondiente.
+        Preparar una campaña no significa publicarla. El flujo automático ya
+        tiene aprobación y límites; hasta completar cada conexión oficial,
+        MONYS conserva los borradores y Kary publica manualmente.
       </p>
     </section>
   );

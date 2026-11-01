@@ -1,0 +1,112 @@
+import { supabase } from "../../../supabase";
+
+const POLITICA_INICIAL = {
+  moneda: "MXN",
+  publicarOrganicoAutomatico: false,
+  publicarPagadoAutomatico: false,
+  limitePorCampana: 0,
+  limiteDiario: 0,
+};
+
+function normalizarPolitica(registro) {
+  if (!registro) {
+    return { ...POLITICA_INICIAL };
+  }
+
+  return {
+    moneda: registro.moneda || "MXN",
+    publicarOrganicoAutomatico:
+      registro.publicar_organico_automatico === true,
+    publicarPagadoAutomatico:
+      registro.publicar_pagado_automatico === true,
+    limitePorCampana: Number(registro.limite_por_campana || 0),
+    limiteDiario: Number(registro.limite_diario || 0),
+  };
+}
+
+export async function obtenerConfiguracionAutomatizacionMarketing({
+  organizationId,
+  businessId,
+} = {}) {
+  if (!organizationId || !businessId) {
+    return {
+      politica: { ...POLITICA_INICIAL },
+      conexiones: [],
+    };
+  }
+
+  const [politicaResultado, conexionesResultado] = await Promise.all([
+    supabase
+      .from("marketing_politicas_publicacion")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("business_id", businessId)
+      .maybeSingle(),
+    supabase
+      .from("marketing_cuentas_canal")
+      .select(
+        "id, proveedor, nombre_cuenta, estado, capacidades, ultima_sincronizacion, ultimo_error"
+      )
+      .eq("organization_id", organizationId)
+      .eq("business_id", businessId)
+      .order("proveedor", { ascending: true }),
+  ]);
+
+  if (politicaResultado.error) {
+    throw politicaResultado.error;
+  }
+
+  if (conexionesResultado.error) {
+    throw conexionesResultado.error;
+  }
+
+  return {
+    politica: normalizarPolitica(politicaResultado.data),
+    conexiones: conexionesResultado.data || [],
+  };
+}
+
+export async function guardarPoliticaAutomatizacionMarketing({
+  organizationId,
+  businessId,
+  politica,
+} = {}) {
+  if (!organizationId || !businessId) {
+    throw new Error("Falta identificar el negocio.");
+  }
+
+  const limitePorCampana = Number(politica?.limitePorCampana || 0);
+  const limiteDiario = Number(politica?.limiteDiario || 0);
+
+  if (limitePorCampana < 0 || limiteDiario < 0) {
+    throw new Error("Los límites de presupuesto no pueden ser negativos.");
+  }
+
+  const { data, error } = await supabase
+    .from("marketing_politicas_publicacion")
+    .upsert(
+      {
+        organization_id: organizationId,
+        business_id: businessId,
+        moneda: politica?.moneda || "MXN",
+        publicar_organico_automatico:
+          politica?.publicarOrganicoAutomatico === true,
+        publicar_pagado_automatico:
+          politica?.publicarPagadoAutomatico === true,
+        limite_por_campana: limitePorCampana,
+        limite_diario: limiteDiario,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "organization_id,business_id" }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizarPolitica(data);
+}
+
+export const politicaInicialMarketing = POLITICA_INICIAL;

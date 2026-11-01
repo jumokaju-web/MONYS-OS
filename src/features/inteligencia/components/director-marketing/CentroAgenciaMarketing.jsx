@@ -178,15 +178,25 @@ const horasSinAvance =
     },
     {
       icono: "🔎",
-      titulo: "Analista de Oportunidades IA",
+      titulo: "Directora de Inteligencia de Mercado IA",
       descripcion:
-        "Cruza ventas, existencias, cobertura y margen para decidir qué producto merece una prueba.",
-      entrega: "Producto, evidencia y riesgo",
+        "Cruza ventas, existencias y margen con competencia, temporadas, precios y demanda para detectar oportunidades reales.",
+      entrega: "Mercado, producto, evidencia y riesgo",
       estado: datosActuales
         ? `Vigilando ${nombreProducto}`
         : "Protegido por datos antiguos",
       destino: "plan-crecimiento-marketing",
       accion: "Revisar recomendación",
+    },
+    {
+      icono: "🔥",
+      titulo: "Especialista en Tendencias y Viralidad IA",
+      descripcion:
+        "Vigila formatos, temas, ganchos y cambios de comportamiento. Convierte tendencias en pruebas medibles sin prometer viralidad.",
+      entrega: "Radar de tendencias y pruebas creativas",
+      estado: "Monitoreo preparado · fuentes por conectar",
+      destino: "growth-paid-channels-title",
+      accion: "Ver canales y tendencias",
     },
     {
       icono: "🎬",

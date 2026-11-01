@@ -12,6 +12,7 @@ import {
   resolverAprobacionPublicacion,
   solicitarAprobacionPublicacion,
 } from "../../services/publicacionesMarketingService";
+import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
 
 const CANALES = [
   "TIKTOK",
@@ -388,6 +389,12 @@ export default function CentroPublicacionesMarketing({
   }
 
   return (
+    <>
+    <CentroAutomatizacionMarketing
+      usuario={usuario}
+      organizationId={organizationId}
+      businessId={businessId}
+    />
     <section
       style={{
         marginTop: "16px",
@@ -842,5 +849,6 @@ export default function CentroPublicacionesMarketing({
         )}
       </div>
     </section>
+    </>
   );
 }
