@@ -31,3 +31,26 @@ test("la alta delegada limita a Kary a perfiles operativos", async () => {
   assert.match(panel, /puedeGestionarPersonal \?/);
   assert.match(panel, /ROLES_OPERATIVOS_PERSONAL\.has\(role\.value\)/);
 });
+
+test("el alta vincula la cuenta con una ficha operativa disponible", async () => {
+  const funcion = await readFile(
+    new URL("../../supabase/functions/crear-usuario-monys/index.ts", import.meta.url),
+    "utf8"
+  );
+  const panel = await readFile(
+    new URL("../../src/features/usuarios/components/CentroUsuarios.jsx", import.meta.url),
+    "utf8"
+  );
+  const servicio = await readFile(
+    new URL("../../src/features/usuarios/services/usuariosService.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(funcion, /listar_empleadas_sin_acceso/);
+  assert.match(funcion, /\.is\("usuario_id", null\)/);
+  assert.match(funcion, /ROLES_QUE_REQUIEREN_FICHA\.has\(role\)/);
+  assert.match(funcion, /usuario_id:\s*nuevoPerfil\.id/);
+  assert.match(panel, /name="empleado_id"/);
+  assert.match(panel, /rolSugeridoPorPuesto/);
+  assert.match(servicio, /Selecciona la ficha de la empleada/);
+});
