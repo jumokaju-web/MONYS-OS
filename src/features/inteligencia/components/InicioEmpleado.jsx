@@ -29,6 +29,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
     puedeWhatsApp,
     puedeRegistrarIncidencias,
     puedeRegistrarProducto,
+    operaSola,
   } = resolverAccesosTienda({ responsabilidades, permisos });
   const [seccionGrowthActiva, setSeccionGrowthActiva] = useState("HOY");
   const [seccionOperacionActiva, setSeccionOperacionActiva] = useState("HOY");
@@ -122,7 +123,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
     }, 80);
   }
 
-  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} puedeRegistrarProducto={puedeRegistrarProducto} puedeWhatsApp={puedeWhatsApp} puedeRegistrarIncidencias={puedeRegistrarIncidencias} puedeCaja={puedeCaja} cerrarSesion={cerrarSesion}/>;
+  if (!esMarketing) return <InicioTienda key={usuario?.id || usuario?.auth_user_id || branchId} usuario={usuario} datosDashboard={datosDashboard} branchId={branchId} responsabilidades={responsabilidades} puedeRegistrarProducto={puedeRegistrarProducto} puedeWhatsApp={puedeWhatsApp} puedeRegistrarIncidencias={puedeRegistrarIncidencias} puedeCaja={puedeCaja} operaSola={operaSola} cerrarSesion={cerrarSesion}/>;
 
   return (
     <main

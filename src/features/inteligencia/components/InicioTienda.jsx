@@ -8,13 +8,15 @@ import IncidenciaTienda from './IncidenciaTienda';
 import AsistenteWhatsAppTienda from './AsistenteWhatsAppTienda';
 import { borrarBorradoresUsuario } from '../utils/borradorCorte';
 import { crearRutaTurnoTienda, resolverSiguienteAccionTurno } from '../shared/accesosTienda';
+import { resumirProgresoTurno, saludoTurno } from '../shared/progresoTurnoEmpleado';
 
-export default function InicioTienda({ usuario, datosDashboard, branchId, puedeRegistrarProducto, puedeWhatsApp = false, puedeRegistrarIncidencias = false, puedeCaja = false, cerrarSesion }) {
+export default function InicioTienda({ usuario, datosDashboard, branchId, responsabilidades = [], puedeRegistrarProducto, puedeWhatsApp = false, puedeRegistrarIncidencias = false, puedeCaja = false, operaSola = false, cerrarSesion }) {
   const [vista, setVista] = useState('HOY');
   const [revisionTareas, setRevisionTareas] = useState(0);
   const [visitadas, setVisitadas] = useState(['HOY']);
   const [estadoJornada, setEstadoJornada] = useState({ cargando: true, entradaRegistrada: false, salidaRegistrada: false });
   const [resumenTareas, setResumenTareas] = useState({ cargando: true, pendientes: 0, enProceso: 0, terminadas: 0 });
+  const [corteGuardado, setCorteGuardado] = useState(null);
   const destino = useRef(null);
   const primeraVista = useRef(true);
   const opciones = [
@@ -38,6 +40,14 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
     tareasPendientes: resumenTareas.pendientes,
     tareasEnProceso: resumenTareas.enProceso,
   });
+  const progreso = resumirProgresoTurno({
+    entradaRegistrada: estadoJornada.entradaRegistrada,
+    tareasCargando: resumenTareas.cargando,
+    pendientes: resumenTareas.pendientes,
+    enProceso: resumenTareas.enProceso,
+    terminadas: resumenTareas.terminadas,
+  });
+  const primerNombre = String(usuario?.nombre || 'equipo').trim().split(/\s+/)[0];
   const detalleVista = {
     WHATSAPP: {
       kicker: 'AYUDA PARA CONVERTIR MENSAJES EN VENTAS',
@@ -86,9 +96,23 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
   const vistaActual = detalleVista[vista];
 
   return <main className="tienda-shell">
-    <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>Hola, {usuario?.nombre || 'equipo'}</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
+    <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>{saludoTurno()}, {primerNombre} 🌸</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
     <div className={`tienda-contenido${vista !== 'HOY' ? ' tienda-contenido--subvista' : ''}`}>
       <section className="tienda-home" hidden={vista !== 'HOY'} ref={vista === 'HOY' ? destino : null} tabIndex={-1} aria-label="Trabajo de hoy">
+        {operaSola && <section className="tienda-modo-sola" aria-label="Modo sola en tienda">
+          <div><span aria-hidden="true">🌸</span><div><small>MODO SOLA EN TIENDA</small><strong>Primero atiende a la clienta</strong></div></div>
+          <p>MONYS organiza lo demás alrededor de la venta. Los conteos pueden esperar a un momento tranquilo y nunca deben hacerte perder una clienta.</p>
+          <ol><li><b>1</b> Clienta presente</li><li><b>2</b> Pedido o envío con hora límite</li><li><b>3</b> Tarea e inventario asignado</li></ol>
+        </section>}
+        <section className="tienda-progreso" aria-label="Progreso de mi día">
+          <div className="tienda-progreso__encabezado">
+            <div><small>MI AVANCE DE HOY</small><strong>{progreso.porcentaje === null ? 'Preparando…' : `${progreso.porcentaje}% completo`}</strong></div>
+            <span aria-hidden="true">{progreso.porcentaje === 100 ? '🏆' : progreso.accionesCompletas > 0 ? '✨' : '🌷'}</span>
+          </div>
+          <div className="tienda-progreso__barra" aria-hidden="true"><span style={{ width: `${progreso.porcentaje || 0}%` }}/></div>
+          <p>{progreso.mensaje}</p>
+          {progreso.porcentaje !== null && <small>{progreso.accionesCompletas} de {progreso.totalAcciones} acciones completas</small>}
+        </section>
         <section aria-label="Siguiente acción" style={{ display: 'grid', gap: 8, padding: 16, marginBottom: 14, border: '1px solid #d9b5c9', borderRadius: 16, background: 'linear-gradient(135deg,#6f3154 0%,#8f2858 100%)', color: '#fff' }}>
           <small style={{ fontWeight: 900, letterSpacing: '.08em', opacity: .82 }}>SIGUIENTE ACCIÓN</small>
           <strong style={{ fontSize: 20 }}>{siguienteAccion.titulo}</strong>
@@ -111,8 +135,19 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
           </ol>
         </div>
         <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
+        <button type="button" className="tienda-inventario-atajo" onClick={() => document.getElementById('employee-work-today')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          <span aria-hidden="true">📦</span><div><strong>Inventarios que debo revisar</strong><small>Abre tus conteos asignados y registra las piezas reales producto por producto.</small></div><b>Ver →</b>
+        </button>
+        {(responsabilidades.includes('PEDIDOS_EN_LINEA') || responsabilidades.includes('ENVIOS_TIENDA') || responsabilidades.includes('PROPONER_REPOSICION')) && <section className="tienda-supervendedora" aria-label="Herramientas de supervendedora">
+          <p className="tienda-kicker">VENTA EN LÍNEA Y REPOSICIÓN</p><h2>Tu operación especial</h2>
+          <div>
+            {responsabilidades.includes('PEDIDOS_EN_LINEA') && <article><span>🧾</span><strong>Pedidos en línea</strong><small>MONYS te asignará pedidos con producto, resultado y hora de revisión.</small></article>}
+            {responsabilidades.includes('ENVIOS_TIENDA') && <article><span>📦</span><strong>Envíos</strong><small>Prepara el paquete y deja guía o evidencia en la tarea asignada.</small></article>}
+            {responsabilidades.includes('PROPONER_REPOSICION') && <article><span>↔️</span><strong>Reposición</strong><small>Reporta el faltante; Mónica o Kary autorizan compra o traspaso.</small></article>}
+          </div>
+        </section>}
         <div className="tienda-trabajo-titulo"><p className="tienda-kicker">TRABAJO ASIGNADO</p><h2>Tu día en una sola vista</h2><p>Empieza por lo pendiente y actualiza cada tarea cuando cambie su estado.</p></div>
-        <div id="employee-work-today" style={{ scrollMarginTop: 92 }}><OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard} onResumenCambio={setResumenTareas}/></div>
+        <div id="employee-work-today" style={{ scrollMarginTop: 92 }}><OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard} onResumenCambio={setResumenTareas} onAbrirCorte={() => abrir('CAJA')} corteGuardado={corteGuardado}/></div>
         <details className="tienda-perfil"><summary>Mi perfil y reglas de trabajo</summary><PerfilOperativoEmpleado usuario={usuario}/></details>
       </section>
       {vistaActual && <header className="tienda-pagina-header" ref={destino} tabIndex={-1}>
@@ -124,7 +159,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, puedeR
       {visitadas.includes('PRODUCTO') && <section hidden={vista!=='PRODUCTO'} aria-label="Registrar solicitud"><RegistroProductoSolicitado branchId={branchId} usuario={usuario}/></section>}
       {visitadas.includes('WHATSAPP') && <section hidden={vista!=='WHATSAPP'} aria-label="Asistente de WhatsApp"><AsistenteWhatsAppTienda usuario={usuario} organizationId={usuario?.organization_id || datosDashboard?.organization_id || null} businessId={usuario?.business_id || datosDashboard?.business_id || null} branchId={branchId}/></section>}
       {puedeRegistrarIncidencias && visitadas.includes('INCIDENCIAS') && <section hidden={vista!=='INCIDENCIAS'} aria-label="Registrar incidencia"><IncidenciaTienda branchId={branchId} usuario={usuario}/></section>}
-      {puedeCaja && visitadas.includes('CAJA') && <section hidden={vista!=='CAJA'} aria-label="Caja y cierre"><CierreTurno key={`${usuario?.auth_user_id || usuario?.id}:${branchId}`} branchId={branchId} usuario={usuario} modoEmpleado/></section>}
+      {puedeCaja && visitadas.includes('CAJA') && <section hidden={vista!=='CAJA'} aria-label="Caja y cierre"><CierreTurno key={`${usuario?.auth_user_id || usuario?.id}:${branchId}`} branchId={branchId} usuario={usuario} modoEmpleado onCorteGuardado={setCorteGuardado}/></section>}
     </div>
     <nav className="tienda-nav" aria-label="Navegación de tienda">{opciones.map(([id,icono,titulo])=><button key={id} type="button" onClick={()=>abrir(id)} aria-current={vista===id?'page':undefined}><span aria-hidden="true">{icono}</span><b>{titulo}</b></button>)}</nav>
   </main>;

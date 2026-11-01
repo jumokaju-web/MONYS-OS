@@ -179,6 +179,17 @@ function detectarPerfilTarea({
   }
 
   if (
+    texto.includes("pedido en linea") ||
+    texto.includes("pedido online") ||
+    texto.includes("preparar pedido") ||
+    texto.includes("envio") ||
+    texto.includes("guia de envio") ||
+    texto.includes("mensajeria")
+  ) {
+    return "pedidos";
+  }
+
+  if (
     texto.includes("caja") ||
     texto.includes("corte") ||
     texto.includes("fondo fijo")
@@ -315,7 +326,20 @@ function calcularCompatibilidadEmpleado({
 
   if (
     perfilTarea === "inventario" &&
-    responsabilidades.has("INVENTARIO_APOYO")
+    (
+      responsabilidades.has("INVENTARIO_APOYO") ||
+      responsabilidades.has("PROPONER_REPOSICION")
+    )
+  ) {
+    puntos += 14;
+  }
+
+  if (
+    perfilTarea === "pedidos" &&
+    (
+      responsabilidades.has("PEDIDOS_EN_LINEA") ||
+      responsabilidades.has("ENVIOS_TIENDA")
+    )
   ) {
     puntos += 14;
   }

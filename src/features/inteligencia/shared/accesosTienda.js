@@ -24,6 +24,10 @@ export function resolverAccesosTienda({
     puedeRegistrarProducto:
       participaEnVentaOInventario &&
       permisosEfectivos.has("registrar_producto_solicitado"),
+    puedePedidos: responsabilidadesEfectivas.has("PEDIDOS_EN_LINEA"),
+    puedeEnvios: responsabilidadesEfectivas.has("ENVIOS_TIENDA"),
+    puedeProponerReposicion: responsabilidadesEfectivas.has("PROPONER_REPOSICION"),
+    operaSola: responsabilidadesEfectivas.has("OPERACION_SOLA"),
   };
 }
 

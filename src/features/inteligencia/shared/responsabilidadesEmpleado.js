@@ -29,6 +29,30 @@ export const RESPONSABILIDADES_EMPLEADO = [
     nombre: "Apoyo de inventario",
     descripcion: "Revisar existencias, correcciones y acomodo cuando se le asigne.",
   },
+  {
+    id: "PEDIDOS_EN_LINEA",
+    icono: "🧾",
+    nombre: "Pedidos en línea",
+    descripcion: "Confirmar productos, preparar pedidos y dejar su resultado actualizado.",
+  },
+  {
+    id: "ENVIOS_TIENDA",
+    icono: "📦",
+    nombre: "Envíos de tienda",
+    descripcion: "Preparar paquetes, registrar guía o evidencia y confirmar la entrega a mensajería.",
+  },
+  {
+    id: "PROPONER_REPOSICION",
+    icono: "↔️",
+    nombre: "Proponer compra o traspaso",
+    descripcion: "Reportar faltantes y sugerir reposición; Dirección conserva la autorización de dinero.",
+  },
+  {
+    id: "OPERACION_SOLA",
+    icono: "🌸",
+    nombre: "Operación sola en tienda",
+    descripcion: "Priorizar clientas, pedidos urgentes y cierre; los conteos se trabajan en lotes pequeños.",
+  },
 ];
 
 const IDS_VALIDOS = new Set(RESPONSABILIDADES_EMPLEADO.map((item) => item.id));
@@ -55,6 +79,18 @@ export function resolverResponsabilidadesEmpleado(usuario = {}) {
   const puesto = normalizar(`${usuario?.puesto || ""} ${usuario?.role || ""}`);
   if (/encargad/.test(puesto)) {
     return ["VENTA_TIENDA", "CAJA_CORTE", "INVENTARIO_APOYO"];
+  }
+  if (/super\s*vendedora|supervendedora/.test(puesto)) {
+    return [
+      "VENTA_TIENDA",
+      "VENTA_WHATSAPP",
+      "PUBLICAR_GRUPOS_WHATSAPP",
+      "INVENTARIO_APOYO",
+      "PEDIDOS_EN_LINEA",
+      "ENVIOS_TIENDA",
+      "PROPONER_REPOSICION",
+      "OPERACION_SOLA",
+    ];
   }
   if (/venta|vendedor|vendedora|tienda/.test(puesto)) {
     return ["VENTA_TIENDA"];

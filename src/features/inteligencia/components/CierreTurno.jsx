@@ -89,6 +89,7 @@ export default function CierreTurno({
   branchId = null,
   usuario = null,
   modoEmpleado = false,
+  onCorteGuardado = null,
 }) {
   const envioEnCurso = useRef(false);
   const formularioCorteRef = useRef(null);
@@ -659,6 +660,7 @@ export default function CierreTurno({
         });
 
       setConfirmacionCorte({ folio: cierreGuardado.id, fecha: cierreGuardado.fecha, responsable: responsableAutenticada, cajaNombre, turnoCaja: formulario.turnoCaja, venta: formulario.ventaSicar, efectivo: formulario.efectivoFinal });
+      onCorteGuardado?.(cierreGuardado);
       try { if (claveBorrador) window.localStorage.removeItem(claveBorrador); } catch { /* El corte ya fue guardado; un fallo local no debe presentarse como fallo del envío. */ }
       setBorradorRecuperable(null);
       setAvisoBorrador('');

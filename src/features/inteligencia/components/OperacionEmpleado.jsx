@@ -294,6 +294,8 @@ export default function OperacionEmpleado({
   datosDashboard = null,
   revisionAsistencia = 0,
   onResumenCambio = null,
+  onAbrirCorte = null,
+  corteGuardado = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
 
@@ -2328,6 +2330,9 @@ export default function OperacionEmpleado({
               const esPulsoVentas = normalizarTexto(
                 tarea.titulo
               ).startsWith("PULSO DE VENTAS:");
+              const esTareaCorteCaja = /(?:CAPTURAR|REGISTRAR|REALIZAR).*(?:CORTE|CIERRE).*(?:CAJA)?|(?:CORTE|CIERRE).*(?:CAJA)/.test(
+                normalizarTexto(tarea.titulo)
+              );
               const revisionTraspaso = leerRevisionTraspaso(tarea);
               const esRevisionTraspaso = Boolean(revisionTraspaso);
               const detalleConteo = Array.isArray(tarea.detalle_inventario)
@@ -2357,7 +2362,8 @@ export default function OperacionEmpleado({
               const puedeTerminarTarea = (!requiereFotoFinal || tieneFinal) &&
                 (!esConteoInventario || conteoListo) &&
                 (!esPulsoVentas || pulsoListo) &&
-                (!esRevisionTraspaso || revisionLista);
+                (!esRevisionTraspaso || revisionLista) &&
+                (!esTareaCorteCaja || Boolean(corteGuardado?.id));
 
 
               const esUrgente =
@@ -2454,9 +2460,10 @@ export default function OperacionEmpleado({
                     "pendiente" && (
                     <button
                       type="button"
-                      onClick={() =>
-                        iniciarTareaYMostrarDetalle(tarea)
-                      }
+                      onClick={async () => {
+                        await iniciarTareaYMostrarDetalle(tarea);
+                        if (esTareaCorteCaja) onAbrirCorte?.();
+                      }}
                       style={{
                         width: "100%",
                         marginTop:
@@ -2476,7 +2483,7 @@ export default function OperacionEmpleado({
                           "pointer",
                       }}
                     >
-                      ▶ Iniciar tarea
+                      {esTareaCorteCaja ? "Abrir corte real →" : "▶ Iniciar tarea"}
                     </button>
                   )}
 
@@ -2630,7 +2637,16 @@ export default function OperacionEmpleado({
   )}
 
 
-                      {!esSeguimientoCRM && (
+                      {esTareaCorteCaja && (
+                        <div style={{ padding: "13px", borderRadius: "12px", background: "#fff4f8", border: "1px solid #e4bfd1", color: "#633247", lineHeight: 1.45 }}>
+                          <strong>El corte se envía en “Caja y corte”</strong>
+                          <p style={{ margin: "6px 0 10px" }}>Esta tarea no registra el corte y no necesita dos fotos. Abre el formulario real, captura los importes, sube una sola foto de SICAR y espera el folio.</p>
+                          {!corteGuardado?.id && <button type="button" onClick={() => onAbrirCorte?.()} style={{ width: "100%", minHeight: "44px", border: 0, borderRadius: "10px", background: "#a82c68", color: "#fff", fontWeight: 900 }}>Ir a Caja y corte →</button>}
+                          {corteGuardado?.id && <small style={{ color: "#26704a", fontWeight: 900 }}>✓ Corte recibido. Folio: {corteGuardado.id}</small>}
+                        </div>
+                      )}
+
+                      {!esSeguimientoCRM && !esTareaCorteCaja && (
                       <div
                         style={{
                           display:
@@ -2802,7 +2818,7 @@ export default function OperacionEmpleado({
                                 : "not-allowed",
                           }}
                         >
-                          {esConteoInventario ? "✅ Guardar conteo y terminar" : esRevisionTraspaso ? "✅ Guardar verificación física" : "✅ Terminar tarea"}
+                          {esTareaCorteCaja ? (corteGuardado?.id ? "✅ Corte enviado; cerrar tarea" : "Primero envía el corte real") : esConteoInventario ? "✅ Guardar conteo y terminar" : esRevisionTraspaso ? "✅ Guardar verificación física" : "✅ Terminar tarea"}
                         </button>
                       )}
 

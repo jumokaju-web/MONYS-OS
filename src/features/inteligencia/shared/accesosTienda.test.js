@@ -18,7 +18,30 @@ test("una vendedora sin responsabilidad de caja no puede abrir el cierre", () =>
     puedeWhatsApp: false,
     puedeRegistrarIncidencias: true,
     puedeRegistrarProducto: true,
+    puedePedidos: false,
+    puedeEnvios: false,
+    puedeProponerReposicion: false,
+    operaSola: false,
   });
+});
+
+test("la supervendedora trabaja pedidos, envíos y reposición sin recibir caja automáticamente", () => {
+  const acceso = resolverAccesosTienda({
+    responsabilidades: [
+      "VENTA_TIENDA",
+      "PEDIDOS_EN_LINEA",
+      "ENVIOS_TIENDA",
+      "PROPONER_REPOSICION",
+      "OPERACION_SOLA",
+    ],
+    permisos: ["registrar_producto_solicitado"],
+  });
+
+  assert.equal(acceso.puedePedidos, true);
+  assert.equal(acceso.puedeEnvios, true);
+  assert.equal(acceso.puedeProponerReposicion, true);
+  assert.equal(acceso.operaSola, true);
+  assert.equal(acceso.puedeCaja, false);
 });
 
 test("las funciones operativas sensibles requieren responsabilidad o permiso efectivo", () => {
