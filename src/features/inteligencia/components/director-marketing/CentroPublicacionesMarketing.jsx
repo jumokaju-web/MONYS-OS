@@ -179,6 +179,7 @@ export default function CentroPublicacionesMarketing({
   kit = null,
   productoPrincipal = "",
   soloRevision = false,
+  modoCompacto = false,
 }) {
   const [productosTexto, setProductosTexto] =
     useState(productoPrincipal || "");
@@ -552,11 +553,13 @@ export default function CentroPublicacionesMarketing({
 
   return (
     <>
-    <CentroAutomatizacionMarketing
-      usuario={usuario}
-      organizationId={organizationId}
-      businessId={businessId}
-    />
+    {!modoCompacto && (
+      <CentroAutomatizacionMarketing
+        usuario={usuario}
+        organizationId={organizationId}
+        businessId={businessId}
+      />
+    )}
     <section
       className="marketing-publisher"
       style={{
@@ -568,11 +571,13 @@ export default function CentroPublicacionesMarketing({
           "linear-gradient(145deg, #fff8fc, #ffffff)",
       }}
     >
+      {!modoCompacto && (
       <div className="marketing-publisher__steps" aria-label="Flujo para publicar una campaña">
         <div className={clienteAgenciaId ? "is-ready" : ""}><b>1</b><span><strong>Marca</strong><small>Elegir negocio</small></span></div>
         <div className={productos.length && canales.length ? "is-ready" : ""}><b>2</b><span><strong>Campaña</strong><small>Contenido y canales</small></span></div>
         <div><b>3</b><span><strong>Revisión</strong><small>Aprobar y programar</small></span></div>
       </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -637,6 +642,7 @@ export default function CentroPublicacionesMarketing({
         ))}
       </nav>
 
+      {!modoCompacto && (
       <div
         role="status"
         style={{
@@ -656,36 +662,41 @@ export default function CentroPublicacionesMarketing({
         Mercado Libre. La fecha programada es interna y no significa que
         ya se publicó.
       </div>
+      )}
 
-      <MarketingHoy
-        organizationId={organizationId}
-        publicaciones={publicacionesOrdenadas}
-        clientesPorId={clientesPorId}
-        onActualizar={cargarPublicaciones}
-        onAbrirRevision={abrirRevisionHoy}
-        onAbrirResultados={abrirResultadosHoy}
-      />
-
-      <PlanSemanalContenidoMarketing
-        clientes={clientesAgencia}
-        publicaciones={publicacionesOrdenadas}
-        productoPreferido={productoPrincipal}
-        soloLectura={soloRevision}
-        onPreparar={prepararIdeaSemanal}
-      />
-
-      <CalendarioCampanasMarketing
-        publicaciones={publicacionesOrdenadas}
-        clientesPorId={clientesPorId}
-      />
-
-      <div id="marketing-results-center">
-        <CentroResultadosCampanas
+      {!modoCompacto && (
+        <>
+        <MarketingHoy
           organizationId={organizationId}
           publicaciones={publicacionesOrdenadas}
           clientesPorId={clientesPorId}
+          onActualizar={cargarPublicaciones}
+          onAbrirRevision={abrirRevisionHoy}
+          onAbrirResultados={abrirResultadosHoy}
         />
-      </div>
+
+        <PlanSemanalContenidoMarketing
+          clientes={clientesAgencia}
+          publicaciones={publicacionesOrdenadas}
+          productoPreferido={productoPrincipal}
+          soloLectura={soloRevision}
+          onPreparar={prepararIdeaSemanal}
+        />
+
+        <CalendarioCampanasMarketing
+          publicaciones={publicacionesOrdenadas}
+          clientesPorId={clientesPorId}
+        />
+
+        <div id="marketing-results-center">
+          <CentroResultadosCampanas
+            organizationId={organizationId}
+            publicaciones={publicacionesOrdenadas}
+            clientesPorId={clientesPorId}
+          />
+        </div>
+        </>
+      )}
 
       {!soloRevision && (
         <>

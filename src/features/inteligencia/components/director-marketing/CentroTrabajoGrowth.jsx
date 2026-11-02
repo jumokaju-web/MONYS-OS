@@ -129,6 +129,8 @@ export default function CentroTrabajoGrowth({
   espaciosGrowth = [],
   espacioGrowthActivo = null,
   onCambiarEspacio,
+  vistaActiva = "HOY",
+  mostrarAnalisisCompleto = false,
 }) {
   const estado = estadoPrioridad(tareaPrioritaria);
 
@@ -706,6 +708,41 @@ export default function CentroTrabajoGrowth({
         </div>
       </header>
 
+      <nav
+        className="growth-workspace__quick-menu"
+        aria-label="Trabajo de marketing"
+      >
+        {[
+          ["HOY", "Hoy", "Lo más importante", "HOY"],
+          ["CREAR", "Crear", "Producto y contenido", "OPORTUNIDADES"],
+          ["REVISAR", "Revisar", "Campaña antes de salir", "CAMPANAS"],
+          ["RESULTADOS", "Resultados", "Ventas y aprendizaje", "RESULTADOS"],
+        ].map(([clave, titulo, detalle, destino]) => {
+          const grupoActivo =
+            clave === "CREAR"
+              ? ["OPORTUNIDADES", "CONTENIDO"].includes(vistaActiva)
+              : clave === "REVISAR"
+                ? vistaActiva === "CAMPANAS"
+                : clave === "RESULTADOS"
+                  ? ["RESULTADOS", "APRENDIZAJES"].includes(vistaActiva)
+                  : vistaActiva === "HOY";
+
+          return (
+            <button
+              key={clave}
+              type="button"
+              className={grupoActivo ? "is-active" : ""}
+              aria-pressed={grupoActivo}
+              onClick={() => onAbrirModulo?.(destino)}
+            >
+              <strong>{titulo}</strong>
+              <small>{detalle}</small>
+              <span aria-hidden="true">→</span>
+            </button>
+          );
+        })}
+      </nav>
+
       <div
         className="growth-workspace__snapshot"
         aria-label="Resumen real de marketing"
@@ -818,6 +855,15 @@ export default function CentroTrabajoGrowth({
         </div>
       </div>
 
+      {!mostrarAnalisisCompleto && (
+        <p className="growth-workspace__compact-note">
+          MONYS te muestra una sola sección a la vez. Usa los cuatro botones de
+          arriba para trabajar sin recorrer toda la aplicación.
+        </p>
+      )}
+
+      {mostrarAnalisisCompleto && (
+        <>
       <section className="growth-workspace__agenda-preview">
         <div className="growth-workspace__agenda-heading">
           <div>
@@ -1444,6 +1490,8 @@ export default function CentroTrabajoGrowth({
           con mayor probabilidad de producir ventas y aprendizaje.
         </p>
       </div>
+        </>
+      )}
     </section>
   );
 }

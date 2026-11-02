@@ -298,6 +298,37 @@ export default function OperacionEmpleado({
   corteGuardado = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
+  const [seccionGrowthVisible, setSeccionGrowthVisible] = useState("HOY");
+
+  useEffect(() => {
+    function sincronizarSeccionGrowth(event) {
+      const seccion = normalizarTexto(event?.detail);
+      const permitidas = [
+        "HOY",
+        "OPORTUNIDADES",
+        "CONTENIDO",
+        "CAMPANAS",
+        "RESULTADOS",
+        "APRENDIZAJES",
+      ];
+
+      if (permitidas.includes(seccion)) {
+        setSeccionGrowthVisible(seccion);
+      }
+    }
+
+    window.addEventListener(
+      "monys-growth-seccion-activa",
+      sincronizarSeccionGrowth
+    );
+
+    return () => {
+      window.removeEventListener(
+        "monys-growth-seccion-activa",
+        sincronizarSeccionGrowth
+      );
+    };
+  }, []);
 
   const [
     espaciosGrowth,
@@ -1265,6 +1296,7 @@ export default function OperacionEmpleado({
           onCambiarEspacio={
             setClaveEspacioGrowthActivo
           }
+          vistaActiva={seccionGrowthVisible}
         />
       )}
 
@@ -2013,6 +2045,7 @@ export default function OperacionEmpleado({
 
       {/* CORRECCIONES DE INVENTARIO DISPONIBLES */}
 
+      {!esCentroGrowth && (
       <div
         style={{
           marginBottom: "20px",
@@ -2230,7 +2263,13 @@ export default function OperacionEmpleado({
           </div>
         )}
       </div>
+      )}
       {esCentroGrowth && (
+        <div
+          style={{
+            display: seccionGrowthVisible === "HOY" ? "none" : "block",
+          }}
+        >
         <CrearCampanaMarketingTarea
           tarea={{
             titulo: "Crear campaña con MONYS",
@@ -2243,10 +2282,13 @@ export default function OperacionEmpleado({
           }
           businessId={businessIdActivo}
         />
+        </div>
       )}
 
       {/* TAREAS */}
 
+      {!esCentroGrowth && (
+      <>
       <h3
         style={{
           margin:
@@ -2871,6 +2913,8 @@ export default function OperacionEmpleado({
             {terminadas.length})
           </summary>
         </details>
+      )}
+      </>
       )}
     </section>
   );
@@ -5956,150 +6000,47 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
        <div
   style={{
     display: "grid",
-    gridTemplateColumns:
-      "repeat(auto-fit, minmax(150px, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: "8px",
     marginBottom: "12px",
   }}
 >
-   <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "HOY"}
-  onClick={() =>
-    setSeccionGrowthActiva("HOY")
-  }
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "HOY"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "HOY"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  🎯 Qué hacer hoy
-</button>
+  {[
+    ["HOY", "🎯 Hoy", ["HOY"]],
+    ["OPORTUNIDADES", "✨ Crear", ["OPORTUNIDADES", "CONTENIDO"]],
+    ["CAMPANAS", "✓ Revisar", ["CAMPANAS"]],
+    ["RESULTADOS", "📈 Resultados", ["RESULTADOS", "APRENDIZAJES"]],
+  ].map(([destino, etiqueta, grupo]) => {
+    const activa = grupo.includes(seccionGrowthActiva);
 
- <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "OPORTUNIDADES"}
-  onClick={() => {
-  setSeccionGrowthActiva("OPORTUNIDADES");
-  cargarOportunidadesGrowth();
-}}
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "OPORTUNIDADES"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "OPORTUNIDADES"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  💡 Oportunidades
-</button>
-
- <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "CONTENIDO"}
-  onClick={() =>
-    setSeccionGrowthActiva("CONTENIDO")
-  }
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "CONTENIDO"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "CONTENIDO"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  🎬 Contenido
-</button>
-
-   <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "CAMPANAS"}
-  onClick={() =>
-    setSeccionGrowthActiva("CAMPANAS")
-  }
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "CAMPANAS"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "CAMPANAS"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  📣 Campañas
-</button>
-
-  <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "RESULTADOS"}
-  onClick={() =>
-    setSeccionGrowthActiva("RESULTADOS")
-  }
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "RESULTADOS"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "RESULTADOS"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  📈 Resultados
-</button>
-
-   <button
-  type="button"
-  className="growth-workspace__section-link"
-  aria-pressed={seccionGrowthActiva === "APRENDIZAJES"}
-  onClick={() =>
-    setSeccionGrowthActiva("APRENDIZAJES")
-  }
-  style={{
-    ...estiloMiniTarjetaMarketing,
-    cursor: "pointer",
-    border:
-      seccionGrowthActiva === "APRENDIZAJES"
-        ? "2px solid #9d245b"
-        : estiloMiniTarjetaMarketing.border,
-    backgroundColor:
-      seccionGrowthActiva === "APRENDIZAJES"
-        ? "#fff0f6"
-        : estiloMiniTarjetaMarketing.backgroundColor,
-  }}
->
-  🧠 Aprendizajes
-</button>
+    return (
+      <button
+        key={destino}
+        type="button"
+        className="growth-workspace__section-link"
+        aria-pressed={activa}
+        onClick={() => {
+          setSeccionGrowthActiva(destino);
+          if (destino === "OPORTUNIDADES") {
+            cargarOportunidadesGrowth();
+          }
+        }}
+        style={{
+          ...estiloMiniTarjetaMarketing,
+          minHeight: "64px",
+          cursor: "pointer",
+          border: activa
+            ? "2px solid #9d245b"
+            : estiloMiniTarjetaMarketing.border,
+          backgroundColor: activa
+            ? "#fff0f6"
+            : estiloMiniTarjetaMarketing.backgroundColor,
+        }}
+      >
+        {etiqueta}
+      </button>
+    );
+  })}
 
 </div>
     {seccionGrowthActiva !== "HOY" && (
@@ -6684,7 +6625,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   </div>
 )}
 
-      {["CAMPANAS", "CONTENIDO"].includes(seccionGrowthActiva) && (
+      {seccionGrowthActiva === "CONTENIDO" && (
         <div
           style={{
             marginBottom: "12px",
@@ -6705,9 +6646,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
               textTransform: "uppercase",
             }}
           >
-            {seccionGrowthActiva === "CONTENIDO"
-              ? "Brief para contenido"
-              : "Diseñador de campaña"}
+            Brief para contenido y campaña
           </span>
           <strong
             style={{
@@ -6717,9 +6656,7 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
               fontSize: "17px",
             }}
           >
-            {seccionGrowthActiva === "CONTENIDO"
-              ? "Prepara una pieza lista para revisión"
-              : "Crea una prueba medible y protegida"}
+            Prepara una pieza y una prueba listas para revisión
           </strong>
           <p
             style={{
@@ -7512,7 +7449,22 @@ MONYS analiza ventas, inventario, margen, rotación y resultados reales para dec
   </div>
 )}
 
-{kitMarketing && campanaGuardada?.id && (
+{seccionGrowthActiva === "CAMPANAS" && (
+  <CentroPublicacionesMarketing
+    usuario={usuario}
+    organizationId={organizationId}
+    businessId={businessId}
+    branchId={branchId}
+    campana={campanaGuardada}
+    kit={kitMarketing}
+    productoPrincipal={producto}
+    soloRevision
+    modoCompacto
+  />
+)}
+
+{seccionGrowthActiva === "CONTENIDO" &&
+ kitMarketing && campanaGuardada?.id && (
   <CentroPublicacionesMarketing
     usuario={usuario}
     organizationId={organizationId}
