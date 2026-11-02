@@ -608,7 +608,7 @@ async function guardarCambiosPermisos() {
         maxWidth: "1100px",
         margin: "0 auto",
         padding:
-          "28px 20px 60px",
+          "calc(28px + env(safe-area-inset-top, 0px)) 20px calc(60px + env(safe-area-inset-bottom, 0px))",
       }}
     >
       <div
@@ -652,6 +652,7 @@ async function guardarCambiosPermisos() {
           style={{
             padding:
               "11px 18px",
+            minHeight: "44px",
             borderRadius: "10px",
             border:
               "1px solid #eadde4",
