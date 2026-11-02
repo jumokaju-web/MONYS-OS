@@ -4,10 +4,12 @@ import { supabase } from "../../../supabase";
 
 export default function RecuperarPassword() {
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [
     confirmarPassword,
     setConfirmarPassword,
   ] = useState("");
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
 
   const [
     guardando,
@@ -163,19 +165,20 @@ export default function RecuperarPassword() {
           >
             Nueva contraseña
 
-            <input
-              type="password"
-              value={password}
-              onChange={(evento) =>
-                setPassword(
-                  evento.target.value
-                )
-              }
-              placeholder="Mínimo 8 caracteres"
-              autoComplete="new-password"
-              required
-              style={estiloCampo}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={mostrarPassword ? "text" : "password"}
+                value={password}
+                onChange={(evento) => setPassword(evento.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
+                required
+                style={{ ...estiloCampo, paddingRight: "52px" }}
+              />
+              <button type="button" onClick={() => setMostrarPassword((visible) => !visible)} aria-label={mostrarPassword ? "Ocultar nueva contraseña" : "Mostrar nueva contraseña"} aria-pressed={mostrarPassword} style={estiloBotonPassword}>
+                {mostrarPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </label>
 
           <label
@@ -189,21 +192,20 @@ export default function RecuperarPassword() {
           >
             Confirmar contraseña
 
-            <input
-              type="password"
-              value={
-                confirmarPassword
-              }
-              onChange={(evento) =>
-                setConfirmarPassword(
-                  evento.target.value
-                )
-              }
-              placeholder="Repite la contraseña"
-              autoComplete="new-password"
-              required
-              style={estiloCampo}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={mostrarConfirmacion ? "text" : "password"}
+                value={confirmarPassword}
+                onChange={(evento) => setConfirmarPassword(evento.target.value)}
+                placeholder="Repite la contraseña"
+                autoComplete="new-password"
+                required
+                style={{ ...estiloCampo, paddingRight: "52px" }}
+              />
+              <button type="button" onClick={() => setMostrarConfirmacion((visible) => !visible)} aria-label={mostrarConfirmacion ? "Ocultar confirmación de contraseña" : "Mostrar confirmación de contraseña"} aria-pressed={mostrarConfirmacion} style={estiloBotonPassword}>
+                {mostrarConfirmacion ? "🙈" : "👁️"}
+              </button>
+            </div>
           </label>
 
           {error && (
@@ -281,4 +283,18 @@ const estiloCampo = {
   color: "#2c2030",
   fontSize: "15px",
   outline: "none",
+};
+
+const estiloBotonPassword = {
+  position: "absolute",
+  top: "50%",
+  right: "6px",
+  transform: "translateY(-50%)",
+  width: "42px",
+  height: "42px",
+  border: "none",
+  borderRadius: "9px",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: "19px",
 };

@@ -1555,55 +1555,9 @@ export default function CierreTurno({
           <strong>{cajaNombre || 'Caja pendiente'} · {TURNOS_CORTE.find(([valor]) => valor === formulario.turnoCaja)?.[1] || 'elige el turno'}</strong>
           <small>Confirma estos dos datos antes de enviar. El corte quedará identificado exactamente así.</small>
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "12px",
-          }}
-        >
-          <div>
-            <label>
-              👤 Cierre firmado por
-            </label>
-
-            <input
-              type="text"
-              name="responsable"
-              value={
-                formulario.responsable
-              }
-              readOnly
-              style={{
-                width: "100%",
-                marginTop: "6px",
-                padding: "10px",
-                background: "#f8f3f6",
-              }}
-            />
-          </div>
-
-
-          <div>
-            <label>
-              💵 Fondo de caja
-            </label>
-            <div
-              id="employee-shift-select"
-              tabIndex={-1}
-              aria-label="Fondo fijo de caja: mil pesos"
-              style={{
-                marginTop: "6px",
-                padding: "11px",
-                borderRadius: "10px",
-                background: "#f8f3f6",
-                fontWeight: 900,
-              }}
-            >
-              {corteSinApertura ? 'Captura el fondo real en el formulario' : `${formatearDinero(FONDO_FIJO_CAJA)} · registrado`}
-            </div>
-          </div>
+        <div className="tienda-corte-resumen" id="employee-shift-select" tabIndex={-1}>
+          <span>👤 {formulario.responsable}</span>
+          <span>💵 {corteSinApertura ? 'Fondo por capturar' : `${formatearDinero(FONDO_FIJO_CAJA)} de fondo`}</span>
         </div>
 
 
@@ -1618,7 +1572,7 @@ export default function CierreTurno({
             <option value="">Selecciona mañana, noche o día completo</option>
             {TURNOS_CORTE.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
           </select>
-          <small style={{ display: 'block', marginTop: '5px', color: '#725d68', fontWeight: 600 }}>Cada vez que una empleada toma la caja se crea un tramo distinto, aunque otra persona la use en el mismo turno.</small>
+          <small style={{ display: 'block', marginTop: '5px', color: '#725d68', fontWeight: 600 }}>Elige el turno y continúa con la foto y los importes.</small>
         </label>
 
 
@@ -1639,13 +1593,11 @@ export default function CierreTurno({
                 letterSpacing: ".08em",
               }}
             >
-              CORTE DE CAJA · DATOS DEL DÍA
+              PASO FINAL · FOTO E IMPORTES
             </div>
-            <h3 style={{ margin: "5px 0" }}>Cuadra venta, cobros y efectivo</h3>
+            <h3 style={{ margin: "5px 0" }}>Copia los datos del corte SICAR</h3>
             <p style={{ margin: 0, color: "#725d68", lineHeight: 1.5 }}>
-              Captura los importes del corte. MONYS calcula las diferencias y lo
-              envía a Dirección como pendiente de revisión; no modifica la
-              utilidad automáticamente.
+              Toma la foto, escribe los importes y pulsa “Guardar y enviar corte”.
             </p>
           </div>
 
@@ -1752,13 +1704,8 @@ export default function CierreTurno({
             </section>
           )}
 
-          <div
-            style={{
-              marginTop: "18px",
-              paddingTop: "17px",
-              borderTop: "1px solid #ead8e2",
-            }}
-          >
+          <details className="tienda-movimientos">
+            <summary>Movimientos de caja · solo si hubo retiros, pagos o entradas extra</summary>
             <div
               style={{
                 display: "flex",
@@ -1929,7 +1876,7 @@ export default function CierreTurno({
                 ))}
               </div>
             )}
-          </div>
+          </details>
 
           <div
             style={{
@@ -1964,6 +1911,20 @@ export default function CierreTurno({
             ))}
           </div>
         </section>
+
+
+        <div className="tienda-enviar-corte">
+          {error && <p role="alert">❌ {error}</p>}
+          <div aria-live="polite">
+            {importesListos && fotoCorte
+              ? `Todo listo · ${cajaNombre} · venta ${formatearDinero(formulario.ventaSicar)} · efectivo final ${formatearDinero(formulario.efectivoFinal)}`
+              : `Para enviar: ${fotoCorte ? "foto lista" : "falta la foto"} · ${importesListos ? "importes completos" : "faltan importes"}.`}
+          </div>
+          <button type="submit" disabled={guardando || analizando}>
+            {guardando ? "Guardando…" : analizando ? "MONYS está analizando…" : "Guardar y enviar corte"}
+          </button>
+          <small>Al aparecer el folio, el corte ya llegó a Dirección. No lo envíes otra vez.</small>
+        </div>
 
 
         <details className="tienda-notas"><summary>Notas del turno · opcional</summary>
@@ -2117,43 +2078,6 @@ export default function CierreTurno({
 
 
         </details>
-        <div
-          aria-live="polite"
-          style={{
-            padding: "14px",
-            borderRadius: "12px",
-            background: importesListos && fotoCorte ? "#eef8f1" : "#fff8e8",
-            color: importesListos && fotoCorte ? "#24663f" : "#73571b",
-            fontWeight: 800,
-            lineHeight: 1.45,
-          }}
-        >
-          {importesListos && fotoCorte
-            ? `Listo para enviar · ${cajaNombre} · venta ${formatearDinero(formulario.ventaSicar)} · efectivo final ${formatearDinero(formulario.efectivoFinal)}`
-            : `Antes de finalizar: ${fotoCorte ? "foto lista" : "falta la foto"} · ${importesListos ? "importes completos" : "faltan importes"}.`}
-        </div>
-        <button
-          type="submit"
-          disabled={
-            guardando ||
-            analizando
-          }
-          style={{
-            padding: "12px 18px",
-            fontWeight: "700",
-            cursor:
-              guardando ||
-              analizando
-                ? "not-allowed"
-                : "pointer",
-          }}
-        >
-          {guardando
-            ? "Guardando..."
-            : analizando
-            ? "MONYS está analizando..."
-            : "✅ Finalizar cierre de turno"}
-        </button>
       </form>
       )}
 

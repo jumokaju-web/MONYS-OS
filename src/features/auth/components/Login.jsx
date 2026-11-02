@@ -6,6 +6,7 @@ import { prepararInicioSesion } from "../utils/identificadorAcceso";
 export default function Login() {
   const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
@@ -137,17 +138,20 @@ export default function Login() {
           >
             Contraseña
 
-            <input
-              type="password"
-              value={password}
-              onChange={(evento) =>
-                setPassword(evento.target.value)
-              }
-              placeholder="Tu contraseña"
-              autoComplete="current-password"
-              required
-              style={estiloCampo}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={mostrarPassword ? "text" : "password"}
+                value={password}
+                onChange={(evento) => setPassword(evento.target.value)}
+                placeholder="Tu contraseña"
+                autoComplete="current-password"
+                required
+                style={{ ...estiloCampo, paddingRight: "52px" }}
+              />
+              <button type="button" onClick={() => setMostrarPassword((visible) => !visible)} aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"} aria-pressed={mostrarPassword} title={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"} style={estiloBotonPassword}>
+                {mostrarPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </label>
 
           {error && (
@@ -205,4 +209,18 @@ const estiloCampo = {
   color: "#2c2030",
   fontSize: "15px",
   outline: "none",
+};
+
+const estiloBotonPassword = {
+  position: "absolute",
+  top: "50%",
+  right: "6px",
+  transform: "translateY(-50%)",
+  width: "42px",
+  height: "42px",
+  border: "none",
+  borderRadius: "9px",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: "19px",
 };

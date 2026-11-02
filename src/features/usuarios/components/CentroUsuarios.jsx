@@ -79,6 +79,7 @@ export default function CentroUsuarios({
     esPropietaria || tienePermiso("gestionar_personal_operativo");
   const [usuarios, setUsuarios] =
     useState([]);
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   const [negocios, setNegocios] =
     useState([]);
@@ -887,18 +888,19 @@ async function guardarCambiosPermisos() {
 >
   Contraseña temporal
 
-  <input
-    type="password"
-    name="password"
-    value={
-      formulario.password
-    }
-    onChange={
-      actualizarCampo
-    }
-    placeholder="Mínimo 8 caracteres"
-    style={estiloCampo}
-  />
+  <div style={{ position: "relative" }}>
+    <input
+      type={mostrarPassword ? "text" : "password"}
+      name="password"
+      value={formulario.password}
+      onChange={actualizarCampo}
+      placeholder="Mínimo 8 caracteres"
+      style={{ ...estiloCampo, paddingRight: "52px" }}
+    />
+    <button type="button" onClick={() => setMostrarPassword((visible) => !visible)} aria-label={mostrarPassword ? "Ocultar contraseña temporal" : "Mostrar contraseña temporal"} aria-pressed={mostrarPassword} title={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"} style={estiloBotonPassword}>
+      {mostrarPassword ? "🙈" : "👁️"}
+    </button>
+  </div>
 </label>
 
             <label
@@ -1701,4 +1703,18 @@ const estiloCampo = {
   color: "#2c2030",
   fontSize: "15px",
   outline: "none",
+};
+
+const estiloBotonPassword = {
+  position: "absolute",
+  top: "50%",
+  right: "6px",
+  transform: "translateY(-50%)",
+  width: "42px",
+  height: "42px",
+  border: "none",
+  borderRadius: "9px",
+  background: "transparent",
+  cursor: "pointer",
+  fontSize: "19px",
 };
