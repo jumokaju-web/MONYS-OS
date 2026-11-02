@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
   construirCorteRecibidoDireccion,
@@ -69,4 +70,15 @@ test("conserva responsable original, capturista, evidencia y motivo por separado
   assert.equal(datos.motivoRegistroTardio, "SIN_ACCESO");
   assert.equal(datos.turnoCaja, "MATUTINO");
   assert.equal(datos.turnoCajaNombre, "Mañana");
+});
+
+test("la captura extraordinaria protege importes y fotografía al recargar en móvil", () => {
+  const fuente = fs.readFileSync(
+    new URL("../../src/features/dashboard/components/CapturaCorteRecibido.jsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(fuente, /localStorage\.setItem/);
+  assert.match(fuente, /indexedDB\.open/);
+  assert.match(fuente, /Borrador y fotografía recuperados automáticamente/);
+  assert.match(fuente, /localStorage\.removeItem/);
 });
