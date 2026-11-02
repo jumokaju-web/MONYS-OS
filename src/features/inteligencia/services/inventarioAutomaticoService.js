@@ -1,4 +1,6 @@
-import { supabase } from "../../../supabase";
+import {
+  obtenerUltimaImportacionInventario,
+} from "../../dashboard/services/dashboardDataService";
 
 
 // ======================================================
@@ -587,37 +589,23 @@ export async function obtenerUltimoInventarioAutomatico({
 
 
   /*
-    Primero intentamos leer la tabla
-    inventario_existencias, que ya existe
-    en tu proyecto.
+    El inventario confiable es el último reporte procesado de SICAR.
+    inventario_existencias conserva únicamente el catálogo piloto para
+    transferencias confirmadas y no representa el corte completo.
+
+    Mientras no exista una conciliación producto por producto, el Director
+    IA analiza el reporte auditado y no modifica existencias operativas.
   */
 
-  const {
-    data,
-    error,
-  } = await supabase
-    .from(
-      "inventario_existencias"
-    )
-    .select("*")
-    .eq(
-      "branch_id",
+  const paquete =
+    await obtenerUltimaImportacionInventario(
       branchId
     );
 
-
-  if (error) {
-    console.error(
-      "Error al obtener inventario:",
-      error
-    );
-
-    throw error;
-  }
-
-
-  return Array.isArray(data)
-    ? data
+  return Array.isArray(
+    paquete?.detalles
+  )
+    ? paquete.detalles
     : [];
 }
 
