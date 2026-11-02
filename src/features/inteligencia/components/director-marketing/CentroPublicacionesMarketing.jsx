@@ -21,6 +21,7 @@ import {
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
 import CalendarioCampanasMarketing from "./CalendarioCampanasMarketing";
 import CentroResultadosCampanas from "./CentroResultadosCampanas";
+import PlanSemanalContenidoMarketing from "./PlanSemanalContenidoMarketing";
 
 import "./CentroPublicacionesMarketing.css";
 
@@ -521,6 +522,22 @@ export default function CentroPublicacionesMarketing({
     }
   }
 
+  function prepararIdeaSemanal(idea) {
+    setClienteAgenciaId(idea.clienteId);
+    setProductosTexto(idea.productoConfirmado ? idea.producto : "");
+    setCanales([idea.canal]);
+    setTipoCampana("ORGANICA");
+    setVistaCola("TRABAJO");
+    setMensaje(
+      idea.productoConfirmado
+        ? `${idea.dia}: ${idea.canal.replaceAll("_", " ")} y ${idea.producto} quedaron seleccionados. Revisa el kit y guarda el borrador.`
+        : `${idea.dia}: primero escribe el producto real; MONYS no lo inventó.`
+    );
+    window.setTimeout(() => {
+      document.getElementById("marketing-content-factory")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   return (
     <>
     <CentroAutomatizacionMarketing
@@ -628,6 +645,14 @@ export default function CentroPublicacionesMarketing({
         ya se publicó.
       </div>
 
+      <PlanSemanalContenidoMarketing
+        clientes={clientesAgencia}
+        publicaciones={publicacionesOrdenadas}
+        productoPreferido={productoPrincipal}
+        soloLectura={soloRevision}
+        onPreparar={prepararIdeaSemanal}
+      />
+
       <CalendarioCampanasMarketing
         publicaciones={publicacionesOrdenadas}
         clientesPorId={clientesPorId}
@@ -641,7 +666,7 @@ export default function CentroPublicacionesMarketing({
 
       {!soloRevision && (
         <>
-      <div className="marketing-publisher__brand">
+      <div className="marketing-publisher__brand" id="marketing-content-factory">
         <label htmlFor="marketing-client">¿Para qué negocio es esta campaña?</label>
         <select
           id="marketing-client"
