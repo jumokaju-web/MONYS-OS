@@ -319,6 +319,22 @@ export async function rechazarPublicacionMarketing({
   return data;
 }
 
+export async function confirmarPublicacionManualMarketing({
+  publicacionId,
+  referencia,
+} = {}) {
+  const evidencia = String(referencia || "").trim();
+  if (!publicacionId) throw new Error("Falta identificar la publicación.");
+  if (evidencia.length < 5) throw new Error("Pega el enlace o escribe una referencia verificable de la publicación.");
+
+  const { data, error } = await supabase.rpc("confirmar_publicacion_manual_marketing", {
+    p_publicacion_id: publicacionId,
+    p_referencia: evidencia,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function programarPublicacionMarketing({
   publicacionId,
   programadaPara,

@@ -21,6 +21,7 @@ import {
 import CentroAutomatizacionMarketing from "./CentroAutomatizacionMarketing";
 import CalendarioCampanasMarketing from "./CalendarioCampanasMarketing";
 import CentroResultadosCampanas from "./CentroResultadosCampanas";
+import MarketingHoy from "./MarketingHoy";
 import PlanSemanalContenidoMarketing from "./PlanSemanalContenidoMarketing";
 
 import "./CentroPublicacionesMarketing.css";
@@ -538,6 +539,17 @@ export default function CentroPublicacionesMarketing({
     }, 0);
   }
 
+  function abrirRevisionHoy() {
+    setVistaCola("REVISION");
+    window.setTimeout(() => {
+      document.getElementById("marketing-content-queue")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function abrirResultadosHoy() {
+    document.getElementById("marketing-results-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <>
     <CentroAutomatizacionMarketing
@@ -645,6 +657,15 @@ export default function CentroPublicacionesMarketing({
         ya se publicó.
       </div>
 
+      <MarketingHoy
+        organizationId={organizationId}
+        publicaciones={publicacionesOrdenadas}
+        clientesPorId={clientesPorId}
+        onActualizar={cargarPublicaciones}
+        onAbrirRevision={abrirRevisionHoy}
+        onAbrirResultados={abrirResultadosHoy}
+      />
+
       <PlanSemanalContenidoMarketing
         clientes={clientesAgencia}
         publicaciones={publicacionesOrdenadas}
@@ -658,11 +679,13 @@ export default function CentroPublicacionesMarketing({
         clientesPorId={clientesPorId}
       />
 
-      <CentroResultadosCampanas
-        organizationId={organizationId}
-        publicaciones={publicacionesOrdenadas}
-        clientesPorId={clientesPorId}
-      />
+      <div id="marketing-results-center">
+        <CentroResultadosCampanas
+          organizationId={organizationId}
+          publicaciones={publicacionesOrdenadas}
+          clientesPorId={clientesPorId}
+        />
+      </div>
 
       {!soloRevision && (
         <>
@@ -855,6 +878,7 @@ export default function CentroPublicacionesMarketing({
       )}
 
       <div
+        id="marketing-content-queue"
         style={{
           display: "grid",
           gap: "9px",
