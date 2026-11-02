@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../supabase";
 import OperacionEmpleado from "./OperacionEmpleado";
-import CierreTurno from "./CierreTurno";
 import InicioTienda from "./InicioTienda";
 import RegistroProductoSolicitado from "./RegistroProductoSolicitado";
 import PerfilOperativoEmpleado from "./PerfilOperativoEmpleado";
-import RegistroEntradaOperativa from "./RegistroEntradaOperativa";
 import { esPerfilGrowth } from "../shared/esPerfilGrowth";
 import {
   detalleResponsabilidadesEmpleado,
@@ -187,7 +185,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
             }}
           >
             Hola, {esMarketing ? String(nombre).trim().split(/\s+/)[0] : (nombrePreferido || nombre)}{" "}
-            {esMarketing ? "💗" : "👋"}
+            {!esMarketing && "👋"}
           </h1>
 
           <div
@@ -240,8 +238,6 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
           padding: "18px 12px",
         }}
       >
-        <RegistroEntradaOperativa usuario={usuario} />
-
         {!esMarketing && (
           <PerfilOperativoEmpleado
             usuario={usuario}
@@ -368,43 +364,6 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
           </div>
         )}
 
-        {/* ======================================
-            CIERRE DE TURNO
-            ====================================== */}
-
-        <details
-          id="employee-shift-close"
-          style={{
-            background: "#ffffff",
-            border: "1px solid #ecdce4",
-            borderRadius: "18px",
-            overflow: "hidden",
-            boxShadow: "0 7px 22px rgba(93, 44, 67, 0.05)",
-            scrollMarginTop: "104px",
-          }}
-        >
-          <summary
-            style={{
-              cursor: "pointer",
-              padding: "18px",
-              fontWeight: "900",
-              fontSize: "18px",
-              color: "#7c3158",
-              listStyle: "none",
-              textAlign: "center",
-            }}
-          >
-            📝 Cierre de turno
-          </summary>
-
-          <div
-            style={{
-              padding: "0 10px 16px",
-            }}
-          >
-            <CierreTurno branchId={branchId} usuario={usuario} />
-          </div>
-        </details>
       </section>
 
       {/* ======================================
