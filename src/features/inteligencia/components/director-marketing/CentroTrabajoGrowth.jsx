@@ -654,13 +654,13 @@ export default function CentroTrabajoGrowth({
 
       <header className="growth-workspace__header">
         <div>
-          <div className="growth-workspace__eyebrow">MONYS GROWTH OS</div>
+          <div className="growth-workspace__eyebrow">AGENCIA MONYS</div>
 
-          <h1>Hola, {nombreCorto(usuario?.nombre)}</h1>
+          <h1>Tu marketing de hoy</h1>
 
-          <p>Directora de Crecimiento</p>
+          <p>{nombreCorto(usuario?.nombre)} · Directora de Crecimiento</p>
           <span className="growth-workspace__tagline">
-            Ideas que venden, resultados que crecen
+            Una decisión a la vez
           </span>
         </div>
 
@@ -713,19 +713,16 @@ export default function CentroTrabajoGrowth({
         aria-label="Trabajo de marketing"
       >
         {[
-          ["HOY", "Hoy", "Lo más importante", "HOY"],
-          ["CREAR", "Crear", "Producto y contenido", "OPORTUNIDADES"],
-          ["REVISAR", "Revisar", "Campaña antes de salir", "CAMPANAS"],
-          ["RESULTADOS", "Resultados", "Ventas y aprendizaje", "RESULTADOS"],
+          ["HOY", "Qué hago hoy", "La prioridad preparada", "HOY"],
+          ["CREAR", "Crear campaña", "Producto, contenido y revisión", "OPORTUNIDADES"],
+          ["RESULTADOS", "Ver resultados", "Pedidos, ventas y aprendizaje", "RESULTADOS"],
         ].map(([clave, titulo, detalle, destino]) => {
           const grupoActivo =
             clave === "CREAR"
               ? ["OPORTUNIDADES", "CONTENIDO"].includes(vistaActiva)
-              : clave === "REVISAR"
-                ? vistaActiva === "CAMPANAS"
-                : clave === "RESULTADOS"
-                  ? ["RESULTADOS", "APRENDIZAJES"].includes(vistaActiva)
-                  : vistaActiva === "HOY";
+              : clave === "RESULTADOS"
+                ? ["RESULTADOS", "APRENDIZAJES"].includes(vistaActiva)
+                : vistaActiva === "HOY";
 
           return (
             <button
@@ -757,11 +754,6 @@ export default function CentroTrabajoGrowth({
           <strong>{pendientes}</strong>
           <small>para hoy</small>
         </article>
-        <article>
-          <span>Semana</span>
-          <strong>{tareasSemana}</strong>
-          <small>acciones reales</small>
-        </article>
         <article className={oportunidadVigente ? "is-ready" : "is-warning"}>
           <span>Datos</span>
           <strong>{oportunidadVigente ? "Listos" : "Actualizar"}</strong>
@@ -778,18 +770,11 @@ export default function CentroTrabajoGrowth({
           </span>
         </div>
 
-        <div className="growth-workspace__focus-grid">
+        <div className="growth-workspace__focus-grid growth-workspace__focus-grid--simple">
           <div>
             <h2>{accionSugerida.titulo}</h2>
 
             <p>{accionSugerida.descripcion}</p>
-
-            {accionSugerida.criterio && (
-              <div className="growth-workspace__outcome">
-                <span>Resultado esperado</span>
-                {accionSugerida.criterio}
-              </div>
-            )}
 
             <div className="growth-workspace__actions">
               <button
@@ -801,64 +786,21 @@ export default function CentroTrabajoGrowth({
                 <span aria-hidden="true">→</span>
               </button>
 
-              <button
-                type="button"
-                className="growth-workspace__secondary"
-                onClick={
-                  accionSugerida.ejecutarSecundaria || onVerSemana
-                }
-              >
-                {accionSugerida.botonSecundario || "Ver plan semanal"}
-              </button>
             </div>
-          </div>
-
-          <div className="growth-workspace__score">
-            <div
-              className="growth-workspace__ring"
-              style={{
-                "--growth-progress": `${
-                  Math.max(0, Math.min(100, porcentaje)) * 3.6
-                }deg`,
-              }}
-            >
-              <div>
-                <strong>{porcentaje}%</strong>
-                <span>cumplimiento</span>
-              </div>
-            </div>
-
-            <small>Avance de las tareas reales de hoy</small>
           </div>
         </div>
 
-        <div className="growth-workspace__daily-context">
-          <article>
-            <span>Producto prioritario</span>
-            <strong>{productoGrowthPrioritario}</strong>
-          </article>
-          <article>
-            <span>Canal</span>
-            <strong>{canalGrowthPrioritario}</strong>
-          </article>
-          <article>
-            <span>Por qué</span>
-            <strong>{evidenciaGrowth}</strong>
-          </article>
-          <article>
-            <span>Valor que se medirá</span>
-            <strong>
-              Ventas confirmadas, pedidos y utilidad incremental. Sin proyección
-              hasta registrar resultados.
-            </strong>
-          </article>
-        </div>
+        <details className="growth-workspace__simple-detail">
+          <summary>Ver por qué MONYS recomienda esto</summary>
+          <p><b>Producto:</b> {productoGrowthPrioritario}</p>
+          <p><b>Canal:</b> {canalGrowthPrioritario}</p>
+          <p><b>Evidencia:</b> {evidenciaGrowth}</p>
+        </details>
       </div>
 
       {!mostrarAnalisisCompleto && (
         <p className="growth-workspace__compact-note">
-          MONYS te muestra una sola sección a la vez. Usa los cuatro botones de
-          arriba para trabajar sin recorrer toda la aplicación.
+          Elige una de las tres opciones. MONYS abre solamente esa sección.
         </p>
       )}
 
