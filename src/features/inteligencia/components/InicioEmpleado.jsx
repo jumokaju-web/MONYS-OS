@@ -150,7 +150,8 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
           zIndex: 20,
           background: "#ffffff",
           borderBottom: "1px solid #f0dce6",
-          padding: "16px 18px 14px",
+          padding:
+            "calc(16px + env(safe-area-inset-top, 0px)) 18px 14px",
           boxShadow: "0 3px 12px rgba(90, 40, 65, 0.06)",
         }}
       >
@@ -395,11 +396,9 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
         {esMarketing ? (
           <>
             {[
-              ["HOY", "⌂", "Inicio"],
-              ["CAMPANAS", "▣", "Campañas"],
-              ["CONTENIDO", "+", "Crear"],
+              ["HOY", "✓", "Qué hago hoy"],
+              ["OPORTUNIDADES", "+", "Crear campaña"],
               ["RESULTADOS", "▥", "Resultados"],
-              ["OPORTUNIDADES", "•••", "Más"],
             ].map(([seccion, icono, etiqueta]) => (
               <button
                 key={seccion}
@@ -410,7 +409,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
                     ? "employee-home__nav-button--primary"
                     : "",
                   (seccion === "OPORTUNIDADES"
-                    ? ["OPORTUNIDADES", "APRENDIZAJES"].includes(
+                    ? ["OPORTUNIDADES", "CONTENIDO", "CAMPANAS"].includes(
                         seccionGrowthActiva,
                       )
                     : seccionGrowthActiva === seccion)
