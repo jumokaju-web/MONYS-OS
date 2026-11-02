@@ -67,6 +67,85 @@ const estiloCampo = {
   fontSize: 16,
 };
 
+const BASE_BORRADOR = "monys:corte-recibido-direccion:v1";
+const BD_BORRADORES = "monys-borradores-operacion";
+const ALMACEN_FOTOS = "fotos-cortes-recibidos";
+
+function claveBorrador(usuario) {
+  const identidad = usuario?.id || usuario?.email || usuario?.nombre || "direccion";
+  return `${BASE_BORRADOR}:${usuario?.business_id || "negocio"}:${identidad}`;
+}
+
+function tieneDatosCapturados(formulario) {
+  return Object.entries(formulario || {}).some(
+    ([campo, valor]) => campo !== "fecha" && String(valor ?? "").trim() !== ""
+  );
+}
+
+function abrirBaseBorradores() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB no disponible"));
+      return;
+    }
+    const solicitud = indexedDB.open(BD_BORRADORES, 1);
+    solicitud.onupgradeneeded = () => {
+      const base = solicitud.result;
+      if (!base.objectStoreNames.contains(ALMACEN_FOTOS)) {
+        base.createObjectStore(ALMACEN_FOTOS, { keyPath: "clave" });
+      }
+    };
+    solicitud.onsuccess = () => resolve(solicitud.result);
+    solicitud.onerror = () => reject(solicitud.error);
+  });
+}
+
+async function guardarFotoBorrador(clave, archivo) {
+  const base = await abrirBaseBorradores();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaccion = base.transaction(ALMACEN_FOTOS, "readwrite");
+      const almacen = transaccion.objectStore(ALMACEN_FOTOS);
+      if (archivo) {
+        almacen.put({
+          clave,
+          archivo,
+          nombre: archivo.name,
+          tipo: archivo.type,
+          ultimaModificacion: archivo.lastModified,
+        });
+      } else {
+        almacen.delete(clave);
+      }
+      transaccion.oncomplete = () => resolve();
+      transaccion.onerror = () => reject(transaccion.error);
+    });
+  } finally {
+    base.close();
+  }
+}
+
+async function leerFotoBorrador(clave) {
+  const base = await abrirBaseBorradores();
+  try {
+    const registro = await new Promise((resolve, reject) => {
+      const solicitud = base
+        .transaction(ALMACEN_FOTOS, "readonly")
+        .objectStore(ALMACEN_FOTOS)
+        .get(clave);
+      solicitud.onsuccess = () => resolve(solicitud.result || null);
+      solicitud.onerror = () => reject(solicitud.error);
+    });
+    if (!registro?.archivo) return null;
+    return new File([registro.archivo], registro.nombre || "corte-sicar.jpg", {
+      type: registro.tipo || registro.archivo.type || "image/jpeg",
+      lastModified: registro.ultimaModificacion || Date.now(),
+    });
+  } finally {
+    base.close();
+  }
+}
+
 export default function CapturaCorteRecibido({
   usuario,
   sucursales = [],
@@ -81,6 +160,8 @@ export default function CapturaCorteRecibido({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [borradorListo, setBorradorListo] = useState(false);
+  const claveLocal = useMemo(() => claveBorrador(usuario), [usuario]);
 
   const sucursalesDisponibles = useMemo(
     () =>
@@ -102,6 +183,62 @@ export default function CapturaCorteRecibido({
   ).toLowerCase().includes("centro");
   const requiereDestino = Number(formulario.efectivoEntregado) > 0;
   const requiereDetalleGastos = Number(formulario.gastosCaja) > 0;
+
+  useEffect(() => {
+    let vigente = true;
+    async function recuperar() {
+      let formularioRecuperado = null;
+      try {
+        const guardado = window.localStorage.getItem(claveLocal);
+        if (guardado) formularioRecuperado = JSON.parse(guardado)?.formulario || null;
+      } catch {
+        // La captura sigue disponible durante esta sesión aunque el navegador bloquee storage.
+      }
+
+      if (vigente && formularioRecuperado && tieneDatosCapturados(formularioRecuperado)) {
+        setFormulario({ ...formularioVacio(fechaActual), ...formularioRecuperado });
+        setAbierto(true);
+        setMensaje("Borrador recuperado automáticamente. Revisa los datos y continúa.");
+      }
+
+      try {
+        const fotoRecuperada = await leerFotoBorrador(claveLocal);
+        if (vigente && fotoRecuperada) {
+          setFoto(fotoRecuperada);
+          setAbierto(true);
+          setMensaje("Borrador y fotografía recuperados automáticamente. Revisa los datos y continúa.");
+        }
+      } catch {
+        // Algunos navegadores privados no permiten IndexedDB; los importes sí se conservan.
+      }
+      if (vigente) setBorradorListo(true);
+    }
+    recuperar();
+    return () => {
+      vigente = false;
+    };
+  }, [claveLocal, fechaActual]);
+
+  useEffect(() => {
+    if (!borradorListo) return;
+    try {
+      if (tieneDatosCapturados(formulario)) {
+        window.localStorage.setItem(
+          claveLocal,
+          JSON.stringify({ formulario, actualizadoEn: new Date().toISOString() })
+        );
+      } else {
+        window.localStorage.removeItem(claveLocal);
+      }
+    } catch {
+      // El formulario continúa funcionando aunque el navegador bloquee storage.
+    }
+  }, [borradorListo, claveLocal, formulario]);
+
+  useEffect(() => {
+    if (!borradorListo) return;
+    guardarFotoBorrador(claveLocal, foto).catch(() => {});
+  }, [borradorListo, claveLocal, foto]);
 
   useEffect(() => {
     if (!abierto || !sucursalesDisponibles.length) return undefined;
@@ -197,6 +334,12 @@ export default function CapturaCorteRecibido({
         fecha: formulario.fecha,
       });
       setMensaje(`Corte registrado con folio ${cierre.id}. Quedó pendiente de revisión.`);
+      try {
+        window.localStorage.removeItem(claveLocal);
+        await guardarFotoBorrador(claveLocal, null);
+      } catch {
+        // El corte ya quedó registrado; un fallo al limpiar el dispositivo no revierte el folio.
+      }
       setFormulario(formularioVacio(fechaActual));
       setFoto(null);
       onGuardado?.();
@@ -266,7 +409,8 @@ export default function CapturaCorteRecibido({
             <textarea required maxLength={500} value={formulario.detalleMotivo} onChange={(e) => cambiar("detalleMotivo", e.target.value)} style={{ ...estiloCampo, minHeight: 80 }} placeholder="Ej. Katy hizo el corte de la mañana antes de recibir su acceso." />
           </label>
           <label>Foto original del corte SICAR
-            <input required type="file" accept="image/*" capture="environment" onChange={(e) => setFoto(e.target.files?.[0] || null)} style={estiloCampo} />
+            <input type="file" accept="image/*" capture="environment" onChange={(e) => setFoto(e.target.files?.[0] || null)} style={estiloCampo} />
+            {foto && <small style={{ display: "block", marginTop: 6, color: "#247148", fontWeight: 750 }}>✓ Foto lista: {foto.name || "corte SICAR recuperado"}</small>}
           </label>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 }}>
             {CAMPOS_DINERO.map(([campo, etiqueta]) => <label key={campo}>{etiqueta}
