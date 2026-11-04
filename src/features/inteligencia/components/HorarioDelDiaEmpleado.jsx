@@ -28,6 +28,13 @@ export default function HorarioDelDiaEmpleado({ usuario, entrada }) {
   const protegido = Boolean(registro && registro.changed_by !== usuario?.auth_user_id);
   const iniciado = fecha === hoy && Boolean(entrada);
   const bloqueado = cargando || guardando || protegido || iniciado || Boolean(error) || !usuario?.empleado_id;
+  const resumenHorario = cargando
+    ? "Consultando…"
+    : estado === "DESCANSA"
+      ? "Descanso registrado"
+      : estado === "TRABAJA" && inicio && fin
+        ? `${inicio} a ${fin}`
+        : "Sin horario especial";
   async function guardar(e) {
     e.preventDefault(); setError(""); setAviso("");
     if (!["TRABAJA", "DESCANSA"].includes(estado)) { setAviso("Indica si trabajas o descansas."); return; }
@@ -40,21 +47,97 @@ export default function HorarioDelDiaEmpleado({ usuario, entrada }) {
     } catch (e) { setAviso(e.message || "No se pudo guardar el horario."); }
     finally { setGuardando(false); }
   }
-  return <form onSubmit={guardar} style={{ display: "grid", gap: 8 }}>
-    <strong>Mi horario del día</strong>
-    <label>Fecha <input type="date" min={hoy} value={fecha} disabled={guardando} onChange={(e) => setFecha(e.target.value || hoy)} required /></label>
-    <fieldset disabled={bloqueado} style={{ display: "grid", gap: 8, border: 0, margin: 0, padding: 0 }}>
-      <label>¿Trabajas o descansas? <select value={estado} onChange={(e) => setEstado(e.target.value)} required>
-        <option value="">Selecciona</option><option value="TRABAJA">Trabajo</option><option value="DESCANSA">Descanso</option>
-      </select></label>
-      {estado === "TRABAJA" && <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <label>Entrada prevista <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} required /></label>
-        <label>Salida prevista <input type="time" value={fin} onChange={(e) => setFin(e.target.value)} required /></label>
-      </div>}
-      <button type="submit" style={{ minHeight: 44 }}>{guardando ? "Guardando…" : "Guardar mi horario"}</button>
-    </fieldset>
-    <small>{protegido ? "Dirección definió este horario. Solicita una corrección si cambió." : iniciado ? "Ya registraste entrada. Solicita a Dirección cualquier corrección del horario." : "Puedes indicar horas diferentes cada día. El horario previsto no registra tu asistencia: marca tu llegada y tu salida reales."}</small>
-    {error && <small role="alert">{error} Vuelve a abrir esta sección para reintentar.</small>}
-    {aviso && <small role="status">{aviso}</small>}
-  </form>;
+  return (
+    <details
+      style={{
+        border: "1px solid #ead7e1",
+        borderRadius: 12,
+        background: "#ffffff",
+        overflow: "hidden",
+      }}
+    >
+      <summary
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          minHeight: 44,
+          padding: "10px 12px",
+          color: "#5e3048",
+          cursor: "pointer",
+          fontWeight: 850,
+          listStyle: "none",
+        }}
+      >
+        <span>📅 Horario previsto</span>
+        <small style={{ color: "#76666e", fontWeight: 750 }}>
+          {resumenHorario} · Editar
+        </small>
+      </summary>
+
+      <form
+        onSubmit={guardar}
+        style={{
+          display: "grid",
+          gap: 10,
+          padding: "12px",
+          borderTop: "1px solid #f0e3e9",
+        }}
+      >
+        <label>
+          Fecha{" "}
+          <input
+            type="date"
+            min={hoy}
+            value={fecha}
+            disabled={guardando}
+            onChange={(e) => setFecha(e.target.value || hoy)}
+            required
+          />
+        </label>
+
+        <fieldset
+          disabled={bloqueado}
+          style={{ display: "grid", gap: 10, border: 0, margin: 0, padding: 0 }}
+        >
+          <label>
+            ¿Trabajas o descansas?{" "}
+            <select value={estado} onChange={(e) => setEstado(e.target.value)} required>
+              <option value="">Selecciona</option>
+              <option value="TRABAJA">Trabajo</option>
+              <option value="DESCANSA">Descanso</option>
+            </select>
+          </label>
+
+          {estado === "TRABAJA" && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              <label>
+                Entrada prevista{" "}
+                <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} required />
+              </label>
+              <label>
+                Salida prevista{" "}
+                <input type="time" value={fin} onChange={(e) => setFin(e.target.value)} required />
+              </label>
+            </div>
+          )}
+
+          <button type="submit" style={{ minHeight: 44 }}>
+            {guardando ? "Guardando…" : "Guardar mi horario"}
+          </button>
+        </fieldset>
+
+        <small>
+          {protegido
+            ? "Dirección definió este horario. Solicita una corrección si cambió."
+            : iniciado
+              ? "Ya registraste entrada. Solicita a Dirección cualquier corrección del horario."
+              : "El horario previsto no registra asistencia; marca tu llegada y salida reales."}
+        </small>
+        {error && <small role="alert">{error} Vuelve a abrir esta sección para reintentar.</small>}
+        {aviso && <small role="status">{aviso}</small>}
+      </form>
+    </details>
+  );
 }
