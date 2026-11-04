@@ -1042,7 +1042,7 @@ const disponible =
           (partida) => partida.business_id === usuario?.business_id,
         ),
       }));
-    return <CentroFinanciero cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoTiendas={cargandoDashboard || cargandoSucursales} errorTiendas={errorDashboard || errorSucursales} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientosFinancieros} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
+    return <CentroFinanciero usuario={usuario} cargandoMovimientos={cargandoMovimientos} errorMovimientos={errorMovimientos} cargandoTiendas={cargandoDashboard || cargandoSucursales} errorTiendas={errorDashboard || errorSucursales} datosDashboard={datosDashboard} sucursalesDashboard={sucursalesDashboard} movimientos={movimientosFinancieros} formatoDinero={formatoDinero} onMovimientoGuardado={cargarMovimientos} onCambiarEstado={cambiarEstadoMovimiento} onAbrirImportador={() => setPantallaActual("importador")} volverAlDashboard={() => setPantallaActual("dashboard")} />;
   }
 
   /*
