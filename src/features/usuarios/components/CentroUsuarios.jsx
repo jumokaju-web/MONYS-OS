@@ -343,6 +343,28 @@ export default function CentroUsuarios({
     setMostrarFormulario(true);
   }
 
+  function abrirFormularioParaEmpleada(empleada) {
+    setFormulario({
+      ...FORMULARIO_INICIAL,
+      nombre: empleada?.nombre || "",
+      role: rolSugeridoPorPuesto(empleada?.puesto),
+      business_id: empleada?.business_id || "",
+      branch_id: empleada?.branch_id || "",
+      empleado_id: empleada?.id || "",
+    });
+
+    setErrorFormulario("");
+    setMensajeExito("");
+    setMostrarPassword(false);
+    setMostrarFormulario(true);
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("alta-usuario-monys")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function cancelarFormulario() {
     if (guardandoUsuario) {
       return;
@@ -702,6 +724,50 @@ async function guardarCambiosPermisos() {
         />
       )}
 
+      {puedeGestionarPersonal && empleadasSinAcceso.length > 0 && (
+        <section
+          aria-label="Personal pendiente de acceso"
+          style={{
+            padding: "18px",
+            marginBottom: "18px",
+            borderRadius: "16px",
+            background: "#fff8e8",
+            border: "1px solid #ead6a4",
+          }}
+        >
+          <strong style={{ display: "block", color: "#6d4b0b", fontSize: "17px" }}>
+            ⚠️ {empleadasSinAcceso.length} persona
+            {empleadasSinAcceso.length === 1 ? "" : "s"} todavía sin acceso
+          </strong>
+
+          <p style={{ margin: "7px 0 14px", color: "#75603a" }}>
+            Elige a una persona y solo completa su teléfono o correo y una contraseña temporal.
+          </p>
+
+          <div style={{ display: "flex", gap: "9px", flexWrap: "wrap" }}>
+            {empleadasSinAcceso.map((empleada) => (
+              <button
+                key={empleada.id}
+                type="button"
+                onClick={() => abrirFormularioParaEmpleada(empleada)}
+                style={{
+                  minHeight: "44px",
+                  padding: "9px 13px",
+                  borderRadius: "999px",
+                  border: "1px solid #cda75e",
+                  background: "#ffffff",
+                  color: "#5e3048",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Dar acceso a {empleada.nombre}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -749,6 +815,7 @@ async function guardarCambiosPermisos() {
 
       {mostrarFormulario && (
         <div
+          id="alta-usuario-monys"
           style={{
             padding: "22px",
             marginBottom: "20px",

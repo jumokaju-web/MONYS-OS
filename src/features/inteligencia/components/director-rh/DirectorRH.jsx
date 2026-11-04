@@ -151,6 +151,11 @@ export default function DirectorRH({
   ] = useState(formularioInicial);
 
   const [
+    mostrarPasswordEmpleado,
+    setMostrarPasswordEmpleado,
+  ] = useState(false);
+
+  const [
     guardandoEmpleado,
     setGuardandoEmpleado,
   ] = useState(false);
@@ -1149,30 +1154,75 @@ async function manejarReactivarEmpleado(
                     Contraseña temporal *
                   </strong>
 
-                  <input
-                    type="password"
-                    value={
-                      formularioEmpleado.password
-                    }
-                    onChange={(evento) =>
-                      actualizarCampo(
-                        "password",
-                        evento.target.value
-                      )
-                    }
-                    placeholder="Mínimo 8 caracteres"
-                    autoComplete="new-password"
+                  <div
                     style={{
-                      width: "100%",
+                      position: "relative",
                       marginTop: "7px",
-                      padding: "11px",
-                      borderRadius: "9px",
-                      border:
-                        "1px solid #d8ced4",
-                      boxSizing:
-                        "border-box",
                     }}
-                  />
+                  >
+                    <input
+                      type={
+                        mostrarPasswordEmpleado
+                          ? "text"
+                          : "password"
+                      }
+                      value={
+                        formularioEmpleado.password
+                      }
+                      onChange={(evento) =>
+                        actualizarCampo(
+                          "password",
+                          evento.target.value
+                        )
+                      }
+                      placeholder="Mínimo 8 caracteres"
+                      autoComplete="new-password"
+                      style={{
+                        width: "100%",
+                        padding: "11px 50px 11px 11px",
+                        borderRadius: "9px",
+                        border:
+                          "1px solid #d8ced4",
+                        boxSizing:
+                          "border-box",
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMostrarPasswordEmpleado(
+                          (visible) => !visible
+                        )
+                      }
+                      aria-label={
+                        mostrarPasswordEmpleado
+                          ? "Ocultar contraseña temporal"
+                          : "Mostrar contraseña temporal"
+                      }
+                      aria-pressed={mostrarPasswordEmpleado}
+                      title={
+                        mostrarPasswordEmpleado
+                          ? "Ocultar contraseña"
+                          : "Mostrar contraseña"
+                      }
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        right: "8px",
+                        transform: "translateY(-50%)",
+                        width: "36px",
+                        height: "36px",
+                        border: 0,
+                        borderRadius: "9px",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: "18px",
+                      }}
+                    >
+                      {mostrarPasswordEmpleado ? "🙈" : "👁️"}
+                    </button>
+                  </div>
                 </label>
 
                 <label>
