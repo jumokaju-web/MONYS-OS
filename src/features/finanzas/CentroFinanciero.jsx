@@ -9,6 +9,7 @@ import DisponibilidadFinancieraHoy from './components/DisponibilidadFinancieraHo
 import CentroDecisionesFinancieras from './components/CentroDecisionesFinancieras';
 import CortesCajaSicar from './components/CortesCajaSicar';
 import PreparacionCierre from './components/PreparacionCierre.jsx';
+import CapturaCorteRecibido from '../dashboard/components/CapturaCorteRecibido.jsx';
 
 const areas = [
   ['direccion', 'Dirección hoy', 'Prioridad, alertas y siguiente paso'],
@@ -24,9 +25,10 @@ const vistasEquipo = [
   ['sicar', 'Cortes oficiales SICAR', 'Efectivo, métodos y diferencias reales'],
   ['fuentes', 'Cargar reportes', 'SICAR, banco y comprobantes'],
   ['disponible', 'Dinero disponible', 'Cuánto puedes usar hoy'],
+  ['recuperar', 'Recuperar corte no enviado', 'Registrar con foto SICAR y auditoría'],
 ];
 
-export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, movimientos, cargandoMovimientos = false, errorMovimientos = false, cargandoTiendas = false, errorTiendas = false, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
+export default function CentroFinanciero({ usuario, datosDashboard, sucursalesDashboard, movimientos, cargandoMovimientos = false, errorMovimientos = false, cargandoTiendas = false, errorTiendas = false, formatoDinero, onMovimientoGuardado, onCambiarEstado, onAbrirImportador, volverAlDashboard }) {
   const [creditos, setCreditos] = useState({ importacion: null, creditos: [], saldoTotal: 0 });
   const [errorCreditos, setErrorCreditos] = useState('');
   const [tab, setTab] = useState('direccion');
@@ -131,6 +133,14 @@ export default function CentroFinanciero({ datosDashboard, sucursalesDashboard, 
           </section>
           </>}
           {vistaEquipo === 'disponible' && <DisponibilidadFinancieraHoy branchId={branchId} sucursales={sucursalesDashboard} creditosProveedores={creditos} onAbrirArea={abrirArea} onAbrirImportador={onAbrirImportador} />}
+          {vistaEquipo === 'recuperar' && <section aria-label="Recuperar corte no enviado">
+            <header className="finanzas-equipo-intro">
+              <span>RECUPERACIÓN CON AUDITORÍA</span>
+              <h2>Recuperar corte no enviado</h2>
+              <p>Úsalo cuando la empleada ya hizo el corte en SICAR, pero MONYS no recibió el folio.</p>
+            </header>
+            <CapturaCorteRecibido usuario={usuario} sucursales={sucursalesDashboard} iniciarAbierto />
+          </section>}
         </section>}
         {tab === 'bancos' && <section aria-label="Bancos y aclaraciones"><RevisionEstadoBancario movimientos={movimientos} creditosProveedores={creditos} /></section>}
         {tab === 'control' && <section aria-label="Movimientos"><TesoreriaPage ocultarRevisionBancaria volverAlDashboard={volverAlDashboard} onMovimientoGuardado={onMovimientoGuardado} movimientos={movimientos} formatoDinero={formatoDinero} onCambiarEstado={onCambiarEstado} /></section>}
