@@ -150,9 +150,10 @@ export default function CapturaCorteRecibido({
   usuario,
   sucursales = [],
   onGuardado,
+  iniciarAbierto = false,
 }) {
   const fechaActual = fechaOperativaMexico();
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(iniciarAbierto);
   const [empleados, setEmpleados] = useState([]);
   const [formulario, setFormulario] = useState(() => formularioVacio(fechaActual));
   const [foto, setFoto] = useState(null);
