@@ -82,3 +82,14 @@ test("la captura extraordinaria protege importes y fotografía al recargar en m�
   assert.match(fuente, /Borrador y fotografía recuperados automáticamente/);
   assert.match(fuente, /localStorage\.removeItem/);
 });
+
+test("Dirección encuentra la recuperación dentro de Capturas del equipo", () => {
+  const centro = fs.readFileSync(
+    new URL("../../src/features/finanzas/CentroFinanciero.jsx", import.meta.url),
+    "utf8"
+  );
+  const app = fs.readFileSync(new URL("../../src/App.jsx", import.meta.url), "utf8");
+  assert.match(centro, /Recuperar corte no enviado/);
+  assert.match(centro, /<CapturaCorteRecibido[^>]+iniciarAbierto/);
+  assert.match(app, /<CentroFinanciero usuario=\{usuario\}/);
+});
