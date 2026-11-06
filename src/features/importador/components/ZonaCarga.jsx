@@ -363,6 +363,11 @@ useEffect(() => {
       setRevisionImportacionSicar(null);
       setRevisionAbonosSicar(null);
       setErrorRevisionSicar("");
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("revision-sicar-guardada")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       const detalles = await obtenerDetallesImportacion(importacion.id);
       const datos = detalles.map((detalle) => detalle.datos_originales).filter(Boolean);
       const resumenBase = generarResumenMovimientosCaja(datos);
@@ -382,6 +387,11 @@ useEffect(() => {
         resumen = { ...resumenBase, cruceTesoreria: cruzarChequesSicarConTesoreria(cheques, movimientosTesoreria, importacion.branch_id, catalogoProveedores.proveedores, catalogoProveedores.consultado) };
       }
       setRevisionImportacionSicar({ importacion, resumen });
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("revision-sicar-guardada")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (error) {
       setErrorRevisionSicar(error?.message || "No se pudo abrir la conciliación del reporte guardado.");
     } finally {
@@ -1673,21 +1683,23 @@ if (
           />}
         </div>
       </dialog>
-      {cargandoRevisionSicar && <p role="status">Abriendo movimientos SICAR y comparando con Tesorería…</p>}
-      {errorRevisionSicar && <p role="alert">No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
-      {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div><h2 style={{ margin: "0 0 4px" }}>Revisión guardada · {revisionImportacionSicar.importacion.archivo_original}</h2><small>{new Date(revisionImportacionSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })} · Sin volver a importar los datos</small></div>
-          <button type="button" onClick={() => setRevisionImportacionSicar(null)}>Cerrar revisión</button>
-        </div>
-        <ResumenMovimientosCaja
-          resumen={revisionImportacionSicar.resumen}
-          importacionId={revisionImportacionSicar.importacion.id}
-          organizationId={usuario?.organization_id}
-          businessId={sucursales.find((item) => item.id === revisionImportacionSicar.importacion.branch_id)?.business_id || usuario?.business_id}
-          branchId={revisionImportacionSicar.importacion.branch_id}
-        />
-      </section>}
+      <div id="revision-sicar-guardada" style={{ scrollMarginTop: 88 }}>
+        {cargandoRevisionSicar && <p role="status" style={{ marginTop: 22, padding: 14, borderRadius: 12, background: "#f7f1f4", color: "#5e3048", fontWeight: 750 }}>Abriendo movimientos SICAR y comparando con Tesorería…</p>}
+        {errorRevisionSicar && <p role="alert" style={{ marginTop: 22, padding: 14, borderRadius: 12, background: "#fff1f0", color: "#9b3030", fontWeight: 750 }}>No se pudo abrir el reporte guardado: {errorRevisionSicar}</p>}
+        {revisionImportacionSicar && <section style={{ marginTop: 22, padding: 16, border: "1px solid #ead8e2", borderRadius: 14, background: "#fff" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div><h2 style={{ margin: "0 0 4px" }}>Revisión guardada · {revisionImportacionSicar.importacion.archivo_original}</h2><small>{new Date(revisionImportacionSicar.importacion.created_at).toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })} · Sin volver a importar los datos</small></div>
+            <button type="button" onClick={() => setRevisionImportacionSicar(null)}>Cerrar revisión</button>
+          </div>
+          <ResumenMovimientosCaja
+            resumen={revisionImportacionSicar.resumen}
+            importacionId={revisionImportacionSicar.importacion.id}
+            organizationId={usuario?.organization_id}
+            businessId={sucursales.find((item) => item.id === revisionImportacionSicar.importacion.branch_id)?.business_id || usuario?.business_id}
+            branchId={revisionImportacionSicar.importacion.branch_id}
+          />
+        </section>}
+      </div>
       {mensajeGeneral && (
         <p
           style={{
