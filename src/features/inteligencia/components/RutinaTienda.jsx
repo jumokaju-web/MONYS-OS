@@ -48,6 +48,7 @@ export default function RutinaTienda({
   const [horarios, setHorarios] = useState([]);
   const [excepcionesHorario, setExcepcionesHorario] = useState([]);
   const [asistenciaRegistrada, setAsistenciaRegistrada] = useState(null);
+  const [nombreSucursal, setNombreSucursal] = useState("");
   const [fecha, setFecha] = useState(fechaLocalHoy);
   const [cargando, setCargando] = useState(false);
   const [actualizandoEntradas, setActualizandoEntradas] = useState(false);
@@ -92,7 +93,7 @@ export default function RutinaTienda({
       setError("");
       try {
         const requiereChecada = fecha === fechaActualMexico();
-        const [lista, perfiles, tareas, asistencia] = await Promise.all([
+        const [lista, perfiles, tareas, asistencia, sucursal] = await Promise.all([
           obtenerEmpleadosActivosParaAsignacion(branchId),
           obtenerConfiguracionesOperativasSucursal(branchId),
           supabase.from("tareas_operativas")
@@ -102,8 +103,10 @@ export default function RutinaTienda({
             .lt("fecha", fecha)
             .order("fecha", { ascending: false }),
           requiereChecada ? obtenerAsistenciaOperativa({ branchId, fecha }) : Promise.resolve(null),
+          supabase.from("branches").select("name").eq("id", branchId).maybeSingle(),
         ]);
         if (tareas.error) throw tareas.error;
+        if (sucursal.error) throw sucursal.error;
         const idsEmpleados = lista.map((empleado) => empleado.id).filter(Boolean);
         const [calendarioSemanal, cambiosFecha] = await Promise.all([
           obtenerHorariosEmpleados(idsEmpleados),
@@ -118,6 +121,7 @@ export default function RutinaTienda({
           setHorarios(calendarioSemanal);
           setExcepcionesHorario(cambiosFecha);
           setAsistenciaRegistrada(asistencia);
+          setNombreSucursal(sucursal.data?.name || datosDashboard?.branch_name || "");
         }
       } catch (errorCarga) {
         if (vigente) {
@@ -130,7 +134,7 @@ export default function RutinaTienda({
     }
     cargar();
     return () => { vigente = false; };
-  }, [branchId, fecha]);
+  }, [branchId, fecha, datosDashboard?.branch_name]);
 
   const configuracionRutina = useMemo(() => {
     try {
@@ -144,11 +148,12 @@ export default function RutinaTienda({
         productosCriticos,
         fuenteInventario: fechaFuente ? { fecha: fechaCorta(fechaFuente), nombre: inventario?.importacion?.nombre || null } : null,
         asistenciaRegistrada,
+        nombreSucursal,
       });
     } catch (errorRutina) {
       return { tareas: [], avisos: [errorRutina.message], equipo: [], empleadosDisponibles: 0, personasProgramadas: [], asistencias: [], personasPresentes: null, productosUrgentes: 0, productosAsignados: 0 };
     }
-  }, [fecha, empleados, configuraciones, horarios, excepcionesHorario, historial, productosCriticos, fechaFuente, inventario?.importacion?.nombre, asistenciaRegistrada]);
+  }, [fecha, empleados, configuraciones, horarios, excepcionesHorario, historial, productosCriticos, fechaFuente, inventario?.importacion?.nombre, asistenciaRegistrada, nombreSucursal]);
 
   const edadReporte = edadEnDias(fechaFuente);
   const etiquetasArea = new Map(AREAS_OPERATIVAS.map((area) => [area.id, area.nombre]));
@@ -234,7 +239,7 @@ export default function RutinaTienda({
         <div style={{ padding: "14px 15px", borderRadius: "13px", color: "#fff", background: "linear-gradient(120deg,#74234d,#a92c68)" }}>
           <small style={{ display: "block", opacity: 0.82, fontWeight: 750, letterSpacing: ".08em" }}>DECISIÓN DE DIRECCIÓN · {fecha}</small>
           <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>{configuracionRutina.empleadosDisponibles} {configuracionRutina.empleadosDisponibles === 1 ? "persona disponible" : "personas disponibles"} · {configuracionRutina.tareas.length} tareas sugeridas</strong>
-          <span style={{ display: "block", marginTop: "5px", fontSize: "13px", lineHeight: 1.45, opacity: 0.9 }}>MONYS respeta descansos y turnos; el reparto se revisa aquí antes de guardarse para el equipo.</span>
+          <span style={{ display: "block", marginTop: "5px", fontSize: "13px", lineHeight: 1.45, opacity: 0.9 }}>MONYS respeta descansos y turnos; {nombreSucursal.toLocaleLowerCase("es-MX").includes("centro") ? "en Centro usa el croquis de Kary y reparte las zonas ausentes" : "el reparto se revisa aquí antes de guardarse para el equipo"}.</span>
         </div>
         <p style={{ margin: 0, padding: "10px 12px", borderRadius: "10px", background: "#fff7e8", color: "#765c27", fontSize: "13px", lineHeight: 1.45 }}>
           {fecha === fechaActualMexico()

@@ -83,6 +83,34 @@ test("un perfil con varias áreas participa en tienda y en inventario", () => {
   assert.ok(resultado.tareas.some((tarea) => tarea.titulo.includes("lote") && tarea.responsable === "Karla Ruiz"));
 });
 
+test("digitaliza el croquis de Centro y reparte las zonas de quien descansa", () => {
+  const equipoCentro = [
+    { id: "vale", nombre: "Vale", responsabilidades: ["VENTA_TIENDA"] },
+    { id: "karla", nombre: "Karla Yoselin", responsabilidades: ["VENTA_TIENDA"] },
+    { id: "mariana", nombre: "Mariana", responsabilidades: ["VENTA_TIENDA"] },
+  ];
+  const perfilesCentro = equipoCentro.map((empleada) => ({
+    empleado_id: empleada.id,
+    nombre_preferido: empleada.nombre,
+    dia_descanso: empleada.id === "karla" ? 2 : 0,
+    area_asignada: "VENTA_TIENDA",
+    turno_asignado: "AMBOS",
+  }));
+  const resultado = construirRutinaInteligente({
+    fecha: "2026-11-03", // martes: Karla descansa y Mariana tiene bodega.
+    nombreSucursal: "Centro",
+    empleados: equipoCentro,
+    configuraciones: perfilesCentro,
+  });
+
+  const zonas = resultado.tareas.filter((tarea) => /zonas del croquis/.test(tarea.titulo));
+  assert.equal(zonas.length, 2);
+  assert.ok(zonas.some((tarea) => /Beauty 1/.test(tarea.descripcion)));
+  assert.ok(zonas.some((tarea) => /Bissú 1/.test(tarea.descripcion)));
+  assert.ok(resultado.avisos.some((aviso) => /cubre las zonas de Karla/.test(aviso)));
+  assert.equal(resultado.tareas.find((tarea) => /Ordenar y revisar bodega/.test(tarea.titulo)).responsable, "Mariana");
+});
+
 test("las tareas se dirigen al ID de autenticación aunque RH guarde el ID del perfil", () => {
   const resultado = construirRutinaInteligente({
     fecha: "2026-10-13",

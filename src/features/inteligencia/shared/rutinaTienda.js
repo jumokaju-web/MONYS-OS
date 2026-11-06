@@ -1,6 +1,7 @@
 import { resolverResponsabilidadesEmpleado } from "./responsabilidadesEmpleado.js";
 import { resolverHorarioEmpleado } from "./horarioEmpleado.js";
 import { prepararDetalleConteoInventario } from "../../inventario/shared/conteoFisico.js";
+import { esSucursalCentro, planificarZonasCentro } from "./planLimpiezaCentro.js";
 
 function fechaValida(fecha) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha || ""))) return false;
@@ -103,6 +104,7 @@ export function construirRutinaInteligente({
   productosCriticos = [],
   fuenteInventario = null,
   asistenciaRegistrada = null,
+  nombreSucursal = null,
 } = {}) {
   if (!fechaValida(fecha)) throw new Error("Selecciona una fecha válida para la rutina.");
 
@@ -165,6 +167,15 @@ export function construirRutinaInteligente({
   const personalTienda = disponibles.filter((empleado) =>
     esVendedoraTienda(empleado, perfiles.get(String(empleado.id))),
   );
+  const planCentro = esSucursalCentro(nombreSucursal) && personalTienda.length
+    ? planificarZonasCentro({
+      fecha,
+      candidatos: personalTienda.map((empleado) => ({
+        empleado,
+        nombre: perfiles.get(String(empleado.id))?.nombre_preferido || empleado.nombre,
+      })),
+    })
+    : null;
   const tareas = [];
   const operacionUnipersonal = disponibles.length === 1 && personalTienda.length === 1;
   const responsableUnica = operacionUnipersonal ? disponibles[0] : null;
@@ -225,18 +236,37 @@ export function construirRutinaInteligente({
 
     avisos.push("MODO SUCURSAL UNIPERSONAL: clienta presente y cobro tienen prioridad; WhatsApp, limpieza, publicaciones e inventario se trabajan en bloques sin dejar sola la tienda.");
   } else {
-    for (const empleado of personalTienda) {
+    const asignacionesLimpieza = planCentro?.asignaciones || personalTienda.map((empleado) => ({ empleado, zonas: [], coberturas: [] }));
+    for (const asignacion of asignacionesLimpieza) {
+      const empleado = asignacion.empleado;
       const configuracion = perfiles.get(String(empleado.id));
+      const zonas = asignacion.zonas || [];
+      const cobertura = asignacion.coberturas?.length ? ` Hoy también cubres las zonas de ${asignacion.coberturas.join(", ")}.` : "";
       tareas.push(crearTarea({
         fecha,
         empleado,
         configuracion,
-        titulo: "Limpiar su mueble y exhibidor",
-        descripcion: "Mantener limpio y ordenado el mueble asignado a la vendedora.",
-        instrucciones: "Limpia y ordena tu mueble y exhibidor. Acomoda los productos en su lugar y reporta cualquier producto dañado o faltante.",
-        criterioExito: "Mueble y exhibidor asignados limpios, ordenados y con faltantes reportados.",
+        titulo: zonas.length ? `Limpiar, rellenar y revisar ${zonas.length} zonas del croquis` : "Limpiar su mueble y exhibidor",
+        descripcion: zonas.length ? `Zonas asignadas: ${zonas.join(" · ")}.` : "Mantener limpio y ordenado el mueble asignado a la vendedora.",
+        instrucciones: zonas.length
+          ? `Atiende primero a la clienta. En cuanto esté libre la zona: limpia, acomoda al frente, rellena con existencia de bodega y reporta producto agotado, bajo, dañado o sin precio. No ajustes SICAR ni autorices compras.${cobertura}`
+          : "Limpia y ordena tu mueble y exhibidor. Acomoda los productos en su lugar y reporta cualquier producto dañado o faltante.",
+        criterioExito: zonas.length
+          ? "Todas las zonas enumeradas quedaron limpias, surtidas y ordenadas; faltantes, daños y productos sin precio quedaron reportados."
+          : "Mueble y exhibidor asignados limpios, ordenados y con faltantes reportados.",
       }));
     }
+    if (planCentro?.responsablePanel) {
+      tareas.push(crearTarea({
+        fecha,
+        empleado: planCentro.responsablePanel.empleado,
+        titulo: "Revisar y ordenar el panel compartido",
+        descripcion: "Panel compartido por Mariana, Katy y Elisa según el croquis de Centro.",
+        instrucciones: "Coordina una sola revisión del panel: limpia, acomoda, rellena y reporta faltantes, daños o productos sin precio. No dupliquen esta tarea.",
+        criterioExito: "Panel limpio, ordenado y surtido; cualquier faltante o daño quedó reportado.",
+      }));
+    }
+    avisos.push(...(planCentro?.avisos || []));
   }
 
   const candidatosTurno = (turno) => personalTienda.filter((empleado) =>
@@ -293,19 +323,19 @@ export function construirRutinaInteligente({
   }
 
   const historialBodega = trabajoPrevio.filter((tarea) => /ordenar y revisar bodega/i.test(tarea.titulo || ""));
-  const responsableBodega = elegirConMenorCarga(
-    operacionUnipersonal ? [] : disponibles,
-    [...historialBodega, ...asignacionesHoy],
-    fecha,
-    perfiles,
-    { evitarRepetirHoy: true },
-  );
+  const responsableBodega = planCentro?.responsableBodega?.empleado || elegirConMenorCarga(
+      operacionUnipersonal ? [] : disponibles,
+      [...historialBodega, ...asignacionesHoy],
+      fecha,
+      perfiles,
+      { evitarRepetirHoy: true },
+    );
   if (responsableBodega) {
     tareas.push(crearTarea({
       fecha,
       empleado: responsableBodega,
       titulo: "Ordenar y revisar bodega",
-      descripcion: "Dejar la bodega ordenada y reportar productos dañados, faltantes o sin etiqueta.",
+      descripcion: planCentro ? `Limpieza semanal de bodega según el croquis de Centro${planCentro.responsableBodega?.cubre ? "; hoy cubre a la responsable programada" : ""}.` : "Dejar la bodega ordenada y reportar productos dañados, faltantes o sin etiqueta.",
       instrucciones: "Revisa pasillos y anaqueles, acomoda productos en su lugar y reporta diferencias, daños o faltantes. No ajustes SICAR ni autorices compras.",
       criterioExito: "Bodega ordenada y cualquier diferencia o daño reportado a Dirección.",
     }));
