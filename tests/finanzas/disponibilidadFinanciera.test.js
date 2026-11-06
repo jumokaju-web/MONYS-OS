@@ -386,7 +386,8 @@ test("bloquea liquidez consolidada y dinero libre si hay un turno de caja abiert
   assert.equal(resumen.liquidezLocalizada, null);
   assert.equal(resumen.dineroLibre, null);
   assert.equal(resumen.bloqueoConsolidacion, true);
-  assert.ok(resumen.faltantes.some((item) => item.id === "sesiones-caja"));
+  assert.ok(resumen.faltantes.some((item) => item.id === "sesiones-caja" && item.destino === "equipo" && item.vista === "cierre"));
+  assert.equal(resumen.prioridad.vista, "cierre");
 });
 
 test("bloquea consolidación con movimientos de Tesorería pendientes o si no se pudo consultar", () => {
@@ -403,12 +404,13 @@ test("bloquea consolidación con movimientos de Tesorería pendientes o si no se
   const pendiente = resumirDisponibilidadFinanciera({ ...base, movimientosPendientes: 3, movimientosPendientesConsultados: true });
   assert.equal(pendiente.liquidezLocalizada, null);
   assert.equal(pendiente.dineroLibre, null);
-  assert.ok(pendiente.faltantes.some((item) => item.id === "movimientos-pendientes"));
+  assert.ok(pendiente.faltantes.some((item) => item.id === "movimientos-pendientes" && item.destino === "control"));
+  assert.equal(pendiente.prioridad.destino, "control");
 
   const sinConsulta = resumirDisponibilidadFinanciera({ ...base, movimientosPendientesConsultados: false });
   assert.equal(sinConsulta.liquidezLocalizada, null);
   assert.equal(sinConsulta.dineroLibre, null);
-  assert.equal(sinConsulta.prioridad.destino, "bancos");
+  assert.equal(sinConsulta.prioridad.destino, "control");
 });
 
 test("una diferencia de caja impide sumar bancos y efectivo como liquidez consolidada", () => {
@@ -424,5 +426,7 @@ test("una diferencia de caja impide sumar bancos y efectivo como liquidez consol
   assert.equal(resumen.liquidezLocalizada, null);
   assert.equal(resumen.dineroLibre, null);
   assert.equal(resumen.bloqueoConsolidacion, true);
+  assert.ok(resumen.faltantes.some((item) => item.id === "diferencias" && item.vista === "revision"));
+  assert.equal(resumen.prioridad.vista, "revision");
 });
 

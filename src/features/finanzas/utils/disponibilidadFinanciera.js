@@ -215,17 +215,17 @@ export function resumirDisponibilidadFinanciera({
   if (!cajasCompletas) {
     faltantes.push({ id: "cajas", titulo: `Completar cortes de caja (${cajasFaltantes} faltantes, ${cajasIncompletas} incompletos)`, destino: "importador" });
   } else if (diferencias > 0) {
-    faltantes.push({ id: "diferencias", titulo: `Aclarar ${diferencias} diferencia${diferencias === 1 ? "" : "s"} de caja`, destino: "equipo" });
+    faltantes.push({ id: "diferencias", titulo: `Aclarar ${diferencias} diferencia${diferencias === 1 ? "" : "s"} de caja`, destino: "equipo", vista: "revision" });
   }
   if (!sesionesCajaConsultadas) {
-    faltantes.push({ id: "sesiones-caja", titulo: "No se pudo verificar si hay turnos de caja abiertos", destino: "equipo" });
+    faltantes.push({ id: "sesiones-caja", titulo: "No se pudo verificar si hay turnos de caja abiertos", destino: "equipo", vista: "cierre" });
   } else if (turnosAbiertos > 0) {
-    faltantes.push({ id: "sesiones-caja", titulo: `Cerrar o aclarar ${turnosAbiertos} turno${turnosAbiertos === 1 ? "" : "s"} de caja abierto${turnosAbiertos === 1 ? "" : "s"}`, destino: "equipo" });
+    faltantes.push({ id: "sesiones-caja", titulo: `Cerrar o aclarar ${turnosAbiertos} turno${turnosAbiertos === 1 ? "" : "s"} de caja abierto${turnosAbiertos === 1 ? "" : "s"}`, destino: "equipo", vista: "cierre" });
   }
   if (!movimientosPendientesConsultados) {
-    faltantes.push({ id: "movimientos-pendientes", titulo: "No se pudo verificar la bandeja de movimientos de Tesorería", destino: "bancos" });
+    faltantes.push({ id: "movimientos-pendientes", titulo: "No se pudo verificar la bandeja de movimientos de Tesorería", destino: "control" });
   } else if (pendientesTesoreria > 0) {
-    faltantes.push({ id: "movimientos-pendientes", titulo: `Revisar ${pendientesTesoreria} movimiento${pendientesTesoreria === 1 ? "" : "s"} pendiente${pendientesTesoreria === 1 ? "" : "s"} de Tesorería`, destino: "bancos" });
+    faltantes.push({ id: "movimientos-pendientes", titulo: `Revisar ${pendientesTesoreria} movimiento${pendientesTesoreria === 1 ? "" : "s"} pendiente${pendientesTesoreria === 1 ? "" : "s"} de Tesorería`, destino: "control" });
   }
   if (!proveedores.disponible) {
     faltantes.push({ id: "proveedores", titulo: "Cargar reporte vigente o confirmar cero créditos por sucursal", destino: "plan" });
@@ -243,10 +243,10 @@ export function resumirDisponibilidadFinanciera({
     faltantes.push({ id: "confirmacion-operativa", titulo: "Confirmar que se revisaron los pagos próximos", destino: "plan" });
   }
   if (controlRetiros.pendientes > 0 || controlRetiros.diferencias > 0) {
-    faltantes.push({ id: "retiros", titulo: `Aclarar ${controlRetiros.pendientes} retiros y ${controlRetiros.diferencias} diferencias`, destino: "equipo" });
+    faltantes.push({ id: "retiros", titulo: `Aclarar ${controlRetiros.pendientes} retiros y ${controlRetiros.diferencias} diferencias`, destino: "equipo", vista: "revision" });
   }
   if (comprobacionRetiros.pendientes > 0 || comprobacionRetiros.reportados > 0 || comprobacionRetiros.diferencias > 0) {
-    faltantes.push({ id: "comprobaciones-retiros", titulo: `Comprobar ${comprobacionRetiros.pendientes + comprobacionRetiros.reportados + comprobacionRetiros.diferencias} retiros pendientes de revisión`, destino: "equipo" });
+    faltantes.push({ id: "comprobaciones-retiros", titulo: `Comprobar ${comprobacionRetiros.pendientes + comprobacionRetiros.reportados + comprobacionRetiros.diferencias} retiros pendientes de revisión`, destino: "equipo", vista: "revision" });
   }
 
   let prioridad;
@@ -277,13 +277,14 @@ export function resumirDisponibilidadFinanciera({
       titulo: !sesionesCajaConsultadas ? "Verifica los turnos de caja abiertos" : `Cierra o aclara ${turnosAbiertos} turno${turnosAbiertos === 1 ? "" : "s"} abierto${turnosAbiertos === 1 ? "" : "s"}`,
       detalle: "MONYS bloquea la liquidez consolidada hasta confirmar que todas las cajas estén cerradas.",
       destino: "equipo",
+      vista: "cierre",
     };
   } else if (!movimientosPendientesConsultados || pendientesTesoreria > 0) {
     prioridad = {
       nivel: "alta",
       titulo: !movimientosPendientesConsultados ? "Verifica los movimientos pendientes de Tesorería" : `Revisa ${pendientesTesoreria} movimiento${pendientesTesoreria === 1 ? "" : "s"} pendiente${pendientesTesoreria === 1 ? "" : "s"}`,
       detalle: "MONYS no suma liquidez ni dinero libre mientras haya movimientos sin revisar.",
-      destino: "bancos",
+      destino: "control",
     };
   } else if (!proveedores.disponible) {
     prioridad = {
@@ -314,6 +315,7 @@ export function resumirDisponibilidadFinanciera({
       titulo: "Aclara las diferencias de caja",
       detalle: `${diferencias} ${diferencias === 1 ? "caja necesita" : "cajas necesitan"} revisión antes de liberar dinero.`,
       destino: "equipo",
+      vista: "revision",
     };
   } else if (controlRetiros.pendientes > 0 || controlRetiros.diferencias > 0) {
     prioridad = {
@@ -321,6 +323,7 @@ export function resumirDisponibilidadFinanciera({
       titulo: "Aclara el destino del efectivo retirado",
       detalle: `${controlRetiros.pendientes} retiros sin destino completo y ${controlRetiros.diferencias} con importe distinto entre SICAR y el cierre. El dinero sigue excluido para no contarlo dos veces.`,
       destino: "equipo",
+      vista: "revision",
     };
   } else if (comprobacionRetiros.pendientes > 0 || comprobacionRetiros.reportados > 0 || comprobacionRetiros.diferencias > 0) {
     prioridad = {
@@ -328,6 +331,7 @@ export function resumirDisponibilidadFinanciera({
       titulo: "Comprueba el efectivo retirado",
       detalle: `${comprobacionRetiros.pendientes} sin evidencia, ${comprobacionRetiros.reportados} pendientes de revisión y ${comprobacionRetiros.diferencias} con diferencia. Reportado no significa comprobado.`,
       destino: "equipo",
+      vista: "revision",
     };
   } else if (!deudas.consultadas || deudas.incompletas > 0) {
     prioridad = {

@@ -33,7 +33,8 @@ for (const estado of [null, "REPORTADO", "DIFERENCIA"]) {
     assert.equal(resultado.dineroLibre, null);
     assert.equal(resultado.calculable, false);
     assert.notEqual(resultado.prioridad.titulo, "Disponibilidad lista para decidir");
-    assert.ok(resultado.faltantes.some((item) => item.id === "comprobaciones-retiros" && item.destino === "equipo"));
+    assert.ok(resultado.faltantes.some((item) => item.id === "comprobaciones-retiros" && item.destino === "equipo" && item.vista === "revision"));
+    assert.equal(resultado.prioridad.vista, "revision");
   });
 }
 

@@ -190,12 +190,12 @@ export default function DisponibilidadFinancieraHoy({
   }
 
   function resolverPrioridad() {
-    resolverDestino(resumen.prioridad.destino);
+    resolverDestino(resumen.prioridad.destino, resumen.prioridad.vista);
   }
 
-  function resolverDestino(destino) {
+  function resolverDestino(destino, vista = null) {
     if (destino === "importador") onAbrirImportador?.();
-    else onAbrirArea?.(destino);
+    else onAbrirArea?.(destino, vista);
   }
 
   function cambiarCaptura(accountId, campo, valor) {
@@ -334,7 +334,11 @@ export default function DisponibilidadFinancieraHoy({
         </div>
         <ol>{resumen.faltantes.map((faltante, indice) => <li key={faltante.id}>
           <span><b>{indice + 1}</b>{faltante.titulo}</span>
-          <button type="button" onClick={() => resolverDestino(faltante.destino)}>Abrir →</button>
+          <button
+            type="button"
+            aria-label={`Abrir tarea financiera: ${faltante.titulo}`}
+            onClick={() => resolverDestino(faltante.destino, faltante.vista)}
+          >Abrir →</button>
         </li>)}</ol>
         <small>MONYS mantiene la cifra como “por confirmar” mientras falten datos; no convierte faltantes en ceros.</small>
       </section>}
