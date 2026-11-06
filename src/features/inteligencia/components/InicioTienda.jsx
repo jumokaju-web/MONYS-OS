@@ -125,25 +125,13 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
           <p style={{ margin: 0, lineHeight: 1.45, color: '#f7eaf1' }}>{siguienteAccion.descripcion}</p>
           {!['REVISANDO', 'FINALIZADO'].includes(siguienteAccion.id) && <button type="button" onClick={abrirSiguienteAccion} style={{ minHeight: 46, marginTop: 4, border: 0, borderRadius: 12, background: '#fff', color: '#76254f', fontWeight: 900 }}>{siguienteAccion.id === 'ENTRADA' ? 'Ir a registrar entrada' : siguienteAccion.id === 'TAREAS' ? 'Abrir mi trabajo' : 'Revisar y actualizar tareas'}</button>}
         </section>
-        {puedeCaja && <section aria-label="Acceso directo a caja y corte" style={{ display: 'grid', gap: 8, padding: '16px', marginBottom: 14, border: '1px solid #dfbfd2', borderRadius: 16, background: '#fff' }}>
-          <strong style={{ color: '#76254f' }}>Caja y corte de mi turno</strong>
-          <p style={{ margin: 0, lineHeight: 1.45 }}>Aquí registras los importes y la foto del corte. Cambiar el estado de la tarea no envía el corte.</p>
-          <button type="button" onClick={() => abrir('CAJA')} style={{ minHeight: 48, padding: '12px 16px', border: 0, borderRadius: 12, background: '#a82c68', color: '#fff', fontWeight: 850 }}>Abrir caja y corte →</button>
-          <small>Elige la caja que utilizaste. Si ya vas a cerrar y no registraste apertura, usa “Registrar cierre de hoy sin apertura previa”.</small>
-        </section>}
         <RegistroEntradaOperativa usuario={usuario} branchId={branchId} puedeCaja={puedeCaja} onAbrirCaja={() => abrir('CAJA')} onEntradaRegistrada={() => setRevisionTareas(n => n + 1)} onEstadoCambio={setEstadoJornada}/>
-        <div className="tienda-home-intro">
-          <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
-          <h2>Haz lo importante y deja evidencia</h2>
-          <p>Esta es tu ruta del día. MONYS conserva lo que registras para que Dirección pueda decidir con datos reales.</p>
-          <ol className="tienda-ruta" aria-label="Ruta del turno">
-            {rutaTurno.map((paso, indice) => <li key={paso.titulo}><span>{indice + 1}</span><div><strong>{paso.titulo}</strong><small>{paso.descripcion}</small></div></li>)}
-          </ol>
-        </div>
-        <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
-        <button type="button" className="tienda-inventario-atajo" onClick={() => document.getElementById('employee-work-today')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-          <span aria-hidden="true">📦</span><div><strong>Inventarios que debo revisar</strong><small>Abre tus conteos asignados y registra las piezas reales producto por producto.</small></div><b>Ver →</b>
-        </button>
+        <div className="tienda-trabajo-titulo"><p className="tienda-kicker">TRABAJO ASIGNADO</p><h2>Lo que te toca hoy</h2><p>Aquí aparecen tus tareas, zona de limpieza y conteos. Empieza por lo pendiente.</p></div>
+        <div id="employee-work-today" style={{ scrollMarginTop: 92 }}><OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard} onResumenCambio={setResumenTareas} onAbrirCorte={() => abrir('CAJA')} corteGuardado={corteGuardado}/></div>
+        <details className="tienda-herramientas">
+          <summary><span>＋</span><div><strong>Registrar algo más</strong><small>Producto solicitado, incidencia, WhatsApp o caja</small></div></summary>
+          <section className="tienda-accesos" aria-label="Accesos de tienda"><div><span>REGISTRO RÁPIDO</span><h2>¿Qué necesitas hacer?</h2></div><div className="tienda-accesos-grid">{opciones.filter(([id]) => id !== 'HOY').map(([id,icono,titulo]) => <button type="button" key={id} onClick={() => abrir(id)}><span aria-hidden="true">{icono}</span><b>{titulo}</b><small>{id==='CAJA'?'Foto, cobros y efectivo':id==='INCIDENCIAS'?'Reportar lo que pasó':id==='WHATSAPP'?'Preparar una respuesta segura':'Producto que pidió una clienta'}</small></button>)}</div></section>
+        </details>
         {(responsabilidades.includes('PEDIDOS_EN_LINEA') || responsabilidades.includes('ENVIOS_TIENDA') || responsabilidades.includes('PROPONER_REPOSICION')) && <section className="tienda-supervendedora" aria-label="Herramientas de supervendedora">
           <p className="tienda-kicker">VENTA EN LÍNEA Y REPOSICIÓN</p><h2>Tu operación especial</h2>
           <div>
@@ -152,8 +140,17 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
             {responsabilidades.includes('PROPONER_REPOSICION') && <article><span>↔️</span><strong>Reposición</strong><small>Reporta el faltante; Mónica o Kary autorizan compra o traspaso.</small></article>}
           </div>
         </section>}
-        <div className="tienda-trabajo-titulo"><p className="tienda-kicker">TRABAJO ASIGNADO</p><h2>Tu día en una sola vista</h2><p>Empieza por lo pendiente y actualiza cada tarea cuando cambie su estado.</p></div>
-        <div id="employee-work-today" style={{ scrollMarginTop: 92 }}><OperacionEmpleado revisionAsistencia={revisionTareas} branchId={branchId} usuario={usuario} datosDashboard={datosDashboard} onResumenCambio={setResumenTareas} onAbrirCorte={() => abrir('CAJA')} corteGuardado={corteGuardado}/></div>
+        <details className="tienda-ruta-plegada">
+          <summary>Ver la guía completa de mi turno</summary>
+          <div className="tienda-home-intro">
+            <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
+            <h2>Haz lo importante y deja evidencia</h2>
+            <p>MONYS conserva lo que registras para que Dirección pueda decidir con datos reales.</p>
+            <ol className="tienda-ruta" aria-label="Ruta del turno">
+              {rutaTurno.map((paso, indice) => <li key={paso.titulo}><span>{indice + 1}</span><div><strong>{paso.titulo}</strong><small>{paso.descripcion}</small></div></li>)}
+            </ol>
+          </div>
+        </details>
         <details className="tienda-perfil"><summary>Mi perfil y reglas de trabajo</summary><PerfilOperativoEmpleado usuario={usuario}/></details>
       </section>
       {vistaActual && <header className="tienda-pagina-header" ref={destino} tabIndex={-1}>
