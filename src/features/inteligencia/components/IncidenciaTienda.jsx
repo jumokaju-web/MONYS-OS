@@ -1,12 +1,19 @@
 import { fechaOperativaMexico } from '../utils/corteTienda';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { guardarCierreTurno } from '../services/cierresTurnoService';
-export default function IncidenciaTienda({ usuario, branchId }) {
+export default function IncidenciaTienda({ usuario, branchId, incidenciaInicial = null }) {
   const [texto, setTexto] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const enviando = useRef(false);
+  useEffect(() => {
+    if (incidenciaInicial?.texto) {
+      setTexto(incidenciaInicial.texto);
+      setMensaje('');
+      setError('');
+    }
+  }, [incidenciaInicial]);
   async function guardar(e) {
     e.preventDefault();
     if (enviando.current) return;

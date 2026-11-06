@@ -295,6 +295,7 @@ export default function OperacionEmpleado({
   revisionAsistencia = 0,
   onResumenCambio = null,
   onAbrirCorte = null,
+  onReportarProblema = null,
   corteGuardado = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
@@ -396,6 +397,9 @@ export default function OperacionEmpleado({
     useState({});
 
   const [semanaAbierta, setSemanaAbierta] =
+    useState(false);
+
+  const [mostrarTodasTareas, setMostrarTodasTareas] =
     useState(false);
 
   const fechaHoy =
@@ -1085,6 +1089,18 @@ export default function OperacionEmpleado({
       )
     )[0] || null;
   }, [activas, esCentroGrowth]);
+
+  const tareasVisibles = useMemo(() => {
+    if (mostrarTodasTareas || !tareaPrioritaria) {
+      return activas;
+    }
+
+    return activas.filter((tarea) => tarea.id === tareaPrioritaria.id).slice(0, 1);
+  }, [activas, mostrarTodasTareas, tareaPrioritaria]);
+
+  useEffect(() => {
+    setMostrarTodasTareas(false);
+  }, [branchIdActivo, fechaHoy, nombreEmpleado]);
 
   const borradorAgendaGrowth = useMemo(
     () =>
@@ -2350,7 +2366,7 @@ export default function OperacionEmpleado({
             gap: "12px",
           }}
         >
-          {activas.map(
+          {tareasVisibles.map(
             (tarea) => {
               const evidencias =
                 evidenciasPorTarea[
@@ -2413,6 +2429,7 @@ export default function OperacionEmpleado({
                   "urgente" ||
                 tarea.prioridad ===
                   "alta";
+              const esPrioridadActual = tarea.id === tareaPrioritaria?.id;
 
               return (
                 <article
@@ -2433,6 +2450,11 @@ export default function OperacionEmpleado({
                       "0 5px 16px rgba(70,30,50,0.05)",
                   }}
                 >
+                  {esPrioridadActual && (
+                    <div style={{ marginBottom: "9px", color: "#9f275d", fontSize: "10px", fontWeight: 950, letterSpacing: ".12em" }}>
+                      PRIORIDAD DE AHORA
+                    </div>
+                  )}
                   <div
                     style={{
                       display: "flex",
@@ -2526,6 +2548,26 @@ export default function OperacionEmpleado({
                       }}
                     >
                       {esTareaCorteCaja ? "Abrir corte real →" : "▶ Iniciar tarea"}
+                    </button>
+                  )}
+
+                  {normalizarTexto(tarea.estado) === "EN_PROCESO" && (
+                    <button
+                      type="button"
+                      onClick={() => mostrarDetalleTarea(tarea.id)}
+                      style={{ width: "100%", marginTop: "12px", border: 0, borderRadius: "12px", padding: "12px", background: "#2f8a5d", color: "#fff", fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Continuar y terminar →
+                    </button>
+                  )}
+
+                  {onReportarProblema && (
+                    <button
+                      type="button"
+                      onClick={() => onReportarProblema(tarea)}
+                      style={{ width: "100%", marginTop: "8px", border: "1px solid #dfc3d1", borderRadius: "12px", padding: "10px", background: "#fff", color: "#713954", fontWeight: 800, cursor: "pointer" }}
+                    >
+                      ¿No puedes continuar? Reportar problema
                     </button>
                   )}
 
@@ -2888,6 +2930,15 @@ export default function OperacionEmpleado({
                 </article>
               );
             }
+          )}
+          {tareaPrioritaria && activas.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setMostrarTodasTareas((actual) => !actual)}
+              style={{ width: "100%", minHeight: "48px", border: "1px solid #ddc7d3", borderRadius: "13px", background: "#fff8fb", color: "#713954", fontWeight: 900, cursor: "pointer" }}
+            >
+              {mostrarTodasTareas ? "Ocultar las demás tareas" : "Ver las otras " + (activas.length - 1) + " tareas"}
+            </button>
           )}
         </div>
       )}
