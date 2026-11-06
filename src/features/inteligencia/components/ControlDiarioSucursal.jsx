@@ -5,6 +5,7 @@ import { obtenerAsistenciaOperativa } from "../services/asistenciaOperativaServi
 import { construirControlDiarioSucursal } from "../shared/controlDiarioSucursal";
 import { obtenerHorariosEmpleados, obtenerExcepcionesHorario } from "../services/horarioEmpleadoService";
 import "./ControlDiarioSucursal.css";
+import "./ControlDiarioSucursalCompacto.css";
 
 const ESTADOS = {
   PRESENTE: ["Presente", "is-presente"],
@@ -138,8 +139,10 @@ export default function ControlDiarioSucursal({
         <article className="control-diario__metrica"><span>Terminadas</span><strong>{control.metricas.tareasTerminadas}</strong></article>
       </div>
 
-      <div className="control-diario__lista" aria-label="Estado del equipo de hoy">
-        {control.personas.length ? control.personas.map((persona) => {
+      <details className="control-diario__equipo">
+        <summary>Ver equipo completo · {control.personas.length} personas</summary>
+        <div className="control-diario__lista" aria-label="Estado del equipo de hoy">
+          {control.personas.length ? control.personas.map((persona) => {
           const [etiqueta, clase] = estadoVisible(persona);
           const horaEntrada = horaMexico(persona.entradaAt);
           return <article className="control-diario__persona" key={persona.empleadoId}>
@@ -156,15 +159,16 @@ export default function ControlDiarioSucursal({
               <small>{persona.tareas ? `${persona.terminadas}/${persona.tareas} tareas terminadas${persona.enProceso ? ` · ${persona.enProceso} en proceso` : ""}` : "Sin tareas asignadas"}</small>
             </div>
           </article>;
-        }) : <p className="control-diario__vacio">No hay personal activo visible para esta sucursal.</p>}
-      </div>
+          }) : <p className="control-diario__vacio">No hay personal activo visible para esta sucursal.</p>}
+        </div>
+        <p>“Falta por confirmar” indica un turno terminado sin entrada registrada; requiere revisión de Dirección.</p>
+        <footer className="control-diario__pie">
+          <span>{control.metricas.sinPerfil} perfiles pendientes · {control.metricas.sinAcceso} sin acceso · {control.metricas.descansan} descansan</span>
+          <span>{actualizadoAt ? `Datos actualizados · ${control.metricas.presentes} entrada${control.metricas.presentes === 1 ? "" : "s"} encontrada${control.metricas.presentes === 1 ? "" : "s"} · ${horaMexico(actualizadoAt)}` : "Pendiente de actualizar"}</span>
+        </footer>
+      </details>
 
       {error && <p className="control-diario__error" role="alert">{error}</p>}
-      <p>“Falta por confirmar” indica un turno terminado sin entrada registrada; requiere revisión de Dirección.</p>
-      <footer className="control-diario__pie">
-        <span>{control.metricas.sinPerfil} perfiles pendientes · {control.metricas.sinAcceso} sin acceso · {control.metricas.descansan} descansan</span>
-        <span>{actualizadoAt ? `Datos actualizados · ${control.metricas.presentes} entrada${control.metricas.presentes === 1 ? "" : "s"} encontrada${control.metricas.presentes === 1 ? "" : "s"} · ${horaMexico(actualizadoAt)}` : "Pendiente de actualizar"}</span>
-      </footer>
     </section>
   );
 }

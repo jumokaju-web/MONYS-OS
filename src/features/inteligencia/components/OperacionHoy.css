@@ -44,6 +44,31 @@
   line-height: 1.3;
 }
 
+.operation-date-picker {
+  margin-top: 8px;
+  max-width: 310px;
+  border: 1px solid #e6d8e1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.operation-date-picker > summary {
+  padding: 8px 10px;
+  color: #713657;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.operation-date-picker > label,
+.operation-date-picker > small {
+  display: grid;
+  gap: 5px;
+  margin: 0 10px 9px;
+  color: #6f5f68;
+  font-size: 12px;
+}
+
 .operation-evidence-gallery {
   margin: 0 0 18px;
   padding: 16px;
@@ -58,15 +83,18 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  cursor: pointer;
+  list-style-position: inside;
 }
 
-.operation-evidence-gallery__heading p {
+.operation-evidence-gallery__heading small {
+  display: block;
   margin: 4px 0 0;
   color: #756872;
   font-size: 13px;
 }
 
-.operation-evidence-gallery__heading > span {
+.operation-evidence-gallery__heading > strong {
   flex: 0 0 auto;
   padding: 5px 10px;
   border-radius: 999px;
@@ -74,6 +102,11 @@
   color: #713657;
   font-size: 12px;
   font-weight: 800;
+}
+
+.operation-evidence-gallery[open] .operation-evidence-gallery__heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee4ea;
 }
 
 .operation-evidence-gallery__grid {

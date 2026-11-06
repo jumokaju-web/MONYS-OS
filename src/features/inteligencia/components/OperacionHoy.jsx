@@ -506,16 +506,12 @@ export default function OperacionHoy({
             ⚡ Operación de Hoy
           </h2>
 
-          <p
-            style={{
-              marginTop: "6px",
-              opacity: 0.7,
-            }}
-          >
-            {fechaHoy}
-          </p>
-          <label>Consultar tareas del día<input type="date" value={fechaConsulta} onChange={e=>{if(fechaConsejoValida(e.target.value))setFechaConsulta(e.target.value);}} /></label>
-          <p>La consulta cambia las tareas visibles; asistencia, rutina y nuevas tareas siguen correspondiendo a hoy.</p>
+          <p style={{ marginTop: "6px", opacity: 0.7 }}>Hoy · {fechaHoy}</p>
+          <details className="operation-date-picker">
+            <summary>Consultar otro día</summary>
+            <label>Fecha de las tareas<input type="date" value={fechaConsulta} onChange={e=>{if(fechaConsejoValida(e.target.value))setFechaConsulta(e.target.value);}} /></label>
+            <small>La asistencia, la rutina y las tareas nuevas siguen correspondiendo a hoy.</small>
+          </details>
         </div>
 
         <div
@@ -536,33 +532,6 @@ export default function OperacionHoy({
         </div>
       </div>
 
-      <section className="operation-evidence-gallery" aria-labelledby="operation-evidence-title">
-        <div className="operation-evidence-gallery__heading">
-          <div>
-            <h3 id="operation-evidence-title">📷 Fotos recibidas hoy</h3>
-            <p>Abre una foto para verla completa.</p>
-          </div>
-          <span>{Object.values(evidenciasPorTarea).reduce((total, lista) => total + (lista?.length || 0), 0)} fotos</span>
-        </div>
-        {cargando ? <p>Consultando evidencias…</p> : (
-          <div className="operation-evidence-gallery__grid">
-            {tareas.flatMap((tarea) => (evidenciasPorTarea[tarea.id] || []).map((evidencia) => (
-              <article key={evidencia.id}>
-                <div>
-                  <strong>{tarea.titulo}</strong>
-                  <span>{tarea.responsable || "Responsable pendiente"} · {evidencia.tipo === "final" ? "Foto final" : evidencia.tipo === "inicio" ? "Foto inicial" : "Evidencia"}</span>
-                </div>
-                <a href={evidencia.archivo_url} target="_blank" rel="noreferrer" aria-label={`Abrir evidencia de ${tarea.titulo}`}>
-                  <img src={evidencia.archivo_url} alt={`Evidencia ${evidencia.tipo} de ${tarea.titulo}`} />
-                  <b>Abrir foto ↗</b>
-                </a>
-              </article>
-            )))}
-            {!tareas.some((tarea) => (evidenciasPorTarea[tarea.id] || []).length > 0) && <p>No hay fotos recibidas hoy.</p>}
-          </div>
-        )}
-      </section>
-
       <ControlDiarioSucursal
         branchId={branchId}
         fecha={fechaHoy}
@@ -578,6 +547,33 @@ export default function OperacionHoy({
         datosDashboard={datosDashboard}
         onGuardada={cargarTareas}
       />
+
+      <details className="operation-evidence-gallery">
+        <summary className="operation-evidence-gallery__heading">
+          <span>
+            <b id="operation-evidence-title">📷 Fotos recibidas hoy</b>
+            <small>Abre únicamente cuando necesites comprobar una evidencia.</small>
+          </span>
+          <strong>{Object.values(evidenciasPorTarea).reduce((total, lista) => total + (lista?.length || 0), 0)} fotos</strong>
+        </summary>
+        {cargando ? <p>Consultando evidencias…</p> : (
+          <div className="operation-evidence-gallery__grid" aria-labelledby="operation-evidence-title">
+            {tareas.flatMap((tarea) => (evidenciasPorTarea[tarea.id] || []).map((evidencia) => (
+              <article key={evidencia.id}>
+                <div>
+                  <strong>{tarea.titulo}</strong>
+                  <span>{tarea.responsable || "Responsable pendiente"} · {evidencia.tipo === "final" ? "Foto final" : evidencia.tipo === "inicio" ? "Foto inicial" : "Evidencia"}</span>
+                </div>
+                <a href={evidencia.archivo_url} target="_blank" rel="noreferrer" aria-label={`Abrir evidencia de ${tarea.titulo}`}>
+                  <img src={evidencia.archivo_url} alt={`Evidencia ${evidencia.tipo} de ${tarea.titulo}`} />
+                  <b>Abrir foto ↗</b>
+                </a>
+              </article>
+            )))}
+            {!tareas.some((tarea) => (evidenciasPorTarea[tarea.id] || []).length > 0) && <p>No hay fotos recibidas hoy.</p>}
+          </div>
+        )}
+      </details>
 
       <form
         onSubmit={

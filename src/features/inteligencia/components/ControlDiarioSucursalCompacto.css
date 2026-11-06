@@ -1,0 +1,33 @@
+.control-diario__equipo {
+  overflow: hidden;
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.control-diario__equipo > summary {
+  padding: 13px 14px;
+  color: #6d2f50;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.control-diario__equipo[open] > summary {
+  border-bottom: 1px solid var(--linea);
+}
+
+.control-diario__equipo > .control-diario__lista {
+  padding: 12px;
+}
+
+.control-diario__equipo > p {
+  margin: 0;
+  padding: 0 14px 12px;
+  color: var(--suave);
+  font-size: 11px;
+}
+
+.control-diario__equipo > .control-diario__pie {
+  padding: 0 14px 13px;
+}
