@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { supabase } from '../../../supabase';
 import OperacionEmpleado from './OperacionEmpleado';
 import CierreTurno from './CierreTurno';
 import RegistroProductoSolicitado from './RegistroProductoSolicitado';
@@ -18,6 +19,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
   const [resumenTareas, setResumenTareas] = useState({ cargando: true, pendientes: 0, enProceso: 0, terminadas: 0 });
   const [corteGuardado, setCorteGuardado] = useState(null);
   const [incidenciaInicial, setIncidenciaInicial] = useState(null);
+  const [sucursalNombre, setSucursalNombre] = useState(usuario?.sucursal || datosDashboard?.branch_name || '');
   const destino = useRef(null);
   const primeraVista = useRef(true);
   const opciones = [
@@ -49,6 +51,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
     terminadas: resumenTareas.terminadas,
   });
   const primerNombre = String(usuario?.nombre || 'equipo').trim().split(/\s+/)[0];
+  const sucursalVisible = usuario?.cobertura_sucursal?.nombre || sucursalNombre || 'Sucursal por confirmar';
   const detalleVista = {
     WHATSAPP: {
       kicker: 'AYUDA PARA CONVERTIR MENSAJES EN VENTAS',
@@ -99,10 +102,19 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
     }
     destino.current?.focus({ preventScroll: true });
   }, [vista]);
+  useEffect(() => {
+    let activo = true;
+    if (usuario?.sucursal || datosDashboard?.branch_name || !branchId) return () => { activo = false; };
+    supabase.from('branches').select('name').eq('id', branchId).maybeSingle().then(({ data, error }) => {
+      if (!activo) return;
+      if (!error && data?.name) setSucursalNombre(data.name);
+    });
+    return () => { activo = false; };
+  }, [branchId, datosDashboard?.branch_name, usuario?.sucursal]);
   const vistaActual = detalleVista[vista];
 
   return <main className="tienda-shell">
-    <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>{saludoTurno()}, {primerNombre} 🌸</h1><p>{usuario?.sucursal || 'Sucursal por confirmar'} · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
+    <header className="tienda-header"><div><span>MONYS OS · MI TIENDA</span><h1>{saludoTurno()}, {primerNombre} 🌸</h1><p><b>{sucursalVisible}</b> · {usuario?.puesto || 'Operación de tienda'}</p></div><button type="button" onClick={salir}>Salir</button></header>
     <div className={`tienda-contenido${vista !== 'HOY' ? ' tienda-contenido--subvista' : ''}`}>
       <section className="tienda-home" hidden={vista !== 'HOY'} ref={vista === 'HOY' ? destino : null} tabIndex={-1} aria-label="Trabajo de hoy">
         {usuario?.cobertura_sucursal && <section role="status" style={{ display: 'grid', gap: 7, padding: 16, marginBottom: 14, border: '2px solid #a82c68', borderRadius: 16, background: '#fff4f8', color: '#50263a' }}>
@@ -149,7 +161,7 @@ export default function InicioTienda({ usuario, datosDashboard, branchId, respon
         <details className="tienda-ruta-plegada">
           <summary>Ver la guía completa de mi turno</summary>
           <div className="tienda-home-intro">
-            <p className="tienda-kicker">TU TURNO · {usuario?.sucursal || 'SUCURSAL'}</p>
+            <p className="tienda-kicker">TU TURNO · {sucursalVisible}</p>
             <h2>Haz lo importante y deja evidencia</h2>
             <p>MONYS conserva lo que registras para que Dirección pueda decidir con datos reales.</p>
             <ol className="tienda-ruta" aria-label="Ruta del turno">

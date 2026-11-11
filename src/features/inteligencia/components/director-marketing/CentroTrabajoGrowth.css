@@ -162,6 +162,25 @@
   text-transform: capitalize;
 }
 
+.growth-workspace__header-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.growth-workspace__logout {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid rgba(113, 29, 74, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--growth-wine);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .growth-workspace__company {
   display: inline-flex;
   align-items: center;

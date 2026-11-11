@@ -138,12 +138,8 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
           ENCABEZADO MÓVIL
           ====================================== */}
 
-      <header
-        className={
-          esMarketing
-            ? "employee-home__header employee-home__header--growth"
-            : "employee-home__header"
-        }
+      {!esMarketing && <header
+        className="employee-home__header"
         style={{
           position: "sticky",
           top: 0,
@@ -221,7 +217,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
             Salir
           </button>
         </div>
-      </header>
+      </header>}
 
       {/* ======================================
           CONTENIDO
@@ -356,6 +352,7 @@ export default function InicioEmpleado({ usuario, datosDashboard, permisos = [] 
             branchId={branchId}
             usuario={usuario}
             datosDashboard={datosDashboard}
+            onCerrarSesion={cerrarSesion}
           />
         </div>
 

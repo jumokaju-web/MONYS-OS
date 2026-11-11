@@ -131,6 +131,7 @@ export default function CentroTrabajoGrowth({
   onCambiarEspacio,
   vistaActiva = "HOY",
   mostrarAnalisisCompleto = false,
+  onCerrarSesion,
 }) {
   const estado = estadoPrioridad(tareaPrioritaria);
 
@@ -665,7 +666,10 @@ export default function CentroTrabajoGrowth({
         </div>
 
         <div className="growth-workspace__company-panel">
-          <span className="growth-workspace__date">{fechaLocal()}</span>
+          <div className="growth-workspace__header-actions">
+            <span className="growth-workspace__date">{fechaLocal()}</span>
+            {onCerrarSesion && <button type="button" className="growth-workspace__logout" onClick={onCerrarSesion}>Salir</button>}
+          </div>
           <button
             type="button"
             className="growth-workspace__company"

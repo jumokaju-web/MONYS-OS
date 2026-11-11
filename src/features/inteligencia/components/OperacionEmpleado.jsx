@@ -297,6 +297,7 @@ export default function OperacionEmpleado({
   onAbrirCorte = null,
   onReportarProblema = null,
   corteGuardado = null,
+  onCerrarSesion = null,
 }) {
   const esCentroGrowth = esPerfilGrowth(usuario || {});
   const [seccionGrowthVisible, setSeccionGrowthVisible] = useState("HOY");
@@ -1243,11 +1244,7 @@ export default function OperacionEmpleado({
   }
 
   return (
-    <section
-      style={{
-        padding: "16px",
-      }}
-    >
+    <section style={{ padding: esCentroGrowth ? 0 : "16px" }}>
       {esCentroGrowth && (
         <CentroTrabajoGrowth
           usuario={usuario}
@@ -1313,6 +1310,7 @@ export default function OperacionEmpleado({
             setClaveEspacioGrowthActivo
           }
           vistaActiva={seccionGrowthVisible}
+          onCerrarSesion={onCerrarSesion}
         />
       )}
 
