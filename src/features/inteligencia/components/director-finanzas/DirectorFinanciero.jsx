@@ -15,6 +15,7 @@ import { consolidarFinanzasSucursales } from "../../shared/resumenSucursalesFina
 import CierreSemanalFinanciero from "./CierreSemanalFinanciero";
 import TarjetaIndicador from "../shared/TarjetaIndicador";
 import CentroRescateFinanciero from "./CentroRescateFinanciero";
+import ComparativoSucursalesRescate from "./ComparativoSucursalesRescate";
 import PlanRescate30Dias from "./PlanRescate30Dias";
 import TableroVisualFinanciero from "./TableroVisualFinanciero";
 import TendenciaSemanalSucursales from "./TendenciaSemanalSucursales";
@@ -639,7 +640,7 @@ const historial =
   }
 
   if (vistaFinanciera === "rescate") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={flujoNetoTesoreria} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ComparativoSucursalesRescate sucursales={sucursalesDashboard} baseVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={flujoNetoTesoreria} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
   }
 
   if (vistaFinanciera === "proveedores") {
@@ -907,6 +908,12 @@ const historial =
         flujoNetoPeriodo={flujoNetoTesoreria}
         reservaRecomendada={reservaRecomendada}
         baseFinancieraVigente={ventasVigentes}
+        movimientosPendientes={movimientosPendientes}
+      />
+
+      <ComparativoSucursalesRescate
+        sucursales={sucursalesDashboard}
+        baseVigente={ventasVigentes}
         movimientosPendientes={movimientosPendientes}
       />
 
