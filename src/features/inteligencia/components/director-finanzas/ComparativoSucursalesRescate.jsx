@@ -9,11 +9,14 @@ const dinero = (valor) => new Intl.NumberFormat("es-MX", {
   maximumFractionDigits: 0,
 }).format(Number(valor) || 0);
 
-const porcentaje = (valor) => `${Number(valor || 0).toFixed(1)}%`;
+const porcentaje = (valor) => valor === null || valor === undefined
+  ? "Pendiente"
+  : `${Number(valor).toFixed(1)}%`;
 
 export default function ComparativoSucursalesRescate({
   sucursales = [],
   baseVigente = false,
+  antiguedadDias = null,
   movimientosPendientes = 0,
 }) {
   const filas = construirComparativoSucursales(sucursales);
@@ -52,9 +55,14 @@ export default function ComparativoSucursalesRescate({
           : comparacion.mensaje}
       </p>
 
-      {!baseVigente && (
+      {!baseVigente && Number.isFinite(Number(antiguedadDias)) && (
         <p role="alert" style={{ padding: 11, background: "#fff1d2", borderRadius: 10, color: "#704d0c" }}>
-          Este corte ya tiene más de 7 días. Sirve como antecedente, no como lectura de esta semana. Actualiza ambos reportes SICAR con las mismas fechas.
+          Este corte tiene {antiguedadDias} días. Sirve como antecedente, no como lectura de esta semana. Actualiza ambos reportes SICAR con las mismas fechas.
+        </p>
+      )}
+      {!baseVigente && antiguedadDias === null && (
+        <p role="alert" style={{ padding: 11, background: "#fff1d2", borderRadius: 10, color: "#704d0c" }}>
+          No hay una fecha de corte válida para esta base. Importa reportes SICAR actuales y comparables antes de decidir.
         </p>
       )}
 
