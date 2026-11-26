@@ -640,7 +640,7 @@ const historial =
   }
 
   if (vistaFinanciera === "rescate") {
-    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ComparativoSucursalesRescate sucursales={sucursalesDashboard} baseVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={flujoNetoTesoreria} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
+    return <section className="finanzas-centro">{encabezadoCentroFinanciero()}<ComparativoSucursalesRescate sucursales={sucursalesDashboard} baseVigente={ventasVigentes} antiguedadDias={antiguedadVentasDias} movimientosPendientes={movimientosPendientes} /><CentroRescateFinanciero organizationId={organizationId} businessId={businessId} branchId={branchId} flujoNetoPeriodo={flujoNetoTesoreria} reservaRecomendada={reservaRecomendada} baseFinancieraVigente={ventasVigentes} movimientosPendientes={movimientosPendientes} /><PlanRescate30Dias organizationId={organizationId} businessId={businessId} branchId={branchId} /></section>;
   }
 
   if (vistaFinanciera === "proveedores") {
@@ -914,6 +914,7 @@ const historial =
       <ComparativoSucursalesRescate
         sucursales={sucursalesDashboard}
         baseVigente={ventasVigentes}
+        antiguedadDias={antiguedadVentasDias}
         movimientosPendientes={movimientosPendientes}
       />
 
