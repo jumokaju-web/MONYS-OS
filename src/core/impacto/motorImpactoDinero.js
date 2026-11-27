@@ -94,10 +94,23 @@ function clavePorCodigo(codigo) {
  * queda en null (faltante) para no repartir una utilidad parcial entre
  * todas las piezas. Lo mismo para el precio.
  *
- * Cero real vs. ausente: el importador hoy guarda 0 cuando la columna no
- * existe. Por eso una utilidad 0 con importe > 0 no se toma como dato,
- * salvo que la fila traiga utilidadDisponible === true (cero confirmado).
+ * Cero real vs. ausente: ver datoConfiable. Las banderas
+ * utilidadDisponible / importeDisponible (cuando el importador las guarda)
+ * prevalecen sobre el valor numérico.
  */
+/*
+ * Un valor del reporte es confiable si:
+ * - la bandera de disponibilidad no lo niega (false siempre gana), y
+ * - es distinto de cero, o es cero con la bandera en true.
+ * El importador guardaba 0 cuando la columna no existía, así que un cero
+ * sin confirmación nunca se toma como dato real.
+ */
+function datoConfiable(valor, disponible) {
+  if (disponible === false || valor === null) return false;
+  if (valor === 0) return disponible === true;
+  return true;
+}
+
 export function resumirMargenesPorProducto(ventas = []) {
   const acumulado = new Map();
 
@@ -116,16 +129,13 @@ export function resumirMargenesPorProducto(ventas = []) {
     registro.piezas += piezas;
 
     const importe = numero(venta?.importe);
-    const importeConfiable =
-      importe !== null && importe >= 0 && (importe > 0 || venta?.importeDisponible === true);
-    if (importeConfiable) {
+    if (datoConfiable(importe, venta?.importeDisponible) && importe >= 0) {
       registro.importe += importe;
       registro.piezasConImporte += piezas;
     }
 
     const utilidad = numero(venta?.utilidad);
-    const ceroDudoso = utilidad === 0 && importe !== null && importe > 0 && venta?.utilidadDisponible !== true;
-    if (utilidad !== null && !ceroDudoso) {
+    if (datoConfiable(utilidad, venta?.utilidadDisponible)) {
       registro.utilidad += utilidad;
       registro.piezasConUtilidad += piezas;
     }
@@ -163,18 +173,25 @@ export function resumirMargenesPorProducto(ventas = []) {
 /*
  * Traspaso entre sucursales, comparado contra no traspasar.
  *
- * Venta nueva en destino = lo que el destino vende en el horizonte menos
- *   lo que ya cubre su existencia (no más que las piezas traspasadas).
- * Venta perdida en origen = demanda del origen en el horizonte que ya no
- *   alcanza a cubrir con lo que le queda.
- * ganancia = (venta nueva destino − venta perdida origen) × utilidad por
- *            pieza − costo del traslado.
- * ahorro   = solo si sin el traspaso se compraría esa mercancía
- *            (compraEvitada === true); si no está confirmado, queda null.
+ * Con D = demanda del periodo y S = existencia:
+ * - Venta nueva en destino = min(Dd, Sd + p) − min(Dd, Sd)
+ * - Venta perdida en origen = min(Do, So) − min(Do, So − p)
+ *   (solo lo que el traspaso le quita; no se le atribuye un faltante
+ *   que el origen ya tenía).
+ * ganancia = venta nueva × utilidad en destino
+ *          − venta perdida × utilidad en origen − costo del traslado.
+ *
+ * Costo del traslado: si no se captura, se calcula con 0 pero el
+ * resultado lo declara (costoTrasladoConfirmado: false + faltante).
+ *
+ * Ahorro (compra evitada): solo con compraEvitada === true, confirmada
+ * por un plan de compra, y limitado a unidadesCompraEvitada si se
+ * informa. La necesidad de inventario por sí sola no confirma compra.
  */
 export function calcularImpactoTraspaso({
   cantidad,
   utilidadUnitaria,
+  utilidadUnitariaOrigen = null,
   costoUnitario = null,
   ventaDiariaDestino,
   existenciaDestino,
@@ -183,57 +200,80 @@ export function calcularImpactoTraspaso({
   diasHorizonte = DIAS_HORIZONTE_TRASPASO,
   costoTraslado = null,
   compraEvitada = null,
+  unidadesCompraEvitada = null,
 } = {}) {
   const piezas = piezasValidas(cantidad);
-  const utilidad = numero(utilidadUnitaria);
+  const utilidadDestino = numero(utilidadUnitaria);
+  const origenInformado = utilidadUnitariaOrigen !== null && utilidadUnitariaOrigen !== undefined;
+  const utilidadOrigen = origenInformado ? numero(utilidadUnitariaOrigen) : utilidadDestino;
   const ritmoDestino = numero(ventaDiariaDestino);
   const stockDestino = numero(existenciaDestino);
   const ritmoOrigen = numero(ventaDiariaOrigen);
   const stockOrigen = numero(existenciaOrigen);
   const horizonte = numero(diasHorizonte);
+  const trasladoCapturado = !(costoTraslado === null || costoTraslado === undefined || (typeof costoTraslado === "string" && !costoTraslado.trim()));
   const traslado = opcionalNoNegativo(costoTraslado);
   const costo = numero(costoUnitario);
+  const tope = unidadesCompraEvitada === null || unidadesCompraEvitada === undefined
+    ? { valor: null, valido: true }
+    : opcionalNoNegativo(unidadesCompraEvitada, null);
 
   const faltantes = [];
   if (piezas === null) faltantes.push("piezas a traspasar (entero mayor a cero)");
-  if (utilidad === null) faltantes.push("utilidad por pieza completa (reporte Ventas por artículo con utilidad)");
+  if (utilidadDestino === null) faltantes.push("utilidad por pieza completa en destino (reporte Ventas por artículo con utilidad)");
+  if (origenInformado && utilidadOrigen === null) faltantes.push("utilidad por pieza válida en origen");
   if (ritmoDestino === null || ritmoDestino < 0) faltantes.push("venta diaria de la sucursal destino");
   if (stockDestino === null) faltantes.push("existencia de la sucursal destino");
   if (ritmoOrigen === null || ritmoOrigen < 0) faltantes.push("venta diaria de la sucursal origen");
-  if (stockOrigen === null) faltantes.push("existencia de la sucursal origen");
+  if (stockOrigen === null || stockOrigen < 0) faltantes.push("existencia de la sucursal origen (cero o más)");
   if (horizonte === null || horizonte <= 0) faltantes.push("días del horizonte (mayor a cero)");
   if (!traslado.valido) faltantes.push("costo del traslado válido (cero o más)");
-  if (piezas !== null && stockOrigen !== null && piezas > stockOrigen) {
+  if (!tope.valido) faltantes.push("unidades de compra evitada válidas");
+  if (piezas !== null && stockOrigen !== null && stockOrigen >= 0 && piezas > stockOrigen) {
     faltantes.push("existencia suficiente en origen para las piezas a traspasar");
   }
   if (faltantes.length) return faltan("traspaso", faltantes);
 
+  // Existencia negativa en destino es un error de inventario: no cubre demanda.
+  const stockDestinoUtil = Math.max(0, stockDestino);
   const demandaDestino = Math.floor(ritmoDestino * horizonte);
-  const ventaNuevaDestino = Math.min(piezas, Math.max(0, demandaDestino - Math.max(0, stockDestino)));
+  const ventaNuevaDestino =
+    Math.min(demandaDestino, stockDestinoUtil + piezas) - Math.min(demandaDestino, stockDestinoUtil);
   const demandaOrigen = Math.floor(ritmoOrigen * horizonte);
   const quedaEnOrigen = stockOrigen - piezas;
-  const ventaPerdidaOrigen = Math.min(piezas, Math.max(0, demandaOrigen - Math.max(0, quedaEnOrigen)));
-  const ganancia = (ventaNuevaDestino - ventaPerdidaOrigen) * utilidad - traslado.valor;
+  const ventaPerdidaOrigen =
+    Math.min(demandaOrigen, stockOrigen) - Math.min(demandaOrigen, quedaEnOrigen);
+  const ganancia =
+    ventaNuevaDestino * utilidadDestino - ventaPerdidaOrigen * utilidadOrigen - traslado.valor;
 
   const faltantesResultado = [];
+  if (!trasladoCapturado) faltantesResultado.push("costo del traslado (se calculó como 0)");
+
   let ahorro = null;
-  if (compraEvitada === true && costo !== null && costo > 0) {
-    ahorro = piezas * costo;
-  } else if (compraEvitada === true) {
-    faltantesResultado.push("costo por pieza para calcular la compra evitada");
+  let unidadesEvitadas = null;
+  if (compraEvitada === true) {
+    unidadesEvitadas = tope.valor === null ? piezas : Math.min(piezas, Math.floor(tope.valor));
+    if (costo !== null && costo > 0) ahorro = unidadesEvitadas * costo;
+    else faltantesResultado.push("costo por pieza para calcular la compra evitada");
   } else {
-    faltantesResultado.push("confirmar que sin el traspaso se compraría esta mercancía");
+    faltantesResultado.push("plan de compra que confirme la compra evitada");
   }
 
   const supuestos = [
-    `En ${horizonte} días el destino vende ${demandaDestino} piezas; ya tiene ${Math.max(0, stockDestino)}, así que el traspaso agrega ${ventaNuevaDestino} ventas.`,
+    `En ${horizonte} días el destino vende ${demandaDestino} piezas; ya tiene ${stockDestinoUtil}, así que el traspaso agrega ${ventaNuevaDestino} ventas.`,
     ventaPerdidaOrigen > 0
       ? `El origen deja de vender ${ventaPerdidaOrigen} piezas por quedarse con ${quedaEnOrigen}.`
       : `El origen conserva ${quedaEnOrigen} piezas, suficientes para su venta del periodo.`,
-    `Utilidad por pieza según SICAR: ${redondear(utilidad)}.`,
+    origenInformado && utilidadOrigen !== utilidadDestino
+      ? `Utilidad por pieza según SICAR: ${redondear(utilidadDestino)} en destino y ${redondear(utilidadOrigen)} en origen.`
+      : `Utilidad por pieza según SICAR: ${redondear(utilidadDestino)}.`,
+    trasladoCapturado
+      ? `Costo del traslado: ${redondear(traslado.valor)}.`
+      : "Costo del traslado no capturado: se calculó como 0; la ganancia real será menor si el traslado cuesta.",
   ];
-  if (traslado.valor > 0) supuestos.push(`Costo del traslado: ${redondear(traslado.valor)}.`);
-  if (ahorro !== null) supuestos.push("El ahorro es la compra que se evita con el traspaso; mejora la caja, no la utilidad.");
+  if (ahorro !== null) {
+    supuestos.push(`Evita comprar ${unidadesEvitadas} piezas según el plan de compra; mejora la caja, no la utilidad.`);
+  }
 
   return {
     tipo: "traspaso",
@@ -242,6 +282,8 @@ export function calcularImpactoTraspaso({
     ahorro: ahorro === null ? null : redondear(ahorro),
     ventaNuevaDestino,
     ventaPerdidaOrigen,
+    unidadesCompraEvitada: unidadesEvitadas,
+    costoTrasladoConfirmado: trasladoCapturado,
     diasHorizonte: horizonte,
     faltantes: faltantesResultado,
     supuestos,
@@ -465,13 +507,15 @@ export function calcularImpactoPagoDeuda({
   const pago = numero(monto);
   const tasa = numero(tasaAnual);
   const dias = numero(diasAnticipo);
-  const cargo = numero(cargoEvitado) ?? 0;
+  const cargoInformado = opcionalNoNegativo(cargoEvitado);
+  const cargo = cargoInformado.valor ?? 0;
 
   const faltantes = [];
   if (!deuda || deuda <= 0) faltantes.push("saldo de la deuda");
   if (!pago || pago <= 0) faltantes.push("monto a pagar");
   if (tasa === null || tasa < 0) faltantes.push("tasa de interés anual");
   if (dias === null || dias < 0) faltantes.push("días de anticipo");
+  if (!cargoInformado.valido) faltantes.push("cargo evitado válido (cero o más)");
   if (faltantes.length) return faltan("pago_deuda", faltantes);
 
   const aplicado = Math.min(pago, deuda);

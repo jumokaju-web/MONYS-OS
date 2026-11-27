@@ -68,7 +68,7 @@ test("traspaso: venta nueva en destino y ahorro solo con compra evitada", () => 
   assert.equal(sinCompra.ventaNuevaDestino, 10);
   assert.equal(sinCompra.ganancia, 10 * 80 - 60);
   assert.equal(sinCompra.ahorro, null);
-  assert.ok(sinCompra.faltantes.some((texto) => texto.includes("se compraría")));
+  assert.ok(sinCompra.faltantes.some((texto) => texto.includes("plan de compra")));
 
   const conCompra = calcularImpactoTraspaso({ ...traspasoBase, compraEvitada: true });
   assert.equal(conCompra.ahorro, 1200);
@@ -226,4 +226,56 @@ test("escenarios excluyentes: misma mercancía a dos destinos suma solo la mejor
   assert.equal(resumen.ahorro, 1200);
   assert.equal(resumen.accionesSumadas, 1);
   assert.equal(resumen.accionesExcluidasPorEscenario, 1);
+});
+
+/* ---------- Segunda revisión de ChatGPT/Codex ---------- */
+
+test("banderas de disponibilidad en false prevalecen sobre el número", () => {
+  const margen = resumirMargenesPorProducto([
+    { codigo: "A", cantidad: 2, importe: 200, utilidad: 80, utilidadDisponible: false },
+    { codigo: "B", cantidad: 2, importe: 200, importeDisponible: false, utilidad: 80 },
+  ]);
+  assert.equal(margen.get("codigo:a").utilidadUnitaria, null);
+  assert.equal(margen.get("codigo:b").precioPromedio, null);
+  assert.equal(margen.get("codigo:b").utilidadUnitaria, 40);
+});
+
+test("cero sin importe tampoco es cero confirmado", () => {
+  const margen = resumirMargenesPorProducto([{ codigo: "A", cantidad: 2, importe: 0, utilidad: 0 }]).get("codigo:a");
+  assert.equal(margen.utilidadUnitaria, null);
+  assert.equal(margen.precioPromedio, null);
+});
+
+test("venta perdida en origen solo cuenta lo que quita el traspaso", () => {
+  // Origen: stock 10, demanda 20 (ya le faltan 10). Traspasa 3 → pierde 3, no 13.
+  const impacto = calcularImpactoTraspaso({ ...traspasoBase, cantidad: 3, existenciaOrigen: 10, ventaDiariaOrigen: 20 / 14 });
+  assert.equal(impacto.ventaPerdidaOrigen, 3);
+  // Origen negativo es inventario por revisar, no se calcula.
+  assert.equal(calcularImpactoTraspaso({ ...traspasoBase, existenciaOrigen: -4 }).estado, ESTADOS_IMPACTO.FALTAN_DATOS);
+});
+
+test("usa el margen de cada sucursal: venta nueva al del destino, perdida al del origen", () => {
+  const impacto = calcularImpactoTraspaso({
+    ...traspasoBase, existenciaOrigen: 22, ventaDiariaOrigen: 1, utilidadUnitaria: 80, utilidadUnitariaOrigen: 50,
+  });
+  assert.equal(impacto.ganancia, 10 * 80 - 2 * 50);
+});
+
+test("costo de traslado desconocido se declara, no se presenta como gratis", () => {
+  const impacto = calcularImpactoTraspaso(traspasoBase);
+  assert.equal(impacto.costoTrasladoConfirmado, false);
+  assert.ok(impacto.faltantes.some((texto) => texto.includes("costo del traslado")));
+  assert.ok(impacto.supuestos.some((texto) => texto.includes("no capturado")));
+  assert.equal(calcularImpactoTraspaso({ ...traspasoBase, costoTraslado: 0 }).costoTrasladoConfirmado, true);
+});
+
+test("compra evitada se limita a las unidades del plan de compra", () => {
+  const impacto = calcularImpactoTraspaso({ ...traspasoBase, compraEvitada: true, unidadesCompraEvitada: 4 });
+  assert.equal(impacto.unidadesCompraEvitada, 4);
+  assert.equal(impacto.ahorro, 4 * 120);
+});
+
+test("cargo evitado inválido en deuda no se vuelve cero", () => {
+  const impacto = calcularImpactoPagoDeuda({ saldo: 1000, monto: 500, tasaAnual: 0.5, diasAnticipo: 30, cargoEvitado: -10 });
+  assert.equal(impacto.estado, ESTADOS_IMPACTO.FALTAN_DATOS);
 });
