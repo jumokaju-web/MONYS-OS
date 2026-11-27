@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 13466)
-Total output lines: 1742
-
 import HistorialImportaciones from './HistorialImportaciones';
 import {
   useEffect,
@@ -827,7 +824,204 @@ if (
                     tipoResumen: item.resumen.tipoResumen,
                     totalRegistros: item.resumen.totalRegistros,
                     grupos: item.resumen.grupos,
-                    totalSal…1466 tokens truncated…o}
+                    totalSalidasCheque: item.resumen.totalSalidasCheque,
+                    chequesSinConcepto: item.resumen.chequesSinConcepto,
+                  }
+                : item.resumen;
+              registrarConocimientoReporte({
+                tipoReporte: item.tipoReporte,
+                resumen: resumenMemoria,
+                nombreArchivo: item.nombre,
+              });
+            }
+
+            if (item.tipoReporte === "Ventas por artículo" && item.resumen) {
+              const actualizacionVentas = {
+                productosVendidos: item.datosNormalizados,
+              };
+
+              if (item.resumen.ventaDisponible !== false && Number.isFinite(item.resumen.ventaTotal)) {
+                actualizacionVentas.total = item.resumen.ventaTotal;
+              }
+              if (item.resumen.utilidadDisponible !== false && Number.isFinite(item.resumen.utilidadTotal)) {
+                actualizacionVentas.utilidad = item.resumen.utilidadTotal;
+              }
+              if (item.resumen.ventaDisponible !== false && item.resumen.utilidadDisponible !== false && item.resumen.ventaTotal > 0) {
+                actualizacionVentas.margen = (item.resumen.utilidadTotal / item.resumen.ventaTotal) * 100;
+              }
+
+              actualizarEmpresa("ventas", actualizacionVentas);
+            }
+
+            if (item.tipoReporte === "Utilidad de ventas" && item.resumen) {
+              actualizarEmpresa("ventas", {
+                total: item.resumen.ventaTotal,
+                costo: item.resumen.costoTotal,
+                utilidad: item.resumen.utilidadTotal,
+                margen: item.resumen.margenUtilidad,
+                ticketPromedio: item.resumen.ticketPromedio,
+              });
+            }
+
+            if (
+              (item.tipoReporte === "Inventario" ||
+                item.tipoReporte === "Inventario / Utilidad") &&
+              item.resumen
+            ) {
+              actualizarEmpresa("inventario", {
+                valor: item.resumen.valorInventario ?? 0,
+                productos: item.datosNormalizados,
+                agotados: item.resumen.productosAgotados ?? [],
+                sobreInventario:
+                  item.resumen.productosSobreInventario ?? [],
+              });
+            }
+          } catch (errorMemoria) {
+            console.error(
+              "El reporte se guardó, pero no se pudo actualizar la memoria local:",
+              errorMemoria
+            );
+          }
+
+          actualizarArchivo(item.id, {
+            estado: "importado",
+            importacionId: importacionGuardada?.id || null,
+          });
+
+          importadosCorrectamente += 1;
+        } catch (error) {
+          console.error(
+            `Error al importar ${item.nombre}:`,
+            error
+          );
+
+          actualizarArchivo(item.id, {
+            estado: "error",
+            error:
+              `No se pudo guardar en Supabase: ${error.message}`,
+          });
+
+          importacionesConError += 1;
+        }
+      }
+
+      if (importacionesConError === 0) {
+        setMensajeGeneral(
+          `✅ Importación masiva completada. ` +
+            `${importadosCorrectamente} reportes guardados correctamente.`
+        );
+      } else {
+        setMensajeGeneral(
+          `⚠️ Se importaron ${importadosCorrectamente} reportes y ` +
+            `${importacionesConError} presentaron errores.`
+        );
+      }
+
+      if (importadosCorrectamente > 0) {
+        notificarImportacionesActualizadas();
+      }
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const indicesColumnasVisibles =
+    archivoActivo?.vistaPrevia?.length > 0
+      ? archivoActivo.vistaPrevia[0]
+          .map((encabezado, indice) => {
+            const encabezadoTieneContenido =
+              String(encabezado ?? "").trim() !== "";
+
+            const algunaFilaTieneContenido =
+              archivoActivo.vistaPrevia
+                .slice(1)
+                .some(
+                  (fila) =>
+                    String(
+                      fila[indice] ?? ""
+                    ).trim() !== ""
+                );
+
+            return encabezadoTieneContenido ||
+              algunaFilaTieneContenido
+              ? indice
+              : null;
+          })
+          .filter((indice) => indice !== null)
+      : [];
+
+  return (
+    <section
+      style={{
+        padding: "clamp(20px, 4vw, 38px)",
+        borderRadius: "24px",
+        background:
+          "linear-gradient(135deg, #fff8fc 0%, #ffffff 100%)",
+        border: "1px solid #edc6d9",
+        boxShadow:
+          "0 12px 30px rgba(122, 49, 95, 0.08)",
+      }}
+    >
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: "28px",
+        }}
+      >
+        <p
+          style={{
+            margin: "0 0 8px",
+            color: "#b44178",
+            fontWeight: "800",
+            letterSpacing: "1.3px",
+          }}
+        >
+          MONYS OS · SICAR INTELLIGENCE
+        </p>
+
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "clamp(28px, 4vw, 40px)",
+          }}
+        >
+          📥 Importador Inteligente 2.0
+        </h2>
+
+        <p
+          style={{
+            margin: "12px auto 0",
+            maxWidth: "720px",
+            color: "#6f6469",
+            lineHeight: "1.6",
+          }}
+        >
+          Selecciona o arrastra varios reportes de SICAR.
+          MONYS OS los reconocerá y preparará
+          automáticamente.
+        </p>
+      </div>
+      <div
+  style={{
+    margin: "22px auto 0",
+    maxWidth: "420px",
+    textAlign: "left",
+  }}
+>
+  <label
+    style={{
+      display: "block",
+      marginBottom: "8px",
+      fontWeight: "800",
+      color: "#7a315f",
+    }}
+  >
+    Sucursal del reporte
+  </label>
+
+  <select
+    disabled={guardando || analizando || archivosProcesados.length > 0}
+    value={branchIdSeleccionado}
     onChange={(evento) =>
       setBranchIdSeleccionado(
         evento.target.value
