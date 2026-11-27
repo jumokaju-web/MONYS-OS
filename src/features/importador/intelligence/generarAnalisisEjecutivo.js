@@ -107,6 +107,29 @@ function generarAnalisisInventario(resumen) {
 }
 
 function generarAnalisisVentas(resumen) {
+  if (Number.isFinite(Number(resumen.numeroTickets))) {
+    const ventaTotal = Number(resumen.ventaTotal || 0);
+    const utilidadTotal = Number(resumen.utilidadTotal || 0);
+    const numeroTickets = Number(resumen.numeroTickets || 0);
+    const ticketPromedio = Number(resumen.ticketPromedio || 0);
+    const margenUtilidad = ventaTotal > 0
+      ? (utilidadTotal / ventaTotal) * 100
+      : 0;
+
+    return {
+      titulo: "Radiografía de ventas y utilidad",
+      mensaje:
+        `SICAR reporta ${formatoNumero(numeroTickets)} tickets por ${formatoDinero(ventaTotal)}. ` +
+        `El costo de mercancía fue ${formatoDinero(resumen.costoTotal)}, dejando ${formatoDinero(utilidadTotal)} antes de rentas, nómina y otros gastos (${margenUtilidad.toFixed(1)}% de margen bruto). ` +
+        `El ticket promedio fue ${formatoDinero(ticketPromedio)}.`,
+      nivel: margenUtilidad >= 35
+        ? "positivo"
+        : margenUtilidad >= 25
+          ? "advertencia"
+          : "riesgo",
+    };
+  }
+
   const ventaTotal = Number(
     resumen.ventaTotal || 0
   );

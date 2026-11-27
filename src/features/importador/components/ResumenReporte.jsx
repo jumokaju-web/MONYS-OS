@@ -1,6 +1,6 @@
 import TarjetaMetrica from "./TarjetaMetrica";
 
-export default function ResumenReporte({ resumen }) {
+export default function ResumenReporte({ resumen, tipoReporte }) {
   if (!resumen) return null;
 
   const formatoDinero = (cantidad) =>
@@ -22,6 +22,8 @@ export default function ResumenReporte({ resumen }) {
       resumen,
       "valorInventario"
     );
+
+  const esUtilidadVentas = tipoReporte === "Utilidad de ventas";
 
   return (
     <section
@@ -49,7 +51,40 @@ export default function ResumenReporte({ resumen }) {
         📊 Resumen Inteligente
       </h2>
 
-      {esInventario ? (
+      {esUtilidadVentas ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+            gap: "18px",
+          }}
+        >
+          <TarjetaMetrica
+            icono="🛒"
+            titulo="Ventas del periodo"
+            valor={formatoDinero(resumen.ventaTotal)}
+            detalle={`${formatoNumero(resumen.numeroTickets)} tickets incluidos`}
+          />
+          <TarjetaMetrica
+            icono="📦"
+            titulo="Costo de mercancía"
+            valor={formatoDinero(resumen.costoTotal)}
+            detalle="Costo registrado en SICAR"
+          />
+          <TarjetaMetrica
+            icono="📈"
+            titulo="Utilidad antes de gastos"
+            valor={formatoDinero(resumen.utilidadTotal)}
+            detalle={`${Number(resumen.margenUtilidad || 0).toFixed(1)}% de margen bruto`}
+          />
+          <TarjetaMetrica
+            icono="🧾"
+            titulo="Ticket promedio"
+            valor={formatoDinero(resumen.ticketPromedio)}
+            detalle="Venta promedio por ticket"
+          />
+        </div>
+      ) : esInventario ? (
         <>
           <div
             style={{

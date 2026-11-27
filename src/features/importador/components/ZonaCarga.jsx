@@ -102,6 +102,33 @@ function generarResumen(tipoReporte, datosNormalizados) {
     return generarResumenReporte(datosNormalizados);
   }
 
+  if (tipoReporte === "Utilidad de ventas") {
+    const total = datosNormalizados.reduce(
+      (acumulado, fila) => ({
+        venta: acumulado.venta + Number(fila.ventaTotal || 0),
+        costo: acumulado.costo + Number(fila.costoTotal || 0),
+        utilidad: acumulado.utilidad + Number(fila.utilidad || 0),
+      }),
+      { venta: 0, costo: 0, utilidad: 0 }
+    );
+
+    const numeroTickets = datosNormalizados.length;
+
+    return {
+      totalRegistros: numeroTickets,
+      numeroTickets,
+      ventaTotal: total.venta,
+      costoTotal: total.costo,
+      utilidadTotal: total.utilidad,
+      margenUtilidad: total.venta > 0
+        ? (total.utilidad / total.venta) * 100
+        : 0,
+      ticketPromedio: numeroTickets > 0
+        ? total.venta / numeroTickets
+        : 0,
+    };
+  }
+
   if (
     tipoReporte === "Inventario" ||
     tipoReporte === "Inventario / Utilidad"
@@ -476,10 +503,17 @@ if (
 
 if (tipoReporte === "Ventas por artículo" && resumen) {
   actualizarEmpresa("ventas", {
-    total: resumen.ventasTotales ?? 0,
-    utilidad: resumen.utilidadTotal ?? 0,
-    margen: resumen.margenPromedio ?? 0,
     productosVendidos: datosNormalizados,
+  });
+}
+
+if (tipoReporte === "Utilidad de ventas" && resumen) {
+  actualizarEmpresa("ventas", {
+    total: resumen.ventaTotal,
+    costo: resumen.costoTotal,
+    utilidad: resumen.utilidadTotal,
+    margen: resumen.margenUtilidad,
+    ticketPromedio: resumen.ticketPromedio,
   });
 }
 
@@ -1368,6 +1402,7 @@ if (
           {archivoActivo.resumen && (
             <ResumenReporte
               resumen={archivoActivo.resumen}
+              tipoReporte={archivoActivo.tipoReporte}
             />
           )}
 
