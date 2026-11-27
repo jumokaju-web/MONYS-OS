@@ -280,6 +280,67 @@ export function calcularImpactoCampana({
 }
 
 /*
+ * ROAS histórico: mediana de venta/gasto de campañas ya medidas.
+ * Se usa la mediana para que una campaña excepcional no infle el pronóstico.
+ * historial: [{ venta, gasto }] con ambos confirmados.
+ */
+export function calcularRoasHistorico(historial = []) {
+  const valores = (historial || [])
+    .map((campana) => ({ venta: numero(campana?.venta), gasto: numero(campana?.gasto) }))
+    .filter((campana) => campana.venta !== null && campana.venta >= 0 && campana.gasto > 0)
+    .map((campana) => campana.venta / campana.gasto)
+    .sort((a, b) => a - b);
+
+  if (!valores.length) {
+    return { roas: null, campanas: 0, confianza: "sin_datos" };
+  }
+  const mitad = Math.floor(valores.length / 2);
+  const mediana = valores.length % 2 ? valores[mitad] : (valores[mitad - 1] + valores[mitad]) / 2;
+  return {
+    roas: Math.round(mediana * 100) / 100,
+    campanas: valores.length,
+    confianza: valores.length >= 3 ? "media" : "baja",
+  };
+}
+
+/*
+ * Pronóstico antes de lanzar: con el presupuesto y el ROAS histórico,
+ * cuánto se espera vender y ganar.
+ */
+export function pronosticarCampana({ presupuesto, margenBruto, historial = [] } = {}) {
+  const historico = calcularRoasHistorico(historial);
+  const gasto = numero(presupuesto);
+  const margen = numero(margenBruto);
+  const roasEquilibrio = margen > 0 && margen < 1 ? Math.round((1 / margen) * 100) / 100 : null;
+
+  if (historico.roas === null) {
+    return {
+      ...faltan("campana", ["campañas anteriores con venta y gasto confirmados"]),
+      roasEquilibrio,
+      historico,
+    };
+  }
+
+  const impacto = calcularImpactoCampana({
+    presupuesto: gasto,
+    margenBruto: margen,
+    ventasAdicionalesEstimadas: gasto === null ? null : gasto * historico.roas,
+  });
+
+  return {
+    ...impacto,
+    roasEquilibrio: impacto.roasEquilibrio ?? roasEquilibrio,
+    ventasEsperadas: gasto === null ? null : redondear(gasto * historico.roas),
+    historico,
+    supuestos: [
+      `Con base en ${historico.campanas} campaña(s) medidas, cada peso invertido trajo ${historico.roas} pesos de venta (mediana).`,
+      ...(impacto.supuestos || []),
+      ...(historico.confianza === "baja" ? ["Pocas campañas medidas: tómalo como referencia, no como promesa."] : []),
+    ],
+  };
+}
+
+/*
  * Pago anticipado de deuda: interés que se deja de pagar.
  * Es ahorro (sale menos dinero), y también mejora la utilidad neta.
  */
