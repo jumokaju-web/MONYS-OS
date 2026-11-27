@@ -66,12 +66,12 @@ export default function ImpactoDineroHoy({ businessId = null, formatoDinero, abr
           <div className="impacto-dinero__totales">
             <div>
               <small>Ganancia estimada</small>
-              <strong>{dinero(datos.resumen.ganancia)}</strong>
+              <strong>{datos.resumen.ganancia == null ? "Sin dato" : dinero(datos.resumen.ganancia)}</strong>
               <span>Utilidad extra en 14 días</span>
             </div>
             <div>
               <small>Compras que te ahorras</small>
-              <strong>{dinero(datos.resumen.ahorro)}</strong>
+              <strong>{datos.resumen.ahorro == null ? "Sin dato" : dinero(datos.resumen.ahorro)}</strong>
               <span>Efectivo que no sale de caja</span>
             </div>
           </div>
@@ -99,6 +99,8 @@ export default function ImpactoDineroHoy({ businessId = null, formatoDinero, abr
           </ol>
 
           <p className="impacto-dinero__nota">
+            Calculadas {datos.resumen.cobertura.calculables} de {datos.resumen.cobertura.total} sugerencias
+            {datos.resumen.accionesExcluidasPorEscenario > 0 ? `; ${datos.resumen.accionesExcluidasPorEscenario} son alternativas de la misma mercancía y no se suman` : ""}.
             Son estimaciones con tus ventas y utilidad de SICAR; confirma existencias antes de mover mercancía.
           </p>
           {typeof abrirCompraMaestra === "function" && (

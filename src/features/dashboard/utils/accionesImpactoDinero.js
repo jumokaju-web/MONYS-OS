@@ -16,6 +16,9 @@ export function construirAccionesTraspaso(recomendaciones = []) {
       tipo: "traspaso",
       titulo: `Traspasar ${recomendacion.cantidadSugerida} ${recomendacion.producto || "piezas"}`,
       detalle: `${recomendacion.sucursalOrigen || "Origen"} → ${recomendacion.sucursalDestino || "Destino"}`,
+      // La misma mercancía de un origen hacia varios destinos son opciones
+      // excluyentes: el resumen solo suma la mejor.
+      grupoExclusivo: `traspaso:${recomendacion.codigo || recomendacion.productId}:${recomendacion.branchOrigenId}`,
       impacto: recomendacion.impactoDinero,
     }));
 }
