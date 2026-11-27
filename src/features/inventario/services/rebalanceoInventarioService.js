@@ -9,6 +9,10 @@ import {
 import { leerExistenciaReportada } from "../shared/existenciaReportada";
 import { crearPendienteExistenciaDestino } from "../shared/pendienteExistenciaDestino";
 import { calcularUnidadesParaDias } from "../shared/calcularUnidadesParaDias";
+import {
+  calcularImpactoTraspaso,
+  resumirMargenesPorProducto,
+} from "../../../core/impacto/motorImpactoDinero.js";
 
 const DIAS_OBJETIVO_DESTINO = 14;
 const DIAS_RESERVA_ORIGEN = 30;
@@ -589,6 +593,21 @@ export async function generarAnalisisRebalanceo(businessId = null) {
     );
   }
 
+  const margenesPorBranch =
+    new Map();
+
+  function obtenerMargenProducto(branchId, clave) {
+    if (!margenesPorBranch.has(branchId)) {
+      margenesPorBranch.set(
+        branchId,
+        resumirMargenesPorProducto(
+          ventasPorBranch.get(branchId)?.ventas
+        )
+      );
+    }
+    return margenesPorBranch.get(branchId).get(clave) || null;
+  }
+
   const recomendaciones =
     [];
 
@@ -967,7 +986,27 @@ export async function generarAnalisisRebalanceo(businessId = null) {
             cantidadSugerida,
           });
 
+        // El margen del destino es el que se va a realizar; si no vendió
+        // con utilidad registrada, se usa el del origen como referencia.
+        const margenDestino =
+          obtenerMargenProducto(destino.branch_id, clave);
+        const margenProducto =
+          margenDestino?.utilidadUnitaria != null
+            ? margenDestino
+            : obtenerMargenProducto(origen.branch_id, clave) || margenDestino;
+
+        const impactoDinero =
+          calcularImpactoTraspaso({
+            cantidad: cantidadSugerida,
+            utilidadUnitaria: margenProducto?.utilidadUnitaria,
+            costoUnitario: margenProducto?.costoUnitario,
+            ventaDiariaDestino,
+            diasHorizonte: DIAS_OBJETIVO_DESTINO,
+          });
+
         recomendaciones.push({
+          impactoDinero,
+
           productId:
             productoOrigen.codigo ||
             clave,
