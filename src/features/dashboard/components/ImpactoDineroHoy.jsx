@@ -4,7 +4,7 @@ import { ESTADOS_IMPACTO } from "../../../core/impacto/motorImpactoDinero.js";
 import "./ImpactoDineroHoy.css";
 
 const ETIQUETA_ESTADO = {
-  [ESTADOS_IMPACTO.ESTIMADO]: "Lista para hacer",
+  [ESTADOS_IMPACTO.ESTIMADO]: "Revisar propuesta",
   [ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ]: "Confirmar dinero",
   [ESTADOS_IMPACTO.FALTAN_DATOS]: "Faltan datos",
 };
@@ -65,7 +65,11 @@ export default function ImpactoDineroHoy({
       {cargando && <p className="impacto-dinero__nota">Calculando con tus reportes SICAR y tus deudas…</p>}
       {!cargando && error && <p className="impacto-dinero__nota">No se pudo calcular: {error}</p>}
 
-      {!cargando && !error && datos && (
+      {!cargando && !error && datos?.estado === "sin_contexto" && (
+        <p className="impacto-dinero__nota">No se calculó: {datos.motivo}</p>
+      )}
+
+      {!cargando && !error && datos && datos.estado !== "sin_contexto" && (
         <>
           {datos.totalAcciones === 0 ? (
             <p className="impacto-dinero__nota">
@@ -75,9 +79,9 @@ export default function ImpactoDineroHoy({
             <>
               <div className="impacto-dinero__totales">
                 <div>
-                  <small>Listo para hacer</small>
+                  <small>Propuestas sin compra</small>
                   <strong>{datos.resumen.ganancia == null ? "Sin dato" : dinero(datos.resumen.ganancia)}</strong>
-                  <span>Ganancia estimada sin gastar</span>
+                  <span>Ganancia estimada; revisa supuestos y costos</span>
                 </div>
                 <div>
                   <small>Si confirmas dinero</small>
@@ -96,8 +100,21 @@ export default function ImpactoDineroHoy({
                           {ICONO_TIPO[accion.tipo] || "•"} {accion.titulo}
                         </b>
                         <small>{accion.detalle}</small>
+                        {accion.alternativaDe && (
+                          <small className="impacto-dinero__falta">Alternativa a: {accion.alternativaDeTitulo}. No se suma al total.</small>
+                        )}
                         {accion.impacto.estado === ESTADOS_IMPACTO.FALTAN_DATOS && accion.impacto.faltantes?.length > 0 && (
                           <small className="impacto-dinero__falta">Falta: {accion.impacto.faltantes.join(", ")}</small>
+                        )}
+                        {(accion.impacto.supuestos?.length > 0 || (accion.impacto.estado !== ESTADOS_IMPACTO.FALTAN_DATOS && accion.impacto.faltantes?.length > 0)) && (
+                          <details className="impacto-dinero__supuestos">
+                            <summary>Cómo se calculó</summary>
+                            <ul>
+                              {(accion.impacto.supuestos || []).map((texto) => <li key={texto}>{texto}</li>)}
+                              {accion.impacto.estado !== ESTADOS_IMPACTO.FALTAN_DATOS &&
+                                (accion.impacto.faltantes || []).map((texto) => <li key={`falta-${texto}`}>Falta: {texto}</li>)}
+                            </ul>
+                          </details>
                         )}
                         {typeof abrirArea === "function" && (
                           <button type="button" className="impacto-dinero__ir" onClick={abrirArea}>
@@ -117,6 +134,7 @@ export default function ImpactoDineroHoy({
                 Calculadas {datos.resumen.cobertura.calculables} de {datos.resumen.cobertura.total} acciones
                 {datos.resumen.accionesExcluidasPorEscenario > 0 ? `; ${datos.resumen.accionesExcluidasPorEscenario} son alternativas de la misma mercancía y no se suman` : ""}.
                 Son estimaciones con tus datos de SICAR y tus deudas registradas. Nada se ejecuta ni se paga solo: tú confirmas cada decisión.
+                {datos.alternativas > 0 ? ` Hay ${datos.alternativas} alternativa(s) marcadas que no se suman.` : ""}
               </p>
             </>
           )}

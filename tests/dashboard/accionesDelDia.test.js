@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  accionesDeCompras,
   accionesDeDeudas,
   construirAccionesDelDia,
 } from "../../src/core/impacto/accionesDelDia.js";
@@ -9,33 +10,37 @@ import {
   calcularImpactoCompra,
   calcularImpactoTraspaso,
 } from "../../src/core/impacto/motorImpactoDinero.js";
+import { filtrarPorContexto } from "../../src/features/dashboard/services/accionesDelDiaFiltro.js";
 
-const traspaso = (codigo, utilidad) => ({
+const traspaso = (codigo, utilidad, destino = "B") => ({
   codigo,
   producto: `Producto ${codigo}`,
   cantidadSugerida: 10,
   branchOrigenId: "A",
-  branchDestinoId: "B",
+  branchDestinoId: destino,
   sucursalOrigen: "Centro",
-  sucursalDestino: "Nueva",
-  impactoDinero: calcularImpactoTraspaso({ cantidad: 10, utilidadUnitaria: utilidad, costoUnitario: 50, ventaDiariaDestino: 1, existenciaDestino: 0, ventaDiariaOrigen: 0, existenciaOrigen: 30, compraEvitada: true }),
+  sucursalDestino: destino === "B" ? "Nueva" : "Otra",
+  impactoDinero: calcularImpactoTraspaso({
+    cantidad: 10, utilidadUnitaria: utilidad, costoUnitario: 50, ventaDiariaDestino: 1,
+    existenciaDestino: 0, ventaDiariaOrigen: 0, existenciaOrigen: 30, costoTraslado: 0,
+  }),
 });
 
-const compra = (llave, unidades, costo, precio) => ({
+const compra = (llave, unidades, costo, precio, ventaDiaria = 2) => ({
   llave,
   descripcion: `Compra ${llave}`,
   compraTotal: unidades,
-  impactoDinero: calcularImpactoCompra({ unidades, costoUnitario: costo, precioVenta: precio, ventaDiariaEstimada: 2, diasTemporada: 30 }),
+  sucursales: [{ branchId: "A" }],
+  impactoDinero: calcularImpactoCompra({ unidades, costoUnitario: costo, precioVenta: precio, ventaDiariaEstimada: ventaDiaria, diasTemporada: 30 }),
 });
 
-test("primero lo que se puede hacer sin gastar, luego lo que espera dinero", () => {
+test("primero lo que no requiere compra, luego lo que espera dinero", () => {
   const datos = construirAccionesDelDia({
     traspasos: [traspaso("T1", 30), traspaso("PIERDE", -5)],
     productosCompra: [compra("C1", 40, 50, 150), compra("C2", 10, 10, 20)],
     deudas: [
       { id: "d1", nombre: "Tarjeta", saldo_actual: 30000, tasa_anual: 60, estado: "ACTIVA" },
       { id: "d2", nombre: "Banco", saldo_actual: 80000, tasa_anual: 18, estado: "ACTIVA" },
-      { id: "d3", nombre: "Proveedor", saldo_actual: 5000, tasa_anual: null, estado: "ACTIVA" },
     ],
   });
 
@@ -44,34 +49,49 @@ test("primero lo que se puede hacer sin gastar, luego lo que espera dinero", () 
   assert.deepEqual(ids.slice(1, 3), ["compra:C1", "deuda:d1"]);
   assert.ok(!ids.some((id) => id.includes("PIERDE")));
   assert.equal(datos.resumen.ganancia, 300);
-  assert.equal(datos.resumen.accionesListas, 1);
-  // compras C1 (4000) + C2 (100) + abono a la tarjeta (10,000 × 60% × 30/365)
   const interes = Math.round(10000 * 0.6 * (30 / 365) * 100) / 100;
   assert.equal(datos.resumen.gananciaPorConfirmarDinero, Math.round((4000 + 100 + interes) * 100) / 100);
-  assert.equal(datos.totalAcciones, 5);
+  assert.equal(datos.principales[2].prioridadDefinitiva, true);
+  assert.equal(datos.principales[2].titulo, "Abonar primero a Tarjeta");
 });
 
-test("avalancha: abona primero a la tasa más alta y pide tasas faltantes", () => {
+test("la cantidad de compra mostrada coincide con la de inversión y ganancia", () => {
+  // 100 piezas, se venden 2 diarias × 30 = 60: inversión de las 100.
+  const [accion] = accionesDeCompras([compra("C", 100, 50, 150)]);
+  assert.match(accion.titulo, /^Comprar 100 /);
+  assert.equal(accion.impacto.inversion, 5000);
+  assert.match(accion.detalle, /se venden 60/);
+});
+
+test("alternativas de la misma mercancía se marcan y no se suman", () => {
+  const datos = construirAccionesDelDia({ traspasos: [traspaso("T1", 20, "C"), traspaso("T1", 30)] });
+  assert.equal(datos.alternativas, 1);
+  const [principal, alternativa] = datos.principales;
+  assert.equal(principal.id, "traspaso:T1:A:B");
+  assert.equal(principal.alternativaDe, undefined);
+  assert.equal(alternativa.alternativaDe, "traspaso:T1:A:B");
+  assert.match(alternativa.alternativaDeTitulo, /Nueva/);
+  assert.equal(datos.resumen.ganancia, 300);
+});
+
+test("avalancha: sin todas las tasas la prioridad no es definitiva", () => {
   const acciones = accionesDeDeudas([
     { id: "baja", nombre: "Banco", saldo_actual: 50000, tasa_anual: 20, estado: "ACTIVA" },
     { id: "alta", nombre: "Tarjeta", saldo_actual: 4000, tasa_anual: 70, estado: "REESTRUCTURADA" },
     { id: "cerrada", nombre: "Viejo", saldo_actual: 1000, tasa_anual: 99, estado: "LIQUIDADA" },
     { id: "x", nombre: "Proveedor", saldo_actual: 9000, tasa_anual: "", estado: "ACTIVA" },
   ]);
-  assert.equal(acciones[0].id, "deuda:alta");
-  assert.equal(acciones[0].impacto.estado, ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ);
-  // El abono no puede ser mayor al saldo.
-  assert.equal(acciones[0].impacto.ahorro, Math.round(4000 * 0.7 * (30 / 365) * 100) / 100);
-  assert.equal(acciones[1].id, "deuda:sin-tasa");
-  assert.equal(acciones[1].impacto.estado, ESTADOS_IMPACTO.FALTAN_DATOS);
-});
-
-test("dos destinos para la misma mercancía no se suman dos veces", () => {
-  const otroDestino = { ...traspaso("T1", 20), branchDestinoId: "C", sucursalDestino: "Otra" };
-  const datos = construirAccionesDelDia({ traspasos: [traspaso("T1", 30), otroDestino] });
-  assert.equal(datos.totalAcciones, 2);
-  assert.equal(datos.resumen.ganancia, 300);
-  assert.equal(datos.resumen.accionesExcluidasPorEscenario, 1);
+  const [principal, sinTasa] = acciones;
+  assert.equal(principal.id, "deuda:alta");
+  assert.equal(principal.prioridadDefinitiva, false);
+  assert.match(principal.titulo, /más cara de las deudas con tasa/);
+  assert.match(principal.detalle, /abono hipotético de \$4,000 por 30 días/);
+  assert.ok(principal.impacto.faltantes.some((texto) => texto.includes("tasas de 1 deuda")));
+  assert.ok(principal.impacto.supuestos.some((texto) => texto.includes("penalizaciones")));
+  assert.equal(principal.impacto.estado, ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ);
+  assert.equal(principal.impacto.ahorro, Math.round(4000 * 0.7 * (30 / 365) * 100) / 100);
+  assert.equal(sinTasa.id, "deuda:sin-tasa");
+  assert.equal(sinTasa.impacto.estado, ESTADOS_IMPACTO.FALTAN_DATOS);
 });
 
 test("sin datos no hay acciones ni totales inventados", () => {
@@ -80,4 +100,25 @@ test("sin datos no hay acciones ni totales inventados", () => {
   assert.equal(datos.resumen.ganancia, null);
   assert.equal(datos.resumen.gananciaPorConfirmarDinero, null);
   assert.deepEqual(datos.resumen.cobertura, { calculables: 0, total: 0 });
+});
+
+test("aislamiento: descarta lo que no pertenece al negocio activo", () => {
+  const resultado = filtrarPorContexto({
+    organizationId: "org-1",
+    businessId: "neg-1",
+    compraMaestra: {
+      fuentes: [{ branchId: "A" }, { branchId: "B" }],
+      planTraspasos: [traspaso("OK", 30), { ...traspaso("FUERA", 30), branchDestinoId: "Z" }],
+      productos: [compra("OK", 10, 10, 20), { ...compra("FUERA", 10, 10, 20), sucursales: [{ branchId: "Z" }] }],
+    },
+    deudas: [
+      { id: "1", organization_id: "org-1", business_id: "neg-1" },
+      { id: "2", organization_id: "org-1", business_id: "neg-2" },
+      { id: "3", organization_id: "org-2", business_id: "neg-1" },
+    ],
+  });
+  assert.deepEqual(resultado.traspasos.map((item) => item.codigo), ["OK"]);
+  assert.deepEqual(resultado.productos.map((item) => item.llave), ["OK"]);
+  assert.deepEqual(resultado.deudas.map((item) => item.id), ["1"]);
+  assert.equal(resultado.descartados, 4);
 });
