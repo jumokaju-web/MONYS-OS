@@ -1,3 +1,7 @@
+import {
+  esErrorColumnasDisponibilidad,
+  prepararRegistroVentaArticulo,
+} from "../utils/registroVentaArticulo.js";
 import { confirmarFilasCaja } from '../utils/confirmarFilasCaja';
 import { guardarCargaConfirmada } from '../utils/guardarCargaConfirmada';
 import { prepararDetalleImportacion } from '../utils/prepararDetalleImportacion.js';
@@ -76,52 +80,34 @@ async function guardarDatosPorTipoReporte({
         datosNormalizados.length
       );
 
-      const registros =
-        datosNormalizados.map(
-          (articulo) => ({
-            importacion_id:
-              importacionId,
-
-            codigo:
-              articulo.codigo || null,
-
-            descripcion:
-              articulo.descripcion,
-
-            categoria:
-              articulo.categoria || null,
-
-            cantidad:
-              articulo.cantidad || 0,
-
-            costo:
-              articulo.costo || 0,
-
-            importe:
-              articulo.importe || 0,
-
-            descuento:
-              articulo.descuento || 0,
-
-            utilidad:
-              articulo.utilidad || 0,
-
-            sucursal:
-              articulo.sucursal || null,
-
-            fecha:
-              articulo.fecha || null,
-
-            folio_venta:
-              articulo.folioVenta || null,
-          })
+      try {
+        await insertarEnLotes(
+          "ventas_articulos",
+          datosNormalizados.map((articulo) =>
+            prepararRegistroVentaArticulo(articulo, importacionId)
+          ),
+          "Error al guardar ventas"
         );
-
-      await insertarEnLotes(
-        "ventas_articulos",
-        registros,
-        "Error al guardar ventas"
-      );
+      } catch (error) {
+        // Si la migración de banderas aún no está aplicada, el primer lote
+        // falla sin guardar nada: se reintenta sin las columnas nuevas.
+        if (
+          !esErrorColumnasDisponibilidad(error) ||
+          !String(error?.message || "").includes("(lote 1 de")
+        ) {
+          throw error;
+        }
+        console.warn(
+          "ventas_articulos aún no tiene utilidad_disponible/importe_disponible; se guarda sin banderas."
+        );
+        await insertarEnLotes(
+          "ventas_articulos",
+          datosNormalizados.map((articulo) =>
+            prepararRegistroVentaArticulo(articulo, importacionId, { conBanderas: false })
+          ),
+          "Error al guardar ventas"
+        );
+      }
 
       break;
     }
