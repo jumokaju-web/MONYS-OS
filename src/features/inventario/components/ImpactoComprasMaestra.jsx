@@ -55,7 +55,9 @@ function SimuladorTemporada() {
           </strong>
           <span>
             Inviertes {dinero(resultado.inversion)} · retorno {porcentaje(resultado.retorno)}
-            {resultado.diasRecuperacion ? ` · recuperas la inversión en ~${resultado.diasRecuperacion} días` : ""}
+            {resultado.recuperacion === "en_temporada" && ` · recuperas la inversión en ~${resultado.diasRecuperacion} días`}
+            {resultado.recuperacion === "con_remate" && " · solo recuperas la inversión rematando lo que sobre"}
+            {resultado.recuperacion === "no_recuperable" && " · no recuperas la inversión ni rematando"}
           </span>
           {resultado.unidadesRecomendadas < Number(campos.unidades) && (
             <span>

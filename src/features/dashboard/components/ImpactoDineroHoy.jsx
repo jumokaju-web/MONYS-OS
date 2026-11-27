@@ -76,12 +76,12 @@ export default function ImpactoDineroHoy({
               <div className="impacto-dinero__totales">
                 <div>
                   <small>Listo para hacer</small>
-                  <strong>{dinero(datos.resumen.ganancia)}</strong>
+                  <strong>{datos.resumen.ganancia == null ? "Sin dato" : dinero(datos.resumen.ganancia)}</strong>
                   <span>Ganancia estimada sin gastar</span>
                 </div>
                 <div>
                   <small>Si confirmas dinero</small>
-                  <strong className="impacto-dinero__neutro">{dinero(datos.resumen.gananciaPorConfirmarDinero)}</strong>
+                  <strong className="impacto-dinero__neutro">{datos.resumen.gananciaPorConfirmarDinero == null ? "Sin dato" : dinero(datos.resumen.gananciaPorConfirmarDinero)}</strong>
                   <span>Compras y abonos por autorizar</span>
                 </div>
               </div>
@@ -114,6 +114,8 @@ export default function ImpactoDineroHoy({
                 })}
               </ol>
               <p className="impacto-dinero__nota">
+                Calculadas {datos.resumen.cobertura.calculables} de {datos.resumen.cobertura.total} acciones
+                {datos.resumen.accionesExcluidasPorEscenario > 0 ? `; ${datos.resumen.accionesExcluidasPorEscenario} son alternativas de la misma mercancía y no se suman` : ""}.
                 Son estimaciones con tus datos de SICAR y tus deudas registradas. Nada se ejecuta ni se paga solo: tú confirmas cada decisión.
               </p>
             </>

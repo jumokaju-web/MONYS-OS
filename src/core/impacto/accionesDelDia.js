@@ -36,6 +36,9 @@ export function accionesDeTraspasos(recomendaciones = []) {
       area: "compraMaestra",
       titulo: `Traspasar ${recomendacion.cantidadSugerida} ${recomendacion.producto || "piezas"}`,
       detalle: `${recomendacion.sucursalOrigen || "Origen"} → ${recomendacion.sucursalDestino || "Destino"}`,
+      // Misma mercancía del mismo origen hacia varios destinos: opciones
+      // excluyentes, el resumen solo suma la mejor.
+      grupoExclusivo: `traspaso:${recomendacion.codigo || recomendacion.productId}:${recomendacion.branchOrigenId}`,
       impacto: recomendacion.impactoDinero,
     }));
 }
@@ -133,16 +136,20 @@ export function construirAccionesDelDia({
 
   // Los totales "listos" excluyen lo que espera dinero o datos.
   const resumen = resumirImpacto(todas);
-  const porConfirmar = todas
-    .filter((accion) => accion.impacto.estado === ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ)
-    .reduce((total, accion) => total + (accion.impacto.ganancia ?? 0), 0);
+  // Lo que espera dinero no se ejecuta solo: se resume aparte, con el
+  // mismo criterio (sin ceros falsos y sin sumar alternativas).
+  const porConfirmar = resumirImpacto(
+    todas
+      .filter((accion) => accion.impacto.estado === ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ)
+      .map((accion) => ({ ...accion, impacto: { ...accion.impacto, estado: ESTADOS_IMPACTO.ESTIMADO } }))
+  );
 
   return {
     principales: todas.slice(0, limite),
     totalAcciones: todas.length,
     resumen: {
       ...resumen,
-      gananciaPorConfirmarDinero: Math.round(porConfirmar * 100) / 100,
+      gananciaPorConfirmarDinero: porConfirmar.ganancia,
     },
   };
 }

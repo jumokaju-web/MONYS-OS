@@ -18,7 +18,7 @@ const traspaso = (codigo, utilidad) => ({
   branchDestinoId: "B",
   sucursalOrigen: "Centro",
   sucursalDestino: "Nueva",
-  impactoDinero: calcularImpactoTraspaso({ cantidad: 10, utilidadUnitaria: utilidad, costoUnitario: 50, ventaDiariaDestino: 1 }),
+  impactoDinero: calcularImpactoTraspaso({ cantidad: 10, utilidadUnitaria: utilidad, costoUnitario: 50, ventaDiariaDestino: 1, existenciaDestino: 0, ventaDiariaOrigen: 0, existenciaOrigen: 30, compraEvitada: true }),
 });
 
 const compra = (llave, unidades, costo, precio) => ({
@@ -66,9 +66,18 @@ test("avalancha: abona primero a la tasa más alta y pide tasas faltantes", () =
   assert.equal(acciones[1].impacto.estado, ESTADOS_IMPACTO.FALTAN_DATOS);
 });
 
+test("dos destinos para la misma mercancía no se suman dos veces", () => {
+  const otroDestino = { ...traspaso("T1", 20), branchDestinoId: "C", sucursalDestino: "Otra" };
+  const datos = construirAccionesDelDia({ traspasos: [traspaso("T1", 30), otroDestino] });
+  assert.equal(datos.totalAcciones, 2);
+  assert.equal(datos.resumen.ganancia, 300);
+  assert.equal(datos.resumen.accionesExcluidasPorEscenario, 1);
+});
+
 test("sin datos no hay acciones ni totales inventados", () => {
   const datos = construirAccionesDelDia({});
   assert.equal(datos.totalAcciones, 0);
-  assert.equal(datos.resumen.ganancia, 0);
-  assert.equal(datos.resumen.gananciaPorConfirmarDinero, 0);
+  assert.equal(datos.resumen.ganancia, null);
+  assert.equal(datos.resumen.gananciaPorConfirmarDinero, null);
+  assert.deepEqual(datos.resumen.cobertura, { calculables: 0, total: 0 });
 });

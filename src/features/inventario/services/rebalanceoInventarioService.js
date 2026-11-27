@@ -1001,7 +1001,14 @@ export async function generarAnalisisRebalanceo(businessId = null) {
             utilidadUnitaria: margenProducto?.utilidadUnitaria,
             costoUnitario: margenProducto?.costoUnitario,
             ventaDiariaDestino,
+            existenciaDestino,
+            ventaDiariaOrigen,
+            existenciaOrigen,
             diasHorizonte: DIAS_OBJETIVO_DESTINO,
+            // Compra Maestra descuenta los traspasos de la compra del
+            // destino: si el destino tiene necesidad, el traspaso evita
+            // esa compra.
+            compraEvitada: necesidadDestino > 0,
           });
 
         recomendaciones.push({
