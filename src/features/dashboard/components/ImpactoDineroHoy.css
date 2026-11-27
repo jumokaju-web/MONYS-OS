@@ -183,3 +183,15 @@
     grid-template-columns: 1fr;
   }
 }
+
+.impacto-dinero__ir {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #a2346f;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
