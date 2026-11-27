@@ -29,10 +29,38 @@ export const ESTADOS_IMPACTO = Object.freeze({
 const DIAS_HORIZONTE_TRASPASO = 14;
 const FACTOR_REMATE_PREDETERMINADO = 0.5;
 
+/*
+ * Convierte a número solo valores que de verdad son números.
+ * Booleanos, objetos, textos vacíos o con letras → null (dato ausente).
+ */
 function numero(valor) {
-  if (valor === null || valor === undefined || valor === "") return null;
+  if (valor === null || valor === undefined) return null;
+  if (typeof valor === "boolean" || typeof valor === "object") return null;
+  if (typeof valor === "string") {
+    const limpio = valor.trim();
+    if (!limpio) return null;
+    valor = limpio;
+  }
   const convertido = Number(valor);
   return Number.isFinite(convertido) ? convertido : null;
+}
+
+// Piezas: enteros mayores a cero.
+function piezasValidas(valor) {
+  const convertido = numero(valor);
+  return convertido !== null && convertido > 0 && Number.isInteger(convertido) ? convertido : null;
+}
+
+// Cantidad opcional: ausente usa el predeterminado; informada pero
+// inválida (negativa, texto, booleano) se reporta, nunca se vuelve cero.
+function opcionalNoNegativo(valor, predeterminado = 0) {
+  if (valor === null || valor === undefined || (typeof valor === "string" && !valor.trim())) {
+    return { valor: predeterminado, valido: true };
+  }
+  const convertido = numero(valor);
+  return convertido !== null && convertido >= 0
+    ? { valor: convertido, valido: true }
+    : { valor: null, valido: false };
 }
 
 function redondear(valor) {
@@ -60,6 +88,15 @@ function clavePorCodigo(codigo) {
  * Resume margen por producto desde filas de "Ventas por artículo" de SICAR.
  * Usa totales (importe y utilidad entre piezas) para no depender de si la
  * columna "costo" del reporte es unitaria o total.
+ *
+ * Cobertura: la utilidad por pieza solo se calcula si TODAS las piezas
+ * vendidas del producto traen utilidad confiable; con cobertura parcial
+ * queda en null (faltante) para no repartir una utilidad parcial entre
+ * todas las piezas. Lo mismo para el precio.
+ *
+ * Cero real vs. ausente: el importador hoy guarda 0 cuando la columna no
+ * existe. Por eso una utilidad 0 con importe > 0 no se toma como dato,
+ * salvo que la fila traiga utilidadDisponible === true (cero confirmado).
  */
 export function resumirMargenesPorProducto(ventas = []) {
   const acumulado = new Map();
@@ -67,40 +104,46 @@ export function resumirMargenesPorProducto(ventas = []) {
   for (const venta of ventas || []) {
     const clave = clavePorCodigo(venta?.codigo);
     const piezas = numero(venta?.cantidad);
-    if (!clave || !piezas || piezas <= 0) continue;
+    if (!clave || piezas === null || piezas <= 0) continue;
 
     const registro = acumulado.get(clave) || {
       piezas: 0,
+      piezasConImporte: 0,
+      piezasConUtilidad: 0,
       importe: 0,
       utilidad: 0,
-      filasConUtilidad: 0,
-      filasConImporte: 0,
     };
-
     registro.piezas += piezas;
+
     const importe = numero(venta?.importe);
-    const utilidad = numero(venta?.utilidad);
-    if (importe !== null) {
+    const importeConfiable =
+      importe !== null && importe >= 0 && (importe > 0 || venta?.importeDisponible === true);
+    if (importeConfiable) {
       registro.importe += importe;
-      registro.filasConImporte += 1;
+      registro.piezasConImporte += piezas;
     }
-    if (utilidad !== null) {
+
+    const utilidad = numero(venta?.utilidad);
+    const ceroDudoso = utilidad === 0 && importe !== null && importe > 0 && venta?.utilidadDisponible !== true;
+    if (utilidad !== null && !ceroDudoso) {
       registro.utilidad += utilidad;
-      registro.filasConUtilidad += 1;
+      registro.piezasConUtilidad += piezas;
     }
     acumulado.set(clave, registro);
   }
 
   const margenes = new Map();
   for (const [clave, registro] of acumulado) {
-    const conImporte = registro.filasConImporte > 0 && registro.importe > 0;
-    // Utilidad en cero con importe positivo suele ser columna ausente, no margen real.
-    const conUtilidad = registro.filasConUtilidad > 0 && registro.utilidad !== 0;
-    const precioPromedio = conImporte ? registro.importe / registro.piezas : null;
-    const utilidadUnitaria = conUtilidad ? registro.utilidad / registro.piezas : null;
+    const coberturaImporte = registro.piezasConImporte / registro.piezas;
+    const coberturaUtilidad = registro.piezasConUtilidad / registro.piezas;
+    const precioPromedio =
+      coberturaImporte === 1 && registro.importe > 0 ? registro.importe / registro.piezas : null;
+    const utilidadUnitaria = coberturaUtilidad === 1 ? registro.utilidad / registro.piezas : null;
 
     margenes.set(clave, {
       piezas: registro.piezas,
+      coberturaImporte: Math.round(coberturaImporte * 1000) / 1000,
+      coberturaUtilidad: Math.round(coberturaUtilidad * 1000) / 1000,
       precioPromedio: precioPromedio === null ? null : redondear(precioPromedio),
       utilidadUnitaria: utilidadUnitaria === null ? null : redondear(utilidadUnitaria),
       costoUnitario:
@@ -118,50 +161,89 @@ export function resumirMargenesPorProducto(ventas = []) {
 }
 
 /*
- * Traspaso entre sucursales.
- * ganancia = piezas que el destino puede vender en el horizonte × utilidad
- *            por pieza − costo del traslado.
- * ahorro   = lo que costaría comprar esas piezas nuevas para el destino.
+ * Traspaso entre sucursales, comparado contra no traspasar.
+ *
+ * Venta nueva en destino = lo que el destino vende en el horizonte menos
+ *   lo que ya cubre su existencia (no más que las piezas traspasadas).
+ * Venta perdida en origen = demanda del origen en el horizonte que ya no
+ *   alcanza a cubrir con lo que le queda.
+ * ganancia = (venta nueva destino − venta perdida origen) × utilidad por
+ *            pieza − costo del traslado.
+ * ahorro   = solo si sin el traspaso se compraría esa mercancía
+ *            (compraEvitada === true); si no está confirmado, queda null.
  */
 export function calcularImpactoTraspaso({
   cantidad,
   utilidadUnitaria,
   costoUnitario = null,
   ventaDiariaDestino,
+  existenciaDestino,
+  ventaDiariaOrigen,
+  existenciaOrigen,
   diasHorizonte = DIAS_HORIZONTE_TRASPASO,
-  costoTraslado = 0,
+  costoTraslado = null,
+  compraEvitada = null,
 } = {}) {
-  const piezas = numero(cantidad);
+  const piezas = piezasValidas(cantidad);
   const utilidad = numero(utilidadUnitaria);
-  const ritmo = numero(ventaDiariaDestino);
-  const traslado = numero(costoTraslado) ?? 0;
+  const ritmoDestino = numero(ventaDiariaDestino);
+  const stockDestino = numero(existenciaDestino);
+  const ritmoOrigen = numero(ventaDiariaOrigen);
+  const stockOrigen = numero(existenciaOrigen);
+  const horizonte = numero(diasHorizonte);
+  const traslado = opcionalNoNegativo(costoTraslado);
   const costo = numero(costoUnitario);
 
   const faltantes = [];
-  if (!piezas || piezas <= 0) faltantes.push("piezas a traspasar");
-  if (utilidad === null) faltantes.push("utilidad por pieza (reporte Ventas por artículo con utilidad)");
-  if (ritmo === null) faltantes.push("venta diaria de la sucursal destino");
+  if (piezas === null) faltantes.push("piezas a traspasar (entero mayor a cero)");
+  if (utilidad === null) faltantes.push("utilidad por pieza completa (reporte Ventas por artículo con utilidad)");
+  if (ritmoDestino === null || ritmoDestino < 0) faltantes.push("venta diaria de la sucursal destino");
+  if (stockDestino === null) faltantes.push("existencia de la sucursal destino");
+  if (ritmoOrigen === null || ritmoOrigen < 0) faltantes.push("venta diaria de la sucursal origen");
+  if (stockOrigen === null) faltantes.push("existencia de la sucursal origen");
+  if (horizonte === null || horizonte <= 0) faltantes.push("días del horizonte (mayor a cero)");
+  if (!traslado.valido) faltantes.push("costo del traslado válido (cero o más)");
+  if (piezas !== null && stockOrigen !== null && piezas > stockOrigen) {
+    faltantes.push("existencia suficiente en origen para las piezas a traspasar");
+  }
   if (faltantes.length) return faltan("traspaso", faltantes);
 
-  const piezasVendibles = Math.min(piezas, Math.floor(ritmo * diasHorizonte));
-  const ganancia = piezasVendibles * utilidad - traslado;
-  const ahorro = costo !== null && costo > 0 ? piezas * costo : null;
+  const demandaDestino = Math.floor(ritmoDestino * horizonte);
+  const ventaNuevaDestino = Math.min(piezas, Math.max(0, demandaDestino - Math.max(0, stockDestino)));
+  const demandaOrigen = Math.floor(ritmoOrigen * horizonte);
+  const quedaEnOrigen = stockOrigen - piezas;
+  const ventaPerdidaOrigen = Math.min(piezas, Math.max(0, demandaOrigen - Math.max(0, quedaEnOrigen)));
+  const ganancia = (ventaNuevaDestino - ventaPerdidaOrigen) * utilidad - traslado.valor;
+
+  const faltantesResultado = [];
+  let ahorro = null;
+  if (compraEvitada === true && costo !== null && costo > 0) {
+    ahorro = piezas * costo;
+  } else if (compraEvitada === true) {
+    faltantesResultado.push("costo por pieza para calcular la compra evitada");
+  } else {
+    faltantesResultado.push("confirmar que sin el traspaso se compraría esta mercancía");
+  }
 
   const supuestos = [
-    `El destino vende ${redondear(ritmo)} piezas al día; en ${diasHorizonte} días alcanza a vender ${piezasVendibles} de ${piezas}.`,
+    `En ${horizonte} días el destino vende ${demandaDestino} piezas; ya tiene ${Math.max(0, stockDestino)}, así que el traspaso agrega ${ventaNuevaDestino} ventas.`,
+    ventaPerdidaOrigen > 0
+      ? `El origen deja de vender ${ventaPerdidaOrigen} piezas por quedarse con ${quedaEnOrigen}.`
+      : `El origen conserva ${quedaEnOrigen} piezas, suficientes para su venta del periodo.`,
     `Utilidad por pieza según SICAR: ${redondear(utilidad)}.`,
   ];
-  if (traslado > 0) supuestos.push(`Costo del traslado: ${redondear(traslado)}.`);
-  if (ahorro !== null) supuestos.push("El ahorro es efectivo que no se gasta en comprar esas piezas; no es utilidad.");
+  if (traslado.valor > 0) supuestos.push(`Costo del traslado: ${redondear(traslado.valor)}.`);
+  if (ahorro !== null) supuestos.push("El ahorro es la compra que se evita con el traspaso; mejora la caja, no la utilidad.");
 
   return {
     tipo: "traspaso",
     estado: ganancia > 0 ? ESTADOS_IMPACTO.ESTIMADO : ESTADOS_IMPACTO.NO_CONVIENE,
     ganancia: redondear(ganancia),
     ahorro: ahorro === null ? null : redondear(ahorro),
-    piezasVendibles,
-    diasHorizonte,
-    faltantes: ahorro === null ? ["costo por pieza para calcular el ahorro"] : [],
+    ventaNuevaDestino,
+    ventaPerdidaOrigen,
+    diasHorizonte: horizonte,
+    faltantes: faltantesResultado,
     supuestos,
   };
 }
@@ -169,7 +251,12 @@ export function calcularImpactoTraspaso({
 /*
  * Compra (normal o de temporada).
  * Lo que no se vende en la temporada se remata a valorRemateUnitario
- * (por defecto 50% del costo) y esa pérdida se descuenta.
+ * (por defecto 50% del costo, marcado como supuesto) y esa pérdida se
+ * descuenta.
+ *
+ * Recuperación: se calcula con lo que realmente entra. Si la venta de la
+ * temporada cubre la inversión, se dan los días; si solo se cubre con el
+ * remate al final, se indica; si ni así se cubre, es no recuperable.
  */
 export function calcularImpactoCompra({
   unidades,
@@ -180,29 +267,46 @@ export function calcularImpactoCompra({
   valorRemateUnitario = null,
   capitalDisponible = null,
 } = {}) {
-  const piezas = numero(unidades);
+  const piezas = piezasValidas(unidades);
   const costo = numero(costoUnitario);
   const precio = numero(precioVenta);
   const ritmo = numero(ventaDiariaEstimada);
   const dias = numero(diasTemporada);
+  const remateInformado = opcionalNoNegativo(valorRemateUnitario, null);
+  const capitalInformado = opcionalNoNegativo(capitalDisponible, null);
 
   const faltantes = [];
-  if (!piezas || piezas <= 0) faltantes.push("unidades a comprar");
-  if (costo === null) faltantes.push("costo por pieza");
-  if (precio === null) faltantes.push("precio de venta");
-  if (ritmo === null) faltantes.push("venta diaria estimada");
-  if (!dias || dias <= 0) faltantes.push("días de temporada");
+  if (piezas === null) faltantes.push("unidades a comprar (entero mayor a cero)");
+  if (costo === null || costo <= 0) faltantes.push("costo por pieza");
+  if (precio === null || precio <= 0) faltantes.push("precio de venta");
+  if (ritmo === null || ritmo < 0) faltantes.push("venta diaria estimada");
+  if (dias === null || dias <= 0) faltantes.push("días de temporada");
+  if (!remateInformado.valido) faltantes.push("precio de remate válido (cero o más)");
+  if (!capitalInformado.valido) faltantes.push("dinero disponible válido (cero o más)");
   if (faltantes.length) return faltan("compra", faltantes);
 
-  const remate = numero(valorRemateUnitario) ?? costo * FACTOR_REMATE_PREDETERMINADO;
+  const remateSupuesto = remateInformado.valor === null;
+  const remate = remateSupuesto ? costo * FACTOR_REMATE_PREDETERMINADO : remateInformado.valor;
   const capacidadVenta = Math.floor(ritmo * dias);
   const vendidas = Math.min(piezas, capacidadVenta);
   const sobrantes = piezas - vendidas;
   const inversion = piezas * costo;
-  const ganancia = vendidas * (precio - costo) - sobrantes * Math.max(0, costo - remate);
-  const ventaDiariaDinero = ritmo * precio;
-  const diasRecuperacion = ventaDiariaDinero > 0 ? Math.ceil(inversion / ventaDiariaDinero) : null;
-  const capital = numero(capitalDisponible);
+  const ingresoVenta = vendidas * precio;
+  const ingresoRemate = sobrantes * remate;
+  const ganancia = ingresoVenta + ingresoRemate - inversion;
+  const capital = capitalInformado.valor;
+
+  let recuperacion;
+  let diasRecuperacion = null;
+  if (ingresoVenta >= inversion && ritmo > 0) {
+    recuperacion = "en_temporada";
+    diasRecuperacion = Math.ceil(inversion / (ritmo * precio));
+  } else if (ingresoVenta + ingresoRemate >= inversion) {
+    recuperacion = "con_remate";
+    diasRecuperacion = Math.ceil(dias);
+  } else {
+    recuperacion = "no_recuperable";
+  }
 
   let estado = ganancia > 0 ? ESTADOS_IMPACTO.ESTIMADO : ESTADOS_IMPACTO.NO_CONVIENE;
   const supuestos = [
@@ -210,8 +314,13 @@ export function calcularImpactoCompra({
     `Margen por pieza: ${redondear(precio - costo)}.`,
   ];
   if (sobrantes > 0) {
-    supuestos.push(`Sobran ${sobrantes} piezas; se rematan a ${redondear(remate)} cada una.`);
+    supuestos.push(
+      `Sobran ${sobrantes} piezas; se rematan a ${redondear(remate)} cada una${remateSupuesto ? " (supuesto: mitad del costo)" : ""}.`
+    );
   }
+  if (recuperacion === "con_remate") supuestos.push("La inversión solo se recupera al rematar lo que sobra al final de la temporada.");
+  if (recuperacion === "no_recuperable") supuestos.push("Con estos datos la inversión no se recupera ni con el remate.");
+
   const faltantesResultado = [];
   if (capital === null) {
     faltantesResultado.push("liquidez confirmada para comprar");
@@ -227,7 +336,8 @@ export function calcularImpactoCompra({
     ganancia: redondear(ganancia),
     ahorro: null,
     inversion: redondear(inversion),
-    retorno: inversion > 0 ? Math.round((ganancia / inversion) * 1000) / 1000 : null,
+    retorno: Math.round((ganancia / inversion) * 1000) / 1000,
+    recuperacion,
     diasRecuperacion,
     unidadesRecomendadas: Math.min(piezas, capacidadVenta),
     faltantes: faltantesResultado,
@@ -346,32 +456,55 @@ export function priorizarAcciones(acciones = []) {
 
 /*
  * Totales solo de acciones que convienen y se pueden ejecutar ahora.
+ *
+ * - Sin acciones calculables, ganancia y ahorro son null (no "cero
+ *   confirmado"); la cobertura dice cuántas se pudieron calcular.
+ * - Escenarios mutuamente excluyentes (misma mercancía de un origen hacia
+ *   varios destinos) llevan el mismo accion.grupoExclusivo: de cada grupo
+ *   solo se suma la opción con más ganancia.
+ * - En pago de deuda ganancia y ahorro son el mismo interés: se cuenta
+ *   una vez, como ganancia.
  */
 export function resumirImpacto(acciones = []) {
+  const lista = (acciones || []).filter((accion) => accion?.impacto);
+  const listas = lista.filter((accion) => accion.impacto.estado === ESTADOS_IMPACTO.ESTIMADO);
+
+  const mejorPorGrupo = new Map();
+  for (const accion of listas) {
+    const grupo = accion.grupoExclusivo || accion.id || accion;
+    const actual = mejorPorGrupo.get(grupo);
+    if (!actual || (accion.impacto.ganancia ?? 0) > (actual.impacto.ganancia ?? 0)) {
+      mejorPorGrupo.set(grupo, accion);
+    }
+  }
+  const sumables = [...mejorPorGrupo.values()];
+
   let ganancia = 0;
   let ahorro = 0;
-  let listas = 0;
-  let pendientes = 0;
-
-  for (const accion of acciones || []) {
-    const impacto = accion?.impacto;
-    if (!impacto) continue;
-    if (impacto.estado === ESTADOS_IMPACTO.ESTIMADO) {
-      listas += 1;
-      ganancia += impacto.ganancia ?? 0;
-      if (impacto.tipo !== "pago_deuda") ahorro += impacto.ahorro ?? 0;
-    } else if (
-      impacto.estado === ESTADOS_IMPACTO.FALTAN_DATOS ||
-      impacto.estado === ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ
-    ) {
-      pendientes += 1;
+  let conAhorro = 0;
+  for (const accion of sumables) {
+    ganancia += accion.impacto.ganancia ?? 0;
+    if (accion.impacto.tipo !== "pago_deuda" && accion.impacto.ahorro !== null && accion.impacto.ahorro !== undefined) {
+      ahorro += accion.impacto.ahorro;
+      conAhorro += 1;
     }
   }
 
+  const calculables = lista.filter(
+    (accion) => accion.impacto.estado !== ESTADOS_IMPACTO.FALTAN_DATOS
+  ).length;
+
   return {
-    ganancia: redondear(ganancia),
-    ahorro: redondear(ahorro),
-    accionesListas: listas,
-    accionesPendientes: pendientes,
+    ganancia: sumables.length ? redondear(ganancia) : null,
+    ahorro: conAhorro ? redondear(ahorro) : null,
+    accionesListas: listas.length,
+    accionesSumadas: sumables.length,
+    accionesExcluidasPorEscenario: listas.length - sumables.length,
+    accionesPendientes: lista.filter(
+      (accion) =>
+        accion.impacto.estado === ESTADOS_IMPACTO.FALTAN_DATOS ||
+        accion.impacto.estado === ESTADOS_IMPACTO.REQUIERE_LIQUIDEZ
+    ).length,
+    cobertura: { calculables, total: lista.length },
   };
 }
