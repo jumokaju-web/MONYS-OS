@@ -18,6 +18,7 @@ test("resume ventas, costo, utilidad bruta, margen y folios repetidos", () => {
     costoTotal: 1250,
     utilidadTotal: 750,
     margenUtilidad: 37.5,
+    ticketPromedio: 2000 / 3,
     fechaInicio: "2026-10-01",
     fechaFin: "2026-10-07",
   });
