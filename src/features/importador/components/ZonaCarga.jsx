@@ -853,6 +853,16 @@ if (
               actualizarEmpresa("ventas", actualizacionVentas);
             }
 
+            if (item.tipoReporte === "Utilidad de ventas" && item.resumen) {
+              actualizarEmpresa("ventas", {
+                total: item.resumen.ventaTotal,
+                costo: item.resumen.costoTotal,
+                utilidad: item.resumen.utilidadTotal,
+                margen: item.resumen.margenUtilidad,
+                ticketPromedio: item.resumen.ticketPromedio,
+              });
+            }
+
             if (
               (item.tipoReporte === "Inventario" ||
                 item.tipoReporte === "Inventario / Utilidad") &&

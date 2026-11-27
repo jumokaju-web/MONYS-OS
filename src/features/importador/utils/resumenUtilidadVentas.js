@@ -30,6 +30,7 @@ export function generarResumenUtilidadVentas(datos = []) {
     costoTotal,
     utilidadTotal,
     margenUtilidad: ventaTotal !== 0 ? (utilidadTotal / ventaTotal) * 100 : 0,
+    ticketPromedio: filas.length > 0 ? ventaTotal / filas.length : 0,
     fechaInicio,
     fechaFin,
   };

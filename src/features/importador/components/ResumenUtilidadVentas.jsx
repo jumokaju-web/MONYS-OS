@@ -53,6 +53,7 @@ export default function ResumenUtilidadVentas({ resumen }) {
           ["Costo de venta", dinero(resumen.costoTotal), `${numero(resumen.foliosUnicos)} folios únicos`],
           ["Utilidad bruta", dinero(resumen.utilidadTotal), "Antes de gastos operativos"],
           ["Margen bruto", `${Number(resumen.margenUtilidad || 0).toLocaleString("es-MX", { maximumFractionDigits: 1 })}%`, "Utilidad bruta ÷ ventas"],
+          ["Ticket promedio", dinero(resumen.ticketPromedio), "Venta promedio por ticket SICAR"],
         ].map(([titulo, valor, detalle]) => (
           <article key={titulo} style={{ padding: "17px", border: "1px solid #eadce4", borderRadius: "14px", background: "#ffffff" }}>
             <p style={{ margin: "0 0 9px", color: "#756a70", fontSize: "14px", fontWeight: 700 }}>{titulo}</p>
