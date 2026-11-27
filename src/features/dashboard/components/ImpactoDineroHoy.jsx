@@ -72,7 +72,7 @@ export default function ImpactoDineroHoy({ businessId = null, formatoDinero, abr
             <div>
               <small>Compras que te ahorras</small>
               <strong>{datos.resumen.ahorro == null ? "Sin dato" : dinero(datos.resumen.ahorro)}</strong>
-              <span>Efectivo que no sale de caja</span>
+              <span>Se confirma con el plan de compra</span>
             </div>
           </div>
 

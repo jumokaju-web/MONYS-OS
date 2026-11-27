@@ -986,29 +986,32 @@ export async function generarAnalisisRebalanceo(businessId = null) {
             cantidadSugerida,
           });
 
-        // El margen del destino es el que se va a realizar; si no vendió
-        // con utilidad registrada, se usa el del origen como referencia.
+        // Cada sucursal con su propio margen: la venta nueva se realiza al
+        // margen del destino y la venta perdida al del origen. Si el
+        // destino no tiene utilidad registrada del producto, se usa la del
+        // origen como referencia.
         const margenDestino =
           obtenerMargenProducto(destino.branch_id, clave);
-        const margenProducto =
-          margenDestino?.utilidadUnitaria != null
-            ? margenDestino
-            : obtenerMargenProducto(origen.branch_id, clave) || margenDestino;
+        const margenOrigen =
+          obtenerMargenProducto(origen.branch_id, clave);
+        const utilidadDestino =
+          margenDestino?.utilidadUnitaria ?? margenOrigen?.utilidadUnitaria ?? null;
 
         const impactoDinero =
           calcularImpactoTraspaso({
             cantidad: cantidadSugerida,
-            utilidadUnitaria: margenProducto?.utilidadUnitaria,
-            costoUnitario: margenProducto?.costoUnitario,
+            utilidadUnitaria: utilidadDestino,
+            utilidadUnitariaOrigen: margenOrigen?.utilidadUnitaria ?? null,
+            costoUnitario:
+              margenDestino?.costoUnitario ?? margenOrigen?.costoUnitario ?? null,
             ventaDiariaDestino,
             existenciaDestino,
             ventaDiariaOrigen,
             existenciaOrigen,
             diasHorizonte: DIAS_OBJETIVO_DESTINO,
-            // Compra Maestra descuenta los traspasos de la compra del
-            // destino: si el destino tiene necesidad, el traspaso evita
-            // esa compra.
-            compraEvitada: necesidadDestino > 0,
+            // La necesidad del destino no confirma una compra: el ahorro
+            // queda sin dato hasta que un plan de compra lo confirme.
+            compraEvitada: null,
           });
 
         recomendaciones.push({
