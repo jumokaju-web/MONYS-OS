@@ -9,9 +9,26 @@ export const CATEGORIAS_GASTO = [
   ["mantenimiento", "Mantenimiento"],
   ["papeleria", "Papelería"],
   ["comisiones", "Comisiones"],
+  ["comisiones_marketplace", "Comisiones y envíos de Mercado Libre"],
+  ["cuotas_imss_infonavit", "Cuotas IMSS e Infonavit"],
+  ["intereses_deuda", "Intereses de deuda"],
+  ["pago_capital_deuda", "Abono a capital de deuda (no es gasto)"],
+  ["impuesto_iva", "IVA pagado al SAT (no es gasto)"],
+  ["impuesto_isr", "ISR pagado al SAT (no es gasto operativo)"],
+  ["retencion_marketplace", "Retenciones de Mercado Libre (no es gasto)"],
+  ["devolucion_marketplace", "Devolución a cliente de Mercado Libre (reduce venta)"],
   ["anticipo_prestamo", "Anticipo o préstamo"],
   ["retiro_propietaria", "Retiro de propietaria"],
   ["otro", "Otro"],
+];
+
+// Clasificación de entradas: ninguna cuenta como venta nueva.
+export const CATEGORIAS_INGRESO = [
+  ["ingreso_caja_sicar", "Venta registrada en SICAR"],
+  ["liquidacion_marketplace", "Depósito de Mercado Libre (cobro de ventas ya registradas)"],
+  ["traspaso_caja", "Traspaso entre cajas o cuentas"],
+  ["anticipo_prestamo", "Préstamo o aportación"],
+  ["ajuste_cancelacion", "Ajuste o cancelación"],
 ];
 
 export const CATEGORIAS_GASTO_ANTERIORES = [
@@ -21,13 +38,21 @@ export const CATEGORIAS_GASTO_ANTERIORES = [
   ["otros", "Otros (registro anterior)"],
 ];
 
-const CATEGORIAS_SIN_IMPACTO_EN_UTILIDAD = new Set([
+// Debe coincidir con public.categoria_tesoreria_sin_impacto (migración
+// 20261128010000); una prueba lo verifica.
+export const CATEGORIAS_SIN_IMPACTO_EN_UTILIDAD = new Set([
   "anticipo_prestamo",
   "retiro_propietaria",
   "traspaso_caja",
   "ajuste_cancelacion",
   "registro_prueba",
   "ingreso_caja_sicar",
+  "pago_capital_deuda",
+  "impuesto_iva",
+  "impuesto_isr",
+  "liquidacion_marketplace",
+  "retencion_marketplace",
+  "devolucion_marketplace",
 ]);
 
 export function permiteNoAplica(categoria) {
