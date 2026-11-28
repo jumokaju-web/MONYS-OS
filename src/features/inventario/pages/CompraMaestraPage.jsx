@@ -12,6 +12,7 @@ import ResumenSucursalesCompra from "../components/ResumenSucursalesCompra";
 import DetalleCompraSucursal from "../components/DetalleCompraSucursal";
 import PlanTraspasos from "../components/PlanTraspasos";
 import ListaMaestraCompra from "../components/ListaMaestraCompra";
+import ImpactoComprasMaestra from "../components/ImpactoComprasMaestra";
 import HistorialCompraMaestra from "../components/HistorialCompraMaestra";
 import DecisionCompraInteligente from "../components/DecisionCompraInteligente";
 import { construirDecisionCompra } from "../utils/decisionCompra";
@@ -1116,6 +1117,14 @@ const capacidadCompraAutorizable = numeroONulo(
       {seccionActiva ===
         "historial" && (
         <HistorialCompraMaestra businessId={businessId} />
+      )}
+
+      {seccionActiva ===
+        "compra" && (
+        <ImpactoComprasMaestra
+          productos={productosCompra}
+          diasCobertura={compraMaestra?.coberturaObjetivoDias || 30}
+        />
       )}
 
       {seccionActiva ===
