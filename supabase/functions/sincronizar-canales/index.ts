@@ -238,21 +238,27 @@ function crearAlmacen(supabase: any) {
     // Si el turno ya no es de esta ejecución, la base rechaza el lote.
     // organización, negocio, cuenta y canal los pone la base desde la cuenta.
     async guardarDatos(cuenta: any, datos: any, { ejecucionId }: { ejecucionId: string }) {
+      // La marca se toma después de tomar el turno: la base exige que no
+      // sea anterior al inicio del turno para marcar ausentes.
       const marca = new Date().toISOString();
+      const resumen = { escritas: 0, colisiones: [] as any[], itemsEliminados: 0, obsoletas: 0 };
+      const enviar = async (tipo: string, filas: any[] | null, barridoCompleto = false) => {
+        const r: any = await rpc("guardar_lote_canal", {
+          p_cuenta_id: cuenta.id, p_ejecucion: ejecucionId, p_tipo: tipo, p_filas: filas, p_marca: marca, p_barrido_completo: barridoCompleto,
+        });
+        resumen.escritas += r?.escritas || 0;
+        resumen.colisiones.push(...(r?.colisiones || []));
+        resumen.itemsEliminados += r?.itemsEliminados || 0;
+        resumen.obsoletas += r?.obsoletas || 0;
+      };
       const lote = async (tipo: string, filas: any[], tamano: number) => {
-        for (let i = 0; i < filas.length; i += tamano) {
-          await rpc("guardar_lote_canal", {
-            p_cuenta_id: cuenta.id, p_ejecucion: ejecucionId, p_tipo: tipo, p_filas: filas.slice(i, i + tamano), p_marca: marca,
-          });
-        }
+        for (let i = 0; i < filas.length; i += tamano) await enviar(tipo, filas.slice(i, i + tamano));
       };
       await lote("ordenes", datos.ordenes, 50);
       await lote("publicaciones", datos.publicaciones, 200);
-      // Solo con un barrido completo se marcan las que ya no existen.
-      if (datos.publicaciones.length && datos.cobertura?.completa) {
-        await rpc("guardar_lote_canal", { p_cuenta_id: cuenta.id, p_ejecucion: ejecucionId, p_tipo: "marcar_obsoletas", p_filas: null, p_marca: marca });
-      }
+      if (datos.publicaciones.length && datos.cobertura?.completa === true) await enviar("marcar_obsoletas", null, true);
       await lote("liquidaciones", datos.liquidaciones, 200);
+      return resumen;
     },
     // Éxito y fallo solo se registran si el turno sigue siendo de esta
     // ejecución: una corrida vencida no pisa el estado de otra.

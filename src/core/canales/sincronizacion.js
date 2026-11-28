@@ -149,9 +149,11 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
     if (dryRun) return { ...resumen, escrito: false };
 
     await confirmarTurno();
-    await almacen.guardarDatos(cuenta, datos, { ejecucionId, confirmarTurno });
-    await almacen.registrarExito(cuenta.id, { ahora, cobertura: datos.cobertura, ejecucionId });
-    return { ...resumen, escrito: true };
+    const escritura = (await almacen.guardarDatos(cuenta, datos, { ejecucionId, confirmarTurno })) || null;
+    // Las colisiones (filas de otra cuenta) no se escriben y se reportan.
+    const cobertura = escritura?.colisiones?.length ? { ...datos.cobertura, colisiones: escritura.colisiones.length } : datos.cobertura;
+    await almacen.registrarExito(cuenta.id, { ahora, cobertura, ejecucionId });
+    return { ...resumen, escrito: true, escritura };
   } catch (error) {
     const mensaje = String(error?.message || error).slice(0, 1000);
     const intentos = (Number(cuenta.intentos_fallidos) || 0) + 1;

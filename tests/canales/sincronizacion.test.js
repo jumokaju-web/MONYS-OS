@@ -196,3 +196,13 @@ test("cobertura real por fuente", () => {
     publicaciones: 2, publicacionesConSkuPct: 50, liquidaciones: 1, liquidacionesConNetoPct: 0, liquidacionesDerivadas: 1, fuentesNoDisponibles: ["retenciones"],
   });
 });
+
+test("las colisiones que reporta la base quedan en el resultado y en la cobertura", async () => {
+  const s = simulacion();
+  let coberturaRegistrada = null;
+  s.almacen.guardarDatos = async () => ({ escritas: 1, colisiones: [{ tipo: "orden", id: "O1" }], itemsEliminados: 0, obsoletas: 0 });
+  s.almacen.registrarExito = async (_id, info) => { coberturaRegistrada = info.cobertura; };
+  const r = await sincronizarCuenta(cuenta, opciones(s));
+  assert.equal(r.escritura.colisiones.length, 1);
+  assert.equal(coberturaRegistrada.colisiones, 1);
+});
