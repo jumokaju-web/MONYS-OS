@@ -3,7 +3,7 @@ import "./EstadoResultadosDetalle.css";
 const mxn=new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"});
 const known=Number.isFinite;
 const money=v=>known(v)?mxn.format(v):"Pendiente";
-const labels={iva:"IVA",isrPagado:"ISR pagado",capitalDeuda:"Capital de deuda",compraInventario:"Compra de inventario",retiros:"Retiros",liquidaciones:"Liquidaciones de plataformas"};
+const labels={iva:"IVA",isrPagado:"ISR pagado",capitalDeuda:"Capital de deuda",compraInventario:"Compra de inventario",retiros:"Retiros",impuestosSinTipo:"Impuestos pendientes de clasificar",financiamiento:"Entradas de financiamiento",traspasos:"Traspasos internos"};
 const label=k=>labels[k] || k.replace(/([A-Z])/g," $1").replaceAll("_"," ");
 function Line({name,value,status,subtotal,emphasis=false}){
  return <div className={emphasis?"er-line er-emphasis":"er-line"}><div>{name}<small>{known(value)?status:"Pendiente"}</small></div><strong>{money(value)}</strong>{!known(value)&&known(subtotal?.valor)&&<details><summary>Subtotal conocido: {money(subtotal.valor)}</summary><p>Incluye: {(subtotal.incluye||[]).join(", ")}</p><p>Falta: {(subtotal.faltan||[]).join(", ")}</p></details>}</div>;
@@ -17,7 +17,7 @@ export default function EstadoResultadosDetalle({tablero,mes,onMesChange,loading
  if(!e)return <p>No hay periodos disponibles.</p>;
  const c=e.consolidado||{},s=e.subtotalConocido||{};
  const provisional=!!e.provisional?.length||!!e.parcial||!c.completo||!!tablero.errores?.length;
- const status=provisional?"Provisional · por confirmar":"Real";
+ const status=({alta:"Confirmado",media:"Con reservas",baja:"Provisional"})[e.confianza] || "Pendiente";
  const isrStatus=String(c.tipoIsr||"").startsWith("ESTIMADO")?"Estimado · ISR":status;
  const interestStatus=e.bases?.intereses==="devengado_estimado"?"Estimado":e.bases?.intereses==="pagado_registrado"?"Pagado registrado":status;
  const rows=[
