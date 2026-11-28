@@ -73,42 +73,49 @@ function fechaUTC(texto) {
  * Cuántos vencimientos de una obligación caen dentro del mes, a partir de
  * su fecha_vencimiento como ancla del calendario.
  */
-export function vencimientosEnMes(obligacion, mes) {
+/*
+ * Fechas (YYYY-MM-DD) en que una obligación vence dentro del mes. Es la
+ * única fuente: vencimientosEnMes es su conteo.
+ * - UNICA: su fecha, si cae en el mes.
+ * - QUINCENAL (México): día 15 y último día del mes.
+ * - SEMANAL: cada 7 días desde la fecha ancla.
+ * - MENSUAL/BIMESTRAL/…: el día de la fecha ancla (o el último día si el
+ *   mes es más corto), en los meses que le tocan.
+ * null si la obligación no tiene fecha o frecuencia válida.
+ */
+export function fechasDeVencimientoEnMes(obligacion, mes) {
   const frecuencia = String(obligacion?.frecuencia || "UNICA").toUpperCase();
   const ancla = fechaUTC(obligacion?.fecha_vencimiento);
   if (!mesValido(mes) || !ancla) return null;
   const [ano, numeroMes] = mes.split("-").map(Number);
   const inicio = Date.UTC(ano, numeroMes - 1, 1, 12);
   const fin = Date.UTC(ano, numeroMes, 0, 12);
+  const ultimoDia = new Date(fin).getUTCDate();
+  const dia = (d) => `${mes}-${String(d).padStart(2, "0")}`;
+  const iso = (t) => new Date(t).toISOString().slice(0, 10);
 
-  if (frecuencia === "UNICA") {
-    return ancla.getTime() >= inicio && ancla.getTime() <= fin ? 1 : 0;
-  }
-  // Quincenal en México = dos pagos por mes (días 15 y último), no cada 14 días.
-  if (frecuencia === "QUINCENAL") return 2;
+  if (frecuencia === "UNICA") return ancla.getTime() >= inicio && ancla.getTime() <= fin ? [iso(ancla.getTime())] : [];
+  if (frecuencia === "QUINCENAL") return [dia(15), dia(ultimoDia)];
   if (frecuencia === "SEMANAL") {
     const paso = 7 * 86400000;
     let fecha = ancla.getTime();
     while (fecha > inicio) fecha -= paso;
     while (fecha < inicio) fecha += paso;
-    let cuenta = 0;
-    for (; fecha <= fin; fecha += paso) cuenta += 1;
-    return cuenta;
+    const fechas = [];
+    for (; fecha <= fin; fecha += paso) fechas.push(iso(fecha));
+    return fechas;
   }
   const meses = MESES_POR_FRECUENCIA[frecuencia];
   if (!meses) return null;
   const diferencia = (ano - ancla.getUTCFullYear()) * 12 + (numeroMes - 1 - ancla.getUTCMonth());
-  return ((diferencia % meses) + meses) % meses === 0 ? 1 : 0;
+  return ((diferencia % meses) + meses) % meses === 0 ? [dia(Math.min(ancla.getUTCDate(), ultimoDia))] : [];
 }
 
-/*
- * Gastos del mes desde obligaciones operativas, separados en operativos
- * e impuestos:
- * - total (devengo mensual estimado): costo que corresponde al mes,
- *   prorrateado (semanal × 52/12). Es la base contable del equilibrio.
- * - venceOperativo: lo que VENCE en el calendario del mes (caja). Una
- *   renta de diciembre puede vencer en noviembre; no es lo mismo.
- */
+export function vencimientosEnMes(obligacion, mes) {
+  const fechas = fechasDeVencimientoEnMes(obligacion, mes);
+  return fechas === null ? null : fechas.length;
+}
+
 export function gastosFijosDelMes(obligaciones = [], mes) {
   const porCategoria = {};
   const vencePorCategoria = {};
