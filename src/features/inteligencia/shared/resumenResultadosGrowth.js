@@ -83,3 +83,27 @@ export function resumirResultadosCampanas(campanas = []) {
     }
   );
 }
+
+/*
+ * Campañas con venta y gasto confirmados, para el pronóstico de nuevas
+ * campañas (motor de impacto en dinero).
+ */
+export function historialCampanasConfirmadas(campanas = []) {
+  return (Array.isArray(campanas) ? campanas : [])
+    .map((campana) => {
+      const resultado = campana?.resultado || {};
+      const venta = numeroRegistrado(resultado.ventaAcumulada);
+      const gasto = numeroRegistrado(resultado.gastoAcumulado);
+      if (
+        venta === null ||
+        gasto === null ||
+        gasto <= 0 ||
+        !campoConfirmado(resultado, "venta") ||
+        !campoConfirmado(resultado, "gasto")
+      ) {
+        return null;
+      }
+      return { venta, gasto, nombre: campana?.producto || campana?.nombre || "Campaña" };
+    })
+    .filter(Boolean);
+}

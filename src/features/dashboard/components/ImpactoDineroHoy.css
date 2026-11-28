@@ -112,3 +112,74 @@
   color: #fff;
   font-weight: 700;
 }
+
+.impacto-dinero__neutro {
+  color: #281b22 !important;
+}
+
+.impacto-dinero__negativo {
+  color: #a52d2d !important;
+}
+
+.impacto-dinero__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 13px;
+  color: #4d3a45;
+}
+
+.impacto-dinero__campo input {
+  padding: 10px 12px;
+  border: 1px solid #e7c6d7;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.impacto-dinero__campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 10px;
+}
+
+.impacto-dinero__simulador {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f6e4ee;
+}
+
+.impacto-dinero__simulador summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #5f2445;
+}
+
+.impacto-dinero__resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f3fbf6;
+  font-size: 13px;
+  color: #4d3a45;
+}
+
+.impacto-dinero__resultado strong {
+  font-size: 20px;
+  color: #1f7a4d;
+}
+
+.impacto-dinero__resultado ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: #6f5865;
+}
+
+@media (max-width: 420px) {
+  .impacto-dinero__campos {
+    grid-template-columns: 1fr;
+  }
+}

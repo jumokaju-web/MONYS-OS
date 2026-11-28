@@ -1,5 +1,6 @@
 import "./CentroTrabajoGrowth.css";
 import { resumirResultadosCampanas } from "../../shared/resumenResultadosGrowth";
+import PronosticoCampana from "./PronosticoCampana";
 
 function nombreCorto(nombre) {
   return String(nombre || "Equipo")
@@ -1375,6 +1376,12 @@ export default function CentroTrabajoGrowth({
             .
           </div>
         )}
+
+        <PronosticoCampana
+          campanas={campanas}
+          margenPorcentaje={oportunidadPrioritaria?.margenReal ?? null}
+          producto={oportunidadPrioritaria?.nombre || oportunidadPrioritaria?.codigo || ""}
+        />
       </div>
 
       <div className="growth-workspace__command-grid">

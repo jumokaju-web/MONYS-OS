@@ -11,6 +11,7 @@ import {
   generarRecomendacionesRebalanceo,
 } from "./rebalanceoInventarioService";
 import { calcularMargenComercial } from "../utils/margenProducto";
+import { evaluarImpactoCompras } from "../utils/impactoCompraMaestra.js";
 
 const DIAS_COBERTURA_OBJETIVO = 30;
 
@@ -1006,6 +1007,10 @@ const totalCubiertoPorTraspasos =
       0
     );
 
+  const impactoCompras = evaluarImpactoCompras(productos, {
+    diasCobertura: DIAS_COBERTURA_OBJETIVO,
+  });
+
   const fuentes = (sucursales || []).map((sucursal) => {
     const branchId = sucursal?.id;
     const inventario = (inventariosPorSucursal || []).find(
@@ -1060,7 +1065,9 @@ const totalCubiertoPorTraspasos =
       periodosVentas,
     },
 
-       productos,
+    productos: impactoCompras.productos,
+
+    impactoCompras: impactoCompras.resumen,
 
     productosRevisionInventario,
 
