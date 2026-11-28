@@ -183,3 +183,31 @@
     grid-template-columns: 1fr;
   }
 }
+
+.impacto-dinero__ir {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #a2346f;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.impacto-dinero__supuestos {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6f5865;
+}
+
+.impacto-dinero__supuestos summary {
+  cursor: pointer;
+  color: #5f2445;
+}
+
+.impacto-dinero__supuestos ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
