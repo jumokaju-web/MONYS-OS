@@ -4,6 +4,7 @@ import {
   NATURALEZAS,
   clasificarMovimiento,
   conciliarGastosDelMes,
+  expandirDistribuciones,
 } from "../../src/core/finanzas/conciliacionGastos.js";
 import { construirEquilibrioReal, gastosFijosDelMes } from "../../src/core/finanzas/equilibrioReal.js";
 
@@ -91,14 +92,14 @@ test("concilia el mes: gasto separado de retiros, compras, capital, impuestos y 
   assert.equal(conciliacion.confianza, "alta");
 });
 
-test("devengado del calendario contra pagado y pendiente, a nivel categoría", () => {
+test("lo que vence en el calendario contra pagado y pendiente, a nivel categoría", () => {
   const conciliacion = conciliarGastosDelMes({
     mes: "2026-12",
     obligaciones,
     movimientos: [salida("renta", "fijo", 40000), salida("nomina", "fijo", 20000), salida("servicios", "fijo", 800)],
   });
   const nomina = conciliacion.diferencias.find((fila) => fila.categoria === "NOMINA");
-  assert.equal(nomina.devengado, 40000); // 4 semanas en diciembre
+  assert.equal(nomina.vence, 40000); // 4 semanas en diciembre
   assert.equal(nomina.pagado, 20000);
   assert.equal(nomina.pendiente, 20000);
   assert.equal(nomina.nivel, "categoria");
@@ -152,7 +153,7 @@ test("sin clasificar o pendientes bajan la confianza", () => {
 test("pagos sin obligación que venza en el mes se señalan", () => {
   const conciliacion = conciliarGastosDelMes({ mes: "2026-12", obligaciones: [], movimientos: [salida("servicios", "fijo", 3000)] });
   const servicios = conciliacion.diferencias.find((fila) => fila.categoria === "SERVICIOS");
-  assert.equal(servicios.devengado, null);
+  assert.equal(servicios.vence, null);
   assert.match(servicios.motivo, /sin obligación/);
 });
 
@@ -175,7 +176,44 @@ test("el equilibrio usa la conciliación y nunca es alta con faltantes", () => {
   const conciliado = construirEquilibrioReal({ ...entradaEquilibrio, conciliacion });
   assert.equal(conciliado.confianza, "alta");
   assert.equal(conciliado.gastos.pagadoOperativo, 80800);
-  assert.equal(conciliado.gastos.devengadoOperativoDelMes, 80800);
+  assert.equal(conciliado.gastos.venceOperativoEnElMes, 80800);
   assert.equal(construirEquilibrioReal(entradaEquilibrio).confianza, "baja");
   assert.equal(construirEquilibrioReal({ ...entradaEquilibrio, diasAbiertos: null, conciliacion }).confianza, "baja");
+});
+
+/* ---------- Distribuciones de Tesorería ---------- */
+
+test("distribuciones: reemplazan al movimiento original sin duplicarlo", () => {
+  const movimiento = { id: "m1", organization_id: "o", business_id: "tienda", ...salida("otro", "fijo", 10000) };
+  const { lineas, pagosCruzados } = expandirDistribuciones({
+    businessId: "tienda",
+    movimientos: [movimiento, { id: "m2", organization_id: "o", business_id: "tienda", ...salida("renta", "fijo", 40000) }],
+    distribuciones: [
+      { id: "p1", cash_movement_id: "m1", organization_id: "o", business_id: "tienda", branch_id: "A", amount: 6000, expense_category: "servicios", expense_behavior: "fijo", status: "ACTIVA" },
+      { id: "p2", cash_movement_id: "m1", organization_id: "o", business_id: "flotilla", branch_id: "F", amount: 4000, expense_category: "transporte", expense_behavior: "variable", status: "ACTIVA" },
+      { id: "p0", cash_movement_id: "m1", organization_id: "o", business_id: "tienda", branch_id: "A", amount: 10000, expense_category: "otro", expense_behavior: "fijo", status: "REEMPLAZADA" },
+    ],
+  });
+  assert.deepEqual(lineas.map((linea) => [linea.id, linea.amount, linea.expense_category]), [["m1:p1", 6000, "servicios"], ["m2", 40000, "renta"]]);
+  assert.deepEqual(pagosCruzados, [{ pagador: "tienda", receptor: "flotilla", importe: 4000, movimiento: "m1" }]);
+  const total = conciliarGastosDelMes({ mes: "2026-12", movimientos: lineas }).gastoOperativoReal;
+  assert.equal(total, 46000);
+});
+
+test("distribuciones: partidas propias sobre movimientos de otro negocio usan el movimiento original", () => {
+  const origen = { id: "m9", organization_id: "o", business_id: "flotilla", ...salida("otro", "fijo", 5000) };
+  const { lineas, partidasSinMovimiento } = expandirDistribuciones({
+    businessId: "tienda",
+    movimientos: [],
+    movimientosOrigen: [origen],
+    distribuciones: [
+      { id: "p9", cash_movement_id: "m9", organization_id: "o", business_id: "tienda", branch_id: "A", amount: 2000, expense_category: "servicios", expense_behavior: "fijo", status: "ACTIVA" },
+      { id: "p8", cash_movement_id: "m8", organization_id: "o", business_id: "tienda", branch_id: "A", amount: 1000, expense_category: "servicios", expense_behavior: "fijo", status: "ACTIVA" },
+    ],
+  });
+  assert.equal(lineas.length, 1);
+  assert.equal(lineas[0].business_id, "tienda");
+  assert.equal(lineas[0].occurred_at, origen.occurred_at);
+  assert.equal(lineas[0].amount, 2000);
+  assert.deepEqual(partidasSinMovimiento, ["m8"]);
 });

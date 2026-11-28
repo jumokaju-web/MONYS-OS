@@ -54,11 +54,14 @@ export async function obtenerEquilibrioReal({
     ((deudas || []).length - deudasValidas.length) +
     ((ventas || []).length - ventasValidas.length);
 
-  const conciliacion = Array.isArray(movimientos)
+  const lecturaCaja = movimientos && !movimientos.error ? movimientos : null;
+  const conciliacion = lecturaCaja
     ? conciliarMovimientosDelNegocio({
         organizationId,
         businessId,
-        movimientos,
+        movimientos: lecturaCaja.movimientos,
+        distribuciones: lecturaCaja.distribuciones,
+        movimientosOrigen: lecturaCaja.movimientosOrigen,
         obligaciones: obligacionesValidas,
         mes,
         gastosFijos: gastosFijosDelMes(obligacionesValidas, mes),
@@ -70,10 +73,11 @@ export async function obtenerEquilibrioReal({
   return {
     estado: "listo",
     motivo: "",
-    errores: Array.isArray(movimientos) ? [] : [`Movimientos de caja: ${movimientos?.error?.message || "no disponibles"}`],
+    errores: lecturaCaja ? [] : [`Movimientos de caja: ${movimientos?.error?.message || "no disponibles"}`],
     descartados: totalDescartados,
     conciliacion,
     ...construirEquilibrioReal({
+      businessId,
       mes,
       obligaciones: obligacionesValidas,
       deudas: deudasValidas,

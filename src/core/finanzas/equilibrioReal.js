@@ -12,9 +12,9 @@
  *     si son gasto del periodo.
  *
  * Gastos: se distinguen
- *  - presupuesto mensual (promedio: semanal × 52/12, etc.),
- *  - devengado del mes (vencimientos que caen en el calendario del mes),
- *  - pagado (de la conciliación de caja) y pendiente.
+ *  - devengo mensual estimado (costo prorrateado del mes: semanal × 52/12),
+ *  - vencimientos del mes (fechas de pago en el calendario; caja),
+ *  - pagado (conciliación de caja) y pendiente.
  *
  * Reutiliza calcularEquilibrioDiario (simulador existente) para los
  * indicadores 1 y 2. Lo faltante queda "" y listado; nunca 0.
@@ -103,16 +103,20 @@ export function vencimientosEnMes(obligacion, mes) {
 
 /*
  * Gastos del mes desde obligaciones operativas, separados en operativos
- * e impuestos, con presupuesto (promedio) y devengado (calendario).
+ * e impuestos:
+ * - total (devengo mensual estimado): costo que corresponde al mes,
+ *   prorrateado (semanal × 52/12). Es la base contable del equilibrio.
+ * - venceOperativo: lo que VENCE en el calendario del mes (caja). Una
+ *   renta de diciembre puede vencer en noviembre; no es lo mismo.
  */
 export function gastosFijosDelMes(obligaciones = [], mes) {
   const porCategoria = {};
-  const devengadoPorCategoria = {};
+  const vencePorCategoria = {};
   const invalidas = [];
   let presupuestoOperativo = 0;
-  let devengadoOperativo = 0;
+  let venceOperativo = 0;
   let presupuestoImpuestos = 0;
-  let devengadoImpuestos = 0;
+  let venceImpuestos = 0;
   let consideradas = 0;
 
   for (const obligacion of obligaciones || []) {
@@ -135,18 +139,18 @@ export function gastosFijosDelMes(obligaciones = [], mes) {
     }
 
     const presupuesto = frecuencia === "UNICA" ? (vencimientos ? importe : 0) : importe * FACTOR_MENSUAL[frecuencia];
-    const devengado = importe * vencimientos;
-    if (!presupuesto && !devengado) continue;
+    const vence = importe * vencimientos;
+    if (!presupuesto && !vence) continue;
 
     const categoria = String(obligacion?.categoria || "OTRO").toUpperCase();
     porCategoria[categoria] = redondear((porCategoria[categoria] || 0) + presupuesto);
-    devengadoPorCategoria[categoria] = redondear((devengadoPorCategoria[categoria] || 0) + devengado);
+    vencePorCategoria[categoria] = redondear((vencePorCategoria[categoria] || 0) + vence);
     if (CATEGORIAS_NO_OPERATIVAS.has(categoria)) {
       presupuestoImpuestos += presupuesto;
-      devengadoImpuestos += devengado;
+      venceImpuestos += vence;
     } else {
       presupuestoOperativo += presupuesto;
-      devengadoOperativo += devengado;
+      venceOperativo += vence;
     }
     consideradas += 1;
   }
@@ -157,11 +161,11 @@ export function gastosFijosDelMes(obligaciones = [], mes) {
   return {
     total: completo ? redondear(presupuestoOperativo) : null,
     totalCapturado: redondear(presupuestoOperativo),
-    devengadoOperativo: completo ? redondear(devengadoOperativo) : null,
+    venceOperativo: completo ? redondear(venceOperativo) : null,
     impuestosPresupuesto: redondear(presupuestoImpuestos),
-    impuestosDevengados: redondear(devengadoImpuestos),
+    impuestosQueVencen: redondear(venceImpuestos),
     porCategoria,
-    devengadoPorCategoria,
+    vencePorCategoria,
     consideradas,
     completo,
     faltantes: [
@@ -182,13 +186,16 @@ export function pagosDeudaDelMes(deudas = [], { sinDeudasConfirmado = false } = 
   );
   if (!abiertas.length) {
     return sinDeudasConfirmado
-      ? { total: 0, intereses: 0, capital: 0, completo: true, interesesCompletos: true, faltantes: [], deudas: 0 }
-      : { total: null, intereses: null, capital: null, completo: false, interesesCompletos: false, faltantes: ["confirmar que no hay deudas abiertas"], deudas: 0 };
+      ? { total: 0, intereses: 0, capital: 0, interesNoCubierto: 0, completo: true, interesesCompletos: true, faltantes: [], avisos: [], deudas: 0 }
+      : { total: null, intereses: null, capital: null, interesNoCubierto: null, completo: false, interesesCompletos: false, faltantes: ["confirmar que no hay deudas abiertas"], avisos: [], deudas: 0 };
   }
 
   const faltantes = [];
+  const avisos = [];
   let total = 0;
   let intereses = 0;
+  let capital = 0;
+  let interesNoCubierto = 0;
   let interesesCompletos = true;
   for (const deuda of abiertas) {
     const nombre = deuda?.nombre || deuda?.acreedor || "deuda";
@@ -206,17 +213,26 @@ export function pagosDeudaDelMes(deudas = [], { sinDeudasConfirmado = false } = 
       interesesCompletos = false;
       continue;
     }
-    intereses += Math.min(pago, saldo * (tasa / 100) / 12);
+    // El interés se devenga completo aunque el pago no lo cubra.
+    const interesDelMes = saldo * (tasa / 100) / 12;
+    intereses += interesDelMes;
+    capital += Math.max(0, pago - interesDelMes);
+    if (pago < interesDelMes) {
+      interesNoCubierto += interesDelMes - pago;
+      avisos.push(`El pago de ${nombre} no cubre el interés del mes: la deuda crece ${redondear(interesDelMes - pago)}.`);
+    }
   }
   const completo = !faltantes.some((texto) => texto.startsWith("pago mensual"));
   return {
     total: completo ? redondear(total) : null,
     totalCapturado: redondear(total),
     intereses: interesesCompletos ? redondear(intereses) : null,
-    capital: interesesCompletos && completo ? redondear(total - intereses) : null,
+    capital: interesesCompletos && completo ? redondear(capital) : null,
+    interesNoCubierto: interesesCompletos ? redondear(interesNoCubierto) : null,
     completo,
     interesesCompletos,
     faltantes,
+    avisos,
     deudas: abiertas.length,
   };
 }
@@ -366,6 +382,7 @@ function mesAbierto(mes, hoy) {
  *   reporte SICAR } (venta diaria sobre días abiertos).
  */
 export function construirEquilibrioReal({
+  businessId = null,
   mes,
   hoy = null,
   obligaciones = [],
@@ -418,7 +435,7 @@ export function construirEquilibrioReal({
   const operativo = calcularEquilibrioDiario({ ...baseSimulador, deuda: "0" });
   // 2. Efectivo: servicio de deuda + impuestos programados del mes.
   const compromisosCaja =
-    deuda.total === null ? null : redondear(deuda.total + gastos.impuestosDevengados);
+    deuda.total === null ? null : redondear(deuda.total + gastos.impuestosQueVencen);
   const datos = { ...baseSimulador, deuda: texto(compromisosCaja) };
   const efectivo = calcularEquilibrioDiario(datos);
   // 3. Utilidad neta estimada: contribución − gastos fijos − intereses.
@@ -426,11 +443,13 @@ export function construirEquilibrioReal({
   if (operativo.calculable && deuda.intereses !== null) {
     const contribucionPrevista = Number(baseSimulador.ventaPrevista) * operativo.contribucion;
     utilidadNeta = {
-      utilidadNetaEstimada: redondear(contribucionPrevista - gastos.total - deuda.intereses),
+      concepto: "utilidad antes de ISR",
+      utilidadAntesDeISR: redondear(contribucionPrevista - gastos.total - deuda.intereses),
       ventaParaUtilidadCero: redondear((gastos.total + deuda.intereses) / operativo.contribucion),
-      intereses: deuda.intereses,
+      interesesDevengadosEstimados: deuda.intereses,
+      interesesPagados: conciliacion?.gastoFinanciero ?? null,
+      interesNoCubierto: deuda.interesNoCubierto,
       capitalNoEsGasto: deuda.capital,
-      antesDeImpuestos: true,
     };
   } else if (operativo.calculable) {
     faltantes.push("intereses de deuda separados de capital (tasa y saldo)");
@@ -468,6 +487,7 @@ export function construirEquilibrioReal({
     topes.push("media");
     motivosConfianza.push(`Días abiertos del mes no confirmados para: ${diasMesNoConfirmados.join(", ")}.`);
   }
+  motivosConfianza.push(...deuda.avisos);
   if (gastos.impuestosPresupuesto > 0) {
     motivosConfianza.push("Impuestos programados incluidos solo en efectivo: clasifica si son IVA, ISR, IMSS o de periodos anteriores.");
   }
@@ -475,6 +495,7 @@ export function construirEquilibrioReal({
 
   return {
     tipo: "ESTIMACION",
+    businessId,
     mes: mesValido(mes) ? mes : "",
     confianza,
     motivosConfianza,
@@ -491,15 +512,15 @@ export function construirEquilibrioReal({
     },
     resultado: efectivo.calculable ? efectivo : null,
     gastos: {
-      presupuestoMensualOperativo: gastos.total,
-      devengadoOperativoDelMes: gastos.devengadoOperativo,
-      impuestosProgramados: gastos.impuestosDevengados,
+      devengoMensualEstimado: gastos.total,
+      venceOperativoEnElMes: gastos.venceOperativo,
+      impuestosQueVencen: gastos.impuestosQueVencen,
       pagadoOperativo: conciliacion?.gastoOperativoReal ?? null,
       pendientePorCategoria: conciliacion?.diferencias ?? null,
     },
     faltantes,
     fuentes: {
-      gastosFijos: { origen: "obligaciones_operativas", porCategoria: gastos.porCategoria, devengadoPorCategoria: gastos.devengadoPorCategoria, consideradas: gastos.consideradas },
+      gastosFijos: { origen: "obligaciones_operativas", porCategoria: gastos.porCategoria, vencePorCategoria: gastos.vencePorCategoria, consideradas: gastos.consideradas },
       deuda: { origen: "deudas_financieras", deudasAbiertas: deuda.deudas, servicio: deuda.total, intereses: deuda.intereses, capital: deuda.capital },
       ventas: { origen: "SICAR · Ventas por artículo", sucursales: ventas.detalle, coberturaUtilidad: ventas.coberturaUtilidad, comparables: ventas.comparables },
       conciliacion: conciliacion
@@ -507,9 +528,10 @@ export function construirEquilibrioReal({
         : null,
     },
     supuestos: [
-      "Presupuesto mensual = promedio de cada obligación recurrente (semanal × 52/12); devengado = vencimientos que caen en el calendario del mes.",
-      "Interés del mes estimado como saldo × tasa anual ÷ 12; el resto del pago es capital y no es gasto.",
-      "La utilidad neta es antes de impuestos sobre la renta.",
+      "Devengo mensual estimado = costo prorrateado de cada obligación recurrente (semanal × 52/12); vencimientos = fechas de pago que caen en el calendario del mes (caja). No son lo mismo.",
+      "Intereses devengados estimados como saldo × tasa anual ÷ 12, se paguen o no; los pagados salen de la conciliación.",
+      "El capital de la deuda no es gasto. Si el pago no cubre el interés, la deuda crece.",
+      "La utilidad es antes de ISR.",
       "La venta prevista repite la venta diaria del último reporte SICAR de cada sucursal; no incluye temporada ni campañas.",
       "No incluye compras de inventario ni desfases de cobro: revísalos en el flujo de 13 semanas.",
     ],
@@ -517,28 +539,66 @@ export function construirEquilibrioReal({
 }
 
 /*
- * Consolidado para la propietaria (p. ej. tienda + flotilla). Solo suma
- * negocios calculables; los demás se listan. La confianza es la menor.
+ * Consolidado para la propietaria (p. ej. tienda + flotilla).
+ * - Solo es válido con negocios únicos (businessId) y el mismo mes.
+ * - Solo suma negocios calculables; sin ninguno, los totales son null.
+ * - operacionesInternas: [{ pagador, receptor, importe }] pagos entre
+ *   negocios del grupo (p. ej. la tienda paga a flotilla). Se eliminan:
+ *   el gasto del pagador deja de requerir venta externa y la utilidad
+ *   consolidada no cambia porque ingreso y gasto se cancelan (ambos lados
+ *   deben estar registrados; si no, se avisa).
  */
-export function consolidarEquilibrios(resultados = []) {
+export function consolidarEquilibrios(resultados = [], { operacionesInternas = [] } = {}) {
   const lista = (resultados || []).filter(Boolean);
+  const problemas = [];
+  const ids = lista.map((item) => item.businessId);
+  if (ids.some((id) => !id)) problemas.push("Hay resultados sin negocio identificado.");
+  if (new Set(ids).size !== ids.length) problemas.push("Hay negocios repetidos.");
+  const meses = new Set(lista.map((item) => item.mes));
+  if (meses.size > 1) problemas.push("Los resultados son de meses distintos.");
+
   const calculables = lista.filter((item) => item.resultado?.calculable && item.indicadores?.efectivo);
-  const suma = (lector) => {
-    const valores = calculables.map(lector);
-    return valores.some((valor) => valor === null || valor === undefined) ? null : redondear(valores.reduce((a, b) => a + b, 0));
+  const porNegocio = new Map(calculables.map((item) => [String(item.businessId), item]));
+
+  // Venta externa que ya no hace falta por pagos internos del pagador.
+  const ajustePorNegocio = new Map();
+  for (const operacion of operacionesInternas || []) {
+    const importe = numero(operacion?.importe);
+    const pagador = porNegocio.get(String(operacion?.pagador));
+    if (!pagador || !porNegocio.has(String(operacion?.receptor)) || importe === null || importe <= 0) {
+      problemas.push("Hay operaciones internas con negocios fuera del consolidado o importes inválidos.");
+      continue;
+    }
+    const contribucion = pagador.resultado.contribucion;
+    ajustePorNegocio.set(String(operacion.pagador), (ajustePorNegocio.get(String(operacion.pagador)) || 0) + importe / contribucion);
+  }
+
+  const valido = problemas.length === 0 && calculables.length > 0;
+  const suma = (lector, conAjuste = false) => {
+    if (!valido) return null;
+    const valores = calculables.map((item) => {
+      const valor = lector(item);
+      if (valor === null || valor === undefined) return null;
+      return conAjuste ? valor - (ajustePorNegocio.get(String(item.businessId)) || 0) : valor;
+    });
+    return valores.some((valor) => valor === null) ? null : redondear(valores.reduce((a, b) => a + b, 0));
   };
   const indice = lista.length
     ? Math.min(...lista.map((item) => NIVELES_CONFIANZA.indexOf(item.confianza)).map((valor) => (valor < 0 ? 0 : valor)))
     : 0;
+
   return {
     tipo: "ESTIMACION",
+    mes: meses.size === 1 ? [...meses][0] : null,
     negocios: lista.length,
     negociosIncluidos: calculables.length,
     negociosExcluidos: lista.length - calculables.length,
-    completo: calculables.length === lista.length && lista.length > 0,
-    confianza: calculables.length === lista.length ? NIVELES_CONFIANZA[indice] : "baja",
-    ventaMensualOperativa: suma((item) => item.indicadores.operativo?.ventaMensual),
-    ventaMensualEfectivo: suma((item) => item.indicadores.efectivo?.ventaMensual),
-    utilidadNetaEstimada: suma((item) => item.indicadores.utilidadNeta?.utilidadNetaEstimada),
+    completo: valido && calculables.length === lista.length,
+    problemas,
+    confianza: valido && calculables.length === lista.length ? NIVELES_CONFIANZA[indice] : "baja",
+    operacionesInternasEliminadas: valido ? (operacionesInternas || []).length : 0,
+    ventaMensualOperativa: suma((item) => item.indicadores.operativo?.ventaMensual, true),
+    ventaMensualEfectivo: suma((item) => item.indicadores.efectivo?.ventaMensual, true),
+    utilidadAntesDeISR: suma((item) => item.indicadores.utilidadNeta?.utilidadAntesDeISR),
   };
 }

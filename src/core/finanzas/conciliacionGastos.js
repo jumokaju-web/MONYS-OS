@@ -172,8 +172,8 @@ function mesDe(fecha) {
  *   intereses e impuestos van aparte. Sin movimientos, los pagados son
  *   null (no se sabe), no 0.
  * - Por categoría con obligación (renta, nómina, servicios, impuestos):
- *   devengado del mes (vencimientos del calendario) contra pagado y
- *   pendiente. Es una comparación por categoría: no prueba que cada
+ *   lo que vence en el mes (calendario de pagos; no es devengo contable)
+ *   contra pagado y pendiente. Es una comparación por categoría: no prueba que cada
  *   obligación individual se haya pagado.
  * - Confianza (nunca alta con información incompleta):
  *   baja  = sin movimientos, movimientos sin clasificar u obligaciones
@@ -214,39 +214,39 @@ export function conciliarGastosDelMes({ movimientos = [], obligaciones = [], mes
     if (texto(movimiento?.status) !== "revisado") pendientesRevision += 1;
   }
 
-  // Devengado del mes por categoría: vencimientos que caen en el calendario.
-  const devengadoPorCategoria = {};
+  // Lo que vence en el mes por categoría (calendario de pagos, no devengo).
+  const vencePorCategoria = {};
   for (const obligacion of obligaciones || []) {
     if (texto(obligacion?.estado) === "cancelada") continue;
     const importe = importeValido(obligacion?.importe);
     const vencimientos = vencimientosEnMes(obligacion, mes);
     if (importe === null || !vencimientos) continue;
     const categoria = String(obligacion?.categoria || "OTRO").toUpperCase();
-    devengadoPorCategoria[categoria] = redondear((devengadoPorCategoria[categoria] || 0) + importe * vencimientos);
+    vencePorCategoria[categoria] = redondear((vencePorCategoria[categoria] || 0) + importe * vencimientos);
   }
 
   const hayMovimientos = considerados > 0;
-  const diferencias = Object.keys({ ...devengadoPorCategoria, ...pagadoPorCategoria })
+  const diferencias = Object.keys({ ...vencePorCategoria, ...pagadoPorCategoria })
     .filter((categoria) => categoria !== "OTRO")
     .map((categoria) => {
-      const devengado = devengadoPorCategoria[categoria] ?? null;
+      const vence = vencePorCategoria[categoria] ?? null;
       const pagado = hayMovimientos ? pagadoPorCategoria[categoria] ?? 0 : null;
-      const pendiente = devengado === null || pagado === null ? null : redondear(Math.max(0, devengado - pagado));
-      const relativa = devengado && pagado !== null ? Math.abs(pagado - devengado) / devengado : null;
+      const pendiente = vence === null || pagado === null ? null : redondear(Math.max(0, vence - pagado));
+      const relativa = vence && pagado !== null ? Math.abs(pagado - vence) / vence : null;
       let motivo = "";
-      if (devengado === null) motivo = "Hay pagos de esta categoría sin obligación que venza en el mes.";
+      if (vence === null) motivo = "Hay pagos de esta categoría sin obligación que venza en el mes.";
       else if (pagado === null) motivo = "Sin movimientos del mes: no se sabe qué se pagó.";
       else if (relativa > 0.1) {
-        motivo = pagado < devengado
+        motivo = pagado < vence
           ? "Pagado menor a lo que vence en el mes: pago pendiente o registrado en otra categoría."
           : "Pagado mayor a lo que vence en el mes: revisa duplicados, adelantos o gastos sin obligación.";
       }
       return {
         categoria,
-        devengado,
+        vence,
         pagado,
         pendiente,
-        diferencia: devengado === null || pagado === null ? null : redondear(pagado - devengado),
+        diferencia: vence === null || pagado === null ? null : redondear(pagado - vence),
         nivel: "categoria",
         motivo,
       };
@@ -308,4 +308,77 @@ export function conciliarGastosDelMes({ movimientos = [], obligaciones = [], mes
       "Flotilla se concilia en su propio negocio.",
     ],
   };
+}
+
+/*
+ * Distribuciones de Tesorería (cash_movement_allocations): un movimiento
+ * puede repartirse entre negocios, sucursales y categorías. Para conciliar
+ * un negocio:
+ * - Un movimiento sin distribución ACTIVA se usa tal cual.
+ * - Un movimiento con distribución ACTIVA se reemplaza por sus partidas
+ *   (nunca se suman ambos). Solo cuentan las partidas del negocio; las de
+ *   otros negocios se reportan como pagos cruzados (operaciones internas).
+ * - Las partidas del negocio sobre movimientos de OTRO negocio se agregan
+ *   con fecha, tipo y estado del movimiento original.
+ * Devuelve líneas listas para conciliarGastosDelMes.
+ */
+export function expandirDistribuciones({ movimientos = [], distribuciones = [], businessId, movimientosOrigen = [] } = {}) {
+  const activas = (distribuciones || []).filter((partida) => String(partida?.status || "").toUpperCase() === "ACTIVA");
+  const porMovimiento = new Map();
+  for (const partida of activas) {
+    const id = String(partida.cash_movement_id);
+    if (!porMovimiento.has(id)) porMovimiento.set(id, []);
+    porMovimiento.get(id).push(partida);
+  }
+  const originales = new Map(
+    [...(movimientos || []), ...(movimientosOrigen || [])].map((movimiento) => [String(movimiento.id), movimiento])
+  );
+
+  const lineas = [];
+  const pagosCruzados = [];
+  const usados = new Set();
+
+  const agregarPartidas = (movimiento, partidas) => {
+    for (const partida of partidas) {
+      const linea = {
+        ...movimiento,
+        id: `${movimiento.id}:${partida.id}`,
+        cash_movement_id: movimiento.id,
+        allocation_id: partida.id,
+        organization_id: partida.organization_id,
+        business_id: partida.business_id,
+        branch_id: partida.branch_id,
+        amount: partida.amount,
+        expense_category: partida.expense_category,
+        expense_behavior: partida.expense_behavior,
+      };
+      if (String(partida.business_id) === String(businessId)) lineas.push(linea);
+      else if (String(movimiento.business_id) === String(businessId)) {
+        pagosCruzados.push({ pagador: movimiento.business_id, receptor: partida.business_id, importe: Number(partida.amount), movimiento: movimiento.id });
+      }
+    }
+  };
+
+  for (const movimiento of movimientos || []) {
+    const partidas = porMovimiento.get(String(movimiento.id));
+    usados.add(String(movimiento.id));
+    if (partidas?.length) agregarPartidas(movimiento, partidas);
+    else if (String(movimiento.business_id) === String(businessId)) lineas.push(movimiento);
+  }
+
+  // Partidas de este negocio sobre movimientos registrados en otro negocio.
+  const sinOrigen = [];
+  for (const [id, partidas] of porMovimiento) {
+    if (usados.has(id)) continue;
+    const propias = partidas.filter((partida) => String(partida.business_id) === String(businessId));
+    if (!propias.length) continue;
+    const origen = originales.get(id);
+    if (!origen) {
+      sinOrigen.push(id);
+      continue;
+    }
+    agregarPartidas(origen, propias);
+  }
+
+  return { lineas, pagosCruzados, partidasSinMovimiento: sinOrigen };
 }

@@ -47,13 +47,13 @@ test("vencimientos del calendario por frecuencia", () => {
   assert.equal(vencimientosEnMes({ frecuencia: "MENSUAL", fecha_vencimiento: "sin fecha" }, "2026-12"), null);
 });
 
-test("presupuesto mensual (promedio) distinto de devengado del mes (calendario); impuestos aparte", () => {
+test("devengo mensual estimado distinto de lo que vence en el calendario del mes; impuestos aparte", () => {
   const gastos = gastosFijosDelMes(obligaciones, "2026-12");
   const presupuesto = 40000 + 10000 * 52 / 12 + 800 + 4000 / 2 + 3400 + 2500;
   assert.equal(gastos.total, Math.round(presupuesto * 100) / 100);
   // Diciembre: 4 nóminas, luz no vence (bimestral nov/ene).
-  assert.equal(gastos.devengadoOperativo, 40000 + 4 * 10000 + 800 + 3400 + 2500);
-  assert.equal(gastos.impuestosDevengados, 6000);
+  assert.equal(gastos.venceOperativo, 40000 + 4 * 10000 + 800 + 3400 + 2500);
+  assert.equal(gastos.impuestosQueVencen, 6000);
   assert.equal(gastos.porCategoria.IMPUESTOS, 6000);
   assert.equal(gastos.completo, true);
 });
@@ -160,9 +160,11 @@ test("tres indicadores independientes: operativo, efectivo y utilidad neta", () 
   assert.equal(real.indicadores.efectivo.compromisos, 14000);
   assert.equal(real.indicadores.efectivo.ventaMensual, Math.round((gastos + 14000) / contribucion * 100) / 100);
   // Utilidad neta: solo intereses, no capital.
-  assert.equal(real.indicadores.utilidadNeta.intereses, 2400);
+  assert.equal(real.indicadores.utilidadNeta.concepto, "utilidad antes de ISR");
+  assert.equal(real.indicadores.utilidadNeta.interesesDevengadosEstimados, 2400);
+  assert.equal(real.indicadores.utilidadNeta.interesesPagados, null); // sin conciliación
   assert.equal(real.indicadores.utilidadNeta.capitalNoEsGasto, 5600);
-  assert.equal(real.indicadores.utilidadNeta.utilidadNetaEstimada, Math.round((36000 * contribucion - gastos - 2400) * 100) / 100);
+  assert.equal(real.indicadores.utilidadNeta.utilidadAntesDeISR, Math.round((36000 * contribucion - gastos - 2400) * 100) / 100);
   // El indicador de efectivo es el simulador existente sin cambios.
   assert.deepEqual(real.resultado, calcularEquilibrioDiario(real.datos));
 });
@@ -207,19 +209,52 @@ test("valida mes y días abiertos", () => {
   assert.equal(construirEquilibrioReal({ mes: "dic", obligaciones }).faltantes[0], "mes del escenario");
 });
 
+/* ---------- Deuda que no cubre intereses ---------- */
+
+test("pago menor al interés: el interés se devenga completo y se avisa", () => {
+  const deuda = pagosDeudaDelMes([{ nombre: "Familiar", saldo_actual: 100000, tasa_anual: 60, pago_mensual: 3000, estado: "ACTIVA" }]);
+  assert.equal(deuda.intereses, 5000); // 100,000 × 60% ÷ 12
+  assert.equal(deuda.capital, 0);
+  assert.equal(deuda.interesNoCubierto, 2000);
+  assert.match(deuda.avisos[0], /no cubre el interés/);
+});
+
 /* ---------- Consolidado para dirección ---------- */
 
+const conciliacionMedia = { ...conciliacionAlta, confianza: "media" };
+
 test("consolidado: suma solo negocios calculables y toma la menor confianza", () => {
-  const tienda = construirEquilibrioReal({ ...base, conciliacion: conciliacionAlta });
-  const flotilla = construirEquilibrioReal({ ...base, conciliacion: { ...conciliacionAlta, confianza: "media" } });
+  const tienda = construirEquilibrioReal({ ...base, businessId: "tienda", conciliacion: conciliacionAlta });
+  const flotilla = construirEquilibrioReal({ ...base, businessId: "flotilla", conciliacion: conciliacionMedia });
   const consolidado = consolidarEquilibrios([tienda, flotilla]);
   assert.equal(consolidado.negociosIncluidos, 2);
   assert.equal(consolidado.completo, true);
   assert.equal(consolidado.confianza, "media");
+  assert.equal(consolidado.mes, "2026-12");
   assert.equal(consolidado.ventaMensualEfectivo, Math.round(tienda.indicadores.efectivo.ventaMensual * 2 * 100) / 100);
+  assert.equal(consolidado.utilidadAntesDeISR, Math.round(tienda.indicadores.utilidadNeta.utilidadAntesDeISR * 2 * 100) / 100);
+});
 
-  const incompleto = consolidarEquilibrios([tienda, construirEquilibrioReal({ mes: "2026-12" })]);
-  assert.equal(incompleto.negociosExcluidos, 1);
-  assert.equal(incompleto.completo, false);
-  assert.equal(incompleto.confianza, "baja");
+test("consolidado: null sin negocios calculables, repetidos o de meses distintos", () => {
+  assert.equal(consolidarEquilibrios([]).ventaMensualEfectivo, null);
+  assert.equal(consolidarEquilibrios([construirEquilibrioReal({ mes: "2026-12", businessId: "x" })]).ventaMensualEfectivo, null);
+  const tienda = construirEquilibrioReal({ ...base, businessId: "tienda", conciliacion: conciliacionAlta });
+  const repetido = consolidarEquilibrios([tienda, tienda]);
+  assert.equal(repetido.ventaMensualEfectivo, null);
+  assert.ok(repetido.problemas.includes("Hay negocios repetidos."));
+  const otroMes = consolidarEquilibrios([tienda, { ...construirEquilibrioReal({ ...base, businessId: "f", conciliacion: conciliacionAlta }), mes: "2026-11" }]);
+  assert.equal(otroMes.utilidadAntesDeISR, null);
+  assert.ok(otroMes.problemas.includes("Los resultados son de meses distintos."));
+});
+
+test("consolidado: elimina pagos internos de la venta externa necesaria", () => {
+  const tienda = construirEquilibrioReal({ ...base, businessId: "tienda", conciliacion: conciliacionAlta });
+  const flotilla = construirEquilibrioReal({ ...base, businessId: "flotilla", conciliacion: conciliacionAlta });
+  const sin = consolidarEquilibrios([tienda, flotilla]);
+  const con = consolidarEquilibrios([tienda, flotilla], { operacionesInternas: [{ pagador: "tienda", receptor: "flotilla", importe: 3700 }] });
+  assert.equal(con.operacionesInternasEliminadas, 1);
+  assert.equal(Math.round((sin.ventaMensualEfectivo - con.ventaMensualEfectivo) * 100) / 100, 10000); // 3,700 ÷ 0.37
+  assert.equal(con.utilidadAntesDeISR, sin.utilidadAntesDeISR);
+  const ajena = consolidarEquilibrios([tienda, flotilla], { operacionesInternas: [{ pagador: "tienda", receptor: "otra", importe: 100 }] });
+  assert.equal(ajena.ventaMensualEfectivo, null);
 });
