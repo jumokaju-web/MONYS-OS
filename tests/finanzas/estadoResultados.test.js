@@ -8,6 +8,7 @@ import {
   elegirCargasPorDia,
   ventasSucursalDelMes,
 } from "../../src/core/finanzas/estadoResultados.js";
+import { calendarioDelNegocio } from "../../src/core/operacion/calendarioOperativo.js";
 
 // Todo es sintético.
 const sucursales = [{ id: "s1", name: "Centro", active: true }, { id: "s2", name: "Plaza", active: true }];
@@ -41,8 +42,8 @@ const movimientosDe = (mes, { nominaPlaza = 15000 } = {}) => [
   mov("k1", mes, "pago_capital_deuda", 8000),
   mov("v1", mes, "impuesto_iva", 6000),
   mov("c1", mes, "compras_inventario", 50000),
-  mov("x1", mes, "comisiones_marketplace", 3000, { canal: "mercado_libre", cuenta_id: "ml1", referencia_externa: "ORD-1" }), // ya viene en las órdenes
-  mov("x2", mes, "comisiones_marketplace", 500, { canal: "mercado_libre", cuenta_id: "ml1" }), // cargo distinto (almacenaje, p. ej.)
+  mov("x1", mes, "comisiones_marketplace", 3000), // ya viene en las órdenes (vínculo verificado)
+  mov("x2", mes, "comisiones_marketplace", 500), // cargo distinto de la cuenta (almacenaje, p. ej.)
   mov("x3", mes, "comisiones_marketplace", 200), // sin ligar
 ];
 
@@ -76,14 +77,17 @@ const canalML = (extra = {}) => ({
   ...extra,
 });
 
+const vinculo = (movId, tipo, referencia, monto, estado = "verificado") => ({ id: `v-${movId}`, cash_movement_id: movId, business_id: "monys", cuenta_id: "ml1", tipo_operacion: tipo, referencia_externa: referencia, monto_conciliado: monto, estado });
+const vinculosDe = (mes) => [vinculo(`x1`, "comision", "ORD-1", 3000), vinculo(`x2`, "cargo_plataforma", "FACT-NOV", 500)];
+
 const basesSinIva = { ventasSicar: { base: "sin_iva" }, costoSicar: { base: "sin_iva" }, gastosTesoreria: { base: "sin_iva" } };
 const configML = [{ id: "ml1", canal: "mercado_libre", cuenta_externa: "123" }];
 
-function estado(mes, { ventas = { s1: { venta: 100000, utilidad: 45000 }, s2: { venta: 60000, utilidad: 24000 } }, movimientos = movimientosDe(mes), canales = [canalML()], configurados = configML, bases = basesSinIva, isr = { tasaEstimadaPct: 30 } } = {}) {
+function estado(mes, { ventas = { s1: { venta: 100000, utilidad: 45000 }, s2: { venta: 60000, utilidad: 24000 } }, movimientos = movimientosDe(mes), canales = [canalML()], configurados = configML, bases = basesSinIva, isr = { tasaEstimadaPct: 30 }, vinculosPlataforma = vinculosDe(mes), calendario = null } = {}) {
   const { importaciones, filas } = cargasDelMes(mes, ventas);
   return construirEstadoResultados({
     businessId: "monys", mes, sucursales, sicar: elegirCargasPorDia(filas, importaciones),
-    canales, canalesConfigurados: configurados, movimientos, obligaciones, bases, isr, hoy: "2026-12-15",
+    canales, canalesConfigurados: configurados, movimientos, obligaciones, bases, isr, hoy: "2026-12-15", vinculosPlataforma, calendario,
   });
 }
 
@@ -116,10 +120,21 @@ test("estado completo: renglones, tres bases de gasto y lo que no es gasto", () 
   assert.ok(!JSON.stringify(e).includes("99999")); // obligación de flotilla
 });
 
-test("comisiones de marketplace: solo se excluye la ligada a una operación incluida en las órdenes", () => {
+test("comisiones de marketplace: solo se excluye lo verificado y ligado a una operación de las órdenes", () => {
   const e = estado("2026-10");
   assert.deepEqual(e.cargosMarketplace.excluidosPorDuplicado.map((x) => x.id), ["x1"]);
-  assert.deepEqual(e.cargosMarketplace.porConciliar.map((x) => [x.id, x.estado]), [["x2", "del_canal_por_conciliar"], ["x3", "sin_ligar"]]);
+  assert.deepEqual(e.cargosMarketplace.porConciliar.map((x) => [x.id, x.estado]), [["x2", "sin_conciliar"], ["x3", "sin_conciliar"]]);
+  // Vínculo propuesto (sin verificar): no se excluye.
+  const propuesto = estado("2026-10", { vinculosPlataforma: [vinculo("x1", "comision", "ORD-1", 3000, "propuesto")] });
+  assert.equal(propuesto.cargosMarketplace.excluidosPorDuplicado.length, 0);
+  // Conciliación parcial: 1 000 de 3 000 ya están en órdenes.
+  const parcial = estado("2026-10", { vinculosPlataforma: [vinculo("x1", "comision", "ORD-1", 1000)] });
+  assert.equal(parcial.cargosMarketplace.excluidosPorDuplicado[0].importe, 1000);
+  assert.equal(parcial.cargosMarketplace.porConciliar.find((x) => x.id === "x1").importe, 2000);
+  // Sin tabla de conciliación: nada se excluye y se avisa.
+  const sinTabla = estado("2026-10", { vinculosPlataforma: null });
+  assert.equal(sinTabla.cargosMarketplace.excluidosPorDuplicado.length, 0);
+  assert.ok(sinTabla.provisional.some((p) => p.includes("Conciliación de plataformas no disponible")));
   const ml = e.unidades.find((u) => u.tipo === "canal");
   assert.equal(ml.gastosDirectos.porCategoria.find((f) => f.categoria === "CARGOS_MARKETPLACE").pagado, 500);
   assert.equal(e.generales.porCategoria.find((f) => f.categoria === "CARGOS_MARKETPLACE").pagado, 200);
@@ -282,4 +297,44 @@ test("recomendaciones con impacto estimado, sin ejecutar nada", () => {
 test("sin negocio o mes inválido no calcula", () => {
   assert.equal(construirEstadoResultados({ mes: "2026-10" }).calculable, false);
   assert.equal(construirEstadoResultados({ businessId: "x", mes: "2026-13" }).calculable, false);
+});
+
+test("calendario: fuera de vigencia no es faltante, cierre confirmado cuenta como cubierto y no quita gastos", () => {
+  // Plaza abre el 16 de octubre; Centro cierra el 2 y su carga no trae el 2.
+  const { importaciones, filas } = cargasDelMes("2026-10", { s1: { venta: 100000, utilidad: 45000 }, s2: { venta: 30000, utilidad: 12000 } });
+  importaciones.find((i) => i.branch_id === "s2").periodoInicio = "2026-10-16";
+  filas.find((f) => f.importacion_id === "s2-2026-10").fecha = "2026-10-20";
+  const cal = calendarioDelNegocio({
+    sucursales, mes: "2026-10",
+    vigencias: [{ branch_id: "s1", operando_desde: "2020-01-01" }, { branch_id: "s2", operando_desde: "2026-10-16" }],
+    dias: [{ branch_id: "s1", fecha: "2026-10-02", estado: "cerrado", motivo: "fumigación" }],
+  });
+  const e = construirEstadoResultados({
+    businessId: "monys", mes: "2026-10", sucursales, sicar: elegirCargasPorDia(filas, importaciones), calendario: cal,
+    canales: [canalML()], canalesConfigurados: configML, movimientos: movimientosDe("2026-10"), obligaciones, bases: basesSinIva, vinculosPlataforma: vinculosDe("2026-10"),
+  });
+  const plaza = e.unidades.find((u) => u.unidad === "s2");
+  assert.equal(plaza.ingresos, 30000); // 16 días esperados, todos cubiertos
+  assert.equal(plaza.cobertura.diasEsperados, 16);
+  const centro = e.unidades.find((u) => u.unidad === "s1");
+  assert.equal(centro.cobertura.cerrado, 1);
+  assert.equal(centro.ventaPromedioDiaria, Math.round((100000 / 30) * 100) / 100); // 30 días abiertos
+  assert.equal(centro.gastosDirectosPagado, 35000); // el cierre no quita gastos
+  assert.ok(!e.provisional.some((p) => p.includes("Calendario operativo no disponible")));
+  // Sucursal fuera de vigencia todo el mes: no opera y no es faltante.
+  const calNov = calendarioDelNegocio({ sucursales, mes: "2026-11", vigencias: [{ branch_id: "s1", operando_desde: "2020-01-01" }, { branch_id: "s2", operando_desde: "2020-01-01", operando_hasta: "2026-10-31" }] });
+  const { importaciones: i2, filas: f2 } = cargasDelMes("2026-11", { s1: { venta: 1000, utilidad: 400 } });
+  const nov = construirEstadoResultados({ businessId: "monys", mes: "2026-11", sucursales, sicar: elegirCargasPorDia(f2, i2), calendario: calNov, canalesConfigurados: [], movimientos: [], bases: basesSinIva, vinculosPlataforma: [] });
+  assert.deepEqual(nov.sucursalesQueNoOperan.map((x) => x.unidad), ["s2"]);
+  assert.equal(nov.consolidado.ingresos, 1000);
+});
+
+test("una carga de SICAR filtrada no prueba venta cero", () => {
+  const { importaciones, filas } = cargasDelMes("2026-10", { s1: { venta: 100, utilidad: 40 } });
+  importaciones[0].alcance = "filtrado";
+  const sicar = elegirCargasPorDia(filas, importaciones);
+  const e = construirEstadoResultados({ businessId: "monys", mes: "2026-10", sucursales: [sucursales[0]], sicar, canalesConfigurados: [], movimientos: [], bases: basesSinIva, vinculosPlataforma: [] });
+  assert.equal(e.unidades[0].ingresos, null);
+  assert.equal(e.unidades[0].ingresosRegistrados, 100);
+  assert.ok(e.faltantes.some((f) => f.includes("con filtros")));
 });

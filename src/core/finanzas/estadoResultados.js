@@ -31,14 +31,22 @@
  * - Bases de IVA independientes: ventas, costo SICAR, cargos de cada
  *   canal y gastos de Tesorería. Por confirmar = importe tal como viene,
  *   marcado como provisional. Nunca se deduce una base de otra.
- * - Cargos de marketplace en Tesorería: solo se excluyen si se ligan a una
- *   operación del mismo canal y cuenta ya incluida en las órdenes. Lo demás
- *   es un cargo distinto: se resta y queda por conciliar.
+ * - Plataformas en Tesorería (cash_movement_platform_links): solo se
+ *   excluye la parte verificada y ligada a una operación del periodo ya
+ *   restada en las órdenes; el resto es cargo distinto y queda por
+ *   conciliar. Los depósitos de plataformas (entradas) nunca son ingreso:
+ *   el ingreso sale de las órdenes.
+ * - Calendario operativo: fuera de vigencia no se esperan ventas; un día
+ *   cerrado confirmado cuenta como cubierto con cero; un cierre no
+ *   elimina gastos.
+ * - Alcance de la carga SICAR: una carga marcada como filtrada no prueba
+ *   que un día sin renglones tuvo venta cero.
  * - Subtotal conocido siempre; consolidado solo si está completo.
  * Módulo puro: sin Supabase ni React.
  */
 import { clasificarMovimiento, NATURALEZAS } from "./conciliacionGastos.js";
 import { gastosFijosDelMes } from "./equilibrioReal.js";
+import { conciliarMovimientoPlataforma } from "./conciliacionPlataformas.js";
 
 const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 100) / 100);
 const r1 = (v) => (v === null || v === undefined ? null : Math.round(v * 10) / 10);
@@ -126,8 +134,10 @@ function alcanceDeCarga(carga, diasConFilas) {
   if (!inicio || !fin || fin < inicio) return { completos: new Set(), parciales: new Set(diasConFilas), inferido: true };
   const completos = new Set();
   const parciales = new Set();
+  // Un reporte con filtros (departamento, vendedor…) no cubre el día completo.
+  const filtrada = carga.alcance === "filtrado";
   for (let d = inicio; d <= fin; d = sumarDias(d, 1)) {
-    if (d === fin && creado && creado <= fin) parciales.add(d);
+    if (filtrada || (d === fin && creado && creado <= fin)) parciales.add(d);
     else completos.add(d);
   }
   return { completos, parciales, inferido: false };
@@ -138,7 +148,8 @@ function alcanceDeCarga(carga, diasConFilas) {
  * el día completo; una carga parcial más nueva NO reemplaza a una
  * completa. Si solo hay parciales, la más reciente y el día queda parcial.
  * Dos cargas completas del mismo día con totales distintos = conflicto.
- * importaciones: [{ id, branch_id, created_at, periodoInicio, periodoFin }]
+ * importaciones: [{ id, branch_id, created_at, periodoInicio, periodoFin, alcance }]
+ *   alcance: "completo" | "filtrado" | null (desconocido, cargas anteriores).
  */
 export function elegirCargasPorDia(filas = [], importaciones = []) {
   const cargas = new Map((importaciones || []).map((c) => [String(c.id), c]));
@@ -194,12 +205,14 @@ export function elegirCargasPorDia(filas = [], importaciones = []) {
     }
     elegidas.push({ ...fila, branch_id: carga.branch_id, dia });
   }
-  return { filas: elegidas, dias, descartadas };
+  const cargasFiltradas = ordenadas.filter((c) => c.alcance === "filtrado").map((c) => ({ id: c.id, branch_id: c.branch_id, periodoInicio: c.periodoInicio, periodoFin: c.periodoFin }));
+  return { filas: elegidas, dias, descartadas, cargasFiltradas };
 }
 
 /* Ventas de una sucursal en un mes, con su cobertura. */
-export function ventasSucursalDelMes({ branchId, mes, filas = [], dias = new Map(), diasCerrados = [], hoy = null }) {
-  const esperados = diasEsperados(mes, hoy);
+export function ventasSucursalDelMes({ branchId, mes, filas = [], dias = new Map(), diasCerrados = [], diasFueraDeVigencia = [], hoy = null }) {
+  const fuera = new Set(diasFueraDeVigencia || []);
+  const esperados = diasEsperados(mes, hoy).filter((d) => !fuera.has(d));
   const cerrados = new Set(diasCerrados || []);
   const conteo = { completo: 0, parcial: 0, sin_confirmar: 0, conflicto: 0, cerrado: 0, sin_dato: 0 };
   const sinDato = [];
@@ -287,23 +300,7 @@ function unidadDeCanal(entrada, basesUsadas) {
 
 const CATEGORIA_OBLIGACION = { renta: "RENTA", nomina: "NOMINA", cuotas_imss_infonavit: "NOMINA", servicios: "SERVICIOS", seguros: "SEGUROS" };
 
-/*
- * Un cargo de marketplace en Tesorería solo se excluye si se liga a una
- * operación del mismo canal y cuenta cuyas comisiones ya vienen en las
- * órdenes. movimiento: { canal, cuenta_id | cuenta_externa, referencia_externa }
- */
-function conciliarCargoMarketplace(mov, canales) {
-  const canal = texto(mov?.canal);
-  const cuenta = String(mov?.cuenta_id ?? mov?.cuenta_externa ?? "");
-  const referencia = String(mov?.referencia_externa ?? "");
-  const unidad = canales.find((c) => c.canal === canal && cuenta && (c.cuentaId === cuenta || String(c.cuentaExterna) === cuenta));
-  if (unidad && referencia && unidad.operaciones.has(referencia) && unidad.gastosVentaBase.comisiones !== null) {
-    return { estado: "duplicado", unidad };
-  }
-  return { estado: unidad ? "del_canal_por_conciliar" : "sin_ligar", unidad };
-}
-
-function clasificarGastos(movimientos, mes, canales, baseGastos) {
+function clasificarGastos(movimientos, mes, canales, baseGastos, vinculos, businessId) {
   const pagado = { generales: {}, porUnidad: {} };
   const fuera = { iva: 0, isrPagado: 0, impuestosSinTipo: 0, capitalDeuda: 0, compraInventario: 0, retiros: 0, financiamiento: 0, traspasos: 0 };
   let intereses = 0;
@@ -323,17 +320,25 @@ function clasificarGastos(movimientos, mes, canales, baseGastos) {
       continue;
     }
     if (texto(mov?.status) !== "revisado") pendientesRevision += 1;
-    const importe = quitarIva(bruto, baseGastos);
     const categoriaTesoreria = texto(mov?.expense_category);
-
+    // Parte ya contada en las órdenes del canal (vínculo verificado).
+    const propios = (vinculos || []).filter((v) => String(v?.cash_movement_id) === String(mov?.id));
+    const c = propios.length || categoriaTesoreria === "comisiones_marketplace"
+      ? conciliarMovimientoPlataforma(mov, propios, canales, { businessId })
+      : null;
+    if (c?.excluido) excluidosPorDuplicado.push({ id: mov?.id, importe: r2(quitarIva(c.excluido, baseGastos)), detalle: c.detalle.filter((d) => d.excluido) });
+    const restanteBruto = c ? c.restante : bruto;
+    if (restanteBruto <= 0) continue;
+    const importe = quitarIva(restanteBruto, baseGastos);
+    if (c) {
+      cargosPorConciliar.push({
+        id: mov?.id, importe: r2(importe), estado: vinculos === null ? "conciliacion_no_disponible" : c.estado,
+        motivos: [...new Set(c.detalle.filter((d) => d.motivo).map((d) => d.motivo))],
+      });
+    }
     if (categoriaTesoreria === "comisiones_marketplace") {
-      const r = conciliarCargoMarketplace(mov, canales);
-      if (r.estado === "duplicado") {
-        excluidosPorDuplicado.push({ id: mov?.id, importe: r2(importe), canal: r.unidad.canal });
-        continue;
-      }
-      cargosPorConciliar.push({ id: mov?.id, importe: r2(importe), estado: r.estado, canal: r.unidad?.canal ?? null });
-      sumar(r.unidad ? (pagado.porUnidad[r.unidad.unidad] ||= {}) : pagado.generales, "CARGOS_MARKETPLACE", importe);
+      const unidad = c?.cuentaDelRestante ? canales.find((u) => u.cuentaId === String(c.cuentaDelRestante)) : null;
+      sumar(unidad ? (pagado.porUnidad[unidad.unidad] ||= {}) : pagado.generales, "CARGOS_MARKETPLACE", importe);
       continue;
     }
     const { naturaleza, esGasto, motivo } = clasificarMovimiento(mov);
@@ -405,13 +410,16 @@ function lineasDeUnidad(u, gastos) {
   const gastosVenta = gv ? sumarTodos([gv.comisiones, gv.envios, gv.publicidad]) : 0;
   const directosPagado = gastos ? gastos.pagado : null;
   const directosDevengado = gastos ? gastos.devengado : null;
-  const dias = u.cobertura ? (u.cobertura.completo || 0) + (u.cobertura.cerrado || 0) : 0;
+  // Venta por día con venta esperada: días cubiertos y abiertos (un cierre
+  // confirmado no diluye el promedio).
+  const dias = u.cobertura ? u.cobertura.completo || 0 : 0;
   return {
     unidad: u.unidad,
     nombre: u.nombre || u.unidad,
     tipo: u.tipo,
     activa: u.activa ?? true,
     cobertura: u.cobertura,
+    calendario: u.calendario ?? null,
     ingresosRegistrados: r2(u.ingresosRegistrados),
     ingresos: r2(u.ingresos),
     costoMercancia: r2(u.costoMercancia),
@@ -446,6 +454,10 @@ function subtotal(unidades, campo) {
  *                  coberturaCompleta, baseIvaVentas, baseIvaCargos }]
  * canalesConfigurados: [{ id, canal, cuenta_externa }] de canal_cuentas del
  *                  negocio, o null si no se pudo leer la configuración.
+ * calendario:   { [branchId]: calendarioDelMes } del calendario operativo, o
+ *                null si no está disponible.
+ * vinculosPlataforma: filas de cash_movement_platform_links o null si la
+ *                conciliación no está disponible.
  * movimientos:  líneas de Tesorería del negocio (lineasDelNegocio) o null.
  * obligaciones: obligaciones operativas del negocio (con branch_id o sin él).
  * bases:        { ventasSicar, costoSicar, gastosTesoreria } ({ base, ivaPct }).
@@ -460,6 +472,8 @@ export function construirEstadoResultados({
   diasCerrados = {},
   canales = [],
   canalesConfigurados = null,
+  calendario = null,
+  vinculosPlataforma = null,
   movimientos = null,
   obligaciones = [],
   bases = {},
@@ -477,12 +491,27 @@ export function construirEstadoResultados({
   const baseGastos = leerBase(bases.gastosTesoreria);
   const basesUsadas = { ventasSicar: baseVentas.base, costoSicar: baseCosto.base, gastosTesoreria: baseGastos.base };
 
-  // Sucursales: todas las del negocio; una inactiva sin nada en el mes no opera.
+  // Sucursales: todas las del negocio; una inactiva sin nada en el mes no
+  // opera; con calendario, la vigencia decide qué días se esperan.
+  if (calendario === null) provisional.push("Calendario operativo no disponible: un día sin carga cuenta como faltante, no como cierre.");
+  const noOperan = [];
   const unidadesSucursal = (sucursales || [])
     .map((s) => {
-      const v = ventasSucursalDelMes({ branchId: s.id, mes, filas: sicar.filas, dias: sicar.dias, diasCerrados: diasCerrados?.[s.id] || [], hoy });
+      const cal = calendario?.[s.id] || null;
+      if (cal?.vigencia === "no_opera") {
+        noOperan.push({ unidad: String(s.id), nombre: s.name, motivo: "fuera de su vigencia operativa" });
+        return null;
+      }
+      if (cal?.vigencia === "desconocida") provisional.push(`${s.name}: sin vigencia registrada en el calendario operativo`);
+      const v = ventasSucursalDelMes({
+        branchId: s.id, mes, filas: sicar.filas, dias: sicar.dias, hoy,
+        diasCerrados: cal ? cal.diasCerrados : diasCerrados?.[s.id] || [],
+        diasFueraDeVigencia: cal ? cal.diasFueraDeVigencia : [],
+      });
       const c = v.cobertura;
-      if (s.active === false && !v.renglones && !c.completo && !c.parcial && !c.sin_confirmar && !c.cerrado) return null;
+      if (s.active === false && !cal && !v.renglones && !c.completo && !c.parcial && !c.sin_confirmar && !c.cerrado) return null;
+      const filtradas = (sicar.cargasFiltradas || []).filter((x) => String(x.branch_id) === String(s.id) && String(x.periodoFin).slice(0, 7) >= mes && String(x.periodoInicio).slice(0, 7) <= mes);
+      if (filtradas.length) faltantes.push(`${s.name}: ${filtradas.length} carga(s) de SICAR con filtros: sus días no prueban venta cero`);
       if (c.sin_dato) faltantes.push(`${s.name}: ${c.sin_dato} día(s) sin carga de SICAR`);
       if (c.parcial || c.sin_confirmar) faltantes.push(`${s.name}: ${c.parcial + c.sin_confirmar} día(s) con carga parcial o sin periodo declarado`);
       if (c.conflicto) faltantes.push(`${s.name}: ${c.conflicto} día(s) con cargas que no coinciden`);
@@ -496,6 +525,7 @@ export function construirEstadoResultados({
         tipo: "sucursal",
         activa: s.active !== false,
         cobertura: c,
+        calendario: cal ? { vigencia: cal.vigencia, diasCerrados: cal.diasCerrados.length, diasReducidos: cal.diasReducidos.length, diasSinRegistro: cal.diasSinRegistro.length, diasConVentaEsperada: cal.diasConVentaEsperada.length } : null,
         ingresosRegistrados: quitarIva(v.ingresosRegistrados, baseVentas),
         // Con cobertura incompleta no se conoce el ingreso del mes: se
         // conserva lo registrado aparte.
@@ -525,7 +555,8 @@ export function construirEstadoResultados({
   const hayTesoreria = Array.isArray(movimientos);
   if (!hayTesoreria) faltantes.push("movimientos de Tesorería del mes");
   else provisional.push("Gastos pagados según lo registrado en Tesorería; el mes no está confirmado como completo.");
-  const g = clasificarGastos(movimientos || [], mes, unidadesCanal, baseGastos);
+  if (vinculosPlataforma === null) provisional.push("Conciliación de plataformas no disponible: ningún cargo de plataforma en Tesorería se excluye.");
+  const g = clasificarGastos(movimientos || [], mes, unidadesCanal, baseGastos, vinculosPlataforma, businessId);
   if (g.sinClasificar.length) faltantes.push(`${g.sinClasificar.length} movimiento(s) de Tesorería sin clasificar`);
   if (g.cargosPorConciliar.length) provisional.push(`${g.cargosPorConciliar.length} cargo(s) de marketplace en Tesorería sin ligar a una operación: se restan como cargo distinto.`);
   const ids = new Set([...unidadesSucursal.map((u) => u.unidad), ...unidadesCanal.map((u) => u.unidad)]);
@@ -616,6 +647,7 @@ export function construirEstadoResultados({
     noSonGasto: hayTesoreria ? Object.fromEntries(Object.entries(g.fuera).map(([k, v]) => [k, r2(v)])) : null,
     cargosMarketplace: { excluidosPorDuplicado: g.excluidosPorDuplicado, porConciliar: g.cargosPorConciliar },
     canalesDescartados,
+    sucursalesQueNoOperan: noOperan,
     sinClasificar: g.sinClasificar,
     bases: {
       iva: basesUsadas,
