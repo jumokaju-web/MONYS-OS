@@ -15,6 +15,8 @@ export async function obtenerEquilibrioReal({
   businessId = null,
   mes,
   diasAbiertos = null,
+  diasAbiertosMes = {},
+  diasAbiertosPeriodo = {},
   variablePorcentaje = null,
   sinDeudasConfirmado = false,
 } = {}) {
@@ -63,11 +65,13 @@ export async function obtenerEquilibrioReal({
       })
     : null;
 
+  const totalDescartados = descartados + (conciliacion?.descartados || 0);
+
   return {
     estado: "listo",
     motivo: "",
     errores: Array.isArray(movimientos) ? [] : [`Movimientos de caja: ${movimientos?.error?.message || "no disponibles"}`],
-    descartados: descartados + (conciliacion?.descartados || 0),
+    descartados: totalDescartados,
     conciliacion,
     ...construirEquilibrioReal({
       mes,
@@ -77,8 +81,11 @@ export async function obtenerEquilibrioReal({
       ventasPorSucursal: ventasValidas,
       sucursales,
       diasAbiertos,
+      diasAbiertosMes,
+      diasAbiertosPeriodo,
       variablePorcentaje,
       conciliacion,
+      descartados: totalDescartados,
     }),
   };
 }

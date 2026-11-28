@@ -1,19 +1,23 @@
 /*
  * PUNTO DE EQUILIBRIO CON DATOS REALES · MONYS OS
  *
- * Arma los datos del simulador existente (calcularEquilibrioDiario) desde
- * lo que el negocio ya registró, sin duplicar la fórmula:
- *   gastosFijos  ← obligaciones_operativas recurrentes (normalizadas a mes)
- *                  + obligaciones únicas que vencen en el mes elegido
- *   deuda        ← pago_mensual de deudas_financieras abiertas
- *   margenBruto  ← utilidad ÷ venta de "Ventas por artículo" (SICAR)
- *   ventaPrevista← venta diaria real de cada sucursal × días abiertos
- *   variablePorcentaje y diasAbiertos ← captura del usuario (no existen
- *                  en los datos; no se asumen)
+ * Tres indicadores independientes (todos ESTIMACIÓN):
+ *  1. Equilibrio operativo: venta que cubre gastos fijos de operación.
+ *     Sin deuda ni impuestos.
+ *  2. Equilibrio de efectivo: operación + servicio de deuda (capital e
+ *     intereses) + impuestos programados. Es caja, no utilidad.
+ *  3. Utilidad neta estimada: contribución − gastos fijos − intereses.
+ *     El capital de la deuda NO es gasto; los impuestos se reportan aparte
+ *     porque sin su tipo (IVA, ISR, IMSS, periodos anteriores) no se sabe
+ *     si son gasto del periodo.
  *
- * Reglas: lo que falta se reporta en faltantes y el campo queda "" (el
- * simulador lo trata como pendiente); nunca se rellena con 0. Todo es
- * estimación con fuente y periodo. Módulo puro.
+ * Gastos: se distinguen
+ *  - presupuesto mensual (promedio: semanal × 52/12, etc.),
+ *  - devengado del mes (vencimientos que caen en el calendario del mes),
+ *  - pagado (de la conciliación de caja) y pendiente.
+ *
+ * Reutiliza calcularEquilibrioDiario (simulador existente) para los
+ * indicadores 1 y 2. Lo faltante queda "" y listado; nunca 0.
  */
 import { calcularEquilibrioDiario } from "../../features/inteligencia/utils/equilibrioDiario.js";
 
@@ -27,10 +31,15 @@ export const FACTOR_MENSUAL = Object.freeze({
   ANUAL: 1 / 12,
 });
 
-// Gastos que todo negocio con tienda tiene; si no están, falta capturarlos.
+const MESES_POR_FRECUENCIA = { MENSUAL: 1, BIMESTRAL: 2, TRIMESTRAL: 3, SEMESTRAL: 6, ANUAL: 12 };
+
+// Gastos de operación que todo negocio con tienda tiene.
 export const CATEGORIAS_FIJAS_CLAVE = Object.freeze(["RENTA", "NOMINA", "SERVICIOS"]);
+// Categorías de obligación que no son gasto operativo.
+const CATEGORIAS_NO_OPERATIVAS = new Set(["IMPUESTOS"]);
 
 const ESTADOS_DEUDA_ABIERTA = new Set(["ACTIVA", "REESTRUCTURADA"]);
+export const NIVELES_CONFIANZA = Object.freeze(["baja", "media", "alta"]);
 
 function numero(valor) {
   if (valor === null || valor === undefined || typeof valor === "boolean" || typeof valor === "object") return null;
@@ -53,16 +62,57 @@ export function diasDelMes(mes) {
   return new Date(Date.UTC(ano, numeroMes, 0)).getUTCDate();
 }
 
+function fechaUTC(texto) {
+  const valor = String(texto || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+  const fecha = new Date(`${valor}T12:00:00Z`);
+  return Number.isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== valor ? null : fecha;
+}
+
 /*
- * Gastos fijos del mes desde obligaciones operativas.
- * - Recurrentes: importe × factor mensual de su frecuencia.
- * - Únicas: solo si vencen dentro del mes elegido.
- * - Canceladas no cuentan. Importe o frecuencia inválidos → incompleto.
+ * Cuántos vencimientos de una obligación caen dentro del mes, a partir de
+ * su fecha_vencimiento como ancla del calendario.
+ */
+export function vencimientosEnMes(obligacion, mes) {
+  const frecuencia = String(obligacion?.frecuencia || "UNICA").toUpperCase();
+  const ancla = fechaUTC(obligacion?.fecha_vencimiento);
+  if (!mesValido(mes) || !ancla) return null;
+  const [ano, numeroMes] = mes.split("-").map(Number);
+  const inicio = Date.UTC(ano, numeroMes - 1, 1, 12);
+  const fin = Date.UTC(ano, numeroMes, 0, 12);
+
+  if (frecuencia === "UNICA") {
+    return ancla.getTime() >= inicio && ancla.getTime() <= fin ? 1 : 0;
+  }
+  // Quincenal en México = dos pagos por mes (días 15 y último), no cada 14 días.
+  if (frecuencia === "QUINCENAL") return 2;
+  if (frecuencia === "SEMANAL") {
+    const paso = 7 * 86400000;
+    let fecha = ancla.getTime();
+    while (fecha > inicio) fecha -= paso;
+    while (fecha < inicio) fecha += paso;
+    let cuenta = 0;
+    for (; fecha <= fin; fecha += paso) cuenta += 1;
+    return cuenta;
+  }
+  const meses = MESES_POR_FRECUENCIA[frecuencia];
+  if (!meses) return null;
+  const diferencia = (ano - ancla.getUTCFullYear()) * 12 + (numeroMes - 1 - ancla.getUTCMonth());
+  return ((diferencia % meses) + meses) % meses === 0 ? 1 : 0;
+}
+
+/*
+ * Gastos del mes desde obligaciones operativas, separados en operativos
+ * e impuestos, con presupuesto (promedio) y devengado (calendario).
  */
 export function gastosFijosDelMes(obligaciones = [], mes) {
   const porCategoria = {};
+  const devengadoPorCategoria = {};
   const invalidas = [];
-  let total = 0;
+  let presupuestoOperativo = 0;
+  let devengadoOperativo = 0;
+  let presupuestoImpuestos = 0;
+  let devengadoImpuestos = 0;
   let consideradas = 0;
 
   for (const obligacion of obligaciones || []) {
@@ -70,31 +120,34 @@ export function gastosFijosDelMes(obligaciones = [], mes) {
     const importe = numero(obligacion?.importe);
     const frecuencia = String(obligacion?.frecuencia || "UNICA").toUpperCase();
     const nombre = obligacion?.concepto || obligacion?.categoria || "obligación";
-
     if (importe === null || importe <= 0) {
       invalidas.push(`importe de ${nombre}`);
       continue;
     }
-
-    let mensual = null;
-    if (frecuencia === "UNICA") {
-      const vence = String(obligacion?.fecha_vencimiento || "").slice(0, 7);
-      if (!mesValido(vence)) {
-        invalidas.push(`fecha de vencimiento de ${nombre}`);
-        continue;
-      }
-      if (vence !== mes) continue;
-      mensual = importe;
-    } else if (FACTOR_MENSUAL[frecuencia]) {
-      mensual = importe * FACTOR_MENSUAL[frecuencia];
-    } else {
+    if (frecuencia !== "UNICA" && !FACTOR_MENSUAL[frecuencia]) {
       invalidas.push(`frecuencia de ${nombre}`);
       continue;
     }
+    const vencimientos = vencimientosEnMes(obligacion, mes);
+    if (vencimientos === null) {
+      invalidas.push(`fecha de vencimiento de ${nombre}`);
+      continue;
+    }
+
+    const presupuesto = frecuencia === "UNICA" ? (vencimientos ? importe : 0) : importe * FACTOR_MENSUAL[frecuencia];
+    const devengado = importe * vencimientos;
+    if (!presupuesto && !devengado) continue;
 
     const categoria = String(obligacion?.categoria || "OTRO").toUpperCase();
-    porCategoria[categoria] = redondear((porCategoria[categoria] || 0) + mensual);
-    total += mensual;
+    porCategoria[categoria] = redondear((porCategoria[categoria] || 0) + presupuesto);
+    devengadoPorCategoria[categoria] = redondear((devengadoPorCategoria[categoria] || 0) + devengado);
+    if (CATEGORIAS_NO_OPERATIVAS.has(categoria)) {
+      presupuestoImpuestos += presupuesto;
+      devengadoImpuestos += devengado;
+    } else {
+      presupuestoOperativo += presupuesto;
+      devengadoOperativo += devengado;
+    }
     consideradas += 1;
   }
 
@@ -102,9 +155,13 @@ export function gastosFijosDelMes(obligaciones = [], mes) {
   const completo = invalidas.length === 0 && categoriasFaltantes.length === 0;
 
   return {
-    total: completo ? redondear(total) : null,
-    totalCapturado: redondear(total),
+    total: completo ? redondear(presupuestoOperativo) : null,
+    totalCapturado: redondear(presupuestoOperativo),
+    devengadoOperativo: completo ? redondear(devengadoOperativo) : null,
+    impuestosPresupuesto: redondear(presupuestoImpuestos),
+    impuestosDevengados: redondear(devengadoImpuestos),
     porCategoria,
+    devengadoPorCategoria,
     consideradas,
     completo,
     faltantes: [
@@ -115,9 +172,9 @@ export function gastosFijosDelMes(obligaciones = [], mes) {
 }
 
 /*
- * Pagos de deuda del mes: suma de pago_mensual de deudas abiertas.
- * Sin deudas abiertas registradas, el pago es 0 solo si se confirmó
- * (sinDeudasConfirmado); si no, queda pendiente.
+ * Servicio de deuda del mes, separando intereses (gasto) de capital (no
+ * gasto). Interés estimado = saldo × tasa anual ÷ 12; capital = pago
+ * mensual − interés. Sin tasa no se puede separar.
  */
 export function pagosDeudaDelMes(deudas = [], { sinDeudasConfirmado = false } = {}) {
   const abiertas = (deudas || []).filter((deuda) =>
@@ -125,63 +182,83 @@ export function pagosDeudaDelMes(deudas = [], { sinDeudasConfirmado = false } = 
   );
   if (!abiertas.length) {
     return sinDeudasConfirmado
-      ? { total: 0, completo: true, faltantes: [], deudas: 0 }
-      : { total: null, completo: false, faltantes: ["confirmar que no hay deudas abiertas"], deudas: 0 };
+      ? { total: 0, intereses: 0, capital: 0, completo: true, interesesCompletos: true, faltantes: [], deudas: 0 }
+      : { total: null, intereses: null, capital: null, completo: false, interesesCompletos: false, faltantes: ["confirmar que no hay deudas abiertas"], deudas: 0 };
   }
 
   const faltantes = [];
   let total = 0;
+  let intereses = 0;
+  let interesesCompletos = true;
   for (const deuda of abiertas) {
+    const nombre = deuda?.nombre || deuda?.acreedor || "deuda";
     const pago = numero(deuda?.pago_mensual);
+    const saldo = numero(deuda?.saldo_actual);
+    const tasa = numero(deuda?.tasa_anual);
     if (pago === null || pago < 0) {
-      faltantes.push(`pago mensual de ${deuda?.nombre || deuda?.acreedor || "deuda"}`);
+      faltantes.push(`pago mensual de ${nombre}`);
+      interesesCompletos = false;
       continue;
     }
     total += pago;
+    if (saldo === null || saldo < 0 || tasa === null || tasa < 0) {
+      faltantes.push(`tasa y saldo de ${nombre} para separar intereses de capital`);
+      interesesCompletos = false;
+      continue;
+    }
+    intereses += Math.min(pago, saldo * (tasa / 100) / 12);
   }
+  const completo = !faltantes.some((texto) => texto.startsWith("pago mensual"));
   return {
-    total: faltantes.length ? null : redondear(total),
+    total: completo ? redondear(total) : null,
     totalCapturado: redondear(total),
-    completo: faltantes.length === 0,
+    intereses: interesesCompletos ? redondear(intereses) : null,
+    capital: interesesCompletos && completo ? redondear(total - intereses) : null,
+    completo,
+    interesesCompletos,
     faltantes,
     deudas: abiertas.length,
   };
 }
 
-// Mismo criterio que el motor de impacto (#160): la bandera false gana y
-// un cero solo es dato con su bandera en true.
+// Mismo criterio que el motor de impacto: la bandera false gana y un cero
+// solo es dato con su bandera en true.
 function confiable(valor, disponible) {
   if (disponible === false || valor === null) return false;
   if (valor === 0) return disponible === true;
   return true;
 }
 
-function diasDelPeriodo(periodo) {
+function rangoPeriodo(periodo) {
   const inicio = new Date(periodo?.fechaInicio);
   const fin = new Date(periodo?.fechaFin);
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime()) || fin < inicio) return null;
   const inicioDia = Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate());
   const finDia = Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth(), fin.getUTCDate());
-  return Math.round((finDia - inicioDia) / 86400000) + 1;
+  return { dias: Math.round((finDia - inicioDia) / 86400000) + 1, inicio: inicioDia, fin: finDia };
 }
 
 /*
  * Venta diaria y margen bruto desde el último "Ventas por artículo" de
- * cada sucursal del negocio.
- * - Venta diaria del negocio = suma de (venta ÷ días del periodo) por
- *   sucursal; una sucursal sin reporte deja el dato incompleto.
- * - Margen = utilidad ÷ venta, solo si todas las filas con venta traen
- *   utilidad confiable (cobertura completa).
+ * cada sucursal.
+ * - diasAbiertosPeriodo[branchId]: días que la sucursal realmente abrió en
+ *   el periodo del reporte (si cerró días, la venta diaria se calcula sobre
+ *   días abiertos). Sin ese dato se usan los días naturales del periodo y
+ *   se marca como no confirmado.
+ * - Margen solo con cobertura completa de utilidad.
+ * - Periodos de distinta duración o fin se marcan como no comparables.
  */
-export function ventasYMargen(ventasPorSucursal = [], sucursales = []) {
+export function ventasYMargen(ventasPorSucursal = [], sucursales = [], { diasAbiertosPeriodo = {} } = {}) {
   const porBranch = new Map((ventasPorSucursal || []).map((item) => [String(item?.branch_id), item]));
   const faltantes = [];
+  const avisos = [];
   const detalle = [];
-  let ventaDiaria = 0;
   let importeTotal = 0;
   let importeConUtilidad = 0;
   let utilidadTotal = 0;
   let ventasCompletas = true;
+  let banderasDesconocidas = 0;
+  let filas = 0;
 
   for (const sucursal of sucursales || []) {
     const nombre = sucursal?.name || sucursal?.nombre || "Sucursal";
@@ -191,16 +268,27 @@ export function ventasYMargen(ventasPorSucursal = [], sucursales = []) {
       ventasCompletas = false;
       continue;
     }
-    const dias = diasDelPeriodo(registro.periodo);
-    if (!dias) {
+    const rango = rangoPeriodo(registro.periodo);
+    if (!rango) {
       faltantes.push(`periodo del reporte de ${nombre}`);
       ventasCompletas = false;
       continue;
     }
+    const diasConfirmados = numero(diasAbiertosPeriodo?.[sucursal.id]);
+    const diasValidos = diasConfirmados !== null && Number.isInteger(diasConfirmados) && diasConfirmados >= 1 && diasConfirmados <= rango.dias;
+    if (diasConfirmados !== null && !diasValidos) {
+      faltantes.push(`días abiertos válidos de ${nombre} en el periodo (1 a ${rango.dias})`);
+      ventasCompletas = false;
+      continue;
+    }
+    if (!diasValidos) avisos.push(`días abiertos de ${nombre} en el periodo no confirmados: se usaron ${rango.dias} días naturales`);
+    const dias = diasValidos ? diasConfirmados : rango.dias;
 
     let importeSucursal = 0;
     let filasSinImporte = 0;
     for (const venta of registro.ventas || []) {
+      filas += 1;
+      if (venta?.utilidadDisponible == null || venta?.importeDisponible == null) banderasDesconocidas += 1;
       const importe = numero(venta?.importe);
       if (!confiable(importe, venta?.importeDisponible) || importe < 0) {
         filasSinImporte += 1;
@@ -218,16 +306,24 @@ export function ventasYMargen(ventasPorSucursal = [], sucursales = []) {
       ventasCompletas = false;
     }
     importeTotal += importeSucursal;
-    ventaDiaria += importeSucursal / dias;
     detalle.push({
       branchId: sucursal.id,
       sucursal: nombre,
-      dias,
+      diasPeriodo: rango.dias,
+      diasAbiertos: dias,
+      diasConfirmados: diasValidos,
       venta: redondear(importeSucursal),
       ventaDiaria: redondear(importeSucursal / dias),
       periodo: registro.periodo,
+      _rango: rango,
     });
   }
+
+  const duraciones = new Set(detalle.map((fila) => fila._rango.dias));
+  const finales = new Set(detalle.map((fila) => fila._rango.fin));
+  const comparables = duraciones.size <= 1 && finales.size <= 1;
+  if (!comparables) avisos.push("los periodos de venta de las sucursales no son comparables (distinta duración o fecha final)");
+  if (banderasDesconocidas > 0) avisos.push(`${banderasDesconocidas} de ${filas} ventas sin banderas de disponibilidad (importación anterior a #164)`);
 
   const coberturaUtilidad = importeTotal > 0 ? importeConUtilidad / importeTotal : 0;
   const margenCompleto = ventasCompletas && importeTotal > 0 && coberturaUtilidad === 1;
@@ -236,38 +332,60 @@ export function ventasYMargen(ventasPorSucursal = [], sucursales = []) {
   }
 
   return {
-    ventaDiaria: ventasCompletas && (sucursales || []).length > 0 ? redondear(ventaDiaria) : null,
     margenBruto: margenCompleto ? Math.round((utilidadTotal / importeTotal) * 10000) / 100 : null,
     coberturaUtilidad: Math.round(coberturaUtilidad * 1000) / 1000,
-    detalle,
+    ventasCompletas: ventasCompletas && (sucursales || []).length > 0,
+    comparables,
+    banderasDesconocidas,
+    detalle: detalle.map(({ _rango, ...fila }) => fila),
     faltantes,
+    avisos,
   };
 }
 
 const texto = (valor) => (valor === null || valor === undefined ? "" : String(valor));
 
+function enteroEn(valor, minimo, maximo) {
+  const convertido = numero(valor);
+  return convertido !== null && Number.isInteger(convertido) && convertido >= minimo && convertido <= maximo ? convertido : null;
+}
+
+function mesAbierto(mes, hoy) {
+  if (!mesValido(mes)) return false;
+  const referencia = hoy ? new Date(hoy) : new Date();
+  const local = new Date(referencia.getTime() - 6 * 3600 * 1000);
+  return local.toISOString().slice(0, 7) <= mes;
+}
+
 /*
- * Precarga del escenario "Base" del simulador con datos reales.
- * datos: mismos campos que EquilibrioDiario (textos; "" = pendiente).
+ * Arma los tres indicadores.
+ * diasAbiertos: días del mes que opera el negocio (meta diaria).
+ * diasAbiertosMes: { branchId: días que abrirá cada sucursal en el mes }
+ *   (venta prevista = Σ venta diaria × días de cada sucursal).
+ * diasAbiertosPeriodo: { branchId: días que abrió en el periodo del
+ *   reporte SICAR } (venta diaria sobre días abiertos).
  */
 export function construirEquilibrioReal({
   mes,
+  hoy = null,
   obligaciones = [],
   deudas = [],
   sinDeudasConfirmado = false,
   ventasPorSucursal = [],
   sucursales = [],
   diasAbiertos = null,
+  diasAbiertosMes = {},
+  diasAbiertosPeriodo = {},
   variablePorcentaje = null,
   conciliacion = null,
+  descartados = 0,
 } = {}) {
   const faltantes = [];
   const maximoDias = diasDelMes(mes);
   if (!maximoDias) faltantes.push("mes del escenario");
 
-  const dias = numero(diasAbiertos);
-  const diasValidos = dias !== null && Number.isInteger(dias) && dias >= 1 && (!maximoDias || dias <= maximoDias);
-  if (!diasValidos) faltantes.push("días que abrirás en el mes");
+  const dias = enteroEn(diasAbiertos, 1, maximoDias || 31);
+  if (dias === null) faltantes.push("días que abrirá el negocio en el mes");
 
   const variable = numero(variablePorcentaje);
   const variableValido = variable !== null && variable >= 0 && variable <= 100;
@@ -275,64 +393,152 @@ export function construirEquilibrioReal({
 
   const gastos = gastosFijosDelMes(obligaciones, mes);
   const deuda = pagosDeudaDelMes(deudas, { sinDeudasConfirmado });
-  const ventas = ventasYMargen(ventasPorSucursal, sucursales);
+  const ventas = ventasYMargen(ventasPorSucursal, sucursales, { diasAbiertosPeriodo });
   faltantes.push(...gastos.faltantes, ...deuda.faltantes, ...ventas.faltantes);
 
-  const ventaPrevista = ventas.ventaDiaria !== null && diasValidos ? redondear(ventas.ventaDiaria * dias) : null;
+  // Venta prevista por sucursal con sus días abiertos del mes.
+  let ventaPrevista = ventas.ventasCompletas && dias !== null ? 0 : null;
+  const diasMesNoConfirmados = [];
+  for (const fila of ventas.detalle) {
+    const diasSucursal = enteroEn(diasAbiertosMes?.[fila.branchId], 0, maximoDias || 31);
+    if (diasSucursal === null) diasMesNoConfirmados.push(fila.sucursal);
+    if (ventaPrevista !== null) ventaPrevista += fila.ventaDiaria * (diasSucursal ?? dias);
+  }
+  if (ventaPrevista !== null) ventaPrevista = redondear(ventaPrevista);
 
-  const datos = {
+  const baseSimulador = {
     gastosFijos: texto(gastos.total),
     margenBruto: texto(ventas.margenBruto),
     variablePorcentaje: variableValido ? texto(variable) : "",
-    diasAbiertos: diasValidos ? texto(dias) : "",
-    deuda: texto(deuda.total),
+    diasAbiertos: dias !== null ? texto(dias) : "",
     ventaPrevista: texto(ventaPrevista),
   };
-  const resultado = calcularEquilibrioDiario(datos);
 
-  const calculable = resultado.calculable && faltantes.length === 0;
-  // Confianza: nunca "alta" si falta algún dato; sin conciliación del mes
-  // (pagos reales contra obligaciones) es "baja".
+  // 1. Operativo: sin deuda ni impuestos.
+  const operativo = calcularEquilibrioDiario({ ...baseSimulador, deuda: "0" });
+  // 2. Efectivo: servicio de deuda + impuestos programados del mes.
+  const compromisosCaja =
+    deuda.total === null ? null : redondear(deuda.total + gastos.impuestosDevengados);
+  const datos = { ...baseSimulador, deuda: texto(compromisosCaja) };
+  const efectivo = calcularEquilibrioDiario(datos);
+  // 3. Utilidad neta estimada: contribución − gastos fijos − intereses.
+  let utilidadNeta = null;
+  if (operativo.calculable && deuda.intereses !== null) {
+    const contribucionPrevista = Number(baseSimulador.ventaPrevista) * operativo.contribucion;
+    utilidadNeta = {
+      utilidadNetaEstimada: redondear(contribucionPrevista - gastos.total - deuda.intereses),
+      ventaParaUtilidadCero: redondear((gastos.total + deuda.intereses) / operativo.contribucion),
+      intereses: deuda.intereses,
+      capitalNoEsGasto: deuda.capital,
+      antesDeImpuestos: true,
+    };
+  } else if (operativo.calculable) {
+    faltantes.push("intereses de deuda separados de capital (tasa y saldo)");
+  }
+
+  const calculable = efectivo.calculable && faltantes.length === 0;
+
+  // Confianza: nunca alta con información incompleta.
   const motivosConfianza = [];
-  let confianza;
-  if (!calculable) {
-    confianza = "baja";
-    motivosConfianza.push("Faltan datos para calcular el equilibrio.");
-  } else if (!conciliacion) {
-    confianza = "baja";
-    motivosConfianza.push("Sin conciliación de gastos del mes: los gastos son los registrados como obligación, no los pagados.");
+  const topes = [];
+  if (!operativo.calculable || faltantes.length) {
+    topes.push("baja");
+    motivosConfianza.push("Faltan datos para calcular los indicadores.");
+  }
+  if (!conciliacion) {
+    topes.push("baja");
+    motivosConfianza.push("Sin conciliación de caja del mes: los gastos son presupuesto, no pagos.");
   } else {
-    confianza = conciliacion.confianza;
+    topes.push(conciliacion.confianza);
     motivosConfianza.push(...(conciliacion.motivosConfianza || []));
   }
+  if (mesAbierto(mes, hoy)) {
+    topes.push("media");
+    motivosConfianza.push("El mes aún no termina: pagos y ventas pueden cambiar.");
+  }
+  if (descartados > 0) {
+    topes.push("media");
+    motivosConfianza.push(`Se descartaron ${descartados} registros ajenos al negocio.`);
+  }
+  if (!ventas.comparables || ventas.banderasDesconocidas > 0 || ventas.detalle.some((fila) => !fila.diasConfirmados)) {
+    topes.push("media");
+    motivosConfianza.push(...ventas.avisos);
+  }
+  if (diasMesNoConfirmados.length) {
+    topes.push("media");
+    motivosConfianza.push(`Días abiertos del mes no confirmados para: ${diasMesNoConfirmados.join(", ")}.`);
+  }
+  if (gastos.impuestosPresupuesto > 0) {
+    motivosConfianza.push("Impuestos programados incluidos solo en efectivo: clasifica si son IVA, ISR, IMSS o de periodos anteriores.");
+  }
+  const confianza = NIVELES_CONFIANZA[Math.min(...topes.map((nivel) => NIVELES_CONFIANZA.indexOf(nivel)).concat(2))];
 
   return {
     tipo: "ESTIMACION",
+    mes: mesValido(mes) ? mes : "",
     confianza,
     motivosConfianza,
-    mes: mesValido(mes) ? mes : "",
     datos,
     calculable,
-    resultado: resultado.calculable ? resultado : null,
+    indicadores: {
+      operativo: operativo.calculable
+        ? { ventaMensual: redondear(operativo.operacion), ventaDiaria: redondear(operativo.operacionDiaria), excedente: redondear(operativo.excedenteOperacion) }
+        : null,
+      efectivo: efectivo.calculable
+        ? { ventaMensual: redondear(efectivo.caja), ventaDiaria: redondear(efectivo.cajaDiaria), compromisos: compromisosCaja, faltanteDiario: redondear(efectivo.brechaCajaDiaria) }
+        : null,
+      utilidadNeta,
+    },
+    resultado: efectivo.calculable ? efectivo : null,
+    gastos: {
+      presupuestoMensualOperativo: gastos.total,
+      devengadoOperativoDelMes: gastos.devengadoOperativo,
+      impuestosProgramados: gastos.impuestosDevengados,
+      pagadoOperativo: conciliacion?.gastoOperativoReal ?? null,
+      pendientePorCategoria: conciliacion?.diferencias ?? null,
+    },
     faltantes,
     fuentes: {
-      gastosFijos: { origen: "obligaciones_operativas", porCategoria: gastos.porCategoria, consideradas: gastos.consideradas, totalCapturado: gastos.totalCapturado },
-      deuda: { origen: "deudas_financieras", deudasAbiertas: deuda.deudas, totalCapturado: deuda.totalCapturado ?? deuda.total },
-      ventas: { origen: "SICAR · Ventas por artículo", sucursales: ventas.detalle, coberturaUtilidad: ventas.coberturaUtilidad },
+      gastosFijos: { origen: "obligaciones_operativas", porCategoria: gastos.porCategoria, devengadoPorCategoria: gastos.devengadoPorCategoria, consideradas: gastos.consideradas },
+      deuda: { origen: "deudas_financieras", deudasAbiertas: deuda.deudas, servicio: deuda.total, intereses: deuda.intereses, capital: deuda.capital },
+      ventas: { origen: "SICAR · Ventas por artículo", sucursales: ventas.detalle, coberturaUtilidad: ventas.coberturaUtilidad, comparables: ventas.comparables },
       conciliacion: conciliacion
-        ? {
-            origen: "cash_movements del mes",
-            gastoOperativoReal: conciliacion.gastoOperativoReal,
-            diferencias: conciliacion.diferencias,
-            sinClasificar: conciliacion.sinClasificar.length,
-          }
+        ? { origen: "cash_movements del mes", gastoOperativoReal: conciliacion.gastoOperativoReal, diferencias: conciliacion.diferencias, sinClasificar: conciliacion.sinClasificar.length }
         : null,
     },
     supuestos: [
-      "Las obligaciones recurrentes se convierten a su equivalente mensual; las únicas solo cuentan si vencen en el mes.",
-      "Si un gasto recurrente también se registró como obligación única del mes, se contaría dos veces: revisa duplicados.",
+      "Presupuesto mensual = promedio de cada obligación recurrente (semanal × 52/12); devengado = vencimientos que caen en el calendario del mes.",
+      "Interés del mes estimado como saldo × tasa anual ÷ 12; el resto del pago es capital y no es gasto.",
+      "La utilidad neta es antes de impuestos sobre la renta.",
       "La venta prevista repite la venta diaria del último reporte SICAR de cada sucursal; no incluye temporada ni campañas.",
-      "No incluye compras de inventario, impuestos adicionales ni desfases de cobro: revísalos en el flujo de 13 semanas.",
+      "No incluye compras de inventario ni desfases de cobro: revísalos en el flujo de 13 semanas.",
     ],
+  };
+}
+
+/*
+ * Consolidado para la propietaria (p. ej. tienda + flotilla). Solo suma
+ * negocios calculables; los demás se listan. La confianza es la menor.
+ */
+export function consolidarEquilibrios(resultados = []) {
+  const lista = (resultados || []).filter(Boolean);
+  const calculables = lista.filter((item) => item.resultado?.calculable && item.indicadores?.efectivo);
+  const suma = (lector) => {
+    const valores = calculables.map(lector);
+    return valores.some((valor) => valor === null || valor === undefined) ? null : redondear(valores.reduce((a, b) => a + b, 0));
+  };
+  const indice = lista.length
+    ? Math.min(...lista.map((item) => NIVELES_CONFIANZA.indexOf(item.confianza)).map((valor) => (valor < 0 ? 0 : valor)))
+    : 0;
+  return {
+    tipo: "ESTIMACION",
+    negocios: lista.length,
+    negociosIncluidos: calculables.length,
+    negociosExcluidos: lista.length - calculables.length,
+    completo: calculables.length === lista.length && lista.length > 0,
+    confianza: calculables.length === lista.length ? NIVELES_CONFIANZA[indice] : "baja",
+    ventaMensualOperativa: suma((item) => item.indicadores.operativo?.ventaMensual),
+    ventaMensualEfectivo: suma((item) => item.indicadores.efectivo?.ventaMensual),
+    utilidadNetaEstimada: suma((item) => item.indicadores.utilidadNeta?.utilidadNetaEstimada),
   };
 }

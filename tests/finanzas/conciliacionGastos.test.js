@@ -22,8 +22,16 @@ test("no toda salida es gasto ni toda entrada es venta", () => {
     [salida("renta", "fijo", 1), NATURALEZAS.GASTO_FIJO, true],
     [salida("marketing", "variable", 1), NATURALEZAS.GASTO_VARIABLE, true],
     [salida("nomina", "fijo", 1), NATURALEZAS.NOMINA, true],
-    [salida("impuestos", "variable", 1), NATURALEZAS.IMPUESTOS, true],
+    [salida("cuotas_imss_infonavit", "fijo", 1), NATURALEZAS.NOMINA, true],
     [salida("comisiones", "variable", 1), NATURALEZAS.COMISIONES, true],
+    [salida("comisiones_marketplace", "variable", 1), NATURALEZAS.COMISIONES, true],
+    // Pagos al SAT: nunca gasto operativo automático.
+    [salida("impuestos", "variable", 1), NATURALEZAS.IMPUESTOS, false],
+    [salida("impuesto_iva", "no_aplica", 1), NATURALEZAS.IMPUESTO_IVA, false],
+    [salida("impuesto_isr", "no_aplica", 1), NATURALEZAS.IMPUESTO_ISR, false],
+    // Deuda: interés es gasto financiero (no operativo); capital no es gasto.
+    [salida("intereses_deuda", "fijo", 1), NATURALEZAS.INTERESES, false],
+    [salida("pago_capital_deuda", "no_aplica", 1), NATURALEZAS.CAPITAL_DEUDA, false],
     [salida("compras_inventario", "variable", 1), NATURALEZAS.COMPRA_INVENTARIO, false],
     [salida("retiro_propietaria", "no_aplica", 1), NATURALEZAS.RETIRO_PROPIETARIA, false],
     [salida("anticipo_prestamo", "no_aplica", 1), NATURALEZAS.FINANCIAMIENTO, false],
@@ -33,9 +41,10 @@ test("no toda salida es gasto ni toda entrada es venta", () => {
     [salida("sin_clasificar", "fijo", 1), NATURALEZAS.SIN_CLASIFICAR, false],
     [salida("categoria_nueva", "fijo", 1), NATURALEZAS.SIN_CLASIFICAR, false],
     [entrada("ingreso_caja_sicar", 1), NATURALEZAS.VENTA_SICAR, false],
+    [entrada("liquidacion_marketplace", 1), NATURALEZAS.COBRO_MARKETPLACE, false],
     [entrada("traspaso_caja", 1), NATURALEZAS.TRASPASO, false],
     [entrada("anticipo_prestamo", 1), NATURALEZAS.FINANCIAMIENTO, false],
-    [entrada(null, 1), NATURALEZAS.SIN_CLASIFICAR, false], // p. ej. liquidación de Mercado Libre
+    [entrada(null, 1), NATURALEZAS.SIN_CLASIFICAR, false],
   ];
   for (const [movimiento, naturaleza, esGasto] of casos) {
     const resultado = clasificarMovimiento(movimiento);
@@ -45,33 +54,79 @@ test("no toda salida es gasto ni toda entrada es venta", () => {
 });
 
 const obligaciones = [
-  { categoria: "RENTA", importe: 40000, frecuencia: "MENSUAL", estado: "PENDIENTE" },
-  { categoria: "NOMINA", importe: 10000, frecuencia: "SEMANAL", estado: "PENDIENTE" },
-  { categoria: "SERVICIOS", importe: 800, frecuencia: "MENSUAL", estado: "PENDIENTE" },
+  { categoria: "RENTA", importe: 40000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-11-05", estado: "PENDIENTE" },
+  { categoria: "NOMINA", importe: 10000, frecuencia: "SEMANAL", fecha_vencimiento: "2026-11-27", estado: "PENDIENTE" },
+  { categoria: "SERVICIOS", importe: 800, frecuencia: "MENSUAL", fecha_vencimiento: "2026-11-10", estado: "PENDIENTE" },
 ];
 
-test("concilia el mes: gasto real separado de retiros, compras y traspasos", () => {
+const mesCompleto = [
+  salida("renta", "fijo", 40000),
+  salida("nomina", "fijo", 40000),
+  salida("servicios", "fijo", 800),
+];
+
+test("concilia el mes: gasto separado de retiros, compras, capital, impuestos y cobros", () => {
   const conciliacion = conciliarGastosDelMes({
     mes: "2026-12",
     obligaciones,
     movimientos: [
-      salida("renta", "fijo", 40000),
-      salida("nomina", "fijo", 43333.33),
-      salida("servicios", "fijo", 800),
+      ...mesCompleto,
+      salida("intereses_deuda", "fijo", 2400),
+      salida("pago_capital_deuda", "no_aplica", 5600),
+      salida("impuesto_iva", "no_aplica", 3000),
       salida("compras_inventario", "variable", 25000),
       salida("retiro_propietaria", "no_aplica", 8000),
       salida("traspaso_caja", "no_aplica", 5000),
       entrada("ingreso_caja_sicar", 90000),
+      entrada("liquidacion_marketplace", 12000),
       salida("renta", "fijo", 40000, { status: "Cancelado" }),
       salida("renta", "fijo", 40000, { occurred_at: "2026-11-15T18:00:00.000Z" }),
     ],
   });
-  assert.equal(conciliacion.movimientosConsiderados, 7);
-  assert.equal(conciliacion.gastoOperativoReal, 84133.33);
-  assert.deepEqual(conciliacion.noSonGasto, { compraInventario: 25000, retiros: 8000, financiamiento: 0, traspasos: 5000 });
-  assert.equal(conciliacion.porNaturaleza[NATURALEZAS.VENTA_SICAR], 90000);
+  assert.equal(conciliacion.gastoOperativoReal, 80800);
+  assert.equal(conciliacion.gastoFinanciero, 2400);
+  assert.deepEqual(conciliacion.impuestos, { sinTipo: 0, iva: 3000, isr: 0 });
+  assert.deepEqual(conciliacion.noSonGasto, { compraInventario: 25000, retiros: 8000, financiamiento: 0, capitalDeuda: 5600, traspasos: 5000 });
+  assert.deepEqual(conciliacion.noSonVenta, { cobrosMarketplace: 12000, ventaYaEnSicar: 90000 });
   assert.equal(conciliacion.confianza, "alta");
-  assert.ok(conciliacion.diferencias.every((fila) => !fila.motivo));
+});
+
+test("devengado del calendario contra pagado y pendiente, a nivel categoría", () => {
+  const conciliacion = conciliarGastosDelMes({
+    mes: "2026-12",
+    obligaciones,
+    movimientos: [salida("renta", "fijo", 40000), salida("nomina", "fijo", 20000), salida("servicios", "fijo", 800)],
+  });
+  const nomina = conciliacion.diferencias.find((fila) => fila.categoria === "NOMINA");
+  assert.equal(nomina.devengado, 40000); // 4 semanas en diciembre
+  assert.equal(nomina.pagado, 20000);
+  assert.equal(nomina.pendiente, 20000);
+  assert.equal(nomina.nivel, "categoria");
+  assert.match(nomina.motivo, /menor a lo que vence/);
+  assert.equal(conciliacion.confianza, "media");
+  assert.ok(conciliacion.limites[0].includes("no prueba que cada obligación individual"));
+});
+
+test("sin movimientos no es gasto cero", () => {
+  const conciliacion = conciliarGastosDelMes({ mes: "2026-12", obligaciones, movimientos: [] });
+  assert.equal(conciliacion.gastoOperativoReal, null);
+  assert.equal(conciliacion.noSonGasto, null);
+  assert.equal(conciliacion.confianza, "baja");
+  const renta = conciliacion.diferencias.find((fila) => fila.categoria === "RENTA");
+  assert.equal(renta.pagado, null);
+  assert.equal(renta.pendiente, null);
+});
+
+test("pago al SAT sin tipo baja la confianza a media y no suma a gasto", () => {
+  const conciliacion = conciliarGastosDelMes({
+    mes: "2026-12",
+    obligaciones,
+    movimientos: [...mesCompleto, salida("impuestos", "variable", 6000)],
+  });
+  assert.equal(conciliacion.gastoOperativoReal, 80800);
+  assert.equal(conciliacion.impuestos.sinTipo, 6000);
+  assert.equal(conciliacion.confianza, "media");
+  assert.ok(conciliacion.motivosConfianza.some((texto) => texto.includes("SAT")));
 });
 
 test("fecha local de Ciudad de México: 1 de enero 03:00 UTC sigue siendo diciembre", () => {
@@ -83,64 +138,44 @@ test("fecha local de Ciudad de México: 1 de enero 03:00 UTC sigue siendo diciem
   assert.equal(conciliacion.movimientosConsiderados, 1);
 });
 
-test("confianza media con pendientes o diferencias, baja si hay sin clasificar", () => {
-  const conPendiente = conciliarGastosDelMes({
-    mes: "2026-12",
-    obligaciones,
-    movimientos: [salida("renta", "fijo", 20000, { status: "Pendiente de revisión" })],
-  });
-  assert.equal(conPendiente.confianza, "media");
-  const renta = conPendiente.diferencias.find((fila) => fila.categoria === "RENTA");
-  assert.equal(renta.diferencia, -20000);
-  assert.match(renta.motivo, /menor a lo esperado/);
-
-  const conSinClasificar = conciliarGastosDelMes({
-    mes: "2026-12",
-    obligaciones,
-    movimientos: [salida("renta", "fijo", 40000), entrada(null, 12000, { concept: "Liquidación marketplace" })],
-  });
-  assert.equal(conSinClasificar.confianza, "baja");
-  assert.equal(conSinClasificar.sinClasificar[0].concepto, "Liquidación marketplace");
-
-  assert.equal(conciliarGastosDelMes({ mes: "2026-12", obligaciones, movimientos: [] }).confianza, "baja");
+test("sin clasificar o pendientes bajan la confianza", () => {
+  assert.equal(conciliarGastosDelMes({
+    mes: "2026-12", obligaciones,
+    movimientos: [...mesCompleto, entrada(null, 12000, { concept: "Depósito sin identificar" })],
+  }).confianza, "baja");
+  assert.equal(conciliarGastosDelMes({
+    mes: "2026-12", obligaciones,
+    movimientos: [...mesCompleto.slice(0, 2), salida("servicios", "fijo", 800, { status: "Pendiente de revisión" })],
+  }).confianza, "media");
 });
 
-test("pagos sin obligación registrada se señalan", () => {
-  const conciliacion = conciliarGastosDelMes({
-    mes: "2026-12",
-    obligaciones: [],
-    movimientos: [salida("impuestos", "variable", 3000)],
-  });
-  const impuestos = conciliacion.diferencias.find((fila) => fila.categoria === "IMPUESTOS");
-  assert.equal(impuestos.esperado, null);
-  assert.match(impuestos.motivo, /sin obligación registrada/);
+test("pagos sin obligación que venza en el mes se señalan", () => {
+  const conciliacion = conciliarGastosDelMes({ mes: "2026-12", obligaciones: [], movimientos: [salida("servicios", "fijo", 3000)] });
+  const servicios = conciliacion.diferencias.find((fila) => fila.categoria === "SERVICIOS");
+  assert.equal(servicios.devengado, null);
+  assert.match(servicios.motivo, /sin obligación/);
 });
 
-test("el equilibrio hereda la confianza de la conciliación y nunca es alta con faltantes", () => {
-  const base = {
+test("el equilibrio usa la conciliación y nunca es alta con faltantes", () => {
+  const entradaEquilibrio = {
     mes: "2026-12",
+    hoy: "2027-01-05T18:00:00Z",
     obligaciones,
     sinDeudasConfirmado: true,
     sucursales: [{ id: "A", name: "Centro" }],
-    ventasPorSucursal: [{ branch_id: "A", periodo: { fechaInicio: "2026-11-01", fechaFin: "2026-11-10" }, ventas: [{ importe: 30000, utilidad: 12000 }] }],
+    ventasPorSucursal: [{ branch_id: "A", periodo: { fechaInicio: "2026-11-01", fechaFin: "2026-11-10" }, ventas: [{ importe: 30000, utilidad: 12000, importeDisponible: true, utilidadDisponible: true }] }],
     diasAbiertos: 26,
+    diasAbiertosMes: { A: 26 },
+    diasAbiertosPeriodo: { A: 10 },
     variablePorcentaje: 3,
   };
-  const sinConciliar = construirEquilibrioReal(base);
-  assert.equal(sinConciliar.calculable, true);
-  assert.equal(sinConciliar.confianza, "baja");
-  assert.match(sinConciliar.motivosConfianza[0], /Sin conciliación/);
-
   const conciliacion = conciliarGastosDelMes({
-    mes: "2026-12",
-    obligaciones,
-    movimientos: [salida("renta", "fijo", 40000), salida("nomina", "fijo", 43333.33), salida("servicios", "fijo", 800)],
-    gastosFijos: gastosFijosDelMes(obligaciones, "2026-12"),
+    mes: "2026-12", obligaciones, movimientos: mesCompleto, gastosFijos: gastosFijosDelMes(obligaciones, "2026-12"),
   });
-  const conciliado = construirEquilibrioReal({ ...base, conciliacion });
+  const conciliado = construirEquilibrioReal({ ...entradaEquilibrio, conciliacion });
   assert.equal(conciliado.confianza, "alta");
-  assert.equal(conciliado.fuentes.conciliacion.gastoOperativoReal, 84133.33);
-
-  const incompleto = construirEquilibrioReal({ ...base, diasAbiertos: null, conciliacion });
-  assert.equal(incompleto.confianza, "baja");
+  assert.equal(conciliado.gastos.pagadoOperativo, 80800);
+  assert.equal(conciliado.gastos.devengadoOperativoDelMes, 80800);
+  assert.equal(construirEquilibrioReal(entradaEquilibrio).confianza, "baja");
+  assert.equal(construirEquilibrioReal({ ...entradaEquilibrio, diasAbiertos: null, conciliacion }).confianza, "baja");
 });
