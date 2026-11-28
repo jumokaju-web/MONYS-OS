@@ -4,57 +4,60 @@ Código: `src/core/finanzas/estadoResultados.js` (puro) y `src/features/intelige
 
 ## Renglones
 
-| Renglón | Fuente | Regla |
-|---|---|---|
-| Ingresos | SICAR `ventas_articulos` por sucursal y canales (Mercado Libre, TikTok Shop) | Sin IVA. Si no se confirma si el reporte trae IVA, la base queda `por_confirmar`: no se calcula ISR ni utilidad neta |
-| Costo de mercancía | SICAR: importe − utilidad del propio reporte. Canales: costo SICAR vinculado por SKU | Un SKU sin costo deja pendiente la utilidad bruta del canal. Nunca se inventa |
-| Gastos de venta del canal | Comisiones y envíos de las órdenes, más publicidad del mes | Publicidad desconocida ≠ 0. La comisión de marketplace que también está en Tesorería se excluye (`excluidosPorDuplicado`) |
-| Gastos operativos directos | Tesorería con sucursal (renta, nómina, servicios…) | Base pagado en el mes. Distribuciones activas aplicadas (#166) |
-| Contribución | Utilidad bruta − gastos de venta − directos | Por sucursal y por canal |
-| Gastos generales | Tesorería sin sucursal | No se reparten. El reparto proporcional a ventas va aparte como `SUPUESTO` |
-| Utilidad operativa | Contribuciones − generales | |
-| Intereses | Devengados (si se entregan) o pagados en el mes | La base se declara |
-| ISR | Monto del contador, o estimado con la tasa que indique | El estimado baja la confianza |
-| Utilidad neta | Utilidad antes de ISR − ISR | |
-| No son gasto | IVA, ISR pagado, capital de deuda, compras de inventario, retiros, financiamiento, traspasos | Se informan aparte |
+Ingresos → costo de mercancía → utilidad bruta → gastos de venta del canal → gastos directos → **contribución** por unidad → gastos generales → **utilidad operativa** → intereses → utilidad antes de ISR → ISR → **utilidad neta**.
 
-Las cargas de SICAR que se traslapan no se suman: para cada sucursal y día gana la carga más reciente. Una sucursal sin ventas en el mes es dato faltante, salvo que esté marcada como cerrada. Un canal esperado sin datos (sin sincronizar) deja el consolidado pendiente.
+Lo que **no es gasto** se informa aparte: IVA, ISR pagado, capital de deuda, compras de inventario, retiros, financiamiento y traspasos.
 
-## Comparativos y variaciones
+## Reglas
 
-`compararMeses(estados)` da, para cada mes:
+| Tema | Regla |
+|---|---|
+| Dato faltante | Nunca se toma como 0. Cada renglón conocido se conserva aunque falte el siguiente: ingresos sin utilidad, sucursal sin gastos, etc. |
+| Subtotales | `subtotalConocido` siempre trae la suma de las unidades conocidas y la lista de las que faltan. `consolidado` solo existe completo. |
+| Cobertura SICAR | Una carga cubre los días de su **periodo declarado**. Un día cubierto sin ventas es cero real; un día sin cobertura es faltante. Si el periodo termina el mismo día en que se hizo la carga, ese día queda parcial. Sin periodo declarado, el día queda `sin_confirmar`. |
+| Reemplazo de cargas | Gana la carga más nueva que cubre el día **completo**. Una carga parcial más nueva no reemplaza a una completa. Dos cargas completas con totales distintos quedan en conflicto. |
+| Disponibilidad | El importe y la utilidad se evalúan por separado. Una bandera `null` (historial) con valor 0 es desconocido; con valor distinto de 0 cuenta, pero queda marcada. |
+| Gastos | Se calculan en tres bases. **Pagado** es lo registrado en Tesorería y es provisional: una lista vacía no prueba cero. **Devengado** es la obligación mensual (`gastosFijosDelMes` del motor de equilibrio) o, si no hay obligación, lo pagado. **Pendiente** es lo que vence menos lo pagado. Las obligaciones "OTRO" no se cruzan y se informan aparte. |
+| IVA | Hay bases independientes para ventas SICAR, costo SICAR, ventas y cargos de cada canal, y gastos de Tesorería. Una base por confirmar usa el importe tal como viene y el resultado se marca como provisional. Nunca se deduce una base de otra. |
+| Cargos de marketplace | Solo se excluye el cargo ligado a una operación (canal + cuenta + referencia) cuyas comisiones ya vienen en las órdenes. Los demás son cargos distintos: se restan y quedan por conciliar. |
+| Canales | Solo cuentan las cuentas de `canal_cuentas` del negocio. Una cuenta configurada sin datos del mes es faltante. Sin configuración legible, no se puede confirmar qué canales existen. |
+| Aislamiento | Se valida que el negocio sea de la organización. Las sucursales del negocio entran aunque estén inactivas. Las obligaciones y movimientos de otros negocios se ignoran, y los gastos de sucursales ajenas se reportan. |
+| ISR | Si hay monto del contador, se usa ese. Si no, se estima con la tasa (`ESTIMADO_PROVISIONAL` si alguna base de IVA está por confirmar). Sin ninguno de los dos, queda faltante. |
 
-- variaciones contra el mes anterior y contra el mismo mes del año anterior;
-- el margen bruto en puntos;
-- gastos por categoría, ordenados por cambio;
-- unidades.
+## Comparativos
 
-El cambio de utilidad bruta se descompone en **efecto volumen** `(I₂ − I₁)·m₁` y **efecto margen** `I₂·(m₂ − m₁)`, que suman exactamente el total. Un mes en curso no se compara con uno cerrado.
+Se comparan periodos equivalentes: solo unidades que operan en ambos meses, con cobertura y costo completos y las mismas bases de IVA. Las aperturas, los cierres y los meses incompletos quedan en `unidadesExcluidas` con su motivo.
+
+Además de la variación mensual, el comparativo incluye:
+
+- **venta promedio diaria**, para meses con distinto número de días;
+- **efecto volumen** `(I₂ − I₁)·m₁` y **efecto margen** `I₂·(m₂ − m₁)`, que suman exactamente el cambio de utilidad bruta;
+- gastos devengados por categoría;
+- comparación contra el mismo mes del año anterior.
+
+Un mes en curso no se compara.
 
 ## Recomendaciones
 
-`recomendacionesRentabilidad` revisa el último mes cerrado y busca:
+Se revisan:
 
 - contribución negativa;
-- caída del margen bruto (≥ 2 pts);
-- caída de ventas con margen estable;
-- gasto que sube ≥ 15% y ≥ $1,000;
+- caída de margen;
+- caída de venta diaria con margen estable;
+- gasto que sube;
 - publicaciones con pérdida;
-- cargos de canal > 35%;
-- cancelaciones > 5%;
+- cargos o cancelaciones altos;
+- obligaciones sin pago registrado;
 - intereses ≥ 30% de la utilidad operativa;
-- movimientos sin clasificar.
+- movimientos sin clasificar;
+- cargos de marketplace por conciliar.
 
-Cada recomendación trae impacto mensual estimado (o `null`), evidencia y acción, ordenadas por impacto. Todas son `RECOMENDACION` con `requiereAutorizacion: true`: no se cambian precios, campañas, publicaciones ni pagos.
-
-## Confianza
-
-- **Baja:** sin Tesorería, movimientos sin clasificar, base de IVA por confirmar, canal sin sincronizar o utilidad operativa incalculable.
-- **Media:** hay faltantes menores, movimientos sin revisar, pagos al SAT sin tipo, ISR estimado, intereses en base pagado o mes en curso.
-- **Alta:** nada de lo anterior.
+Cada una lleva impacto estimado y `requiereAutorizacion: true`.
 
 ## Pendiente
 
-- Confirmar con el contador si los importes de SICAR incluyen IVA, y la tasa o el monto de ISR.
-- Conectar `canalesPorMes` cuando se active la sincronización (#170).
-- La pantalla le toca a ChatGPT/Codex; consume `obtenerEstadosDeResultados`.
+- **Fuente de cierres de sucursal:** hoy no existe (`diasCerrados` va vacío), así que un día sin carga se trata como faltante.
+- **Campos `canal`, `cuenta_id` y `referencia_externa` en Tesorería:** sin ellos, ningún cargo de marketplace se excluye.
+- **Bases de IVA y monto o tasa de ISR del contador:** mientras falten, el resultado sale como provisional.
+- **`canalesPorMes`:** se conecta cuando la sincronización de #170 esté activa.
+- **Pantalla:** la hace ChatGPT/Codex.

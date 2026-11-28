@@ -1,241 +1,285 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  agregarVentasSicarPorMes,
   analizarRentabilidad,
   compararMeses,
   construirEstadoResultados,
   efectoVolumenMargen,
+  elegirCargasPorDia,
+  ventasSucursalDelMes,
 } from "../../src/core/finanzas/estadoResultados.js";
 
 // Todo es sintético.
-const sucursales = [{ id: "s1", name: "Centro" }, { id: "s2", name: "Plaza" }];
+const sucursales = [{ id: "s1", name: "Centro", active: true }, { id: "s2", name: "Plaza", active: true }];
+const finDe = (mes) => new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5)), 0)).toISOString().slice(0, 10);
+const r = (v) => Math.round(v * 100) / 100;
 
-const filasSicar = (mes, centro, plaza) => [
-  { branch_id: "s1", fecha: `${mes}-05`, importe: centro.venta, utilidad: centro.utilidad },
-  { branch_id: "s2", fecha: `${mes}-06`, importe: plaza.venta, utilidad: plaza.utilidad },
-];
+// Una carga por sucursal que cubre el mes completo, hecha dos días después del cierre.
+function cargasDelMes(mes, ventas) {
+  const creada = new Date(Date.parse(`${finDe(mes)}T12:00:00Z`) + 2 * 86400000).toISOString();
+  const importaciones = [];
+  const filas = [];
+  for (const [branch, v] of Object.entries(ventas)) {
+    const id = `${branch}-${mes}`;
+    importaciones.push({ id, branch_id: branch, created_at: creada, periodoInicio: `${mes}-01`, periodoFin: finDe(mes) });
+    filas.push({ importacion_id: id, fecha: `${mes}-05`, importe: v.venta, utilidad: v.utilidad, importe_disponible: true, utilidad_disponible: true });
+  }
+  return { importaciones, filas };
+}
 
 const mov = (id, mes, categoria, amount, extra = {}) => ({
-  id, movement_type: "salida", amount, expense_category: categoria, status: "revisado", occurred_at: `${mes}-10T18:00:00Z`, ...extra,
+  id, organization_id: "o", business_id: "monys", movement_type: "salida", amount, expense_category: categoria, status: "revisado", occurred_at: `${mes}-10T18:00:00Z`, ...extra,
 });
 
+const movimientosDe = (mes, { nominaPlaza = 15000 } = {}) => [
+  mov("r1", mes, "renta", 15000, { branch_id: "s1", expense_behavior: "fijo" }),
+  mov("n1", mes, "nomina", 20000, { branch_id: "s1" }),
+  mov("n2", mes, "nomina", nominaPlaza, { branch_id: "s2" }),
+  // La renta de Plaza no se registró: la obligación la deja pendiente.
+  mov("g1", mes, "servicios", 3000, { expense_behavior: "fijo" }),
+  mov("i1", mes, "intereses_deuda", 4000),
+  mov("k1", mes, "pago_capital_deuda", 8000),
+  mov("v1", mes, "impuesto_iva", 6000),
+  mov("c1", mes, "compras_inventario", 50000),
+  mov("x1", mes, "comisiones_marketplace", 3000, { canal: "mercado_libre", cuenta_id: "ml1", referencia_externa: "ORD-1" }), // ya viene en las órdenes
+  mov("x2", mes, "comisiones_marketplace", 500, { canal: "mercado_libre", cuenta_id: "ml1" }), // cargo distinto (almacenaje, p. ej.)
+  mov("x3", mes, "comisiones_marketplace", 200), // sin ligar
+];
+
+const obligaciones = [
+  { business_id: "monys", branch_id: "s1", categoria: "RENTA", importe: 15000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-05" },
+  { business_id: "monys", branch_id: "s2", categoria: "RENTA", importe: 10000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-05" },
+  { business_id: "monys", branch_id: "s1", categoria: "NOMINA", importe: 20000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-30" },
+  { business_id: "monys", branch_id: "s2", categoria: "NOMINA", importe: 15000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-30" },
+  { business_id: "monys", categoria: "SERVICIOS", importe: 3000, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-10" },
+  { business_id: "flotilla", categoria: "RENTA", importe: 99999, frecuencia: "MENSUAL", fecha_vencimiento: "2026-09-01" },
+];
+
 const canalML = (extra = {}) => ({
-  canal: "mercado_libre",
-  ventasPagadas: 20000,
-  comisiones: 3000,
-  envios: 2000,
-  tasaCancelacionPct: 8,
-  cargosPct: 25,
-  porSku: [
-    { sku: "A", costoProducto: 9000, utilidad: 4000 },
-    { sku: "B", costoProducto: 1000, utilidad: -300, pierdeDinero: true },
-  ],
-  productosConPerdida: [{ sku: "B", titulo: "Rímel paquete", utilidad: -300, unidades: 12 }],
+  cuentaId: "ml1",
+  cuentaExterna: "123",
+  coberturaCompleta: true,
+  publicidad: 1000,
+  operaciones: ["ORD-1", "ORD-2"],
+  baseIvaVentas: { base: "sin_iva" },
+  baseIvaCargos: { base: "sin_iva" },
+  resumen: {
+    canal: "mercado_libre",
+    ventasPagadas: 20000,
+    comisiones: 3000,
+    envios: 2000,
+    tasaCancelacionPct: 8,
+    cargosPct: 25,
+    porSku: [{ sku: "A", costoProducto: 9000, utilidad: 4000 }, { sku: "B", costoProducto: 1000, utilidad: -300 }],
+    productosConPerdida: [{ sku: "B", titulo: "Rímel paquete", utilidad: -300, unidades: 12 }],
+  },
   ...extra,
 });
 
-function estado(mes, { centro, plaza, movimientos, canal = canalML(), publicidad = 1000, isr = { tasaEstimadaPct: 30 }, intereses = {}, hoy = "2026-12-15", baseIvaSicar = { base: "sin_iva" } }) {
+const basesSinIva = { ventasSicar: { base: "sin_iva" }, costoSicar: { base: "sin_iva" }, gastosTesoreria: { base: "sin_iva" } };
+const configML = [{ id: "ml1", canal: "mercado_libre", cuenta_externa: "123" }];
+
+function estado(mes, { ventas = { s1: { venta: 100000, utilidad: 45000 }, s2: { venta: 60000, utilidad: 24000 } }, movimientos = movimientosDe(mes), canales = [canalML()], configurados = configML, bases = basesSinIva, isr = { tasaEstimadaPct: 30 } } = {}) {
+  const { importaciones, filas } = cargasDelMes(mes, ventas);
   return construirEstadoResultados({
-    businessId: "monys",
-    mes,
-    sucursales,
-    ventasSucursal: agregarVentasSicarPorMes(filasSicar(mes, centro, plaza)),
-    canales: canal ? [{ resumen: canal, publicidad, baseIva: { base: "sin_iva" } }] : [],
-    movimientos,
-    baseIvaSicar,
-    intereses,
-    isr,
-    hoy,
+    businessId: "monys", mes, sucursales, sicar: elegirCargasPorDia(filas, importaciones),
+    canales, canalesConfigurados: configurados, movimientos, obligaciones, bases, isr, hoy: "2026-12-15",
   });
 }
 
-const movsOct = [
-  mov("r1", "2026-10", "renta", 15000, { branch_id: "s1", expense_behavior: "fijo" }),
-  mov("r2", "2026-10", "renta", 10000, { branch_id: "s2", expense_behavior: "fijo" }),
-  mov("n1", "2026-10", "nomina", 20000, { branch_id: "s1" }),
-  mov("n2", "2026-10", "nomina", 15000, { branch_id: "s2" }),
-  mov("g1", "2026-10", "servicios", 3000, { expense_behavior: "fijo" }), // general
-  mov("i1", "2026-10", "intereses_deuda", 4000),
-  mov("k1", "2026-10", "pago_capital_deuda", 8000),
-  mov("v1", "2026-10", "impuesto_iva", 6000),
-  mov("c1", "2026-10", "compras_inventario", 50000),
-  mov("x1", "2026-10", "comisiones_marketplace", 3000), // duplicado de las órdenes
-];
-
-test("estado de resultados: cada renglón en su lugar y nada que no es gasto resta", () => {
-  const e = estado("2026-10", { centro: { venta: 100000, utilidad: 45000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsOct });
+test("estado completo: renglones, tres bases de gasto y lo que no es gasto", () => {
+  const e = estado("2026-10");
   const c = e.consolidado;
-  // Ingresos: 100 000 + 60 000 + 20 000 (ML)
+  assert.equal(c.completo, true);
   assert.equal(c.ingresos, 180000);
-  // Costo: 55 000 + 36 000 + 10 000
   assert.equal(c.costoMercancia, 101000);
   assert.equal(c.utilidadBruta, 79000);
-  // Gastos: canal 6 000 + directos 60 000 + generales 3 000
-  assert.equal(c.gastosOperativos.ventaCanales, 6000);
-  assert.equal(c.gastosOperativos.directosSucursales, 60000);
-  assert.equal(c.gastosOperativos.generales, 3000);
-  assert.equal(c.utilidadOperativa, 10000);
+  assert.equal(c.gastosVenta, 6000);
+  // Pagado: Centro 35 000, Plaza 15 000, ML cargo distinto 500.
+  assert.equal(c.gastosDirectos.pagado, 50500);
+  // Devengado: Plaza lleva su renta de 10 000 por obligación.
+  assert.equal(c.gastosDirectos.devengado, 60500);
+  assert.equal(c.gastosGenerales.pagado, 3200); // servicios 3 000 + cargo sin ligar 200
+  assert.equal(c.utilidadOperativa.pagado, 19300);
+  assert.equal(c.utilidadOperativa.devengado, 9300);
+  assert.equal(e.bases.utilidadOperativa, "devengado");
   assert.equal(c.intereses, 4000);
-  assert.equal(c.utilidadAntesISR, 6000);
-  assert.equal(c.isr, 1800);
-  assert.equal(c.tipoIsr, "ESTIMADO");
-  assert.equal(c.utilidadNeta, 4200);
-  // No son gasto: capital, IVA, inventario.
+  assert.equal(c.utilidadAntesISR, 5300);
+  assert.equal(c.isr, 1590);
+  assert.equal(c.utilidadNeta, 3710);
+  assert.equal(e.obligacionesPendientes, 10000);
+  const plaza = e.unidades.find((u) => u.unidad === "s2");
+  assert.deepEqual(plaza.gastosDirectos.porCategoria.find((f) => f.categoria === "RENTA"), { categoria: "RENTA", pagado: 0, devengado: 10000, vence: 10000, pendiente: 10000, fuente: "obligacion" });
   assert.equal(e.noSonGasto.capitalDeuda, 8000);
   assert.equal(e.noSonGasto.iva, 6000);
   assert.equal(e.noSonGasto.compraInventario, 50000);
-  // La comisión de ML en Tesorería no se resta dos veces.
-  assert.equal(e.excluidosPorDuplicado.length, 1);
-  // Por unidad.
-  const [centro, plaza, ml] = e.unidades;
-  assert.equal(centro.contribucion, 10000);
-  assert.equal(plaza.contribucion, -1000);
-  assert.equal(ml.contribucion, 4000);
-  assert.equal(ml.gastosVenta.total, 6000);
-  // Generales: solo como supuesto, aparte.
-  assert.equal(e.repartoGeneralesPorVentas.tipo, "SUPUESTO");
-  assert.equal(e.confianza, "media"); // ISR estimado e intereses pagados
+  assert.ok(!JSON.stringify(e).includes("99999")); // obligación de flotilla
 });
 
-test("dato faltante no es cero: sucursal sin ventas, publicidad o costos desconocidos", () => {
-  const sinPlaza = construirEstadoResultados({
-    businessId: "monys", mes: "2026-10", sucursales,
-    ventasSucursal: agregarVentasSicarPorMes([{ branch_id: "s1", fecha: "2026-10-05", importe: 100, utilidad: 40 }]),
-    movimientos: [], baseIvaSicar: { base: "sin_iva" }, isr: { tasaEstimadaPct: 30 },
+test("comisiones de marketplace: solo se excluye la ligada a una operación incluida en las órdenes", () => {
+  const e = estado("2026-10");
+  assert.deepEqual(e.cargosMarketplace.excluidosPorDuplicado.map((x) => x.id), ["x1"]);
+  assert.deepEqual(e.cargosMarketplace.porConciliar.map((x) => [x.id, x.estado]), [["x2", "del_canal_por_conciliar"], ["x3", "sin_ligar"]]);
+  const ml = e.unidades.find((u) => u.tipo === "canal");
+  assert.equal(ml.gastosDirectos.porCategoria.find((f) => f.categoria === "CARGOS_MARKETPLACE").pagado, 500);
+  assert.equal(e.generales.porCategoria.find((f) => f.categoria === "CARGOS_MARKETPLACE").pagado, 200);
+  const sinComision = estado("2026-10", { canales: [canalML({ resumen: { ...canalML().resumen, comisiones: null } })] });
+  assert.equal(sinComision.cargosMarketplace.excluidosPorDuplicado.length, 0);
+});
+
+test("cobertura diaria: un día sin carga deja el mes pendiente pero conserva lo registrado", () => {
+  const { importaciones, filas } = cargasDelMes("2026-10", { s1: { venta: 100, utilidad: 40 } });
+  importaciones[0].periodoFin = "2026-10-29";
+  const sicar = elegirCargasPorDia(filas, importaciones);
+  const v = ventasSucursalDelMes({ branchId: "s1", mes: "2026-10", ...sicar });
+  assert.equal(v.cobertura.completa, false);
+  assert.deepEqual(v.cobertura.diasSinDato, ["2026-10-30", "2026-10-31"]);
+  assert.equal(v.ingresosRegistrados, 100);
+  const cerrada = ventasSucursalDelMes({ branchId: "s1", mes: "2026-10", ...sicar, diasCerrados: ["2026-10-30", "2026-10-31"] });
+  assert.equal(cerrada.cobertura.completa, true);
+  const e = construirEstadoResultados({
+    businessId: "monys", mes: "2026-10", sucursales: [sucursales[0]], sicar, canalesConfigurados: [], movimientos: [], bases: basesSinIva,
   });
-  assert.equal(sinPlaza.consolidado.ingresos, null);
-  assert.ok(sinPlaza.faltantes.some((f) => f.includes("Plaza")));
-  // Cerrada confirmada sí cuenta como cero.
-  const cerrada = construirEstadoResultados({
-    businessId: "monys", mes: "2026-10", sucursales: [sucursales[0], { ...sucursales[1], cerradaConfirmada: true }],
-    ventasSucursal: agregarVentasSicarPorMes([{ branch_id: "s1", fecha: "2026-10-05", importe: 100, utilidad: 40 }]),
-    movimientos: [], baseIvaSicar: { base: "sin_iva" },
-  });
-  assert.equal(cerrada.consolidado.ingresos, 100);
-  // Publicidad desconocida: la contribución del canal queda pendiente.
-  const sinAds = estado("2026-10", { centro: { venta: 1, utilidad: 1 }, plaza: { venta: 1, utilidad: 1 }, movimientos: [], publicidad: null });
-  assert.equal(sinAds.unidades[2].contribucion, null);
-  assert.ok(sinAds.faltantes.some((f) => f.includes("publicidad")));
-  // SKU sin costo SICAR: utilidad bruta del canal pendiente.
-  const sinCosto = estado("2026-10", { centro: { venta: 1, utilidad: 1 }, plaza: { venta: 1, utilidad: 1 }, movimientos: [], canal: canalML({ porSku: [{ sku: "A", costoProducto: null }] }) });
-  assert.equal(sinCosto.unidades[2].utilidadBruta, null);
-  // Renglón SICAR sin utilidad disponible.
-  const incompleta = agregarVentasSicarPorMes([{ branch_id: "s1", fecha: "2026-10-05", importe: 100, utilidad: 40, utilidad_disponible: false }]);
-  assert.equal(incompleta[0].ingresos, null);
-  // Sin movimientos de Tesorería: gastos y utilidad operativa pendientes.
-  const sinTesoreria = estado("2026-10", { centro: { venta: 10, utilidad: 5 }, plaza: { venta: 10, utilidad: 5 }, movimientos: null });
-  assert.equal(sinTesoreria.consolidado.utilidadOperativa, null);
-  assert.equal(sinTesoreria.confianza, "baja");
+  assert.equal(e.unidades[0].ingresos, null);
+  assert.equal(e.unidades[0].ingresosRegistrados, 100);
+  assert.equal(e.subtotalConocido.ingresosRegistrados.valor, 100);
+  assert.equal(e.consolidado.ingresos, null);
+  assert.ok(e.faltantes.some((f) => f.includes("2 día(s) sin carga")));
 });
 
-test("IVA: sin confirmar no calcula ISR; con IVA incluido se desglosa", () => {
-  const porConfirmar = estado("2026-10", { centro: { venta: 116000, utilidad: 50000 }, plaza: { venta: 0, utilidad: 0 }, movimientos: movsOct, baseIvaSicar: {} });
-  assert.equal(porConfirmar.consolidado.isr, null);
-  assert.equal(porConfirmar.consolidado.utilidadNeta, null);
-  assert.equal(porConfirmar.confianza, "baja");
-  assert.ok(porConfirmar.faltantes.some((f) => f.includes("incluyen IVA")));
-  const conIva = estado("2026-10", { centro: { venta: 116000, utilidad: 50000 }, plaza: { venta: 0, utilidad: 0 }, movimientos: movsOct, baseIvaSicar: { base: "con_iva", ivaPct: 16 } });
-  assert.equal(conIva.unidades[0].ingresos, 100000);
+test("una carga parcial no reemplaza un día completo; cargas completas distintas = conflicto", () => {
+  const completa = { id: "a", branch_id: "s1", created_at: "2026-11-02T12:00:00Z", periodoInicio: "2026-10-01", periodoFin: "2026-10-31" };
+  const parcial = { id: "b", branch_id: "s1", created_at: "2026-11-03T02:00:00Z", periodoInicio: "2026-10-31", periodoFin: "2026-10-31" }; // 20:00 del 2 nov local; cubre el 31 completo
+  const parcialDelDia = { id: "b", branch_id: "s1", created_at: "2026-10-31T20:00:00Z", periodoInicio: "2026-10-31", periodoFin: "2026-10-31" }; // sacada antes de cerrar el día
+  const filas = [
+    { importacion_id: "a", fecha: "2026-10-31", importe: 500, utilidad: 200, importe_disponible: true, utilidad_disponible: true },
+    { importacion_id: "b", fecha: "2026-10-31", importe: 300, utilidad: 100, importe_disponible: true, utilidad_disponible: true },
+  ];
+  // Más nueva pero parcial: gana la completa.
+  const r1 = elegirCargasPorDia(filas, [completa, parcialDelDia]);
+  assert.equal(r1.dias.get("s1|2026-10-31"), "completo");
+  assert.deepEqual(r1.filas.map((f) => f.importacion_id), ["a"]);
+  // Dos completas con totales distintos: conflicto (y gana la más nueva).
+  const r2 = elegirCargasPorDia(filas, [completa, parcial]);
+  assert.equal(r2.dias.get("s1|2026-10-31"), "conflicto");
+  assert.deepEqual(r2.filas.map((f) => f.importacion_id), ["b"]);
+  // Solo parciales: el día queda parcial.
+  const r3 = elegirCargasPorDia(filas.slice(1), [parcialDelDia]);
+  assert.equal(r3.dias.get("s1|2026-10-31"), "parcial");
+  // Sin periodo declarado: sin confirmar.
+  const r4 = elegirCargasPorDia(filas.slice(0, 1), [{ id: "a", branch_id: "s1", created_at: "2026-11-02T12:00:00Z" }]);
+  assert.equal(r4.dias.get("s1|2026-10-31"), "sin_confirmar");
 });
 
-test("ISR del contador tiene prioridad e intereses devengados reemplazan a los pagados", () => {
+test("importe y utilidad por separado; bandera null con 0 es desconocido", () => {
+  const importaciones = [{ id: "a", branch_id: "s1", created_at: "2026-11-02T12:00:00Z", periodoInicio: "2026-10-01", periodoFin: "2026-10-31" }];
+  const filas = [
+    { importacion_id: "a", fecha: "2026-10-05", importe: 100, utilidad: 40, importe_disponible: true, utilidad_disponible: false },
+    { importacion_id: "a", fecha: "2026-10-06", importe: 50, utilidad: 0 }, // histórico: 0 sin bandera = desconocido
+    { importacion_id: "a", fecha: "2026-10-07", importe: 70, utilidad: 30 }, // histórico con valores: cuenta, marcado
+  ];
+  const v = ventasSucursalDelMes({ branchId: "s1", mes: "2026-10", ...elegirCargasPorDia(filas, importaciones) });
+  assert.equal(v.ingresos, 220);
+  assert.equal(v.costoMercancia, null);
+  assert.equal(v.renglonesSinUtilidad, 2);
+  assert.equal(v.renglonesSinBandera, 2);
+});
+
+test("Tesorería vacía no prueba cero: el devengado sale de las obligaciones", () => {
+  const e = estado("2026-10", { movimientos: [] });
+  assert.equal(e.consolidado.gastosDirectos.pagado, 0);
+  assert.equal(e.consolidado.gastosDirectos.devengado, 60000);
+  assert.equal(e.obligacionesPendientes, 63000);
+  assert.ok(e.provisional.some((p) => p.includes("no está confirmado como completo")));
+  assert.notEqual(e.confianza, "alta");
+  const sin = estado("2026-10", { movimientos: null });
+  assert.equal(sin.consolidado.utilidadBruta, 79000);
+  assert.equal(sin.consolidado.utilidadOperativa.pagado, null);
+  assert.equal(sin.confianza, "baja");
+});
+
+test("bases de IVA independientes; resultado provisional si alguna falta", () => {
   const e = estado("2026-10", {
-    centro: { venta: 100000, utilidad: 45000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsOct,
-    isr: { montoDelContador: 1200, tasaEstimadaPct: 30 }, intereses: { devengados: 4500 },
+    bases: { ventasSicar: { base: "con_iva", ivaPct: 16 }, costoSicar: {}, gastosTesoreria: { base: "sin_iva" } },
+    ventas: { s1: { venta: 116000, utilidad: 50000 }, s2: { venta: 0, utilidad: 0 } },
   });
-  assert.equal(e.consolidado.isr, 1200);
-  assert.equal(e.consolidado.tipoIsr, "DEL_CONTADOR");
-  assert.equal(e.consolidado.intereses, 4500);
-  assert.equal(e.bases.intereses, "devengado");
+  const centro = e.unidades.find((u) => u.unidad === "s1");
+  assert.equal(centro.ingresos, 100000);
+  assert.equal(centro.costoMercancia, 66000); // tal como viene: su base está por confirmar
+  assert.equal(e.bases.iva.ventasSicar, "con_iva");
+  assert.equal(e.bases.iva.costoSicar, "por_confirmar");
+  assert.equal(e.consolidado.tipoIsr, "ESTIMADO_PROVISIONAL");
+  assert.ok(e.provisional.some((p) => p.includes("costoSicar")));
+  const sinPct = estado("2026-10", { bases: { ...basesSinIva, ventasSicar: { base: "con_iva" } } });
+  assert.equal(sinPct.bases.iva.ventasSicar, "por_confirmar");
 });
 
-test("efecto volumen y margen suman exactamente el cambio de utilidad bruta", () => {
-  const ef = efectoVolumenMargen({ ingresos: 100000, utilidadBruta: 45000 }, { ingresos: 90000, utilidadBruta: 36000 });
-  assert.equal(ef.volumen, -4500); // −10 000 × 45%
-  assert.equal(ef.margen, -4500); // 90 000 × (40% − 45%)
-  assert.equal(ef.volumen + ef.margen, ef.total);
-  assert.equal(efectoVolumenMargen({ ingresos: null, utilidadBruta: 1 }, { ingresos: 1, utilidadBruta: 1 }), null);
+test("canales: solo cuentas configuradas del negocio; sin configuración el consolidado espera", () => {
+  const ajeno = estado("2026-10", { canales: [canalML({ cuentaId: "de-otro-negocio" })] });
+  assert.equal(ajeno.canalesDescartados.length, 1);
+  assert.equal(ajeno.consolidado.ingresos, null);
+  assert.ok(ajeno.faltantes.some((f) => f.includes("mercado_libre: sin datos del mes")));
+  assert.equal(ajeno.subtotalConocido.ingresos.valor, 160000);
+  const sinConfig = estado("2026-10", { configurados: null, canales: [] });
+  assert.equal(sinConfig.consolidado.ingresos, null);
+  assert.equal(sinConfig.confianza, "baja");
+  const incompleta = estado("2026-10", { canales: [canalML({ coberturaCompleta: false })] });
+  const ml = incompleta.unidades.find((u) => u.tipo === "canal");
+  assert.equal(ml.ingresos, null);
+  assert.equal(ml.ingresosRegistrados, 20000);
 });
 
-const movsNov = movsOct.map((m) => ({ ...m, id: `${m.id}n`, occurred_at: m.occurred_at.replace("2026-10", "2026-11") }))
-  .map((m) => (m.id === "n2n" ? { ...m, amount: 23000 } : m)); // nómina de Plaza sube 8 000
+test("aislamiento: gastos de una sucursal ajena se reportan, no se suman", () => {
+  const e = estado("2026-10", { movimientos: [...movimientosDe("2026-10"), mov("z", "2026-10", "renta", 77777, { branch_id: "otra", expense_behavior: "fijo" })] });
+  assert.ok(e.faltantes.some((f) => f.includes("no pertenecen al negocio")));
+  assert.ok(!JSON.stringify(e.consolidado).includes("77777"));
+});
 
-test("comparativo mensual: variaciones, margen en puntos, gastos y mes parcial", () => {
-  const oct = estado("2026-10", { centro: { venta: 100000, utilidad: 45000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsOct });
-  const nov = estado("2026-11", { centro: { venta: 90000, utilidad: 36000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsNov });
-  const dic = estado("2026-12", { centro: { venta: 10, utilidad: 5 }, plaza: { venta: 10, utilidad: 5 }, movimientos: [] });
+test("efecto volumen y margen suman exactamente el cambio", () => {
+  assert.deepEqual(efectoVolumenMargen({ ingresos: 100000, utilidadBruta: 45000 }, { ingresos: 90000, utilidadBruta: 36000 }), { volumen: -4500, margen: -4500, total: -9000 });
+});
+
+test("comparativo equivalente: solo unidades completas en ambos meses; aperturas fuera", () => {
+  const oct = estado("2026-10");
+  const { importaciones, filas } = cargasDelMes("2026-11", { s1: { venta: 90000, utilidad: 36000 }, s2: { venta: 60000, utilidad: 24000 }, s3: { venta: 5000, utilidad: 2000 } });
+  importaciones.find((i) => i.branch_id === "s2").periodoFin = "2026-11-20";
+  const nov = construirEstadoResultados({
+    businessId: "monys", mes: "2026-11", sucursales: [...sucursales, { id: "s3", name: "Nueva", active: true }],
+    sicar: elegirCargasPorDia(filas, importaciones), canales: [canalML()], canalesConfigurados: configML,
+    movimientos: movimientosDe("2026-11", { nominaPlaza: 23000 }), obligaciones, bases: basesSinIva, isr: { tasaEstimadaPct: 30 }, hoy: "2026-12-15",
+  });
+  const dic = estado("2026-12");
   const comp = compararMeses([dic, nov, oct]);
-  const [m1, m2, m3] = comp.meses;
-  assert.equal(m1.mes, "2026-10");
-  assert.equal(m1.vsMesAnterior, null);
-  assert.deepEqual(m2.vsMesAnterior.ingresos, { delta: -10000, pct: -5.6 });
-  assert.equal(m2.efectoUtilidadBruta.total, -9000);
-  const centro = m2.unidades.find((u) => u.unidad === "s1");
+  const m = comp.meses[1].vsMesAnterior;
+  assert.deepEqual([...m.unidadesComparadas].sort(), ["canal:ml1", "s1"]);
+  const motivos = Object.fromEntries(m.unidadesExcluidas.map((x) => [x.unidad, x.motivo]));
+  assert.match(motivos.s2, /cobertura/);
+  assert.match(motivos.s3, /apertura/);
+  assert.deepEqual(m.ingresos, { delta: -10000, pct: -8.3 }); // 120 000 → 110 000, mismas unidades
+  const centro = m.unidades.find((u) => u.unidad === "s1");
   assert.equal(centro.margenBrutoPp, -5);
-  assert.equal(m2.gastos[0].categoria, "nomina");
-  assert.equal(m2.gastos[0].delta, 8000);
-  // Diciembre está en curso: no se compara.
-  assert.equal(m3.parcial, true);
-  assert.equal(m3.vsMesAnterior, null);
-  assert.ok(m3.noComparableMotivo);
-  // Estados de dos negocios no se mezclan.
+  assert.equal(centro.ventaPromedioDiaria.delta, r(r(90000 / 30) - r(100000 / 31)));
+  assert.equal(comp.meses[2].vsMesAnterior, null); // diciembre en curso
   assert.equal(compararMeses([oct, { ...nov, businessId: "flotilla" }]).calculable, false);
 });
 
 test("recomendaciones con impacto estimado, sin ejecutar nada", () => {
-  const oct = estado("2026-10", { centro: { venta: 100000, utilidad: 45000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsOct });
-  const nov = estado("2026-11", { centro: { venta: 90000, utilidad: 36000 }, plaza: { venta: 60000, utilidad: 24000 }, movimientos: movsNov });
+  const oct = estado("2026-10");
+  const nov = estado("2026-11", { ventas: { s1: { venta: 90000, utilidad: 36000 }, s2: { venta: 60000, utilidad: 24000 } } });
   const { recomendaciones } = analizarRentabilidad([oct, nov]);
-  const claves = recomendaciones.map((r) => r.clave);
-  assert.ok(claves.includes("contribucion_negativa:s2"));
-  assert.ok(claves.includes("margen_bruto:s1"));
-  assert.ok(claves.includes("gasto:nomina"));
-  assert.ok(claves.includes("productos_con_perdida:mercado_libre"));
-  assert.ok(claves.includes("cancelaciones:mercado_libre"));
-  assert.ok(recomendaciones.every((r) => r.requiereAutorizacion && r.tipo === "RECOMENDACION"));
-  const plaza = recomendaciones.find((r) => r.clave === "contribucion_negativa:s2");
-  assert.equal(plaza.impactoMensual, 9000); // 24 000 − 10 000 − 23 000
-  const margen = recomendaciones.find((r) => r.clave === "margen_bruto:s1");
-  assert.equal(margen.impactoMensual, 4500);
-  // Orden por impacto.
-  const impactos = recomendaciones.map((r) => r.impactoMensual ?? -1);
+  const claves = recomendaciones.map((x) => x.clave);
+  for (const clave of ["contribucion_negativa:s2", "margen_bruto:s1", "productos_con_perdida:canal:ml1", "cancelaciones:canal:ml1", "pendiente:s2", "conciliar_cargos_marketplace"]) {
+    assert.ok(claves.includes(clave), clave);
+  }
+  assert.ok(recomendaciones.every((x) => x.requiereAutorizacion && x.tipo === "RECOMENDACION"));
+  // Plaza: 24 000 − 15 000 nómina − 10 000 renta devengada = −1 000.
+  assert.equal(recomendaciones.find((x) => x.clave === "contribucion_negativa:s2").impactoMensual, 1000);
+  assert.equal(recomendaciones.find((x) => x.clave === "margen_bruto:s1").impactoMensual, 4500);
+  const impactos = recomendaciones.map((x) => x.impactoMensual ?? -1);
   assert.deepEqual(impactos, [...impactos].sort((a, b) => b - a));
 });
 
 test("sin negocio o mes inválido no calcula", () => {
   assert.equal(construirEstadoResultados({ mes: "2026-10" }).calculable, false);
   assert.equal(construirEstadoResultados({ businessId: "x", mes: "2026-13" }).calculable, false);
-});
-
-test("dos cargas de SICAR del mismo día no se suman: gana la más reciente", async () => {
-  const { filasSinCargasDuplicadas } = await import("../../src/core/finanzas/estadoResultados.js");
-  const importaciones = [
-    { id: "i1", branch_id: "s1", created_at: "2026-11-02T10:00:00Z" },
-    { id: "i2", branch_id: "s1", created_at: "2026-11-03T10:00:00Z" }, // recarga corregida
-    { id: "i3", branch_id: "s2", created_at: "2026-11-01T10:00:00Z" },
-  ];
-  const filas = [
-    { importacion_id: "i1", fecha: "2026-11-01", importe: 100, utilidad: 40 },
-    { importacion_id: "i1", fecha: "2026-11-02", importe: 50, utilidad: 20 },
-    { importacion_id: "i2", fecha: "2026-11-01", importe: 110, utilidad: 44 },
-    { importacion_id: "i3", fecha: "2026-11-01", importe: 70, utilidad: 30 },
-    { importacion_id: "zz", fecha: "2026-11-01", importe: 999, utilidad: 1 }, // carga ajena
-  ];
-  const { filas: elegidas, descartadas } = filasSinCargasDuplicadas(filas, importaciones);
-  assert.equal(descartadas, 2);
-  const [s1] = agregarVentasSicarPorMes(elegidas).filter((g) => g.unidad === "s1");
-  assert.equal(s1.ingresos, 160); // 110 (i2, día 1) + 50 (i1, día 2)
-});
-
-test("canal sin sincronizar: sucursales sí, consolidado pendiente", () => {
-  const e = construirEstadoResultados({
-    businessId: "monys", mes: "2026-10", sucursales,
-    ventasSucursal: agregarVentasSicarPorMes(filasSicar("2026-10", { venta: 100, utilidad: 40 }, { venta: 50, utilidad: 20 })),
-    movimientos: [], baseIvaSicar: { base: "sin_iva" }, canalesSinDatos: ["mercado_libre"],
-  });
-  assert.equal(e.unidades[0].utilidadBruta, 40);
-  assert.equal(e.consolidado.ingresos, null);
-  assert.equal(e.confianza, "baja");
-  assert.ok(e.faltantes.some((f) => f.includes("mercado_libre")));
 });
