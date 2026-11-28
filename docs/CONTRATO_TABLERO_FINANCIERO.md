@@ -30,6 +30,7 @@ Es solo lectura. No duplica cálculos: la pantalla **no suma, no resta ni redond
 | `equilibrio.porSucursal.sucursales[]` | `{nombre, ventaDiariaActual, margenContribucionPct, diasConVentaEsperada, operativo, operativoConGenerales (SUPUESTO), efectivo, faltantes, avisos}`. Cada bloque trae `{ventaMensual, ventaDiaria, brechaDiaria}`. |
 | `equilibrio.consolidado` | Salida de `construirEquilibrioReal` (#166): incluye deuda e impuestos. |
 | `gastosQueMasPesan[]` | `{nombre, categoria, devengado, pagado, pendiente, pctIngresos, diasDeVenta}`. |
+| `queHacerHoy` | Contrato v2 para "Qué hacer hoy" (ver abajo): `urgenciasLiquidez[]`, `prioridades[]` (máximo 3), `calidadDatos[]`, `porCategoria {ventas, inventario, finanzas, datos}`, `todas[]` y `totales[]`. |
 | `fuentes[]` | `{mes, fuente, estado: real|estimado|parcial|faltante, detalle, accion}`, con lo más urgente primero. |
 
 ### Cada estado (`estados[i]`)
@@ -44,6 +45,38 @@ Es solo lectura. No duplica cálculos: la pantalla **no suma, no resta ni redond
   - `calendario`, `indicadores` (canales).
 - `obligacionesPendientes`, `noSonGasto {iva, isrPagado, capitalDeuda, compraInventario, retiros…}`, `cargosMarketplace {excluidosPorDuplicado, porConciliar}`, `sucursalesQueNoOperan[]`, `porVincular[]`, `sinClasificar[]`.
 - `bases {iva, utilidadOperativa, intereses}`, `provisional[]`, `faltantes[]`, `confianza: alta|media|baja`.
+
+## Recomendaciones v2 (`queHacerHoy`)
+
+`obtenerTableroFinanciero({ ..., accionesDelDia })` acepta las acciones ya calculadas por #163 y las une sin duplicarlas.
+
+Cada elemento trae estos campos:
+
+| Campo | Contenido |
+|---|---|
+| `id` | Estable para el mismo hallazgo, mes y unidad: `rentabilidad:<tipo>:<mes>:<unidad>`, `liquidez:efectivo:<mes>:<sucursal>` o `hoy:<id de #163>`. |
+| `grupo` | `urgencia_liquidez`, `oportunidad` o `calidad_datos`. Se muestran por separado. |
+| `categoria` | `ventas`, `inventario`, `finanzas` o `datos`. Es el filtro. |
+| `tipoImpacto` | `utilidad`, `efectivo`, `ahorro`, `recuperacion_ventas` o `riesgo`. |
+| `impacto` | `{ importe, medida, unidad: "MXN", periodo: {tipo: mensual, mes} o {tipo: dias, dias}, estado: estimado o pendiente, base }`. `importe: null` = pendiente. |
+| `ventasAsociadas` | Venta relacionada. **Es venta, no utilidad**: se muestra aparte y nunca se suma con `importe`. |
+| `confianza` | `alta`, `media` o `baja`. |
+| `alcance` | `{ tipo: sucursal, canal o negocio, businessId, branchId, cuentaId, canal, nombre }`. |
+| `titulo`, `motivo`, `evidencia` | Textos para mostrar. |
+| `accion` | `{ texto, destino, parametros }`. El destino es la ruta lógica de la pantalla. |
+| `grupoExclusivo`, `alternativaDe`, `duplicadoDe`, `motivoNoSumar` | Si `alternativaDe` o `duplicadoDe` traen valor, la tarjeta se muestra como "alternativa" o "ya incluida" y no cuenta en totales. |
+| `faltantes[]` | Lo que falta para confirmar la recomendación. |
+| `requiereAutorizacion` | Siempre `true`. |
+
+Reglas:
+
+- Las mejoras de utilidad de una misma unidad se traslapan: solo la mayor es la principal.
+- La recomendación de intereses es duplicado de un abono de #163 cuando existe.
+- `totales[]` agrupa solo principales, por `grupo · medida · periodo`. **No se suman totales entre sí.**
+
+Destinos lógicos usados: `finanzas/estado-resultados`, `finanzas/venta-necesaria`, `finanzas/deudas`, `tesoreria/obligaciones`, `tesoreria/movimientos`, `tesoreria/clasificar`, `tesoreria/conciliar`, `canales/precio-minimo`, `canales/rentabilidad`, `canales/cancelaciones`, `inventario/costos`, `inventario/traspasos`, `inventario/compras` y `ventas/sucursal`. ChatGPT los mapea a sus rutas.
+
+Al cambiar de organización o negocio, la pantalla descarta la respuesta anterior; si llega una respuesta vieja, se ignora. Si `errores[]` trae avisos, se muestra lo disponible con un aviso de error parcial.
 
 ## Reglas de presentación (obligatorias)
 

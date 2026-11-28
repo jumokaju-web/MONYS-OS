@@ -11,6 +11,7 @@ import { calendarioDelNegocio } from "../../../core/operacion/calendarioOperativ
 import { canalesDelMes } from "../../../core/canales/canalesDelMes.js";
 import { equilibrioPorSucursal, gastosQueMasPesan } from "../../../core/finanzas/equilibrioSucursal.js";
 import { diagnosticarFuentes } from "../../../core/finanzas/diagnosticoFuentes.js";
+import { accionesDelDiaAContrato, normalizarRecomendaciones, prioridadesDeHoy, urgenciasDeEquilibrio } from "../../../core/finanzas/recomendacionesHoy.js";
 
 const TIPO_VENTAS = "Ventas por artículo";
 const MAX_MESES = 13;
@@ -119,6 +120,8 @@ async function datosDeCanales({ organizationId, businessId, desde, hasta }) {
  * - bases / basesCanales: bases de IVA (configuración fiscal); sin ellas el
  *   resultado sale provisional, no se detiene.
  * - mesObjetivo: mes de la venta diaria necesaria (default: el en curso).
+ * - accionesDelDia: acciones ya calculadas por #163 (traspasos, compras,
+ *   abonos) para unirlas sin duplicar en queHacerHoy. Opcional.
  */
 export async function obtenerTableroFinanciero({
   organizationId = null,
@@ -129,6 +132,7 @@ export async function obtenerTableroFinanciero({
   isrPorMes = {},
   publicidadPorMes = {},
   mesObjetivo = null,
+  accionesDelDia = [],
   hoy = new Date().toISOString().slice(0, 10),
 } = {}) {
   if (!organizationId || !businessId) {
@@ -206,6 +210,11 @@ export async function obtenerTableroFinanciero({
     ...analisis,
     equilibrio: { porSucursal, consolidado, mesBase: base?.mes ?? null, mesObjetivo: objetivo },
     gastosQueMasPesan: base ? gastosQueMasPesan(base) : [],
+    queHacerHoy: prioridadesDeHoy([
+      normalizarRecomendaciones({ businessId, recomendaciones: analisis.recomendaciones, comparativo: analisis.comparativo }),
+      urgenciasDeEquilibrio({ businessId, equilibrio: porSucursal }),
+      accionesDelDiaAContrato({ businessId, acciones: accionesDelDia, hoy }),
+    ]),
     fuentes: diagnosticarFuentes({ estados, equilibrio: consolidado, deudasRegistradas: Array.isArray(deudas) ? deudas.length : null }),
   };
 }
