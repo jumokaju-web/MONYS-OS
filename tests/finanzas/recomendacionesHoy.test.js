@@ -113,6 +113,7 @@ test("vence y diasParaVencer en urgencias; liquidez ordenada por vencimiento", (
   assert.equal(u[0].diasParaVencer, 5);
   const h = prioridadesDeHoy([[u[0], p]]);
   assert.deepEqual(h.urgenciasLiquidez.map((x) => x.diasParaVencer), [-5, 5]);
+});
 
 test("acciones de #163: traspaso con su sucursal destino y 'capturar tasas' como calidad de datos", () => {
   const [t, sinTasa] = accionesDelDiaAContrato({ businessId: "b", acciones: [
