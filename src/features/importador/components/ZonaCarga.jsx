@@ -886,6 +886,7 @@ if (
           actualizarArchivo(item.id, {
             estado: "importado",
             importacionId: importacionGuardada?.id || null,
+            advertencia: (importacionGuardada?.advertencias || []).join(" ") || null,
           });
 
           importadosCorrectamente += 1;
@@ -1326,6 +1327,12 @@ if (
                     >
                       {item.totalRegistros} registros
                       preparados
+                    </p>
+                  )}
+
+                  {item.advertencia && (
+                    <p role="status" style={{ margin: "10px 0 0", color: "#8a5a00", lineHeight: "1.5" }}>
+                      ⚠️ {item.advertencia}
                     </p>
                   )}
 
