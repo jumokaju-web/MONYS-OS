@@ -1,5 +1,6 @@
 import { generarCompraMaestra } from "../../inventario/services/compraMaestraService";
 import { obtenerDeudasFinancieras } from "../../inteligencia/services/deudasFinancierasService";
+import { obtenerSucursalesInventario } from "../../inventario/services/inventarioService";
 import { construirAccionesDelDia } from "../../../core/impacto/accionesDelDia.js";
 import { filtrarPorContexto } from "./accionesDelDiaFiltro.js";
 
@@ -27,12 +28,17 @@ export async function obtenerAccionesDelDia({ organizationId = null, businessId 
     };
   }
 
-  const [compra, deudas] = await Promise.allSettled([
+  // Sucursales autorizadas: consulta independiente de la que se verifica.
+  const [sucursales, compra, deudas] = await Promise.allSettled([
+    obtenerSucursalesInventario(businessId),
     generarCompraMaestra(businessId),
     obtenerDeudasFinancieras({ organizationId, businessId }),
   ]);
 
   const errores = [];
+  if (sucursales.status === "rejected") {
+    errores.push(`Sucursales del negocio: ${sucursales.reason?.message || "no disponible"}. Sin ellas no se muestran traspasos ni compras.`);
+  }
   if (compra.status === "rejected") {
     errores.push(`Compras y traspasos: ${compra.reason?.message || "no disponible"}`);
   }
@@ -43,6 +49,7 @@ export async function obtenerAccionesDelDia({ organizationId = null, businessId 
   const filtrado = filtrarPorContexto({
     organizationId,
     businessId,
+    sucursales: sucursales.status === "fulfilled" ? sucursales.value : [],
     compraMaestra: compra.status === "fulfilled" ? compra.value : null,
     deudas: deudas.status === "fulfilled" && Array.isArray(deudas.value) ? deudas.value : [],
   });

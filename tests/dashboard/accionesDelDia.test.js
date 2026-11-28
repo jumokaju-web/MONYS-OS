@@ -106,8 +106,14 @@ test("aislamiento: descarta lo que no pertenece al negocio activo", () => {
   const resultado = filtrarPorContexto({
     organizationId: "org-1",
     businessId: "neg-1",
+    sucursales: [
+      { id: "A", business_id: "neg-1", active: true },
+      { id: "B", business_id: "neg-1", active: true },
+      { id: "Z", business_id: "neg-2", active: true },
+    ],
     compraMaestra: {
-      fuentes: [{ branchId: "A" }, { branchId: "B" }],
+      // Las fuentes de Compra Maestra dicen que Z es del negocio, pero no se les cree.
+      fuentes: [{ branchId: "A" }, { branchId: "B" }, { branchId: "Z" }],
       planTraspasos: [traspaso("OK", 30), { ...traspaso("FUERA", 30), branchDestinoId: "Z" }],
       productos: [compra("OK", 10, 10, 20), { ...compra("FUERA", 10, 10, 20), sucursales: [{ branchId: "Z" }] }],
     },
@@ -121,4 +127,41 @@ test("aislamiento: descarta lo que no pertenece al negocio activo", () => {
   assert.deepEqual(resultado.productos.map((item) => item.llave), ["OK"]);
   assert.deepEqual(resultado.deudas.map((item) => item.id), ["1"]);
   assert.equal(resultado.descartados, 4);
+});
+
+test("aislamiento: rechaza identificadores ausentes y sucursales inactivas", () => {
+  const resultado = filtrarPorContexto({
+    organizationId: "org-1",
+    businessId: "neg-1",
+    sucursales: [
+      { id: "A", business_id: "neg-1", active: true },
+      { id: "", business_id: "neg-1", active: true },
+      { id: "C", business_id: "neg-1", active: false },
+    ],
+    compraMaestra: {
+      planTraspasos: [
+        { ...traspaso("SINID", 30), branchOrigenId: null, branchDestinoId: "A" },
+        { ...traspaso("VACIO", 30), branchOrigenId: "A", branchDestinoId: "" },
+        { ...traspaso("INACTIVA", 30), branchOrigenId: "A", branchDestinoId: "C" },
+      ],
+      productos: [{ ...compra("SINSUC", 1, 1, 2), sucursales: [] }],
+    },
+    deudas: [{ id: "x", organization_id: "org-1", business_id: null }],
+  });
+  assert.equal(resultado.sucursalesAutorizadas, 1);
+  assert.equal(resultado.traspasos.length, 0);
+  assert.equal(resultado.productos.length, 0);
+  assert.equal(resultado.deudas.length, 0);
+  assert.equal(resultado.descartados, 5);
+});
+
+test("aislamiento: sin negocio activo no autoriza ninguna sucursal", () => {
+  const resultado = filtrarPorContexto({
+    organizationId: "org-1",
+    businessId: "",
+    sucursales: [{ id: "A", business_id: "", active: true }],
+    compraMaestra: { planTraspasos: [traspaso("OK", 30)] },
+  });
+  assert.equal(resultado.sucursalesAutorizadas, 0);
+  assert.equal(resultado.traspasos.length, 0);
 });
