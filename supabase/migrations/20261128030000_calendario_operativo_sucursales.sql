@@ -133,8 +133,13 @@ begin
     execute format('create trigger %I after insert or update or delete on public.%I for each row execute function private.auditar_calendario_sucursal()', t || '_auditar', t);
 
     execute format('alter table public.%I enable row level security', t);
+    -- Supabase da ALL (incluido TRUNCATE, que ignora RLS) a anon y
+    -- authenticated en tablas nuevas: se quita y se dan solo los permisos
+    -- que RLS controla.
+    execute format('revoke all on public.%I from anon, authenticated', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
     execute format('drop policy if exists %I on public.%I', t || '_leer', t);
-    execute format('create policy %I on public.%I for select to authenticated using (private.has_org_role(organization_id, array[''owner'',''director'',''admin'',''finanzas'',''gerente'']::text[]))', t || '_leer', t);
+    execute format('create policy %I on public.%I for select to authenticated using (private.has_org_role(organization_id, array[''owner'',''director'',''admin'',''finanzas'',''encargada'']::text[]))', t || '_leer', t);
     execute format('drop policy if exists %I on public.%I', t || '_escribir', t);
     execute format('create policy %I on public.%I for all to authenticated using (private.has_org_role(organization_id, array[''owner'',''director'',''admin'']::text[])) with check (private.has_org_role(organization_id, array[''owner'',''director'',''admin'']::text[]))', t || '_escribir', t);
   end loop;
@@ -145,8 +150,9 @@ alter table public.sucursal_calendario_auditoria enable row level security;
 drop policy if exists sucursal_calendario_auditoria_leer on public.sucursal_calendario_auditoria;
 create policy sucursal_calendario_auditoria_leer on public.sucursal_calendario_auditoria
   for select to authenticated using (private.has_org_role(organization_id, array['owner','director','admin']::text[]));
--- La auditoría solo la escribe el trigger: nadie la edita ni la borra.
-revoke insert, update, delete on public.sucursal_calendario_auditoria from authenticated, anon;
+-- La auditoría solo la escribe el trigger: nadie la edita, borra ni vacía.
+revoke all on public.sucursal_calendario_auditoria from anon, authenticated;
+grant select on public.sucursal_calendario_auditoria to authenticated;
 
 revoke all on function private.validar_calendario_sucursal() from public, anon, authenticated;
 revoke all on function private.auditar_calendario_sucursal() from public, anon, authenticated;
