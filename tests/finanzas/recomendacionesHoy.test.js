@@ -99,3 +99,15 @@ test("vistas: liquidez aparte, 3 prioridades, categorías y totales sin mezclar 
   assert.ok(h.totales.some((t) => t.medida === "deficit_efectivo" && t.grupo === "urgencia_liquidez"));
   assert.equal(new Set(h.totales.map((t) => `${t.grupo}|${t.medida}|${JSON.stringify(t.periodo)}`)).size, h.totales.length);
 });
+
+test("acciones de #163: traspaso con su sucursal destino y 'capturar tasas' como calidad de datos", () => {
+  const [t, sinTasa] = accionesDelDiaAContrato({ businessId: "b", acciones: [
+    { id: "traspaso:A:s1:s2", tipo: "traspaso", titulo: "Traspasar 3 rímel", detalle: "Centro → Plaza", impacto: { ganancia: 900 } },
+    { id: "deuda:sin-tasa", tipo: "pago_deuda", titulo: "Capturar la tasa de 2 deuda(s)", impacto: { tipo: "pago_deuda" } },
+  ] });
+  assert.deepEqual([t.alcance.tipo, t.alcance.branchId, t.alcance.nombre], ["sucursal", "s2", "Centro → Plaza"]);
+  assert.deepEqual([sinTasa.grupo, sinTasa.categoria, sinTasa.impacto.importe], ["calidad_datos", "datos", null]);
+  const h = prioridadesDeHoy([[t, sinTasa]]);
+  assert.ok(h.calidadDatos.some((x) => x.id === "hoy:deuda:sin-tasa"));
+  assert.ok(!h.prioridades.some((x) => x.id === "hoy:deuda:sin-tasa"));
+});
