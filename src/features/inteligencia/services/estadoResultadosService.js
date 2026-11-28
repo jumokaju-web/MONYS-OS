@@ -14,6 +14,9 @@ import { diagnosticarFuentes } from "../../../core/finanzas/diagnosticoFuentes.j
 import { accionesDelDiaAContrato, normalizarRecomendaciones, prioridadesDeHoy, urgenciasDeEquilibrio } from "../../../core/finanzas/recomendacionesHoy.js";
 
 const TIPO_VENTAS = "Ventas por artículo";
+
+/* Fecha de hoy en Ciudad de México (no UTC: después de las 18:00 UTC ya sería mañana). */
+const fechaLocal = (ahora = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(ahora);
 const MAX_MESES = 13;
 
 function validarMeses(meses) {
@@ -133,7 +136,7 @@ export async function obtenerTableroFinanciero({
   publicidadPorMes = {},
   mesObjetivo = null,
   accionesDelDia = [],
-  hoy = new Date().toISOString().slice(0, 10),
+  hoy = fechaLocal(),
 } = {}) {
   if (!organizationId || !businessId) {
     return { estado: "sin_contexto", motivo: !organizationId ? "Falta la organización activa." : "Falta el negocio activo." };

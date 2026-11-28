@@ -172,17 +172,23 @@ export function accionesDelDiaAContrato({ businessId, acciones = [], hoy = null 
     const regla = REGLA[a.tipo] || { tipoImpacto: TIPOS_IMPACTO.RIESGO, medida: null, categoria: "finanzas", destino: "dashboard" };
     const importe = a.impacto?.ganancia ?? a.impacto?.ahorro ?? null;
     const dias = a.impacto?.diasHorizonte ?? a.impacto?.dias ?? 30;
+    // Traspaso: la sucursal destino viene en el id (traspaso:<código>:<origen>:<destino>).
+    const destinoTraspaso = a.tipo === "traspaso" ? String(a.id).split(":")[3] || null : null;
+    // "Capturar la tasa" no es una oportunidad: es un dato faltante.
+    const esDato = a.id === "deuda:sin-tasa";
     return {
       id: `hoy:${a.id}`,
       version: 2,
       origen: "acciones_del_dia",
-      grupo: GRUPOS.OPORTUNIDAD,
-      categoria: regla.categoria,
+      grupo: esDato ? GRUPOS.DATOS : GRUPOS.OPORTUNIDAD,
+      categoria: esDato ? "datos" : regla.categoria,
       tipoImpacto: regla.tipoImpacto,
       impacto: { importe: r2(importe), medida: regla.medida, unidad: "MXN", periodo: { tipo: "dias", dias, desde: hoy }, estado: importe === null ? "pendiente" : "estimado", base: a.impacto?.estado ?? null },
       ventasAsociadas: null,
       confianza: a.impacto?.confianza ?? "media",
-      alcance: { tipo: a.branchId ? "sucursal" : "negocio", businessId, branchId: a.branchId ?? null, cuentaId: null, canal: null, nombre: a.sucursal ?? "Negocio" },
+      alcance: destinoTraspaso || a.branchId
+        ? { tipo: "sucursal", businessId, branchId: a.branchId ?? destinoTraspaso, cuentaId: null, canal: null, nombre: a.sucursal ?? a.detalle ?? "Sucursal" }
+        : { tipo: "negocio", businessId, branchId: null, cuentaId: null, canal: null, nombre: "Negocio" },
       titulo: a.titulo,
       motivo: a.detalle || "",
       evidencia: (a.impacto?.supuestos || []).join("; "),
