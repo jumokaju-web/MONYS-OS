@@ -67,21 +67,32 @@ async function conReintentos(fn, intentos = 3) {
  *     { ordenes, publicaciones, liquidaciones, cobertura }
  * }
  * almacen: {
- *   tomarTurno(cuentaId, minutos) → boolean
- *   liberarTurno(cuentaId)
+ *   tomarTurno(cuentaId, minutos, ejecucionId) → boolean
+ *   liberarTurno(cuentaId, ejecucionId)   (solo libera si el turno es suyo)
  *   leerCredencial(cuentaId) → objeto | null
  *   guardarCredencial(cuentaId, cred)
  *   guardarDatos(cuenta, datos)
- *   registrarExito(cuentaId, { ahora, cobertura })
- *   registrarFallo(cuentaId, { ahora, intentos, proximoIntento, mensaje })
+ *   registrarExito(cuentaId, { ahora, cobertura, ejecucionId })
+ *   registrarFallo(cuentaId, { ahora, intentos, proximoIntento, mensaje, critico, ejecucionId })
  * }
+ *
+ * dry_run NO escribe órdenes, publicaciones, liquidaciones ni éxito/fallo
+ * ordinario. Excepciones documentadas: toma y libera el turno; si la
+ * credencial venció, la renueva y GUARDA la nueva (la plataforma invalida
+ * la anterior al rotarla: no guardarla dejaría la cuenta sin acceso); y
+ * registra un fallo crítico de credencial para que la cuenta quede marcada.
  */
-export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, hasta, dryRun = false, ahora = new Date(), presupuestoMs = 110_000 }) {
-  const base = { cuenta: cuenta.cuenta_externa, canal: cuenta.canal, dryRun };
+function idAleatorio() {
+  return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, hasta, dryRun = false, ahora = new Date(), presupuestoMs = 110_000, generarId = idAleatorio }) {
+  const ejecucionId = generarId();
+  const base = { cuenta: cuenta.cuenta_externa, canal: cuenta.canal, dryRun, ejecucionId };
   const errorVentana = validarVentana(desde, hasta, ahora);
   if (errorVentana) return { ...base, omitida: true, motivo: errorVentana };
 
-  if (!(await almacen.tomarTurno(cuenta.id, MINUTOS_TURNO))) {
+  if (!(await almacen.tomarTurno(cuenta.id, MINUTOS_TURNO, ejecucionId))) {
     return { ...base, omitida: true, motivo: "Otra sincronización de esta cuenta está en curso." };
   }
 
@@ -121,23 +132,26 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
     if (dryRun) return { ...resumen, escrito: false };
 
     await almacen.guardarDatos(cuenta, datos);
-    await almacen.registrarExito(cuenta.id, { ahora, cobertura: datos.cobertura });
+    await almacen.registrarExito(cuenta.id, { ahora, cobertura: datos.cobertura, ejecucionId });
     return { ...resumen, escrito: true };
   } catch (error) {
     const mensaje = String(error?.message || error).slice(0, 1000);
     const intentos = (Number(cuenta.intentos_fallidos) || 0) + 1;
-    if (!dryRun) {
+    const critico = Boolean(error?.critico);
+    // Un fallo crítico de credencial se registra también en dry_run.
+    if (!dryRun || critico) {
       await almacen.registrarFallo(cuenta.id, {
         ahora,
         intentos,
         proximoIntento: new Date(new Date(ahora).getTime() + esperaReintento(intentos)).toISOString(),
         mensaje,
-        critico: Boolean(error?.critico),
+        critico,
+        ejecucionId,
       });
     }
-    return { ...base, credencialRotada, error: mensaje, critico: Boolean(error?.critico) };
+    return { ...base, credencialRotada, error: mensaje, critico };
   } finally {
-    await almacen.liberarTurno(cuenta.id);
+    await almacen.liberarTurno(cuenta.id, ejecucionId);
   }
 }
 
@@ -146,9 +160,13 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
  */
 export function medirCobertura({ ordenes = [], publicaciones = [], liquidaciones = [], completa = true, fuentesNoDisponibles = [] }) {
   const pagadas = ordenes.filter((orden) => orden.estado === "paid");
-  const conEnvio = pagadas.filter((orden) => orden.envio_vendedor !== null).length;
-  const conComision = pagadas.filter((orden) => orden.comision !== null).length;
-  const conSku = publicaciones.filter((p) => p.sku).length;
+  // Ausente, undefined, NaN, texto o booleano NO cuentan como dato.
+  const esMonto = (valor) => typeof valor === "number" && Number.isFinite(valor);
+  const esTexto = (valor) => typeof valor === "string" && valor.trim() !== "";
+  const conEnvio = pagadas.filter((orden) => esMonto(orden.envio_vendedor)).length;
+  const conComision = pagadas.filter((orden) => esMonto(orden.comision)).length;
+  const conSku = publicaciones.filter((p) => esTexto(p.sku)).length;
+  const conNeto = liquidaciones.filter((l) => esMonto(l.monto_neto)).length;
   const pct = (parte, total) => (total ? Math.round((parte / total) * 1000) / 10 : null);
   return {
     completa,
@@ -159,6 +177,7 @@ export function medirCobertura({ ordenes = [], publicaciones = [], liquidaciones
     publicaciones: publicaciones.length,
     publicacionesConSkuPct: pct(conSku, publicaciones.length),
     liquidaciones: liquidaciones.length,
+    liquidacionesConNetoPct: pct(conNeto, liquidaciones.length),
     liquidacionesDerivadas: liquidaciones.filter((l) => l.datos_origen?.derivada_de_orden).length,
     fuentesNoDisponibles,
   };

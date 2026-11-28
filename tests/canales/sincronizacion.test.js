@@ -67,6 +67,61 @@ test("dry_run solo persiste una credencial si la plataforma la rotó", async () 
   assert.deepEqual(s.registro, ["tomarTurno", "renovar", "guardarCredencial", "liberarTurno"]);
 });
 
+test("dry_run sí registra un fallo crítico de credencial", async () => {
+  const s = simulacion({ vigente: false, fallaGuardarCred: 5 });
+  const r = await sincronizarCuenta(cuenta, opciones(s, { dryRun: true }));
+  assert.equal(r.critico, true);
+  assert.equal(s.registro.at(-2)[0], "registrarFallo");
+  assert.equal(s.registro.at(-2)[3], true);
+  assert.ok(!s.registro.includes("guardarDatos"));
+});
+
+test("turno con identificador de ejecución: una corrida vencida no libera el turno de otra", async () => {
+  let dueno = null;
+  const eventos = [];
+  const almacen = {
+    tomarTurno: async (_id, _min, ejecucion) => { if (dueno) return false; dueno = ejecucion; return true; },
+    liberarTurno: async (_id, ejecucion) => { if (dueno === ejecucion) dueno = null; else eventos.push(`ignorado ${ejecucion}`); },
+    leerCredencial: async () => ({ access_token: "a", refresh_token: "r" }),
+    guardarCredencial: async () => {},
+    guardarDatos: async () => {},
+    registrarExito: async (_id, info) => eventos.push(`exito ${info.ejecucionId}`),
+    registrarFallo: async () => {},
+  };
+  let terminarA;
+  const lento = { credencialVigente: () => true, identidad: async () => "123", descargar: () => new Promise((ok) => { terminarA = () => ok(datos); }) };
+  const rapido = { credencialVigente: () => true, identidad: async () => "123", descargar: async () => datos };
+  const base = { almacen, desde: "2026-11-01", hasta: "2026-11-27", ahora };
+  const a = sincronizarCuenta(cuenta, { ...base, proveedor: lento, generarId: () => "A" });
+  while (!terminarA) await new Promise((ok) => setImmediate(ok));
+  assert.equal(dueno, "A");
+  dueno = null; // el turno de A venció en la base de datos
+  // B toma el turno y queda en curso (no lo libera todavía).
+  const ocupado = sincronizarCuenta(cuenta, { ...base, proveedor: rapido, generarId: () => "B", almacen: { ...almacen, liberarTurno: async () => {} } });
+  await ocupado;
+  assert.equal(dueno, "B");
+  terminarA(); // A termina tarde
+  await a;
+  assert.equal(dueno, "B", "A no debe liberar el turno de B");
+  assert.ok(eventos.includes("ignorado A"));
+});
+
+test("cobertura: undefined, NaN, texto o SKU vacío no cuentan como dato", () => {
+  const c = medirCobertura({
+    ordenes: [
+      { estado: "paid", envio_vendedor: undefined, comision: NaN },
+      { estado: "paid", envio_vendedor: "40", comision: 0 },
+      { estado: "paid", envio_vendedor: 0, comision: 12.5 },
+    ],
+    publicaciones: [{ sku: "" }, { sku: "  " }, {}, { sku: "A1" }],
+    liquidaciones: [{ monto_neto: null }, { monto_neto: 100 }, {}],
+  });
+  assert.equal(c.enviosConCostoPct, 33.3);
+  assert.equal(c.comisionesConocidasPct, 66.7);
+  assert.equal(c.publicacionesConSkuPct, 25);
+  assert.equal(c.liquidacionesConNetoPct, 33.3);
+});
+
 test("credencial: se guarda con reintentos antes de usarla; si no se puede, se detiene", async () => {
   const conReintento = simulacion({ vigente: false, fallaGuardarCred: 2 });
   assert.equal((await sincronizarCuenta(cuenta, opciones(conReintento))).escrito, true);
@@ -121,6 +176,6 @@ test("cobertura real por fuente", () => {
   const c = medirCobertura({ ...datos, completa: false, fuentesNoDisponibles: ["retenciones"] });
   assert.deepEqual(c, {
     completa: false, ordenes: 2, ordenesPagadas: 2, enviosConCostoPct: 50, comisionesConocidasPct: 100,
-    publicaciones: 2, publicacionesConSkuPct: 50, liquidaciones: 1, liquidacionesDerivadas: 1, fuentesNoDisponibles: ["retenciones"],
+    publicaciones: 2, publicacionesConSkuPct: 50, liquidaciones: 1, liquidacionesConNetoPct: 0, liquidacionesDerivadas: 1, fuentesNoDisponibles: ["retenciones"],
   });
 });

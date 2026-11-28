@@ -95,16 +95,24 @@ La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan si
 
 | Garantía | Cómo |
 |---|---|
-| `dry_run` sin escrituras | No guarda datos ni cambia el estado de la cuenta. Solo persiste una credencial si la plataforma la rotó, porque si no se perdería. |
-| Sin corridas simultáneas | `tomar_turno_canal`: un turno exclusivo de 15 minutos por cuenta, atómico. |
+| `dry_run` sin escrituras comerciales | No guarda órdenes, publicaciones ni liquidaciones, ni registra éxito o fallo ordinario. **Excepciones (sí escribe):** (1) toma y libera el turno de la cuenta; (2) si el access token venció, **renueva la credencial y guarda la nueva en Vault**, porque la plataforma invalida la anterior al rotarla; (3) si esa credencial no se pudo guardar, registra el fallo crítico y deja la cuenta `DESCONECTADA`. Por eso un `dry_run` no es una simulación sin efectos sobre las credenciales. |
+| Sin corridas simultáneas | `tomar_turno_canal(cuenta, minutos, ejecucion)`: un turno exclusivo de 15 minutos por cuenta, atómico, con un identificador único de ejecución (`sync_ejecucion_id`). `liberar_turno_canal` y el registro de éxito o fallo solo actúan si el turno sigue siendo de esa ejecución: una corrida cuyo turno venció no libera ni pisa el de otra. Riesgo residual: una corrida vencida aún podría terminar de escribir datos; son *upserts* idempotentes de la misma API. |
 | Sin pérdida de credenciales | Se reutiliza el access token mientras siga vigente. Al renovar, el token nuevo se guarda con 3 reintentos **antes** de usarlo; si no se puede, la cuenta queda `DESCONECTADA` con aviso de "credencial en riesgo". Una credencial incompleta o inválida nunca reemplaza a la anterior. |
 | Recuperación automática | Una cuenta en `ERROR` se reintenta con espera creciente (15 min × 2ⁿ, máximo 24 h) y vuelve a `ACTIVA` en cuanto una corrida sale bien. |
 | Identidad | `/users/me` en Mercado Libre y `/authorization/202309/shops` en TikTok deben coincidir con la cuenta registrada. |
 | Ventana y tiempo | Máximo 120 días por corrida. El tiempo se reparte entre cuentas; si no alcanza, la cobertura queda `completa: false`. |
 | Publicaciones obsoletas | Solo con un barrido completo se marcan como `no_encontrada`. |
 | Variantes | Llaves `(publicacion, variacion, sku)`, para que los tonos de un mismo producto no choquen. |
-| Cobertura real | Por corrida: órdenes, % de envíos con costo, % de comisiones conocidas, % de publicaciones con SKU, liquidaciones (derivadas o de estado de cuenta) y fuentes no disponibles. Se guarda en `canal_cuentas.cobertura`. |
+| Cobertura real | Por corrida: órdenes, % de envíos con costo, % de comisiones conocidas, % de publicaciones con SKU, % de liquidaciones con neto, liquidaciones (derivadas o de estado de cuenta) y fuentes no disponibles. Solo cuentan números finitos y SKU no vacíos: `null`, `undefined`, `NaN`, texto o SKU en blanco cuentan como dato faltante. Se guarda en `canal_cuentas.cobertura`. |
 | Liquidaciones de Mercado Libre | Se derivan de las órdenes (neto por `money_release_date` y `money_release_status`) y se marcan `derivada_de_orden`. El depósito bancario real se concilia en Tesorería. |
 | Credenciales de TikTok | Se renuevan con `/api/v2/token/refresh`; se verifican sus vencimientos. |
+
+### Precio mínimo por publicación (`precioMinimo.js`)
+
+- **Utilidad comercial** = precio sin IVA − comisión − costo fijo − envío − extras − costo SICAR. Las retenciones de IVA e ISR no son gasto.
+- **Efectivo después de retenciones** = depósito de la plataforma − costo SICAR. Es caja, no utilidad.
+- Entrega **precio sin pérdida**, **precio con margen objetivo** y, para el precio actual, su veredicto evaluado directamente y el **descuento máximo permitido** (sin pérdida y con margen), con los rangos intermedios que no cumplen por los tramos de envío.
+- Rechaza negativos, paso inválido, tramos con huecos, solapes, inicio distinto de 0 o sin último tramo abierto, y más de 100 000 evaluaciones.
+- Solo sugiere. No cambia precios.
 
 **Por verificar contra la documentación oficial al registrar las apps:** los campos de cargos por orden de TikTok y los de `products/search`.

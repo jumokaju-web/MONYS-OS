@@ -219,8 +219,11 @@ function crearAlmacen(supabase: any) {
     return data;
   };
   return {
-    tomarTurno: (cuentaId: string, minutos: number) => rpc("tomar_turno_canal", { p_cuenta_id: cuentaId, p_minutos: minutos }),
-    liberarTurno: (cuentaId: string) => rpc("liberar_turno_canal", { p_cuenta_id: cuentaId }),
+    tomarTurno: (cuentaId: string, minutos: number, ejecucionId: string) =>
+      rpc("tomar_turno_canal", { p_cuenta_id: cuentaId, p_minutos: minutos, p_ejecucion: ejecucionId }),
+    // Solo libera si el turno sigue siendo de esta ejecución.
+    liberarTurno: (cuentaId: string, ejecucionId: string) =>
+      rpc("liberar_turno_canal", { p_cuenta_id: cuentaId, p_ejecucion: ejecucionId }),
     async leerCredencial(cuentaId: string) {
       const texto = await rpc("leer_credencial_canal", { p_cuenta_id: cuentaId });
       return texto ? JSON.parse(texto) : null;
@@ -257,16 +260,24 @@ function crearAlmacen(supabase: any) {
         if (error) throw new Error(`canal_liquidaciones: ${error.message}`);
       }
     },
-    async registrarExito(cuentaId: string, { ahora, cobertura }: any) {
-      await supabase.from("canal_cuentas").update({
+    // Éxito y fallo solo se registran si el turno sigue siendo de esta
+    // ejecución: una corrida vencida no pisa el estado de otra.
+    async registrarExito(cuentaId: string, { ahora, cobertura, ejecucionId }: any) {
+      const { error } = await supabase.from("canal_cuentas").update({
         estado: "ACTIVA", intentos_fallidos: 0, proximo_intento: null, ultimo_error: null,
         ultimo_sync: new Date(ahora).toISOString(), cobertura,
-      }).eq("id", cuentaId);
+      }).eq("id", cuentaId).eq("sync_ejecucion_id", ejecucionId);
+      if (error) throw new Error(`registrar éxito: ${error.message}`);
     },
-    async registrarFallo(cuentaId: string, { intentos, proximoIntento, mensaje, critico }: any) {
-      await supabase.from("canal_cuentas").update({
+    async registrarFallo(cuentaId: string, { intentos, proximoIntento, mensaje, critico, ejecucionId }: any) {
+      // Un fallo crítico de credencial se registra aunque el turno ya no
+      // sea propio: la cuenta debe quedar marcada para reautorizar.
+      let consulta = supabase.from("canal_cuentas").update({
         estado: critico ? "DESCONECTADA" : "ERROR", intentos_fallidos: intentos, proximo_intento: critico ? null : proximoIntento, ultimo_error: mensaje,
       }).eq("id", cuentaId);
+      if (!critico) consulta = consulta.eq("sync_ejecucion_id", ejecucionId);
+      const { error } = await consulta;
+      if (error) throw new Error(`registrar fallo: ${error.message}`);
     },
   };
 }

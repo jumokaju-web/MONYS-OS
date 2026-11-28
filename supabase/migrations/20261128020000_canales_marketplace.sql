@@ -24,6 +24,7 @@ create table if not exists public.canal_cuentas (
   intentos_fallidos integer not null default 0 check (intentos_fallidos >= 0),
   proximo_intento timestamptz,          -- reintento automático (backoff)
   sync_en_curso_hasta timestamptz,      -- turno exclusivo (evita corridas simultáneas)
+  sync_ejecucion_id uuid,               -- dueño del turno: solo esa corrida lo libera
   cobertura jsonb,                      -- qué trajo cada fuente en la última corrida
   created_at timestamptz not null default now(),
   unique (canal, cuenta_externa)
@@ -179,7 +180,15 @@ commit;
 
 -- Turno exclusivo por cuenta: solo una sincronización a la vez. Lo usa
 -- únicamente la Edge Function (service_role).
-create or replace function public.tomar_turno_canal(p_cuenta_id uuid, p_minutos integer)
+-- Por si una versión previa de esta migración ya creó la tabla o las
+-- funciones sin identificador de ejecución.
+alter table public.canal_cuentas add column if not exists sync_ejecucion_id uuid;
+drop function if exists public.tomar_turno_canal(uuid, integer);
+drop function if exists public.liberar_turno_canal(uuid);
+
+-- Cada corrida tiene un identificador propio (p_ejecucion). Una corrida
+-- cuyo turno venció no puede liberar ni cerrar el turno de otra.
+create or replace function public.tomar_turno_canal(p_cuenta_id uuid, p_minutos integer, p_ejecucion uuid)
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare
   tomado uuid;
@@ -187,8 +196,12 @@ begin
   if p_minutos is null or p_minutos < 1 or p_minutos > 60 then
     raise exception 'Duración de turno inválida';
   end if;
+  if p_ejecucion is null then
+    raise exception 'Falta el identificador de ejecución';
+  end if;
   update public.canal_cuentas
-  set sync_en_curso_hasta = now() + make_interval(mins => p_minutos)
+  set sync_en_curso_hasta = now() + make_interval(mins => p_minutos),
+      sync_ejecucion_id = p_ejecucion
   where id = p_cuenta_id
     and (sync_en_curso_hasta is null or sync_en_curso_hasta < now())
   returning id into tomado;
@@ -196,18 +209,26 @@ begin
 end;
 $$;
 
-create or replace function public.liberar_turno_canal(p_cuenta_id uuid)
-returns void language sql security definer set search_path = '' as $$
-  update public.canal_cuentas set sync_en_curso_hasta = null where id = p_cuenta_id;
+create or replace function public.liberar_turno_canal(p_cuenta_id uuid, p_ejecucion uuid)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  liberado uuid;
+begin
+  update public.canal_cuentas
+  set sync_en_curso_hasta = null, sync_ejecucion_id = null
+  where id = p_cuenta_id and sync_ejecucion_id = p_ejecucion
+  returning id into liberado;
+  return liberado is not null;
+end;
 $$;
 
-revoke all on function public.tomar_turno_canal(uuid, integer) from public, anon, authenticated;
-revoke all on function public.liberar_turno_canal(uuid) from public, anon, authenticated;
+revoke all on function public.tomar_turno_canal(uuid, integer, uuid) from public, anon, authenticated;
+revoke all on function public.liberar_turno_canal(uuid, uuid) from public, anon, authenticated;
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
-    execute 'grant execute on function public.tomar_turno_canal(uuid, integer) to service_role';
-    execute 'grant execute on function public.liberar_turno_canal(uuid) to service_role';
+    execute 'grant execute on function public.tomar_turno_canal(uuid, integer, uuid) to service_role';
+    execute 'grant execute on function public.liberar_turno_canal(uuid, uuid) to service_role';
   end if;
 end;
 $$;
