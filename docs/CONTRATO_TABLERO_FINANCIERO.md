@@ -78,6 +78,26 @@ Destinos lógicos usados: `finanzas/estado-resultados`, `finanzas/venta-necesari
 
 Al cambiar de organización o negocio, la pantalla descarta la respuesta anterior; si llega una respuesta vieja, se ignora. Si `errores[]` trae avisos, se muestra lo disponible con un aviso de error parcial.
 
+## Campos opcionales agregados (v2.1, compatibles)
+
+No cambian ni quitan ningún campo de v2.
+
+| Campo | Dónde | Contenido |
+|---|---|---|
+| `vence`, `diasParaVencer` | Cada elemento de `queHacerHoy` | Fecha `YYYY-MM-DD` del vencimiento más próximo y los días que faltan (negativo = ya venció). Solo en urgencias de liquidez; en lo demás vale `null`. `urgenciasLiquidez` se ordena primero por `diasParaVencer`. |
+| `fechasVence[]` | `unidades[].gastosDirectos.porCategoria[]` y `generales.porCategoria[]` | Fechas en que vence esa categoría en el mes, según las obligaciones (fuente única: `fechasDeVencimientoEnMes`, #166). |
+| `proximoVencimiento` | `equilibrio.porSucursal.sucursales[]` | `{fecha, importe, conceptos[]}`: próximo pago de la sucursal en el mes objetivo, a partir de hoy. |
+| `avanceMes` | `equilibrio.porSucursal.sucursales[]` | Solo en el mes en curso; ver abajo. |
+
+`avanceMes` combina tres tipos de dato que la pantalla **nunca debe mezclar**:
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `vendido` | **REAL_PARCIAL** | Ventas registradas en SICAR en el mes, hasta ayer. |
+| `meta`, `criterioMeta` | **ESTIMACION** | La meta más exigente (`operativo` o `efectivo`) del equilibrio. |
+| `avancePct`, `faltaVender`, `diasRestantes`, `necesarioPorDia` | Derivados | Lo que falta para la meta y la venta diaria necesaria desde hoy (los días restantes descuentan cierres programados en el calendario). |
+| `ritmoDiario`, `proyeccionCierre`, `proyeccionVsMeta` | **PROYECCION** | Cierre del mes si se mantiene el ritmo actual. Es `null`, con `motivoSinProyeccion`, cuando hay días transcurridos sin carga completa: no se proyecta con huecos. |
+
 ## Reglas de presentación (obligatorias)
 
 1. **`null` nunca se pinta como $0.** Se muestra "Pendiente" con el motivo tomado de `faltantes`.

@@ -99,3 +99,18 @@ test("vistas: liquidez aparte, 3 prioridades, categorías y totales sin mezclar 
   assert.ok(h.totales.some((t) => t.medida === "deficit_efectivo" && t.grupo === "urgencia_liquidez"));
   assert.equal(new Set(h.totales.map((t) => `${t.grupo}|${t.medida}|${JSON.stringify(t.periodo)}`)).size, h.totales.length);
 });
+
+test("vence y diasParaVencer en urgencias; liquidez ordenada por vencimiento", () => {
+  const est = { mes: "2026-12", confianza: "media", faltantes: [], unidades: [
+    { unidad: "s2", nombre: "Plaza", tipo: "sucursal", gastosDirectos: { pendiente: 10000, porCategoria: [{ categoria: "RENTA", pendiente: 10000, fechasVence: ["2026-12-05"] }, { categoria: "LUZ", pendiente: 0, fechasVence: ["2026-12-01"] }] } },
+  ] };
+  const [p] = normalizarRecomendaciones({ businessId: "b", recomendaciones: [{ clave: "pendiente:s2", mes: "2026-12", titulo: "t", impactoMensual: null, evidencia: "", accion: "a" }], comparativo: { estadosPorMes: { "2026-12": est } }, hoy: "2026-12-10" });
+  assert.equal(p.vence, "2026-12-05");
+  assert.equal(p.diasParaVencer, -5); // ya venció
+  const u = urgenciasDeEquilibrio({ businessId: "b", hoy: "2026-12-10", equilibrio: { mesObjetivo: "2026-12", sucursales: [
+    { unidad: "s1", nombre: "Centro", mesBase: "2026-11", ventaDiariaActual: 1, margenContribucionPct: 40, diasConVentaEsperada: 20, efectivo: { ventaDiaria: 2, brechaDiaria: -1 }, proximoVencimiento: { fecha: "2026-12-15" }, faltantes: [], avisos: [] },
+  ] } });
+  assert.equal(u[0].diasParaVencer, 5);
+  const h = prioridadesDeHoy([[u[0], p]]);
+  assert.deepEqual(h.urgenciasLiquidez.map((x) => x.diasParaVencer), [-5, 5]);
+});

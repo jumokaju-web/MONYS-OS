@@ -113,7 +113,7 @@ test("estado completo: renglones, tres bases de gasto y lo que no es gasto", () 
   assert.equal(c.utilidadNeta, 3710);
   assert.equal(e.obligacionesPendientes, 10000);
   const plaza = e.unidades.find((u) => u.unidad === "s2");
-  assert.deepEqual(plaza.gastosDirectos.porCategoria.find((f) => f.categoria === "RENTA"), { categoria: "RENTA", pagado: 0, devengado: 10000, vence: 10000, pendiente: 10000, fuente: "obligacion" });
+  assert.deepEqual(plaza.gastosDirectos.porCategoria.find((f) => f.categoria === "RENTA"), { categoria: "RENTA", pagado: 0, devengado: 10000, vence: 10000, pendiente: 10000, fuente: "obligacion", fechasVence: ["2026-10-05"] });
   assert.equal(e.noSonGasto.capitalDeuda, 8000);
   assert.equal(e.noSonGasto.iva, 6000);
   assert.equal(e.noSonGasto.compraInventario, 50000);

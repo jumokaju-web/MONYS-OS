@@ -194,7 +194,10 @@ export async function obtenerTableroFinanciero({
   // Base del equilibrio por sucursal: el último mes cerrado con margen.
   const base = [...estados].reverse().find((e) => !e.parcial && e.unidades.some((u) => u.tipo === "sucursal" && u.utilidadBruta !== null)) || null;
   const calendarioObjetivo = calendarioDatos ? calendarioDelNegocio({ sucursales, mes: objetivo, ...calendarioDatos }) : null;
-  const porSucursal = base ? equilibrioPorSucursal({ businessId, estadoBase: base, mesObjetivo: objetivo, obligaciones: obligacionesValidas, calendario: calendarioObjetivo }) : null;
+  const estadoObjetivo = estados.find((e) => e.mes === objetivo) || null;
+  const porSucursal = base
+    ? equilibrioPorSucursal({ businessId, estadoBase: base, mesObjetivo: objetivo, obligaciones: obligacionesValidas, calendario: calendarioObjetivo, estadoMesObjetivo: estadoObjetivo, hoy })
+    : null;
   let consolidado = null;
   try {
     consolidado = await obtenerEquilibrioReal({ organizationId, businessId, mes: objetivo });
@@ -211,8 +214,8 @@ export async function obtenerTableroFinanciero({
     equilibrio: { porSucursal, consolidado, mesBase: base?.mes ?? null, mesObjetivo: objetivo },
     gastosQueMasPesan: base ? gastosQueMasPesan(base) : [],
     queHacerHoy: prioridadesDeHoy([
-      normalizarRecomendaciones({ businessId, recomendaciones: analisis.recomendaciones, comparativo: analisis.comparativo }),
-      urgenciasDeEquilibrio({ businessId, equilibrio: porSucursal }),
+      normalizarRecomendaciones({ businessId, recomendaciones: analisis.recomendaciones, comparativo: analisis.comparativo, hoy }),
+      urgenciasDeEquilibrio({ businessId, equilibrio: porSucursal, hoy }),
       accionesDelDiaAContrato({ businessId, acciones: accionesDelDia, hoy }),
     ]),
     fuentes: diagnosticarFuentes({ estados, equilibrio: consolidado, deudasRegistradas: Array.isArray(deudas) ? deudas.length : null }),

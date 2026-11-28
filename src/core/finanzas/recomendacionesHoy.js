@@ -16,7 +16,8 @@
  *   confianza, alcance: { tipo: sucursal|canal|negocio, businessId, branchId, cuentaId, canal, nombre },
  *   titulo, motivo, evidencia, accion: { texto, destino, parametros },
  *   grupoExclusivo, alternativaDe, duplicadoDe, motivoNoSumar,
- *   faltantes[], requiereAutorizacion: true }
+ *   faltantes[], requiereAutorizacion: true,
+ *   vence|null, diasParaVencer|null   (opcionales: urgencias de liquidez) }
  *
  * Reglas:
  * - Las mejoras de utilidad de una misma unidad se traslapan (recuperar
@@ -32,6 +33,7 @@
 export const GRUPOS = Object.freeze({ LIQUIDEZ: "urgencia_liquidez", OPORTUNIDAD: "oportunidad", DATOS: "calidad_datos" });
 export const TIPOS_IMPACTO = Object.freeze({ UTILIDAD: "utilidad", EFECTIVO: "efectivo", AHORRO: "ahorro", RECUPERACION_VENTAS: "recuperacion_ventas", RIESGO: "riesgo" });
 
+const diasEntre = (desde, hasta) => (desde && hasta ? Math.round((Date.parse(`${hasta}T12:00:00Z`) - Date.parse(`${String(desde).slice(0, 10)}T12:00:00Z`)) / 86400000) : null);
 const r2 = (v) => (v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
 const ORDEN_CONFIANZA = { baja: 0, media: 1, alta: 2 };
 
@@ -63,7 +65,7 @@ const faltantesDeUnidad = (estado, unidad) =>
  * Recomendaciones de rentabilidad (recomendacionesRentabilidad) a v2.
  * comparativo: salida de compararMeses (trae estadosPorMes).
  */
-export function normalizarRecomendaciones({ businessId, recomendaciones = [], comparativo = null } = {}) {
+export function normalizarRecomendaciones({ businessId, recomendaciones = [], comparativo = null, hoy = null } = {}) {
   return (recomendaciones || []).map((rec) => {
     const [tipo, ...resto] = String(rec.clave).split(":");
     const unidadId = resto.join(":") || null;
@@ -72,7 +74,12 @@ export function normalizarRecomendaciones({ businessId, recomendaciones = [], co
     const regla = (REGLAS[tipo] || (() => ({ grupo: GRUPOS.OPORTUNIDAD, tipoImpacto: TIPOS_IMPACTO.RIESGO, medida: null, categoria: "finanzas", destino: "finanzas/estado-resultados" })))(unidad);
     let importe = rec.impactoMensual ?? null;
     let ventasAsociadas = null;
-    if (tipo === "pendiente") importe = unidad?.gastosDirectos?.pendiente ?? null;
+    let vence = null;
+    if (tipo === "pendiente") {
+      importe = unidad?.gastosDirectos?.pendiente ?? null;
+      // La fecha más próxima entre las categorías con pago pendiente (puede ya haber pasado).
+      vence = (unidad?.gastosDirectos?.porCategoria || []).filter((f) => f.pendiente).flatMap((f) => f.fechasVence || []).sort()[0] || null;
+    }
     if (tipo === "volumen") {
       const v = comparativo?.meses?.find((m) => m.mes === rec.mes)?.vsMesAnterior?.unidades?.find((x) => x.unidad === unidadId);
       ventasAsociadas = v?.ingresos?.delta === null || v?.ingresos?.delta === undefined ? null : r2(-v.ingresos.delta);
@@ -108,12 +115,14 @@ export function normalizarRecomendaciones({ businessId, recomendaciones = [], co
       motivoNoSumar: null,
       faltantes: [...new Set([...(regla.faltantes || []), ...faltantesDeUnidad(estado, unidad), ...(importe === null && regla.medida ? ["datos para estimar el importe"] : [])])],
       requiereAutorizacion: true,
+      vence,
+      diasParaVencer: diasEntre(hoy, vence),
     };
   });
 }
 
 /* Urgencias de efectivo: sucursales cuya venta actual no alcanza lo que les vence. */
-export function urgenciasDeEquilibrio({ businessId, equilibrio = null } = {}) {
+export function urgenciasDeEquilibrio({ businessId, equilibrio = null, hoy = null } = {}) {
   return (equilibrio?.sucursales || []).flatMap((s) => {
     const e = s.efectivo;
     if (!e || e.brechaDiaria === null || e.brechaDiaria >= 0 || s.margenContribucionPct === null) return [];
@@ -146,6 +155,8 @@ export function urgenciasDeEquilibrio({ businessId, equilibrio = null } = {}) {
       motivoNoSumar: null,
       faltantes: [...s.faltantes, ...s.avisos],
       requiereAutorizacion: true,
+      vence: s.proximoVencimiento?.fecha ?? null,
+      diasParaVencer: diasEntre(hoy, s.proximoVencimiento?.fecha ?? null),
     }];
   });
 }
@@ -182,6 +193,8 @@ export function accionesDelDiaAContrato({ businessId, acciones = [], hoy = null 
       motivoNoSumar: a.alternativaDe ? "Alternativa excluyente de otra acción." : null,
       faltantes: a.impacto?.faltantes || [],
       requiereAutorizacion: true,
+      vence: null,
+      diasParaVencer: null,
     };
   });
 }
@@ -233,7 +246,9 @@ export function prioridadesDeHoy(listas = []) {
   const oportunidades = todas.filter((r) => r.grupo === GRUPOS.OPORTUNIDAD && principal(r)).sort(porImporte);
   return {
     version: 2,
-    urgenciasLiquidez: todas.filter((r) => r.grupo === GRUPOS.LIQUIDEZ && principal(r)).sort(porImporte),
+    // Liquidez: primero lo que vence antes; sin fecha, por importe.
+    urgenciasLiquidez: todas.filter((r) => r.grupo === GRUPOS.LIQUIDEZ && principal(r))
+      .sort((a, b) => (a.diasParaVencer ?? Infinity) - (b.diasParaVencer ?? Infinity) || porImporte(a, b)),
     prioridades: oportunidades.filter((r) => r.impacto.importe !== null).slice(0, 3),
     calidadDatos: todas.filter((r) => r.grupo === GRUPOS.DATOS),
     porCategoria: Object.fromEntries(["ventas", "inventario", "finanzas", "datos"].map((c) => [c, todas.filter((r) => r.categoria === c).sort(porImporte)])),

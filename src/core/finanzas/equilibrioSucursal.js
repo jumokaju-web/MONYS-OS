@@ -18,7 +18,7 @@
  * Dato faltante ≠ 0: sin margen, gastos o días, el indicador queda null.
  * Módulo puro.
  */
-import { gastosFijosDelMes } from "./equilibrioReal.js";
+import { fechasDeVencimientoEnMes, gastosFijosDelMes } from "./equilibrioReal.js";
 
 const r2 = (v) => (v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
 const r1 = (v) => (v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v * 10) / 10);
@@ -37,8 +37,67 @@ function obligacionesDe(obligaciones, businessId, branchId) {
  * calendario:  { [branchId]: calendarioDelMes(mesObjetivo) } calculado sin
  *              "hoy" (cuenta cierres programados), o null.
  * obligaciones: obligaciones operativas del negocio.
+ * estadoMesObjetivo: construirEstadoResultados del mes objetivo (en curso),
+ *              opcional: habilita avanceMes y la proyección de cierre.
+ * hoy:         YYYY-MM-DD (Ciudad de México).
+ *
+ * avanceMes (opcional en el contrato v2):
+ *   vendido          REAL (parcial): ventas registradas del mes hasta ayer.
+ *   meta             ESTIMACION: la más exigente entre operativo y efectivo.
+ *   faltaVender, diasRestantes, necesarioPorDia: para llegar a la meta.
+ *   proyeccionCierre PROYECCION: vendido + ritmo diario × días restantes;
+ *                    solo si los días transcurridos tienen datos completos.
  */
-export function equilibrioPorSucursal({ businessId, estadoBase, mesObjetivo, obligaciones = [], calendario = null } = {}) {
+function avanceDelMes({ unidad, estadoMesObjetivo, calendario, mesObjetivo, hoy, metas }) {
+  if (!estadoMesObjetivo || !hoy || String(hoy).slice(0, 7) !== mesObjetivo) return null;
+  const um = (estadoMesObjetivo.unidades || []).find((x) => x.unidad === unidad);
+  if (!um) return { tipo: "AVANCE", vendido: null, motivo: "La sucursal no tiene ventas registradas en el mes." };
+  const candidatas = [["operativo", metas.operativo?.ventaMensual], ["efectivo", metas.efectivo?.ventaMensual]].filter(([, v]) => v !== null && v !== undefined);
+  const [criterio, meta] = candidatas.sort((a, b) => b[1] - a[1])[0] || [null, null];
+  const diasRestantes = calendario
+    ? calendario.diasConVentaEsperada.filter((d) => d >= String(hoy).slice(0, 10)).length
+    : diasMes(mesObjetivo) - Number(String(hoy).slice(8, 10)) + 1;
+  const vendido = um.ingresosRegistrados;
+  const c = um.cobertura || {};
+  const completos = !c.sin_dato && !c.parcial && !c.sin_confirmar && !c.conflicto;
+  const ritmo = completos && c.completo > 0 && vendido !== null ? vendido / c.completo : null;
+  const proyeccion = ritmo === null ? null : vendido + ritmo * diasRestantes;
+  const falta = meta === null || vendido === null ? null : Math.max(0, meta - vendido);
+  return {
+    tipo: "AVANCE",
+    vendido: r2(vendido),
+    tipoVendido: "REAL_PARCIAL",
+    diasConDato: c.completo ?? null,
+    diasSinDato: c.sin_dato ?? null,
+    meta: r2(meta),
+    tipoMeta: "ESTIMACION",
+    criterioMeta: criterio,
+    avancePct: meta ? r1((vendido / meta) * 100) : null,
+    faltaVender: r2(falta),
+    diasRestantes,
+    necesarioPorDia: falta === null || !diasRestantes ? null : r2(falta / diasRestantes),
+    ritmoDiario: r2(ritmo),
+    proyeccionCierre: r2(proyeccion),
+    tipoProyeccion: "PROYECCION",
+    proyeccionVsMeta: proyeccion === null || meta === null ? null : r2(proyeccion - meta),
+    motivoSinProyeccion: proyeccion !== null ? null : !completos ? "Hay días del mes sin carga completa de SICAR: no se proyecta." : "Sin días con venta registrada todavía.",
+  };
+}
+
+function proximoVencimiento(obligaciones, businessId, branchId, mes, hoy) {
+  const eventos = [];
+  for (const o of obligacionesDe(obligaciones, businessId, branchId)) {
+    if (String(o?.estado || "").toUpperCase() === "CANCELADA") continue;
+    for (const f of fechasDeVencimientoEnMes(o, mes) || []) eventos.push({ fecha: f, importe: Number(o.importe) || 0, concepto: o.concepto || o.categoria });
+  }
+  const futuros = eventos.filter((e) => !hoy || e.fecha >= String(hoy).slice(0, 10)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (!futuros.length) return null;
+  const fecha = futuros[0].fecha;
+  const delDia = futuros.filter((e) => e.fecha === fecha);
+  return { fecha, importe: r2(delDia.reduce((t, e) => t + e.importe, 0)), conceptos: delDia.map((e) => e.concepto) };
+}
+
+export function equilibrioPorSucursal({ businessId, estadoBase, mesObjetivo, obligaciones = [], calendario = null, estadoMesObjetivo = null, hoy = null } = {}) {
   if (!estadoBase?.unidades || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(mesObjetivo || ""))) {
     return { calculable: false, faltantes: ["estado de resultados base y mes objetivo"] };
   }
@@ -101,6 +160,8 @@ export function equilibrioPorSucursal({ businessId, estadoBase, mesObjetivo, obl
       operativo: bloque(devengado),
       operativoConGenerales: generalesAsignados === null ? null : { tipo: "SUPUESTO", nota: "Generales repartidos por ventas.", ...bloque(devengado === null ? null : devengado + generalesAsignados) },
       efectivo: bloque(vence),
+      proximoVencimiento: proximoVencimiento(obligaciones, businessId, u.unidad, mesObjetivo, hoy),
+      avanceMes: avanceDelMes({ unidad: u.unidad, estadoMesObjetivo, calendario: cal, mesObjetivo, hoy, metas: { operativo: bloque(devengado), efectivo: bloque(vence) } }),
       faltantes,
       avisos,
     };

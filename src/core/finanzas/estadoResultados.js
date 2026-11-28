@@ -45,7 +45,7 @@
  * Módulo puro: sin Supabase ni React.
  */
 import { clasificarMovimiento, NATURALEZAS } from "./conciliacionGastos.js";
-import { gastosFijosDelMes } from "./equilibrioReal.js";
+import { fechasDeVencimientoEnMes, gastosFijosDelMes } from "./equilibrioReal.js";
 import { conciliarMovimientoPlataforma } from "./conciliacionPlataformas.js";
 
 const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 100) / 100);
@@ -373,6 +373,14 @@ function clasificarGastos(movimientos, mes, canales, baseGastos, vinculos, busin
 function gastosEnTresBases(pagadoPorCategoria, obligaciones, mes) {
   const operativas = (obligaciones || []).filter((o) => String(o?.categoria || "").toUpperCase() !== "IMPUESTOS");
   const fijos = gastosFijosDelMes(operativas, mes);
+  // Fechas en que vence cada categoría este mes (opcional en el contrato).
+  const fechas = {};
+  for (const o of operativas) {
+    if (String(o?.estado || "").toUpperCase() === "CANCELADA") continue;
+    const cat = String(o?.categoria || "OTRO").toUpperCase();
+    for (const f of fechasDeVencimientoEnMes(o, mes) || []) (fechas[cat] ||= new Set()).add(f);
+  }
+  const fechasDe = (cat) => (fechas[cat] ? [...fechas[cat]].sort() : []);
   const categorias = new Set([...Object.keys(pagadoPorCategoria), ...Object.keys(fijos.porCategoria)]);
   const filas = [];
   const sinCruzar = [];
@@ -395,7 +403,7 @@ function gastosEnTresBases(pagadoPorCategoria, obligaciones, mes) {
     pagado += p;
     devengado += d;
     if (pend) pendiente += pend;
-    filas.push({ categoria, pagado: r2(p), devengado: r2(d), vence: vence === undefined ? null : r2(vence), pendiente: pend === null ? null : r2(pend), fuente: obligacion !== undefined ? "obligacion" : "pagado" });
+    filas.push({ categoria, pagado: r2(p), devengado: r2(d), vence: vence === undefined ? null : r2(vence), pendiente: pend === null ? null : r2(pend), fuente: obligacion !== undefined ? "obligacion" : "pagado", fechasVence: fechasDe(categoria) });
   }
   return { pagado: r2(pagado), devengado: r2(devengado), pendiente: r2(pendiente), porCategoria: filas, obligacionesSinCruzar: sinCruzar };
 }

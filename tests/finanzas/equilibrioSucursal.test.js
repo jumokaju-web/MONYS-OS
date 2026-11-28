@@ -64,3 +64,31 @@ test("gastos que más pesan, en % de ingresos y días de venta", () => {
   assert.deepEqual([primero.categoria, primero.unidad, primero.pctIngresos], ["NOMINA", "s1", 20]);
   assert.equal(primero.diasDeVenta, Math.round((20000 / 3225.81) * 10) / 10);
 });
+
+test("avanceMes: vendido real, meta estimada y proyección separada; sin proyección si faltan días", () => {
+  const cal = calendarioDelNegocio({ sucursales: [{ id: "s1" }, { id: "s2" }], mes: "2026-12", dias: [{ branch_id: "s1", fecha: "2026-12-25", estado: "cerrado", motivo: "Navidad" }] });
+  const estadoDic = { mes: "2026-12", unidades: [
+    { unidad: "s1", ingresosRegistrados: 30000, cobertura: { completo: 9, cerrado: 0, sin_dato: 0, parcial: 0, sin_confirmar: 0, conflicto: 0 } },
+    { unidad: "s2", ingresosRegistrados: 10000, cobertura: { completo: 6, cerrado: 0, sin_dato: 3, parcial: 0, sin_confirmar: 0, conflicto: 0 } },
+  ] };
+  const r = equilibrioPorSucursal({ businessId: "b", estadoBase, mesObjetivo: "2026-12", obligaciones, calendario: cal, estadoMesObjetivo: estadoDic, hoy: "2026-12-10" });
+  const [centro, plaza] = r.sucursales;
+  const a = centro.avanceMes;
+  assert.equal(a.vendido, 30000);
+  assert.equal(a.tipoVendido, "REAL_PARCIAL");
+  assert.equal(a.meta, 80000); // la más exigente (operativo 80 000; efectivo de este mes la misma base)
+  assert.equal(a.tipoMeta, "ESTIMACION");
+  assert.equal(a.diasRestantes, 21); // 10–31 dic menos Navidad
+  assert.equal(a.faltaVender, 50000);
+  assert.equal(a.necesarioPorDia, Math.round((50000 / 21) * 100) / 100);
+  assert.equal(a.ritmoDiario, Math.round((30000 / 9) * 100) / 100);
+  assert.equal(a.proyeccionCierre, Math.round((30000 + (30000 / 9) * 21) * 100) / 100);
+  assert.equal(a.tipoProyeccion, "PROYECCION");
+  // Plaza tiene 3 días sin carga: no se proyecta (no se inventa).
+  assert.equal(plaza.avanceMes.proyeccionCierre, null);
+  assert.match(plaza.avanceMes.motivoSinProyeccion, /sin carga completa/);
+  // Próximo vencimiento de Plaza: renta del día 5 ya pasó; nómina del 30 (31 → día 31? ancla 30) es el siguiente.
+  assert.equal(plaza.proximoVencimiento.fecha, "2026-12-30");
+  // Fuera del mes en curso no hay avance.
+  assert.equal(equilibrioPorSucursal({ businessId: "b", estadoBase, mesObjetivo: "2026-12", obligaciones, estadoMesObjetivo: estadoDic, hoy: "2026-11-28" }).sucursales[0].avanceMes, null);
+});
