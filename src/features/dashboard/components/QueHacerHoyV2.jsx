@@ -10,11 +10,11 @@ const groups = { urgencia_liquidez:"Urgencias de liquidez", oportunidad:"Oportun
 function period(p) {
   return p?.tipo === "mensual" ? (/^\d{4}-\d{2}$/.test(p.mes || "") && Number(p.mes.slice(5)) >= 1 && Number(p.mes.slice(5)) <= 12 ? new Intl.DateTimeFormat("es-MX", {month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(p.mes+"-01T00:00:00Z")) : "Mensual") : p?.tipo === "dias" ? `${p.dias} días${p.desde ? " desde " + p.desde : ""}` : "Periodo pendiente";
 }
-function Decision({ item, onReview, all }) {
+function Decision({ item, onReview, all, puedeRevisar }) {
   const i = item.impacto;
   const known = Number.isFinite(i?.importe) && i?.estado !== "pendiente";
   const principal = all.find(a => a.id === (item.duplicadoDe || item.alternativaDe));
-  const allowed = destinations.has(item.accion?.destino);
+  const allowed = destinations.has(item.accion?.destino) && (!puedeRevisar || puedeRevisar(item.accion?.destino));
   const secondary = !!(item.alternativaDe || item.duplicadoDe);
   return <article className="qh-card">
     <small>{item.alcance?.nombre} · {labels[item.categoria] || item.categoria}</small>
@@ -30,12 +30,12 @@ function Decision({ item, onReview, all }) {
     <button type="button" disabled={!onReview || !allowed} onClick={() => { if (allowed) onReview?.(item.accion); }}>Revisar</button>
   </article>;
 }
-export default function QueHacerHoyV2({ tablero, loading = false, onReview }) {
+export default function QueHacerHoyV2({ tablero, loading = false, onReview, puedeRevisar }) {
   const [filter, setFilter] = useState("todas");
   const q = tablero?.queHacerHoy;
   if (loading) return <p role="status">Cargando decisiones…</p>;
   if (!q || tablero?.estado === "sin_contexto") return <p role="status">Información pendiente. {tablero?.motivo}</p>;
-  const section = (title, items) => <section><h2>{title}</h2>{items?.length ? items.map(item => <Decision key={item.id} item={item} onReview={onReview} all={q.todas || []}/>) : <p>No hay recomendaciones disponibles en esta sección.</p>}</section>;
+  const section = (title, items) => <section><h2>{title}</h2>{items?.length ? items.map(item => <Decision key={item.id} item={item} onReview={onReview} all={q.todas || []} puedeRevisar={puedeRevisar}/>) : <p>No hay recomendaciones disponibles en esta sección.</p>}</section>;
   return <div className="qh-root">
     <header><small>MONYS OS · Dirección</small><h1>Qué hacer hoy</h1></header>
     {!!tablero.errores?.length && <p role="status">Información parcial: algunas fuentes no pudieron consultarse.</p>}
