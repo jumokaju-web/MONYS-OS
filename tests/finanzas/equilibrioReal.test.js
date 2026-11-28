@@ -258,3 +258,14 @@ test("consolidado: elimina pagos internos de la venta externa necesaria", () => 
   const ajena = consolidarEquilibrios([tienda, flotilla], { operacionesInternas: [{ pagador: "tienda", receptor: "otra", importe: 100 }] });
   assert.equal(ajena.ventaMensualEfectivo, null);
 });
+
+test("fechas de vencimiento en el mes: una sola fuente para conteo y fechas", async () => {
+  const { fechasDeVencimientoEnMes, vencimientosEnMes: contar } = await import("../../src/core/finanzas/equilibrioReal.js");
+  assert.deepEqual(fechasDeVencimientoEnMes({ frecuencia: "SEMANAL", fecha_vencimiento: "2026-11-27" }, "2026-12"), ["2026-12-04", "2026-12-11", "2026-12-18", "2026-12-25"]);
+  assert.deepEqual(fechasDeVencimientoEnMes({ frecuencia: "QUINCENAL", fecha_vencimiento: "2026-12-04" }, "2027-02"), ["2027-02-15", "2027-02-28"]);
+  assert.deepEqual(fechasDeVencimientoEnMes({ frecuencia: "MENSUAL", fecha_vencimiento: "2026-01-31" }, "2026-11"), ["2026-11-30"]);
+  assert.deepEqual(fechasDeVencimientoEnMes({ frecuencia: "BIMESTRAL", fecha_vencimiento: "2026-11-20" }, "2026-12"), []);
+  assert.deepEqual(fechasDeVencimientoEnMes({ frecuencia: "UNICA", fecha_vencimiento: "2026-12-10" }, "2026-12"), ["2026-12-10"]);
+  assert.equal(fechasDeVencimientoEnMes({ frecuencia: "MENSUAL" }, "2026-12"), null);
+  assert.equal(contar({ frecuencia: "SEMANAL", fecha_vencimiento: "2026-11-27" }, "2027-01"), 5);
+});
