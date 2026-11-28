@@ -41,9 +41,10 @@ const MOTIVOS_CANCELACION = {
  * retencionPct: % de ISR/IVA que retiene la plataforma (0–30) o null.
  * hoy: fecha ISO para separar liberado de pendiente.
  */
-export function resumirOrdenesMarketplace(ordenes = [], { canal = "mercado_libre", costosPorSku = {}, retencionPct = null, hoy = null } = {}) {
+export function resumirOrdenesMarketplace(ordenes = [], { canal = "mercado_libre", costosPorSku = {}, costosPorPublicacion = {}, retencionPct = null, hoy = null } = {}) {
   const referencia = hoy ? new Date(hoy) : new Date();
   const costos = Object.fromEntries(Object.entries(costosPorSku || {}).map(([sku, costo]) => [clave(sku), numero(costo)]));
+  const costosPublicacion = Object.fromEntries(Object.entries(costosPorPublicacion || {}).map(([id, costo]) => [String(id), numero(costo)]));
   const retencion = numero(retencionPct);
   const retencionValida = retencion !== null && retencion >= 0 && retencion <= 30;
 
@@ -126,15 +127,17 @@ export function resumirOrdenesMarketplace(ordenes = [], { canal = "mercado_libre
   const retenciones = retencionValida ? venta * (retencion / 100) : null;
 
   const skus = [...porSku.values()].map((fila) => {
-    const costoUnitario = fila.sku ? costos[fila.sku] ?? null : null;
+    const costoUnitario =
+      (fila.publicacion ? costosPublicacion[String(fila.publicacion)] ?? null : null) ??
+      (fila.sku ? costos[fila.sku] ?? null : null);
     const neto = fila.envioCompleto ? fila.venta - fila.comision - fila.envio : null;
     const retencionFila = retencionValida ? fila.venta * (retencion / 100) : null;
     const costoProducto = costoUnitario === null ? null : costoUnitario * fila.unidades;
     const utilidad =
       neto === null || costoProducto === null || retencionFila === null ? null : neto - retencionFila - costoProducto;
     let motivo = "";
-    if (!fila.sku) motivo = "publicación sin SKU: no se puede ligar al costo de SICAR";
-    else if (costoUnitario === null) motivo = `SKU ${fila.sku} sin costo en SICAR`;
+    if (costoUnitario === null && !fila.sku) motivo = "publicación sin SKU ni vínculo con SICAR: vincúlala para conocer su costo";
+    else if (costoUnitario === null) motivo = `SKU ${fila.sku} sin costo en SICAR: vincúlalo`;
     else if (retencionFila === null) motivo = "falta % de retenciones";
     return {
       sku: fila.sku,

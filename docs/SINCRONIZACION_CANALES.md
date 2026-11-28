@@ -58,3 +58,69 @@ pg_cron (diario 03:30 CDMX) ──▶ Edge Function `sincronizar-canales`
 - % de retenciones de ISR/IVA que aplica cada plataforma, según el régimen fiscal (confirmar con el contador).
 - Autorizar la creación de la app de Mercado Libre (credenciales propias) y de la app de TikTok Shop Partner.
 - Asignar SKU de SICAR a las publicaciones que no lo tienen.
+
+## 5. Implementación preparada (sin aplicar ni desplegar)
+
+| Pieza | Archivo | Estado |
+|---|---|---|
+| Tablas `canal_*` y `producto_vinculos` con RLS, y tokens en Vault | `supabase/migrations/20261128020000_canales_marketplace.sql` | Preparada. Probada en Postgres 16 local: idempotente, aislamiento por organización, solo dueña/dirección/admin vinculan, tokens solo para `service_role`. **Sin aplicar.** |
+| Edge Function de solo lectura | `supabase/functions/sincronizar-canales/index.ts` | Preparada (`dry_run=1` disponible). **Sin desplegar ni credenciales.** |
+| Traducción de las APIs | `src/core/canales/mapeoApis.js` | Con pruebas. |
+| Vinculación con SICAR por SKU / código de barras | `src/core/canales/vinculacionSicar.js` | Con pruebas. Sin coincidencia única queda "por vincular": nunca se asume costo. |
+| Diagnóstico de cancelaciones | `src/core/canales/diagnosticoCancelaciones.js` | Con pruebas. |
+| Resultados diario / semanal / mensual y consolidado | `src/core/canales/resultadosPeriodicos.js` | Con pruebas. Las ventas de los canales no están en SICAR (confirmado), así que se suman sin duplicar. |
+
+### Pasos para activar (cada uno con autorización)
+
+**Mercado Libre (solo lectura)**
+1. En https://developers.mercadolibre.com.mx crear una aplicación con permisos de **lectura** (`read`, `offline_access`). No se solicitan permisos de escritura.
+2. Autorizar la app desde cada cuenta de vendedor (GGBACFHDE372 y JIMO4520833) y guardar el refresh token con `guardar_token_canal`.
+3. Secretos de la función: `ML_CLIENT_ID` y `ML_CLIENT_SECRET`.
+
+**TikTok Shop (solo lectura)**
+1. En TikTok Shop Partner Center registrar una app con alcances de **lectura**: órdenes, finanzas, productos y devoluciones.
+2. Autorizar la tienda "Mony's glam shop" y guardar `access_token|shop_cipher` con `guardar_token_canal`.
+3. Secretos: `TT_APP_KEY` y `TT_APP_SECRET`.
+4. Verificar contra la documentación oficial los campos de cargos por orden (`CAMPOS_TIKTOK_POR_VERIFICAR`). Hasta entonces, comisión, envío y retenciones por orden de TikTok quedan en null.
+
+**Programación:** `pg_cron` diario a las 03:30 CDMX llamando a la función con `x-cron-secret`. La primera corrida va en `dry_run=1` con `desde=2026-09-01`.
+
+### Lo que sigue sin fuente automática
+- **Retenciones de ISR/IVA de Mercado Libre:** la API no las expone. Se configuran como % (dato del contador).
+- **Depósitos bancarios efectivos:** se concilian con Tesorería (`liquidacion_marketplace`). El reporte de liberaciones de Mercado Pago requiere otra autorización.
+
+## 6. Garantías de la sincronización (revisión de ChatGPT/Codex en #170)
+
+La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan simulaciones. La Edge Function solo conecta las APIs con Supabase.
+
+| Garantía | Cómo |
+|---|---|
+| `dry_run` sin escrituras comerciales | No guarda órdenes, publicaciones ni liquidaciones, ni registra éxito o fallo ordinario. **Excepciones (sí escribe):** (1) toma y libera el turno de la cuenta; (2) si el access token venció, **renueva la credencial y guarda la nueva en Vault**, porque la plataforma invalida la anterior al rotarla; (3) si esa credencial no se pudo guardar, registra el fallo crítico y deja la cuenta `DESCONECTADA`. Por eso un `dry_run` no es una simulación sin efectos sobre las credenciales. |
+| Sin corridas simultáneas | `tomar_turno_canal(cuenta, minutos, ejecucion)`: un turno exclusivo de 15 minutos por cuenta, atómico, con un identificador único de ejecución (`sync_ejecucion_id`). `liberar_turno_canal` y el registro de éxito o fallo solo actúan si el turno sigue siendo de esa ejecución: una corrida cuyo turno venció no libera ni pisa el de otra. Toda escritura de datos pasa por `guardar_lote_canal(cuenta, ejecucion, tipo, filas, marca, barrido_completo)`: **una sola transacción** que bloquea la cuenta (`for update`), valida ejecución y vencimiento, extiende el turno y hace los *upserts* (máximo 500 filas; órdenes de 50 en 50). Organización, negocio, cuenta y canal salen de la cuenta, no del lote, las validaciones usan `clock_timestamp()` tomado después del bloqueo (no `now()`, que es la hora de inicio de la transacción). Devuelve `{escritas, colisiones, itemsEliminados, obsoletas}` con filas realmente afectadas; una orden, publicación o liquidación de otra cuenta no se escribe y se reporta en `colisiones` (y en la cobertura de la cuenta). Los items de cada orden se reemplazan: los que ya no vienen se borran; si la orden no trae la clave `items`, no se tocan. Las publicaciones ausentes solo se marcan con `barrido_completo = true` y una marca no anterior al inicio del turno de esa ejecución (`sync_iniciado_en`). Probado con dos sesiones: B no puede vencer el turno mientras A escribe, y A falla al reanudar después de que B tomó el turno. `renovar_turno_canal` se sigue usando antes de rotar la credencial. `guardar_credencial_canal(cuenta, credencial, ejecucion)` bloquea la fila y rechaza la escritura si el turno no es de esa ejecución o ya venció. El alta inicial (sin ejecución) solo procede si no hay turno activo. |
+| Sin pérdida de credenciales | Se reutiliza el access token mientras siga vigente. Al renovar, el token nuevo se guarda con 3 reintentos **antes** de usarlo; si no se puede, la cuenta queda `DESCONECTADA` con aviso de "credencial en riesgo". Una credencial incompleta o inválida nunca reemplaza a la anterior. |
+| Recuperación automática | Una cuenta en `ERROR` se reintenta con espera creciente (15 min × 2ⁿ, máximo 24 h) y vuelve a `ACTIVA` en cuanto una corrida sale bien. |
+| Identidad | `/users/me` en Mercado Libre y `/authorization/202309/shops` en TikTok deben coincidir con la cuenta registrada. |
+| Ventana y tiempo | Máximo 120 días por corrida. El tiempo se reparte entre cuentas; si no alcanza, la cobertura queda `completa: false`. |
+| Publicaciones obsoletas | Solo con un barrido completo se marcan como `no_encontrada`. |
+| Variantes | Llaves `(publicacion, variacion, sku)`, para que los tonos de un mismo producto no choquen. |
+| Cobertura real | Por corrida: órdenes, % de envíos con costo, % de comisiones conocidas, % de publicaciones con SKU, % de liquidaciones con neto, liquidaciones (derivadas o de estado de cuenta) y fuentes no disponibles. Solo cuentan números finitos y SKU no vacíos: `null`, `undefined`, `NaN`, texto o SKU en blanco cuentan como dato faltante. Se guarda en `canal_cuentas.cobertura`. |
+| Liquidaciones de Mercado Libre | Se derivan de las órdenes (neto por `money_release_date` y `money_release_status`) y se marcan `derivada_de_orden`. El depósito bancario real se concilia en Tesorería. |
+| Credenciales de TikTok | Se renuevan con `/api/v2/token/refresh`; se verifican sus vencimientos. |
+
+### Precio mínimo por publicación (`precioMinimo.js`)
+
+- **Utilidad comercial** = precio sin IVA − comisión − costo fijo − envío − extras − costo SICAR. Las retenciones de IVA e ISR no son gasto.
+- **Efectivo después de retenciones** = depósito de la plataforma − costo SICAR. Es caja, no utilidad.
+- Entrega **precio sin pérdida**, **precio con margen objetivo** y, para el precio actual, su veredicto evaluado directamente y el **descuento máximo permitido** (sin pérdida y con margen), con los rangos intermedios que no cumplen por los tramos de envío.
+- Rechaza negativos, paso inválido, tramos con huecos, solapes, inicio distinto de 0 o sin último tramo abierto. Un solo barrido acotado a 100 000 evaluaciones (incluye el precio actual y los rangos de descuento) y máximo 200 promociones.
+- Cada promoción (precio fijo o % de descuento) y el descuento máximo sugerido se reevalúan en su **precio exacto**.
+- El IVA trasladado es obligatorio: nunca se asume 0 (si no cobras IVA, captura 0).
+- Sin retenciones sí calcula la utilidad comercial. El depósito y el efectivo quedan `null` y aparecen en `pendientes`.
+- Solo sugiere. No cambia precios.
+
+**Por verificar contra la documentación oficial al registrar las apps:** los campos de cargos por orden de TikTok y los de `products/search`.
+
+### Cobertura mensual de un canal
+
+`canal_cuentas.historico_desde` indica desde qué fecha el historial de órdenes de la cuenta está completo (lo fija la carga inicial verificada). Un mes cuenta como completo en el estado de resultados solo si `historico_desde ≤ día 1 del mes` y la última sincronización exitosa es posterior al cierre del mes. Antes de esa fecha, las ventas son dato faltante, no cero (la conexión actual de Mercado Libre solo tiene órdenes desde el 31 de octubre de 2026).
+
