@@ -33,7 +33,7 @@ import ResumenAbonosProveedores from "./ResumenAbonosProveedores";
 import { generarResumenMovimientosCaja } from "../utils/resumenMovimientosCaja";
 import { resumirAbonosProveedores } from "../utils/conciliarAbonosProveedorSicar.js";
 import { cruzarChequesSicarConTesoreria } from "../utils/cruceSicarTesoreria";
-import { adjuntarPeriodoSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../utils/periodoSicar";
+import { adjuntarPeriodoSicar, extraerAlcanceSicar, extraerPeriodoSicar, normalizarFechaSicar } from "../utils/periodoSicar";
 import { obtenerMovimientosParaCruceSicar } from "../../tesoreria/services/tesoreriaService";
 import { obtenerCreditosProveedoresActuales } from "../../inteligencia/services/creditosProveedoresService";
 import { resumirCortesCajaSicar } from "../../finanzas/utils/cortesCajaSicar";
@@ -507,6 +507,8 @@ if (
   datosNormalizados = adjuntarPeriodoSicar(datosNormalizados, tipoReporte, {
     periodoInicio,
     periodoFin,
+    // Si el reporte trae filtros, sus días no prueban venta cero.
+    alcance: extraerAlcanceSicar(filasAntesEncabezados).alcance,
   });
 }
 

@@ -63,6 +63,33 @@ export function extraerPeriodoSicar(filasAntesEncabezados = []) {
   return { periodoInicio: null, periodoFin: null };
 }
 
+/*
+ * Alcance del reporte según su encabezado (filas antes de la tabla).
+ * Conservador: solo marca "filtrado" si encuentra una etiqueta de filtro
+ * conocida con un valor distinto de "todos"; "completo" si encuentra
+ * filtros y todos dicen "todos"; null si el encabezado no trae filtros
+ * reconocibles (desconocido, nunca se asume completo).
+ * Pendiente validar contra encabezados reales de SICAR.
+ */
+const ETIQUETAS_FILTRO = ["departamento", "categoria", "categoría", "vendedor", "cliente", "articulo", "artículo", "marca", "proveedor", "linea", "línea", "cajero", "caja", "usuario", "filtro"];
+const VALORES_TODOS = new Set(["todos", "todas", "todo", "(todos)", "(todas)", "*", ""]);
+
+export function extraerAlcanceSicar(filasAntesEncabezados = []) {
+  const filtros = [];
+  for (const fila of filasAntesEncabezados || []) {
+    if (!Array.isArray(fila)) continue;
+    fila.forEach((celda, i) => {
+      const etiqueta = String(celda ?? "").trim().toLowerCase().replace(/:$/, "");
+      if (!ETIQUETAS_FILTRO.includes(etiqueta)) return;
+      const valor = String(fila.slice(i + 1).find((v) => String(v ?? "").trim() !== "") ?? "").trim();
+      filtros.push({ filtro: etiqueta, valor });
+    });
+  }
+  if (!filtros.length) return { alcance: null, filtros };
+  const filtrado = filtros.some((f) => !VALORES_TODOS.has(f.valor.toLowerCase()));
+  return { alcance: filtrado ? "filtrado" : "completo", filtros };
+}
+
 export function adjuntarPeriodoSicar(datosNormalizados, tipoReporte, periodo) {
   const tiposConPeriodo = new Set([
     "Ventas por artículo",
@@ -77,5 +104,6 @@ export function adjuntarPeriodoSicar(datosNormalizados, tipoReporte, periodo) {
     ...fila,
     periodoInicio: periodo?.periodoInicio ?? null,
     periodoFin: periodo?.periodoFin ?? null,
+    ...(periodo && Object.prototype.hasOwnProperty.call(periodo, "alcance") ? { alcanceSicar: periodo.alcance ?? null } : {}),
   }));
 }
