@@ -96,7 +96,7 @@ La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan si
 | Garantía | Cómo |
 |---|---|
 | `dry_run` sin escrituras comerciales | No guarda órdenes, publicaciones ni liquidaciones, ni registra éxito o fallo ordinario. **Excepciones (sí escribe):** (1) toma y libera el turno de la cuenta; (2) si el access token venció, **renueva la credencial y guarda la nueva en Vault**, porque la plataforma invalida la anterior al rotarla; (3) si esa credencial no se pudo guardar, registra el fallo crítico y deja la cuenta `DESCONECTADA`. Por eso un `dry_run` no es una simulación sin efectos sobre las credenciales. |
-| Sin corridas simultáneas | `tomar_turno_canal(cuenta, minutos, ejecucion)`: un turno exclusivo de 15 minutos por cuenta, atómico, con un identificador único de ejecución (`sync_ejecucion_id`). `liberar_turno_canal` y el registro de éxito o fallo solo actúan si el turno sigue siendo de esa ejecución: una corrida cuyo turno venció no libera ni pisa el de otra. Riesgo residual: una corrida vencida aún podría terminar de escribir datos; son *upserts* idempotentes de la misma API. |
+| Sin corridas simultáneas | `tomar_turno_canal(cuenta, minutos, ejecucion)`: un turno exclusivo de 15 minutos por cuenta, atómico, con un identificador único de ejecución (`sync_ejecucion_id`). `liberar_turno_canal` y el registro de éxito o fallo solo actúan si el turno sigue siendo de esa ejecución: una corrida cuyo turno venció no libera ni pisa el de otra. Además, `renovar_turno_canal` se llama antes de rotar la credencial y antes de cada lote de escritura (cada 50 órdenes, publicaciones, liquidaciones y el marcado de obsoletas): si el turno venció o es de otra corrida, se detiene sin escribir más. `guardar_credencial_canal(cuenta, credencial, ejecucion)` bloquea la fila y rechaza la escritura si el turno no es de esa ejecución o ya venció. El alta inicial (sin ejecución) solo procede si no hay turno activo. |
 | Sin pérdida de credenciales | Se reutiliza el access token mientras siga vigente. Al renovar, el token nuevo se guarda con 3 reintentos **antes** de usarlo; si no se puede, la cuenta queda `DESCONECTADA` con aviso de "credencial en riesgo". Una credencial incompleta o inválida nunca reemplaza a la anterior. |
 | Recuperación automática | Una cuenta en `ERROR` se reintenta con espera creciente (15 min × 2ⁿ, máximo 24 h) y vuelve a `ACTIVA` en cuanto una corrida sale bien. |
 | Identidad | `/users/me` en Mercado Libre y `/authorization/202309/shops` en TikTok deben coincidir con la cuenta registrada. |
@@ -112,7 +112,10 @@ La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan si
 - **Utilidad comercial** = precio sin IVA − comisión − costo fijo − envío − extras − costo SICAR. Las retenciones de IVA e ISR no son gasto.
 - **Efectivo después de retenciones** = depósito de la plataforma − costo SICAR. Es caja, no utilidad.
 - Entrega **precio sin pérdida**, **precio con margen objetivo** y, para el precio actual, su veredicto evaluado directamente y el **descuento máximo permitido** (sin pérdida y con margen), con los rangos intermedios que no cumplen por los tramos de envío.
-- Rechaza negativos, paso inválido, tramos con huecos, solapes, inicio distinto de 0 o sin último tramo abierto, y más de 100 000 evaluaciones.
+- Rechaza negativos, paso inválido, tramos con huecos, solapes, inicio distinto de 0 o sin último tramo abierto. Un solo barrido acotado a 100 000 evaluaciones (incluye el precio actual y los rangos de descuento) y máximo 200 promociones.
+- Cada promoción (precio fijo o % de descuento) y el descuento máximo sugerido se reevalúan en su **precio exacto**.
+- El IVA trasladado es obligatorio: nunca se asume 0 (si no cobras IVA, captura 0).
+- Sin retenciones sí calcula la utilidad comercial. El depósito y el efectivo quedan `null` y aparecen en `pendientes`.
 - Solo sugiere. No cambia precios.
 
 **Por verificar contra la documentación oficial al registrar las apps:** los campos de cargos por orden de TikTok y los de `products/search`.

@@ -17,7 +17,8 @@ const datos = {
   cobertura: { completa: true },
 };
 
-function simulacion({ vigente = true, identidad = "123", fallaGuardarCred = 0, fallaDescarga = false, turnoLibre = true } = {}) {
+function simulacion({ vigente = true, identidad = "123", fallaGuardarCred = 0, fallaDescarga = false, turnoLibre = true, turnoVenceEn = Infinity } = {}) {
+  let renovaciones = 0;
   const registro = [];
   let fallosCred = fallaGuardarCred;
   let turno = !turnoLibre;
@@ -30,9 +31,10 @@ function simulacion({ vigente = true, identidad = "123", fallaGuardarCred = 0, f
   const almacen = {
     tomarTurno: async () => { if (turno) return false; turno = true; registro.push("tomarTurno"); return true; },
     liberarTurno: async () => { turno = false; registro.push("liberarTurno"); },
+    renovarTurno: async () => ++renovaciones < turnoVenceEn,
     leerCredencial: async () => ({ access_token: "a", refresh_token: "r1" }),
     guardarCredencial: async () => { if (fallosCred-- > 0) throw new Error("db"); registro.push("guardarCredencial"); },
-    guardarDatos: async () => registro.push("guardarDatos"),
+    guardarDatos: async (_c, _d, { confirmarTurno }) => { await confirmarTurno(); registro.push("guardarDatos"); },
     registrarExito: async () => registro.push("registrarExito"),
     registrarFallo: async (_id, info) => registro.push(["registrarFallo", info.intentos, info.proximoIntento, info.critico]),
   };
@@ -82,9 +84,10 @@ test("turno con identificador de ejecución: una corrida vencida no libera el tu
   const almacen = {
     tomarTurno: async (_id, _min, ejecucion) => { if (dueno) return false; dueno = ejecucion; return true; },
     liberarTurno: async (_id, ejecucion) => { if (dueno === ejecucion) dueno = null; else eventos.push(`ignorado ${ejecucion}`); },
+    renovarTurno: async (_id, ejecucion) => dueno === ejecucion,
     leerCredencial: async () => ({ access_token: "a", refresh_token: "r" }),
     guardarCredencial: async () => {},
-    guardarDatos: async () => {},
+    guardarDatos: async (_c, _d, { confirmarTurno }) => { await confirmarTurno(); eventos.push("datos"); },
     registrarExito: async (_id, info) => eventos.push(`exito ${info.ejecucionId}`),
     registrarFallo: async () => {},
   };
@@ -104,6 +107,20 @@ test("turno con identificador de ejecución: una corrida vencida no libera el tu
   await a;
   assert.equal(dueno, "B", "A no debe liberar el turno de B");
   assert.ok(eventos.includes("ignorado A"));
+  // A tampoco escribió datos ni registró éxito tras perder el turno.
+  assert.equal(eventos.filter((e) => e === "datos").length, 1);
+  assert.ok(!eventos.includes("exito A"));
+  assert.equal((await a).turnoPerdido, true);
+});
+
+test("turno perdido: no escribe datos, no registra fallo ajeno y no rota credencial sin turno", async () => {
+  const s = simulacion({ turnoVenceEn: 1 }); // la primera renovación ya falla
+  const r = await sincronizarCuenta(cuenta, opciones(s));
+  assert.equal(r.turnoPerdido, true);
+  assert.deepEqual(s.registro, ["tomarTurno", "liberarTurno"]);
+  const c = simulacion({ vigente: false, turnoVenceEn: 1 });
+  await sincronizarCuenta(cuenta, opciones(c));
+  assert.ok(!c.registro.includes("renovar"), "no rota la credencial sin turno vigente");
 });
 
 test("cobertura: undefined, NaN, texto o SKU vacío no cuentan como dato", () => {

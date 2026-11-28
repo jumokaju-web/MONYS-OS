@@ -68,10 +68,14 @@ async function conReintentos(fn, intentos = 3) {
  * }
  * almacen: {
  *   tomarTurno(cuentaId, minutos, ejecucionId) → boolean
+ *   renovarTurno(cuentaId, ejecucionId, minutos) → boolean
+ *     (extiende solo si el turno sigue siendo suyo y no ha vencido)
  *   liberarTurno(cuentaId, ejecucionId)   (solo libera si el turno es suyo)
  *   leerCredencial(cuentaId) → objeto | null
- *   guardarCredencial(cuentaId, cred)
- *   guardarDatos(cuenta, datos)
+ *   guardarCredencial(cuentaId, cred, ejecucionId)
+ *     (la base rechaza la escritura si el turno ya no es de esta ejecución)
+ *   guardarDatos(cuenta, datos, { confirmarTurno })
+ *     (debe llamar confirmarTurno() antes de cada lote de escritura)
  *   registrarExito(cuentaId, { ahora, cobertura, ejecucionId })
  *   registrarFallo(cuentaId, { ahora, intentos, proximoIntento, mensaje, critico, ejecucionId })
  * }
@@ -82,6 +86,12 @@ async function conReintentos(fn, intentos = 3) {
  * la anterior al rotarla: no guardarla dejaría la cuenta sin acceso); y
  * registra un fallo crítico de credencial para que la cuenta quede marcada.
  */
+function turnoPerdido() {
+  const error = new Error("El turno de esta sincronización venció y otra corrida pudo tomarlo; no se escribió nada más.");
+  error.turnoPerdido = true;
+  return error;
+}
+
 function idAleatorio() {
   return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 }
@@ -101,11 +111,17 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
     let credencial = await almacen.leerCredencial(cuenta.id);
     if (!credencial) throw new Error("La cuenta no tiene credenciales autorizadas.");
 
+    const confirmarTurno = async () => {
+      if (!(await almacen.renovarTurno(cuenta.id, ejecucionId, MINUTOS_TURNO))) throw turnoPerdido();
+    };
+
     if (!proveedor.credencialVigente(credencial, ahora)) {
+      // Turno renovado justo antes de rotar: así hay margen para guardar.
+      await confirmarTurno();
       const nueva = await proveedor.renovar(credencial);
       if (!nueva?.access_token || !nueva?.refresh_token) throw new Error("La plataforma no devolvió credenciales nuevas.");
       try {
-        await conReintentos(() => almacen.guardarCredencial(cuenta.id, nueva));
+        await conReintentos(() => almacen.guardarCredencial(cuenta.id, nueva, ejecucionId));
       } catch {
         const error = new Error("CREDENCIAL EN RIESGO: la plataforma renovó el acceso pero no se pudo guardar. Reautoriza la cuenta.");
         error.critico = true;
@@ -131,15 +147,17 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
     };
     if (dryRun) return { ...resumen, escrito: false };
 
-    await almacen.guardarDatos(cuenta, datos);
+    await confirmarTurno();
+    await almacen.guardarDatos(cuenta, datos, { confirmarTurno });
     await almacen.registrarExito(cuenta.id, { ahora, cobertura: datos.cobertura, ejecucionId });
     return { ...resumen, escrito: true };
   } catch (error) {
     const mensaje = String(error?.message || error).slice(0, 1000);
     const intentos = (Number(cuenta.intentos_fallidos) || 0) + 1;
     const critico = Boolean(error?.critico);
-    // Un fallo crítico de credencial se registra también en dry_run.
-    if (!dryRun || critico) {
+    // Un fallo crítico de credencial se registra también en dry_run. Si el
+    // turno se perdió (y no es crítico), el estado ya es de otra corrida.
+    if (critico || (!dryRun && !error?.turnoPerdido)) {
       await almacen.registrarFallo(cuenta.id, {
         ahora,
         intentos,
@@ -149,7 +167,7 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
         ejecucionId,
       });
     }
-    return { ...base, credencialRotada, error: mensaje, critico };
+    return { ...base, credencialRotada, error: mensaje, critico, turnoPerdido: Boolean(error?.turnoPerdido) };
   } finally {
     await almacen.liberarTurno(cuenta.id, ejecucionId);
   }

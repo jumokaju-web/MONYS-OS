@@ -222,6 +222,26 @@ begin
 end;
 $$;
 
+-- Extiende el turno solo si sigue siendo de esta ejecución y no ha vencido.
+-- La Edge Function lo llama antes de rotar credenciales y antes de cada
+-- lote de escritura: una corrida vencida se detiene sin escribir.
+create or replace function public.renovar_turno_canal(p_cuenta_id uuid, p_ejecucion uuid, p_minutos integer)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  renovado uuid;
+begin
+  if p_minutos is null or p_minutos < 1 or p_minutos > 60 then
+    raise exception 'Duración de turno inválida';
+  end if;
+  update public.canal_cuentas
+  set sync_en_curso_hasta = now() + make_interval(mins => p_minutos)
+  where id = p_cuenta_id and sync_ejecucion_id = p_ejecucion and sync_en_curso_hasta >= now()
+  returning id into renovado;
+  return renovado is not null;
+end;
+$$;
+
+revoke all on function public.renovar_turno_canal(uuid, uuid, integer) from public, anon, authenticated;
 revoke all on function public.tomar_turno_canal(uuid, integer, uuid) from public, anon, authenticated;
 revoke all on function public.liberar_turno_canal(uuid, uuid) from public, anon, authenticated;
 do $$
@@ -229,6 +249,7 @@ begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
     execute 'grant execute on function public.tomar_turno_canal(uuid, integer, uuid) to service_role';
     execute 'grant execute on function public.liberar_turno_canal(uuid, uuid) to service_role';
+    execute 'grant execute on function public.renovar_turno_canal(uuid, uuid, integer) to service_role';
   end if;
 end;
 $$;
@@ -250,15 +271,29 @@ begin
       end;
       $$;
     $f$;
+    execute 'drop function if exists public.guardar_credencial_canal(uuid, text)';
+    -- p_ejecucion: la corrida que rota la credencial debe tener el turno
+    -- vigente (la fila queda bloqueada mientras se escribe). Sin ejecución
+    -- (alta inicial por OAuth) solo se permite si no hay turno activo.
     execute $f$
-      create or replace function public.guardar_credencial_canal(p_cuenta_id uuid, p_credencial text)
+      create or replace function public.guardar_credencial_canal(p_cuenta_id uuid, p_credencial text, p_ejecucion uuid)
       returns void language plpgsql security definer set search_path = '' as $$
       declare
         existente uuid;
         datos jsonb;
+        cuenta record;
       begin
-        if not exists (select 1 from public.canal_cuentas where id = p_cuenta_id) then
+        select sync_ejecucion_id, sync_en_curso_hasta into cuenta
+        from public.canal_cuentas where id = p_cuenta_id for update;
+        if not found then
           raise exception 'Cuenta de canal inexistente';
+        end if;
+        if p_ejecucion is null then
+          if cuenta.sync_en_curso_hasta is not null and cuenta.sync_en_curso_hasta >= now() then
+            raise exception 'Hay una sincronización en curso: no se reemplaza la credencial';
+          end if;
+        elsif cuenta.sync_ejecucion_id is distinct from p_ejecucion or cuenta.sync_en_curso_hasta is null or cuenta.sync_en_curso_hasta < now() then
+          raise exception 'Turno vencido o ajeno: no se guarda la credencial';
         end if;
         datos := p_credencial::jsonb;  -- debe ser JSON válido
         if coalesce(datos->>'access_token', '') = '' or coalesce(datos->>'refresh_token', '') = '' then
@@ -274,10 +309,10 @@ begin
       $$;
     $f$;
     execute 'revoke all on function public.leer_credencial_canal(uuid) from public, anon, authenticated';
-    execute 'revoke all on function public.guardar_credencial_canal(uuid, text) from public, anon, authenticated';
+    execute 'revoke all on function public.guardar_credencial_canal(uuid, text, uuid) from public, anon, authenticated';
     if exists (select 1 from pg_roles where rolname = 'service_role') then
       execute 'grant execute on function public.leer_credencial_canal(uuid) to service_role';
-      execute 'grant execute on function public.guardar_credencial_canal(uuid, text) to service_role';
+      execute 'grant execute on function public.guardar_credencial_canal(uuid, text, uuid) to service_role';
     end if;
   end if;
 end;

@@ -18,11 +18,15 @@
  *   el descuento máximo permitido, con los rangos intermedios que no
  *   cumplen.
  *
- * Sin costo SICAR, comisión, retenciones o envío válidos no calcula: dice
- * qué falta. Solo sugiere; no cambia precios. Módulo puro.
+ * Sin costo SICAR, comisión, IVA trasladado (0 explícito si no cobras IVA)
+ * o envío válidos no calcula: dice qué falta. Sin retenciones sí calcula la
+ * utilidad comercial, pero el efectivo queda pendiente. Cada promoción y
+ * cada descuento sugerido se reevalúan en su precio exacto. Todas las
+ * iteraciones están acotadas. Solo sugiere; no cambia precios. Módulo puro.
  */
 
 const MAX_ITERACIONES = 100_000;
+const MAX_PROMOCIONES = 200;
 
 function numero(valor) {
   if (valor === null || valor === undefined || typeof valor === "boolean" || typeof valor === "object") return null;
@@ -74,9 +78,9 @@ export function desglosePrecio(precio, p) {
   const envio = p.envio(precio);
   if (envio === null || envio === undefined) return null;
   const extras = precio * (p.extrasPct / 100);
-  const retencionIva = precio * (p.retencionIvaPct / 100);
-  const retencionIsr = precio * (p.retencionIsrPct / 100);
-  const depositoPlataforma = precio - comision - p.costoFijoUnidad - envio - extras - retencionIva - retencionIsr;
+  const retencionIva = p.retencionIvaPct === null ? null : precio * (p.retencionIvaPct / 100);
+  const retencionIsr = p.retencionIsrPct === null ? null : precio * (p.retencionIsrPct / 100);
+  const retencionesConocidas = p.retencionIvaPct !== null && p.retencionIsrPct !== null;
   const utilidadComercial = sinIva - comision - p.costoFijoUnidad - envio - extras - p.costoUnitario;
   return {
     precio,
@@ -90,8 +94,11 @@ export function desglosePrecio(precio, p) {
     costoSicar: p.costoUnitario,
     utilidadComercial,
     margenComercialPct: sinIva > 0 ? (utilidadComercial / sinIva) * 100 : null,
-    depositoPlataforma,
-    efectivoDespuesDeRetenciones: depositoPlataforma - p.costoUnitario,
+    // Sin retenciones conocidas el efectivo queda pendiente, no en cero.
+    depositoPlataforma: retencionesConocidas ? precio - comision - p.costoFijoUnidad - envio - extras - retencionIva - retencionIsr : null,
+    efectivoDespuesDeRetenciones: retencionesConocidas
+      ? precio - comision - p.costoFijoUnidad - envio - extras - retencionIva - retencionIsr - p.costoUnitario
+      : null,
   };
 }
 
@@ -100,6 +107,7 @@ const redondearDesglose = (d) =>
 
 export function precioMinimoRentable(entrada = {}) {
   const faltantes = [];
+  const pendientes = [];
   const leer = (clave, { requerido = false, minimo = 0, maximoExclusivo = null, porDefecto = null, etiqueta }) => {
     const crudo = entrada[clave];
     if (crudo === undefined || crudo === null || crudo === "") {
@@ -117,9 +125,13 @@ export function precioMinimoRentable(entrada = {}) {
   const costo = leer("costoUnitario", { requerido: true, etiqueta: "costo SICAR del producto (vincula la publicación)" });
   if (costo === 0) faltantes.push("costo SICAR mayor a cero");
   const comision = leer("comisionPct", { requerido: true, maximoExclusivo: 100, etiqueta: "% de comisión de la plataforma" });
-  const retencionIva = leer("retencionIvaPct", { requerido: true, maximoExclusivo: 100, etiqueta: "% de retención de IVA" });
-  const retencionIsr = leer("retencionIsrPct", { requerido: true, maximoExclusivo: 100, etiqueta: "% de retención de ISR" });
-  const ivaTrasladado = leer("ivaTrasladadoPct", { porDefecto: 0, maximoExclusivo: 100, etiqueta: "% de IVA trasladado" });
+  // IVA: nunca se asume 0. Si no cobras IVA, captura 0 explícito.
+  const ivaTrasladado = leer("ivaTrasladadoPct", { requerido: true, maximoExclusivo: 100, etiqueta: "% de IVA trasladado en el precio (0 si no cobras IVA)" });
+  // Retenciones: opcionales para la utilidad comercial; sin ellas el efectivo queda pendiente.
+  const retencionIva = leer("retencionIvaPct", { maximoExclusivo: 100, etiqueta: "% de retención de IVA" });
+  const retencionIsr = leer("retencionIsrPct", { maximoExclusivo: 100, etiqueta: "% de retención de ISR" });
+  if (entrada.retencionIvaPct == null || entrada.retencionIvaPct === "") pendientes.push("% de retención de IVA (efectivo pendiente de calcular)");
+  if (entrada.retencionIsrPct == null || entrada.retencionIsrPct === "") pendientes.push("% de retención de ISR (efectivo pendiente de calcular)");
   const fijo = leer("costoFijoUnidad", { porDefecto: 0, etiqueta: "costo fijo por unidad" });
   const extras = leer("extrasPct", { porDefecto: 0, maximoExclusivo: 100, etiqueta: "% de extras (publicidad, cupón)" });
   const margen = leer("margenObjetivoPct", { maximoExclusivo: 100, etiqueta: "margen objetivo" });
@@ -131,6 +143,8 @@ export function precioMinimoRentable(entrada = {}) {
   if (margen === null && ganancia === null && !faltantes.some((t) => t.startsWith("margen") || t.startsWith("ganancia"))) {
     faltantes.push("margen objetivo (%) o ganancia mínima ($)");
   }
+  const promociones = Array.isArray(entrada.promociones) ? entrada.promociones : [];
+  if (promociones.length > MAX_PROMOCIONES) faltantes.push(`máximo ${MAX_PROMOCIONES} promociones por cálculo`);
 
   let envio = null;
   const envioFijo = leer("envioFijo", { etiqueta: "envío fijo" });
@@ -151,56 +165,80 @@ export function precioMinimoRentable(entrada = {}) {
     ivaTrasladadoPct: ivaTrasladado, costoFijoUnidad: fijo, extrasPct: extras, envio,
   };
   const metaPara = (d) => (margen !== null ? d.precioSinIva * (margen / 100) : ganancia);
-  const sinPerdida = (d) => d.utilidadComercial >= -1e-9;
-  const conMargen = (d) => d.utilidadComercial >= metaPara(d) - 1e-9;
+  const sinPerdida = (d) => Boolean(d) && d.utilidadComercial >= -1e-9;
+  const conMargen = (d) => Boolean(d) && d.utilidadComercial >= metaPara(d) - 1e-9;
+  const veredictoDe = (d) => (!d ? "sin_tramo_de_envio" : !sinPerdida(d) ? "pierde_dinero" : !conMargen(d) ? "debajo_del_margen" : "cumple");
 
-  const limite = Math.max(costo * 20, 10_000);
-  if ((limite - costo) / paso > MAX_ITERACIONES) {
+  // Un solo barrido acotado sobre una rejilla entera (sin acumular errores
+  // de punto flotante): mínimos y rangos intermedios salen del mismo paso.
+  const inicio = Math.ceil(costo / paso - 1e-9);
+  const fin = Math.floor(Math.max(costo * 20, 10_000, actual ?? 0) / paso + 1e-9);
+  if (fin - inicio + 1 > MAX_ITERACIONES) {
     return { calculable: false, faltantes: [`paso de cálculo más grande (máximo ${MAX_ITERACIONES} evaluaciones)`] };
   }
-  const buscar = (criterio) => {
-    for (let precio = Math.ceil(costo / paso) * paso; precio <= limite; precio += paso) {
-      const d = desglosePrecio(precio, p);
-      if (d && criterio(d)) return precio;
-    }
-    return null;
+  const precioEn = (k) => Math.round(k * paso * 1e6) / 1e6;
+  const marcas = [];
+  let kSinPerdida = null;
+  let kConMargen = null;
+  for (let k = inicio; k <= fin; k++) {
+    const d = desglosePrecio(precioEn(k), p);
+    const marca = { sinPerdida: sinPerdida(d), conMargen: conMargen(d) };
+    marcas.push(marca);
+    if (kSinPerdida === null && marca.sinPerdida) kSinPerdida = k;
+    if (kConMargen === null && marca.conMargen) kConMargen = k;
+  }
+  const precioSinPerdida = kSinPerdida === null ? null : precioEn(kSinPerdida);
+  const precioConMargen = kConMargen === null ? null : precioEn(kConMargen);
+
+  const evaluar = (precio) => {
+    const d = desglosePrecio(precio, p);
+    return { precio: redondear(precio), veredicto: veredictoDe(d), desglose: redondearDesglose(d) };
   };
-  const precioSinPerdida = buscar(sinPerdida);
-  const precioConMargen = buscar(conMargen);
 
   let evaluacionActual = null;
   if (actual !== null) {
-    const d = desglosePrecio(actual, p);
-    const veredicto = !d ? "sin_tramo_de_envio" : !sinPerdida(d) ? "pierde_dinero" : !conMargen(d) ? "debajo_del_margen" : "cumple";
-    // Descuento máximo: el precio más bajo ≤ actual que cumple, y los
-    // rangos intermedios que no cumplen (el envío por tramos puede hacer
-    // que un precio menor vuelva a cumplir).
-    const rangoQueNoCumple = (criterio, desde) => {
-      const huecos = [];
-      let inicio = null;
-      for (let precio = desde; precio <= actual + 1e-9; precio += paso) {
-        const ok = (() => { const x = desglosePrecio(precio, p); return x && criterio(x); })();
-        if (!ok && inicio === null) inicio = precio;
-        if (ok && inicio !== null) { huecos.push([redondear(inicio), redondear(precio - paso)]); inicio = null; }
+    const veredicto = veredictoDe(desglosePrecio(actual, p));
+    const descuento = (kMinimo, clave, criterio) => {
+      if (kMinimo === null || precioEn(kMinimo) > actual) return { maximoPct: 0, precioMinimo: kMinimo === null ? null : precioEn(kMinimo), rangosQueNoCumplen: [] };
+      // Rangos de la rejilla entre el mínimo y el actual que no cumplen.
+      const kActual = Math.floor(actual / paso + 1e-9);
+      const rangos = [];
+      let abierto = null;
+      for (let k = kMinimo; k <= kActual; k++) {
+        const ok = marcas[k - inicio][clave];
+        if (!ok && abierto === null) abierto = k;
+        if (ok && abierto !== null) { rangos.push([redondear(precioEn(abierto)), redondear(precioEn(k - 1))]); abierto = null; }
       }
-      if (inicio !== null) huecos.push([redondear(inicio), redondear(actual)]);
-      return huecos;
-    };
-    const descuento = (minimo, criterio) => {
-      if (minimo === null || minimo > actual) return { maximoPct: 0, precioMinimo: minimo, rangosQueNoCumplen: [] };
-      return {
-        maximoPct: Math.floor(((actual - minimo) / actual) * 1000) / 10,
-        precioMinimo: minimo,
-        rangosQueNoCumplen: rangoQueNoCumple(criterio, minimo),
-      };
+      if (abierto !== null) rangos.push([redondear(precioEn(abierto)), redondear(actual)]);
+      // El descuento se redondea a 0.1% y se reevalúa en su precio exacto;
+      // si ese precio exacto no cumple, se baja el descuento (acotado).
+      let pct = Math.floor(((actual - precioEn(kMinimo)) / actual) * 1000) / 10;
+      let exacto = actual * (1 - pct / 100);
+      for (let intentos = 0; pct > 0 && !criterio(desglosePrecio(exacto, p)) && intentos < 1000; intentos++) {
+        pct = Math.round((pct - 0.1) * 10) / 10;
+        exacto = actual * (1 - pct / 100);
+      }
+      if (!criterio(desglosePrecio(exacto, p))) pct = 0;
+      return { maximoPct: pct, precioMinimo: precioEn(kMinimo), precioExactoConDescuento: redondear(actual * (1 - pct / 100)), rangosQueNoCumplen: rangos };
     };
     evaluacionActual = {
-      veredicto,
-      desglose: redondearDesglose(d),
-      descuentoSinPerdida: veredicto === "pierde_dinero" ? null : descuento(precioSinPerdida, sinPerdida),
-      descuentoConMargen: veredicto === "cumple" ? descuento(precioConMargen, conMargen) : null,
+      ...evaluar(actual),
+      descuentoSinPerdida: veredicto === "pierde_dinero" || veredicto === "sin_tramo_de_envio" ? null : descuento(kSinPerdida, "sinPerdida", sinPerdida),
+      descuentoConMargen: veredicto === "cumple" ? descuento(kConMargen, "conMargen", conMargen) : null,
     };
   }
+
+  // Cada promoción se evalúa en su precio exacto (no en la rejilla).
+  const evaluacionPromociones = promociones.map((promo, i) => {
+    const nombre = String(promo?.nombre ?? `promoción ${i + 1}`);
+    const precioDirecto = numero(promo?.precio);
+    const pct = numero(promo?.descuentoPct);
+    let precio = null;
+    if (precioDirecto !== null && precioDirecto > 0) precio = precioDirecto;
+    else if (pct !== null && pct >= 0 && pct < 100 && actual !== null) precio = actual * (1 - pct / 100);
+    if (precio === null) return { nombre, calculable: false, faltante: actual === null && pct !== null ? "precio actual para aplicar el descuento" : "precio o % de descuento válido" };
+    return { nombre, calculable: true, ...evaluar(precio) };
+  });
 
   return {
     calculable: precioConMargen !== null || precioSinPerdida !== null,
@@ -210,11 +248,14 @@ export function precioMinimoRentable(entrada = {}) {
     desgloseSinPerdida: precioSinPerdida === null ? null : redondearDesglose(desglosePrecio(precioSinPerdida, p)),
     desgloseConMargen: precioConMargen === null ? null : redondearDesglose(desglosePrecio(precioConMargen, p)),
     actual: evaluacionActual,
+    promociones: evaluacionPromociones,
+    pendientes,
+    evaluaciones: fin - inicio + 1,
     motivo: precioConMargen === null ? "Ningún precio razonable alcanza el margen con estos costos." : "",
     supuestos: [
       ivaTrasladado > 0
         ? `El precio incluye ${ivaTrasladado}% de IVA, que no es ingreso.`
-        : "El precio se toma sin desglose de IVA (régimen sin IVA trasladado o por confirmar con el contador).",
+        : "Capturaste 0% de IVA trasladado: el precio completo se toma como ingreso.",
       "Las retenciones de IVA e ISR no son gasto: reducen el depósito, no la utilidad comercial.",
     ],
     nota: "Sugerencia de precio. MONYS OS no cambia precios: la decisión es de la propietaria.",

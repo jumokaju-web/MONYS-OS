@@ -221,6 +221,8 @@ function crearAlmacen(supabase: any) {
   return {
     tomarTurno: (cuentaId: string, minutos: number, ejecucionId: string) =>
       rpc("tomar_turno_canal", { p_cuenta_id: cuentaId, p_minutos: minutos, p_ejecucion: ejecucionId }),
+    renovarTurno: (cuentaId: string, ejecucionId: string, minutos: number) =>
+      rpc("renovar_turno_canal", { p_cuenta_id: cuentaId, p_ejecucion: ejecucionId, p_minutos: minutos }),
     // Solo libera si el turno sigue siendo de esta ejecución.
     liberarTurno: (cuentaId: string, ejecucionId: string) =>
       rpc("liberar_turno_canal", { p_cuenta_id: cuentaId, p_ejecucion: ejecucionId }),
@@ -228,11 +230,17 @@ function crearAlmacen(supabase: any) {
       const texto = await rpc("leer_credencial_canal", { p_cuenta_id: cuentaId });
       return texto ? JSON.parse(texto) : null;
     },
-    guardarCredencial: (cuentaId: string, cred: object) => rpc("guardar_credencial_canal", { p_cuenta_id: cuentaId, p_credencial: JSON.stringify(cred) }),
-    async guardarDatos(cuenta: any, datos: any) {
+    // La base rechaza la credencial si el turno ya no es de esta ejecución.
+    guardarCredencial: (cuentaId: string, cred: object, ejecucionId: string) =>
+      rpc("guardar_credencial_canal", { p_cuenta_id: cuentaId, p_credencial: JSON.stringify(cred), p_ejecucion: ejecucionId }),
+    // confirmarTurno() extiende el turno o lanza error si se perdió: se
+    // llama antes de cada escritura para que una corrida vencida se detenga.
+    async guardarDatos(cuenta: any, datos: any, { confirmarTurno }: { confirmarTurno: () => Promise<void> }) {
       const base = { organization_id: cuenta.organization_id, business_id: cuenta.business_id, cuenta_id: cuenta.id };
       const marca = new Date().toISOString();
+      let escritas = 0;
       for (const { items, ...orden } of datos.ordenes) {
+        if (escritas++ % 50 === 0) await confirmarTurno(); // cada 50 órdenes
         const { data, error } = await supabase.from("canal_ordenes")
           .upsert({ ...base, ...orden, sincronizado_en: marca }, { onConflict: "business_id,canal,external_id" })
           .select("id").single();
@@ -244,17 +252,20 @@ function crearAlmacen(supabase: any) {
         }
       }
       if (datos.publicaciones.length) {
+        await confirmarTurno();
         const { error } = await supabase.from("canal_publicaciones").upsert(
           datos.publicaciones.map((p: any) => ({ ...base, ...p, sincronizado_en: marca })),
           { onConflict: "business_id,canal,publicacion,variacion" });
         if (error) throw new Error(`canal_publicaciones: ${error.message}`);
         // Solo con un barrido completo se marcan las que ya no existen.
         if (datos.cobertura?.completa) {
+          await confirmarTurno();
           await supabase.from("canal_publicaciones").update({ estado: "no_encontrada" })
             .eq("cuenta_id", cuenta.id).lt("sincronizado_en", marca);
         }
       }
       if (datos.liquidaciones.length) {
+        await confirmarTurno();
         const { error } = await supabase.from("canal_liquidaciones").upsert(
           datos.liquidaciones.map((l: any) => ({ ...base, ...l })), { onConflict: "business_id,canal,external_id" });
         if (error) throw new Error(`canal_liquidaciones: ${error.message}`);
