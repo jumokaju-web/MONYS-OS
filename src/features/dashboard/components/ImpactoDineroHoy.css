@@ -1,0 +1,114 @@
+.impacto-dinero {
+  margin: 16px 0;
+  padding: 18px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid #f1d3e2;
+  box-shadow: 0 10px 26px rgba(95, 36, 69, 0.08);
+}
+
+.impacto-dinero header span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #a2346f;
+  font-weight: 700;
+}
+
+.impacto-dinero header h3 {
+  margin: 4px 0 12px;
+  font-size: 19px;
+  color: #281b22;
+}
+
+.impacto-dinero__totales {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.impacto-dinero__totales div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff4f9;
+}
+
+.impacto-dinero__totales small,
+.impacto-dinero__totales span {
+  font-size: 12px;
+  color: #6f5865;
+}
+
+.impacto-dinero__totales strong {
+  font-size: 22px;
+  color: #1f7a4d;
+}
+
+.impacto-dinero__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.impacto-dinero__lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f6e4ee;
+}
+
+.impacto-dinero__lista li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.impacto-dinero__lista small {
+  color: #6f5865;
+  font-size: 12px;
+}
+
+.impacto-dinero__falta {
+  color: #a65b00 !important;
+}
+
+.impacto-dinero__monto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.impacto-dinero__monto strong {
+  color: #1f7a4d;
+}
+
+.impacto-dinero__monto em {
+  font-style: normal;
+  font-size: 11px;
+  color: #6f5865;
+}
+
+.impacto-dinero__nota {
+  font-size: 13px;
+  color: #6f5865;
+  margin: 10px 0;
+}
+
+.impacto-dinero > button {
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #5f2445;
+  color: #fff;
+  font-weight: 700;
+}

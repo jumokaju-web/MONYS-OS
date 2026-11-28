@@ -9,6 +9,10 @@ import {
 import { leerExistenciaReportada } from "../shared/existenciaReportada";
 import { crearPendienteExistenciaDestino } from "../shared/pendienteExistenciaDestino";
 import { calcularUnidadesParaDias } from "../shared/calcularUnidadesParaDias";
+import {
+  calcularImpactoTraspaso,
+  resumirMargenesPorProducto,
+} from "../../../core/impacto/motorImpactoDinero.js";
 
 const DIAS_OBJETIVO_DESTINO = 14;
 const DIAS_RESERVA_ORIGEN = 30;
@@ -589,6 +593,21 @@ export async function generarAnalisisRebalanceo(businessId = null) {
     );
   }
 
+  const margenesPorBranch =
+    new Map();
+
+  function obtenerMargenProducto(branchId, clave) {
+    if (!margenesPorBranch.has(branchId)) {
+      margenesPorBranch.set(
+        branchId,
+        resumirMargenesPorProducto(
+          ventasPorBranch.get(branchId)?.ventas
+        )
+      );
+    }
+    return margenesPorBranch.get(branchId).get(clave) || null;
+  }
+
   const recomendaciones =
     [];
 
@@ -967,7 +986,37 @@ export async function generarAnalisisRebalanceo(businessId = null) {
             cantidadSugerida,
           });
 
+        // Cada sucursal con su propio margen: la venta nueva se realiza al
+        // margen del destino y la venta perdida al del origen. Si el
+        // destino no tiene utilidad registrada del producto, se usa la del
+        // origen como referencia.
+        const margenDestino =
+          obtenerMargenProducto(destino.branch_id, clave);
+        const margenOrigen =
+          obtenerMargenProducto(origen.branch_id, clave);
+        const utilidadDestino =
+          margenDestino?.utilidadUnitaria ?? margenOrigen?.utilidadUnitaria ?? null;
+
+        const impactoDinero =
+          calcularImpactoTraspaso({
+            cantidad: cantidadSugerida,
+            utilidadUnitaria: utilidadDestino,
+            utilidadUnitariaOrigen: margenOrigen?.utilidadUnitaria ?? null,
+            costoUnitario:
+              margenDestino?.costoUnitario ?? margenOrigen?.costoUnitario ?? null,
+            ventaDiariaDestino,
+            existenciaDestino,
+            ventaDiariaOrigen,
+            existenciaOrigen,
+            diasHorizonte: DIAS_OBJETIVO_DESTINO,
+            // La necesidad del destino no confirma una compra: el ahorro
+            // queda sin dato hasta que un plan de compra lo confirme.
+            compraEvitada: null,
+          });
+
         recomendaciones.push({
+          impactoDinero,
+
           productId:
             productoOrigen.codigo ||
             clave,
