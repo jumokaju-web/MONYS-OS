@@ -233,43 +233,26 @@ function crearAlmacen(supabase: any) {
     // La base rechaza la credencial si el turno ya no es de esta ejecución.
     guardarCredencial: (cuentaId: string, cred: object, ejecucionId: string) =>
       rpc("guardar_credencial_canal", { p_cuenta_id: cuentaId, p_credencial: JSON.stringify(cred), p_ejecucion: ejecucionId }),
-    // confirmarTurno() extiende el turno o lanza error si se perdió: se
-    // llama antes de cada escritura para que una corrida vencida se detenga.
-    async guardarDatos(cuenta: any, datos: any, { confirmarTurno }: { confirmarTurno: () => Promise<void> }) {
-      const base = { organization_id: cuenta.organization_id, business_id: cuenta.business_id, cuenta_id: cuenta.id };
+    // Cada lote se escribe con guardar_lote_canal: una sola transacción que
+    // bloquea la cuenta, valida turno y vencimiento, y hace los upserts.
+    // Si el turno ya no es de esta ejecución, la base rechaza el lote.
+    // organización, negocio, cuenta y canal los pone la base desde la cuenta.
+    async guardarDatos(cuenta: any, datos: any, { ejecucionId }: { ejecucionId: string }) {
       const marca = new Date().toISOString();
-      let escritas = 0;
-      for (const { items, ...orden } of datos.ordenes) {
-        if (escritas++ % 50 === 0) await confirmarTurno(); // cada 50 órdenes
-        const { data, error } = await supabase.from("canal_ordenes")
-          .upsert({ ...base, ...orden, sincronizado_en: marca }, { onConflict: "business_id,canal,external_id" })
-          .select("id").single();
-        if (error) throw new Error(`canal_ordenes: ${error.message}`);
-        if (items?.length) {
-          const { error: e } = await supabase.from("canal_orden_items")
-            .upsert(items.map((item: any) => ({ ...item, orden_id: data.id })), { onConflict: "orden_id,publicacion,variacion,sku" });
-          if (e) throw new Error(`canal_orden_items: ${e.message}`);
+      const lote = async (tipo: string, filas: any[], tamano: number) => {
+        for (let i = 0; i < filas.length; i += tamano) {
+          await rpc("guardar_lote_canal", {
+            p_cuenta_id: cuenta.id, p_ejecucion: ejecucionId, p_tipo: tipo, p_filas: filas.slice(i, i + tamano), p_marca: marca,
+          });
         }
+      };
+      await lote("ordenes", datos.ordenes, 50);
+      await lote("publicaciones", datos.publicaciones, 200);
+      // Solo con un barrido completo se marcan las que ya no existen.
+      if (datos.publicaciones.length && datos.cobertura?.completa) {
+        await rpc("guardar_lote_canal", { p_cuenta_id: cuenta.id, p_ejecucion: ejecucionId, p_tipo: "marcar_obsoletas", p_filas: null, p_marca: marca });
       }
-      if (datos.publicaciones.length) {
-        await confirmarTurno();
-        const { error } = await supabase.from("canal_publicaciones").upsert(
-          datos.publicaciones.map((p: any) => ({ ...base, ...p, sincronizado_en: marca })),
-          { onConflict: "business_id,canal,publicacion,variacion" });
-        if (error) throw new Error(`canal_publicaciones: ${error.message}`);
-        // Solo con un barrido completo se marcan las que ya no existen.
-        if (datos.cobertura?.completa) {
-          await confirmarTurno();
-          await supabase.from("canal_publicaciones").update({ estado: "no_encontrada" })
-            .eq("cuenta_id", cuenta.id).lt("sincronizado_en", marca);
-        }
-      }
-      if (datos.liquidaciones.length) {
-        await confirmarTurno();
-        const { error } = await supabase.from("canal_liquidaciones").upsert(
-          datos.liquidaciones.map((l: any) => ({ ...base, ...l })), { onConflict: "business_id,canal,external_id" });
-        if (error) throw new Error(`canal_liquidaciones: ${error.message}`);
-      }
+      await lote("liquidaciones", datos.liquidaciones, 200);
     },
     // Éxito y fallo solo se registran si el turno sigue siendo de esta
     // ejecución: una corrida vencida no pisa el estado de otra.

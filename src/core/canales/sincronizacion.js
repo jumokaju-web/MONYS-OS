@@ -74,8 +74,9 @@ async function conReintentos(fn, intentos = 3) {
  *   leerCredencial(cuentaId) → objeto | null
  *   guardarCredencial(cuentaId, cred, ejecucionId)
  *     (la base rechaza la escritura si el turno ya no es de esta ejecución)
- *   guardarDatos(cuenta, datos, { confirmarTurno })
- *     (debe llamar confirmarTurno() antes de cada lote de escritura)
+ *   guardarDatos(cuenta, datos, { ejecucionId, confirmarTurno })
+ *     (cada lote se escribe en una transacción que valida el turno de
+ *     ejecucionId; en Supabase: guardar_lote_canal)
  *   registrarExito(cuentaId, { ahora, cobertura, ejecucionId })
  *   registrarFallo(cuentaId, { ahora, intentos, proximoIntento, mensaje, critico, ejecucionId })
  * }
@@ -148,7 +149,7 @@ export async function sincronizarCuenta(cuenta, { proveedor, almacen, desde, has
     if (dryRun) return { ...resumen, escrito: false };
 
     await confirmarTurno();
-    await almacen.guardarDatos(cuenta, datos, { confirmarTurno });
+    await almacen.guardarDatos(cuenta, datos, { ejecucionId, confirmarTurno });
     await almacen.registrarExito(cuenta.id, { ahora, cobertura: datos.cobertura, ejecucionId });
     return { ...resumen, escrito: true };
   } catch (error) {

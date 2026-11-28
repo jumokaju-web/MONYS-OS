@@ -254,6 +254,122 @@ begin
 end;
 $$;
 
+-- Escritura por lote en UNA transacción con el turno: bloquea la cuenta
+-- (for update), valida que el turno sea de esta ejecución y no haya
+-- vencido, extiende el turno y hace los upserts. Una corrida suspendida
+-- que reanuda después de que otra tomó el turno falla aquí sin escribir.
+-- organization_id, business_id, cuenta_id y canal salen de la cuenta,
+-- nunca del lote (aislamiento entre negocios).
+create or replace function public.guardar_lote_canal(
+  p_cuenta_id uuid, p_ejecucion uuid, p_tipo text, p_filas jsonb, p_marca timestamptz default null
+)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare
+  cuenta public.canal_cuentas%rowtype;
+  fila jsonb;
+  item jsonb;
+  v_orden_id uuid;
+  escritas integer := 0;
+begin
+  if p_ejecucion is null then raise exception 'Falta el identificador de ejecución'; end if;
+  if p_tipo not in ('ordenes', 'publicaciones', 'liquidaciones', 'marcar_obsoletas') then
+    raise exception 'Tipo de lote inválido: %', p_tipo;
+  end if;
+  if p_tipo <> 'marcar_obsoletas' and (p_filas is null or jsonb_typeof(p_filas) <> 'array' or jsonb_array_length(p_filas) > 500) then
+    raise exception 'El lote debe ser un arreglo de hasta 500 filas';
+  end if;
+
+  select * into cuenta from public.canal_cuentas where id = p_cuenta_id for update;
+  if not found then raise exception 'Cuenta de canal inexistente'; end if;
+  if cuenta.sync_ejecucion_id is distinct from p_ejecucion or cuenta.sync_en_curso_hasta is null or cuenta.sync_en_curso_hasta < now() then
+    raise exception 'Turno vencido o ajeno: no se escribe el lote';
+  end if;
+  update public.canal_cuentas set sync_en_curso_hasta = now() + interval '15 minutes' where id = p_cuenta_id;
+
+  if p_tipo = 'ordenes' then
+    for fila in select * from jsonb_array_elements(p_filas) loop
+      insert into public.canal_ordenes as o (
+        organization_id, business_id, cuenta_id, canal, external_id, fecha, estado, motivo_cancelacion,
+        total, comision, envio_vendedor, envio_estado, fecha_liberacion, datos_origen, sincronizado_en
+      ) values (
+        cuenta.organization_id, cuenta.business_id, cuenta.id, cuenta.canal,
+        fila->>'external_id', (fila->>'fecha')::timestamptz, fila->>'estado', fila->>'motivo_cancelacion',
+        (fila->>'total')::numeric, (fila->>'comision')::numeric, (fila->>'envio_vendedor')::numeric,
+        fila->>'envio_estado', (fila->>'fecha_liberacion')::timestamptz,
+        coalesce(fila->'datos_origen', '{}'::jsonb), coalesce(p_marca, now())
+      )
+      on conflict (business_id, canal, external_id) do update set
+        fecha = excluded.fecha, estado = excluded.estado, motivo_cancelacion = excluded.motivo_cancelacion,
+        total = excluded.total, comision = excluded.comision, envio_vendedor = excluded.envio_vendedor,
+        envio_estado = excluded.envio_estado, fecha_liberacion = excluded.fecha_liberacion,
+        datos_origen = excluded.datos_origen, sincronizado_en = excluded.sincronizado_en
+      where o.cuenta_id = cuenta.id
+      returning id into v_orden_id;
+      if v_orden_id is null then raise exception 'La orden % pertenece a otra cuenta', fila->>'external_id'; end if;
+      for item in select * from jsonb_array_elements(coalesce(fila->'items', '[]'::jsonb)) loop
+        insert into public.canal_orden_items (orden_id, publicacion, variacion, titulo, sku, cantidad, precio_unit, comision)
+        values (v_orden_id, coalesce(item->>'publicacion', ''), coalesce(item->>'variacion', ''), item->>'titulo',
+                coalesce(item->>'sku', ''), (item->>'cantidad')::numeric, (item->>'precio_unit')::numeric, (item->>'comision')::numeric)
+        on conflict (orden_id, publicacion, variacion, sku) do update set
+          titulo = excluded.titulo, cantidad = excluded.cantidad, precio_unit = excluded.precio_unit, comision = excluded.comision;
+      end loop;
+      escritas := escritas + 1;
+    end loop;
+  elsif p_tipo = 'publicaciones' then
+    for fila in select * from jsonb_array_elements(p_filas) loop
+      insert into public.canal_publicaciones as p (
+        organization_id, business_id, cuenta_id, canal, publicacion, variacion, titulo, sku, codigo_barras,
+        estado, precio, existencia, vendidas, sincronizado_en
+      ) values (
+        cuenta.organization_id, cuenta.business_id, cuenta.id, cuenta.canal,
+        fila->>'publicacion', coalesce(fila->>'variacion', ''), fila->>'titulo', fila->>'sku', fila->>'codigo_barras',
+        fila->>'estado', (fila->>'precio')::numeric, (fila->>'existencia')::integer, (fila->>'vendidas')::integer,
+        coalesce(p_marca, now())
+      )
+      on conflict (business_id, canal, publicacion, variacion) do update set
+        titulo = excluded.titulo, sku = excluded.sku, codigo_barras = excluded.codigo_barras, estado = excluded.estado,
+        precio = excluded.precio, existencia = excluded.existencia, vendidas = excluded.vendidas,
+        sincronizado_en = excluded.sincronizado_en
+      where p.cuenta_id = cuenta.id;
+      escritas := escritas + 1;
+    end loop;
+  elsif p_tipo = 'liquidaciones' then
+    for fila in select * from jsonb_array_elements(p_filas) loop
+      insert into public.canal_liquidaciones as l (
+        organization_id, business_id, cuenta_id, canal, external_id, fecha, monto_bruto, comisiones, envios,
+        retenciones, devoluciones, monto_neto, estado, datos_origen
+      ) values (
+        cuenta.organization_id, cuenta.business_id, cuenta.id, cuenta.canal,
+        fila->>'external_id', (fila->>'fecha')::timestamptz, (fila->>'monto_bruto')::numeric, (fila->>'comisiones')::numeric,
+        (fila->>'envios')::numeric, (fila->>'retenciones')::numeric, (fila->>'devoluciones')::numeric,
+        (fila->>'monto_neto')::numeric, fila->>'estado', coalesce(fila->'datos_origen', '{}'::jsonb)
+      )
+      on conflict (business_id, canal, external_id) do update set
+        fecha = excluded.fecha, monto_bruto = excluded.monto_bruto, comisiones = excluded.comisiones,
+        envios = excluded.envios, retenciones = excluded.retenciones, devoluciones = excluded.devoluciones,
+        monto_neto = excluded.monto_neto, estado = excluded.estado, datos_origen = excluded.datos_origen
+      where l.cuenta_id = cuenta.id;
+      escritas := escritas + 1;
+    end loop;
+  else
+    if p_marca is null then raise exception 'Falta la marca del barrido'; end if;
+    update public.canal_publicaciones set estado = 'no_encontrada'
+    where cuenta_id = cuenta.id and sincronizado_en < p_marca;
+    get diagnostics escritas = row_count;
+  end if;
+  return escritas;
+end;
+$$;
+
+revoke all on function public.guardar_lote_canal(uuid, uuid, text, jsonb, timestamptz) from public, anon, authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'grant execute on function public.guardar_lote_canal(uuid, uuid, text, jsonb, timestamptz) to service_role';
+  end if;
+end;
+$$;
+
 -- Credenciales de las plataformas (JSON: access/refresh token, vencimientos,
 -- shop_cipher) cifradas en Supabase Vault. Solo service_role puede leerlas o
 -- rotarlas, y solo para cuentas registradas en canal_cuentas.
