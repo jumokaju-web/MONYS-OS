@@ -527,7 +527,7 @@ movimientos = [],
             <div><small>Dinero disponible</small><strong>Confirmar saldos</strong><span>No se calcula como si todas las ventas fueran efectivo</span></div>
           </section>
           <article className="owner-priority-card"><span>PRIORIDAD RECOMENDADA</span><h3>{decisionDelDia.titulo}</h3><p>{decisionDelDia.detalle}</p><button type="button" onClick={decisionDelDia.accion || undefined} disabled={!decisionDelDia.accion}>{decisionDelDia.boton}</button></article>
-          <ImpactoDineroHoy businessId={usuario?.business_id || datosDashboard?.business_id || null} abrirCompraMaestra={navegar.compraMaestra} />
+          <ImpactoDineroHoy organizationId={usuario?.organization_id || datosDashboard?.organization_id || null} businessId={usuario?.business_id || datosDashboard?.business_id || null} abrirCompraMaestra={navegar.compraMaestra} abrirFinanzas={abrirDirectorFinanciero} />
           <nav className="owner-next-actions" aria-label="Decisiones rápidas">
             <button type="button" onClick={navegar.compraMaestra}><b>Qué comprar</b><span>Reposición priorizada e inversión</span></button>
             <button type="button" onClick={abrirDirectorFinanciero}><b>Qué pagar</b><span>Deudas, vencimientos y capacidad</span></button>
