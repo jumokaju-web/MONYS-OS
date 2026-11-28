@@ -19,7 +19,10 @@ Lo que **no es gasto** se informa aparte: IVA, ISR pagado, capital de deuda, com
 | Disponibilidad | El importe y la utilidad se evalúan por separado. Una bandera `null` (historial) con valor 0 es desconocido; con valor distinto de 0 cuenta, pero queda marcada. |
 | Gastos | Se calculan en tres bases. **Pagado** es lo registrado en Tesorería y es provisional: una lista vacía no prueba cero. **Devengado** es la obligación mensual (`gastosFijosDelMes` del motor de equilibrio) o, si no hay obligación, lo pagado. **Pendiente** es lo que vence menos lo pagado. Las obligaciones "OTRO" no se cruzan y se informan aparte. |
 | IVA | Hay bases independientes para ventas SICAR, costo SICAR, ventas y cargos de cada canal, y gastos de Tesorería. Una base por confirmar usa el importe tal como viene y el resultado se marca como provisional. Nunca se deduce una base de otra. |
-| Cargos de marketplace | Solo se excluye el cargo ligado a una operación (canal + cuenta + referencia) cuyas comisiones ya vienen en las órdenes. Los demás son cargos distintos: se restan y quedan por conciliar. |
+| Plataformas en Tesorería | Se usa `cash_movement_platform_links`. Solo se excluye la parte **verificada** y ligada a una operación del periodo, de un tipo ya restado en las órdenes (comisión o envío), y la conciliación puede ser parcial. Lo demás es cargo distinto y queda por conciliar. Los depósitos de plataformas no son ingreso. |
+| Calendario operativo | Fuera de vigencia, la sucursal no opera y su ausencia no es faltante. Un cierre confirmado cuenta como día cubierto con cero y no quita gastos. Sin calendario, el resultado queda provisional. |
+| Alcance SICAR | Si la carga trae filtros (`alcanceSicar = filtrado`, lo detecta el importador), sus días quedan parciales y no prueban venta cero. Sin dato de alcance, la carga se toma como desconocida. |
+| Canales desde tablas | `canalesDelMes` arma el resumen desde `canal_ordenes`, sus items y el costo SICAR por vínculo. El mes de un canal se considera completo solo si `historico_desde` ≤ día 1 y la última sincronización es posterior al cierre del mes. |
 | Canales | Solo cuentan las cuentas de `canal_cuentas` del negocio. Una cuenta configurada sin datos del mes es faltante. Sin configuración legible, no se puede confirmar qué canales existen. |
 | Aislamiento | Se valida que el negocio sea de la organización. Las sucursales del negocio entran aunque estén inactivas. Las obligaciones y movimientos de otros negocios se ignoran, y los gastos de sucursales ajenas se reportan. |
 | ISR | Si hay monto del contador, se usa ese. Si no, se estima con la tasa (`ESTIMADO_PROVISIONAL` si alguna base de IVA está por confirmar). Sin ninguno de los dos, queda faltante. |
@@ -54,10 +57,15 @@ Se revisan:
 
 Cada una lleva impacto estimado y `requiereAutorizacion: true`.
 
+## Equilibrio por sucursal
+
+`equilibrioPorSucursal` usa el margen real del último mes cerrado, las obligaciones de cada sucursal (`gastosFijosDelMes`) y los días con venta esperada del calendario. Con eso calcula la venta mensual y diaria necesarias en tres variantes: operativo directo, operativo con generales (como `SUPUESTO`) y efectivo. Deuda e impuestos van en el consolidado (#166). Además, `gastosQueMasPesan` da cada gasto en % de los ingresos y en días de venta que se come.
+
+El contrato completo para las pantallas está en `docs/CONTRATO_TABLERO_FINANCIERO.md`.
+
 ## Pendiente
 
-- **Fuente de cierres de sucursal:** hoy no existe (`diasCerrados` va vacío), así que un día sin carga se trata como faltante.
-- **Campos `canal`, `cuenta_id` y `referencia_externa` en Tesorería:** sin ellos, ningún cargo de marketplace se excluye.
+- **Calendario y conciliación:** las migraciones están preparadas pero no aplicadas.
 - **Bases de IVA y monto o tasa de ISR del contador:** mientras falten, el resultado sale como provisional.
 - **`canalesPorMes`:** se conecta cuando la sincronización de #170 esté activa.
 - **Pantalla:** la hace ChatGPT/Codex.

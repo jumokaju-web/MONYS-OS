@@ -338,3 +338,17 @@ test("una carga de SICAR filtrada no prueba venta cero", () => {
   assert.equal(e.unidades[0].ingresosRegistrados, 100);
   assert.ok(e.faltantes.some((f) => f.includes("con filtros")));
 });
+
+test("diagnóstico de fuentes: real, estimado, parcial y faltante con su acción", async () => {
+  const { diagnosticarFuentes } = await import("../../src/core/finanzas/diagnosticoFuentes.js");
+  const oct = estado("2026-10", { bases: { ventasSicar: { base: "sin_iva" }, costoSicar: {}, gastosTesoreria: { base: "sin_iva" } } });
+  const filas = diagnosticarFuentes({ estados: [oct], deudasRegistradas: null });
+  const por = (fuente) => filas.find((f) => f.fuente === fuente);
+  assert.equal(por("SICAR · Centro").estado, "real");
+  assert.equal(por("Rentas").estado, "estimado"); // Plaza sin pago de renta registrado
+  assert.match(por("Rentas").accion, /Registrar el pago/);
+  assert.equal(por("Bases de IVA").estado, "estimado");
+  assert.equal(por("Calendario operativo").estado, "faltante");
+  assert.equal(por("Créditos").estado, "faltante");
+  assert.equal(filas[0].estado, "faltante"); // ordenado: lo más urgente primero
+});
