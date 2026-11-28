@@ -26,6 +26,7 @@ create table if not exists public.canal_cuentas (
   sync_en_curso_hasta timestamptz,      -- turno exclusivo (evita corridas simultáneas)
   sync_ejecucion_id uuid,               -- dueño del turno: solo esa corrida lo libera
   sync_iniciado_en timestamptz,         -- inicio del turno vigente (marca mínima de un barrido)
+  historico_desde date,                 -- desde cuándo el historial de órdenes está completo (carga inicial)
   cobertura jsonb,                      -- qué trajo cada fuente en la última corrida
   created_at timestamptz not null default now(),
   unique (canal, cuenta_externa)
@@ -185,6 +186,7 @@ commit;
 -- funciones sin identificador de ejecución.
 alter table public.canal_cuentas add column if not exists sync_ejecucion_id uuid;
 alter table public.canal_cuentas add column if not exists sync_iniciado_en timestamptz;
+alter table public.canal_cuentas add column if not exists historico_desde date;
 drop function if exists public.tomar_turno_canal(uuid, integer);
 drop function if exists public.liberar_turno_canal(uuid);
 

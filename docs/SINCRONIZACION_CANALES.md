@@ -119,3 +119,8 @@ La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan si
 - Solo sugiere. No cambia precios.
 
 **Por verificar contra la documentación oficial al registrar las apps:** los campos de cargos por orden de TikTok y los de `products/search`.
+
+### Cobertura mensual de un canal
+
+`canal_cuentas.historico_desde` indica desde qué fecha el historial de órdenes de la cuenta está completo (lo fija la carga inicial verificada). Un mes cuenta como completo en el estado de resultados solo si `historico_desde ≤ día 1 del mes` y la última sincronización exitosa es posterior al cierre del mes. Antes de esa fecha, las ventas son dato faltante, no cero (la conexión actual de Mercado Libre solo tiene órdenes desde el 31 de octubre de 2026).
+
