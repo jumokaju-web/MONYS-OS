@@ -47,6 +47,10 @@ function obtenerValor(fila, indice) {
   return indice >= 0 ? fila[indice] ?? "" : "";
 }
 
+function celdaNumerica(fila, indice) {
+  return indice >= 0 && convertirNumeroOpcional(obtenerValor(fila, indice)) !== null;
+}
+
 export function normalizarVentasPorArticulo(filas) {
   if (!Array.isArray(filas) || filas.length < 2) {
     return [];
@@ -263,10 +267,13 @@ export function normalizarVentasPorArticulo(filas) {
           )
         ),
 
-        importeDisponible: columnas.importe >= 0,
-        utilidadDisponible: columnas.utilidad >= 0,
-        cantidadDisponible: columnas.cantidad >= 0,
-        costoDisponible: columnas.costo >= 0,
+        // Disponible = el reporte trae la columna Y la celda tiene un número.
+        // Una celda vacía se guarda como 0 en importe/utilidad, pero su
+        // bandera queda en false para no confundirla con un cero real.
+        importeDisponible: celdaNumerica(fila, columnas.importe),
+        utilidadDisponible: celdaNumerica(fila, columnas.utilidad),
+        cantidadDisponible: celdaNumerica(fila, columnas.cantidad),
+        costoDisponible: celdaNumerica(fila, columnas.costo),
         tipoDato: "ventas_articulo",
       };
     })

@@ -1,3 +1,7 @@
+import {
+  esErrorColumnasDisponibilidad,
+  leerBanderasVentaArticulo,
+} from "../../importador/utils/registroVentaArticulo.js";
 import { supabase } from "../../../supabase";
 
 async function obtenerDetallesPaginados(
@@ -55,6 +59,10 @@ async function obtenerDetallesPaginados(
   return detalles;
 }
 
+const COLUMNAS_VENTAS_ARTICULOS =
+  "id, importacion_id, codigo, descripcion, categoria, cantidad, costo, importe, descuento, utilidad, sucursal, fecha, folio_venta";
+let banderasDisponibilidadVentas = true;
+
 async function obtenerVentasArticulosPaginadas(
   importacionId
 ) {
@@ -66,34 +74,26 @@ async function obtenerVentasArticulosPaginadas(
     const fin =
       inicio + tamanoLote - 1;
 
-    const {
-      data: lote,
-      error,
-    } = await supabase
-      .from("ventas_articulos")
-      .select(`
-        id,
-        importacion_id,
-        codigo,
-        descripcion,
-        categoria,
-        cantidad,
-        costo,
-        importe,
-        descuento,
-        utilidad,
-        sucursal,
-        fecha,
-        folio_venta
-      `)
-      .eq(
-        "importacion_id",
-        importacionId
-      )
-      .order("id", {
-        ascending: true,
-      })
-      .range(inicio, fin);
+    const consultar = (columnas) =>
+      supabase
+        .from("ventas_articulos")
+        .select(columnas)
+        .eq("importacion_id", importacionId)
+        .order("id", { ascending: true })
+        .range(inicio, fin);
+
+    let respuesta = await consultar(
+      banderasDisponibilidadVentas
+        ? `${COLUMNAS_VENTAS_ARTICULOS}, utilidad_disponible, importe_disponible`
+        : COLUMNAS_VENTAS_ARTICULOS
+    );
+    // Sin la migración de banderas, se lee como antes (banderas en null).
+    if (respuesta.error && banderasDisponibilidadVentas && esErrorColumnasDisponibilidad(respuesta.error)) {
+      banderasDisponibilidadVentas = false;
+      respuesta = await consultar(COLUMNAS_VENTAS_ARTICULOS);
+    }
+    const { data: loteLeido, error } = respuesta;
+    const lote = (loteLeido || []).map(leerBanderasVentaArticulo);
 
     if (error) {
       throw new Error(
