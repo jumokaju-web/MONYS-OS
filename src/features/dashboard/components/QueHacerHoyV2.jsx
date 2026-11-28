@@ -8,7 +8,7 @@ const measures = { utilidad_operativa:"Utilidad operativa", utilidad_bruta:"Util
 const measure = m => m == null ? "Riesgo sin importe" : measures[m] || "Impacto por revisar";
 const groups = { urgencia_liquidez:"Urgencias de liquidez", oportunidad:"Oportunidades", calidad_datos:"Calidad de datos" };
 function period(p) {
-  return p?.tipo === "mensual" ? p.mes || "Mensual" : p?.tipo === "dias" ? `${p.dias} días${p.desde ? " desde " + p.desde : ""}` : "Periodo pendiente";
+  return p?.tipo === "mensual" ? (/^\d{4}-\d{2}$/.test(p.mes || "") && Number(p.mes.slice(5)) >= 1 && Number(p.mes.slice(5)) <= 12 ? new Intl.DateTimeFormat("es-MX", {month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(p.mes+"-01T00:00:00Z")) : "Mensual") : p?.tipo === "dias" ? `${p.dias} días${p.desde ? " desde " + p.desde : ""}` : "Periodo pendiente";
 }
 function Decision({ item, onReview, all }) {
   const i = item.impacto;
@@ -42,7 +42,7 @@ export default function QueHacerHoyV2({ tablero, loading = false, onReview }) {
     {section("Urgencias de liquidez", q.urgenciasLiquidez)}
     {section("Tus prioridades", q.prioridades?.slice(0, 3))}
     <section><h2>Impactos por medida y periodo</h2>{(q.totales || []).map((t,n) => <article className="qh-card" key={n}><small>{groups[t.grupo] || "Impacto"} · {measure(t.medida)} · {period(t.periodo)}</small><strong>{Number.isFinite(t.importe) ? money.format(t.importe) : "Pendiente"}</strong><small>Estimación · {t.cuantas} recomendaciones</small></article>)}<p>{q.nota || "Consulta cada impacto por separado; no se suman ventas, utilidad y efectivo."}</p></section>
-    <label>Explorar recomendaciones<select value={filter} onChange={e => setFilter(e.target.value)}><option value="todas">Todas</option>{Object.entries(labels).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+    <label>Explorar recomendaciones<select value={filter} onChange={e => setFilter(e.target.value)}><option value="todas">Todas</option>{Object.entries(labels).filter(([key]) => key !== "datos").map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
     {section("Otras recomendaciones", (filter === "todas" ? [...(q.todas || [])].sort((a,b) => (b.impacto?.importe ?? -Infinity) - (a.impacto?.importe ?? -Infinity)) : q.porCategoria?.[filter])?.filter(a => ![...(q.prioridades || []), ...(q.urgenciasLiquidez || []), ...(q.calidadDatos || [])].some(b => b.id === a.id)))}
     {section("Calidad de datos", q.calidadDatos)}
   </div>;
