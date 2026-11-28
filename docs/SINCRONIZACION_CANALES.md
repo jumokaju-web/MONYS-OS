@@ -58,3 +58,33 @@ pg_cron (diario 03:30 CDMX) ──▶ Edge Function `sincronizar-canales`
 - % de retenciones de ISR/IVA que aplica cada plataforma, según el régimen fiscal (confirmar con el contador).
 - Autorizar la creación de la app de Mercado Libre (credenciales propias) y de la app de TikTok Shop Partner.
 - Asignar SKU de SICAR a las publicaciones que no lo tienen.
+
+## 5. Implementación preparada (sin aplicar ni desplegar)
+
+| Pieza | Archivo | Estado |
+|---|---|---|
+| Tablas `canal_*` y `producto_vinculos` con RLS, y tokens en Vault | `supabase/migrations/20261128020000_canales_marketplace.sql` | Preparada. Probada en Postgres 16 local: idempotente, aislamiento por organización, solo dueña/dirección/admin vinculan, tokens solo para `service_role`. **Sin aplicar.** |
+| Edge Function de solo lectura | `supabase/functions/sincronizar-canales/index.ts` | Preparada (`dry_run=1` disponible). **Sin desplegar ni credenciales.** |
+| Traducción de las APIs | `src/core/canales/mapeoApis.js` | Con pruebas. |
+| Vinculación con SICAR por SKU / código de barras | `src/core/canales/vinculacionSicar.js` | Con pruebas. Sin coincidencia única queda "por vincular": nunca se asume costo. |
+| Diagnóstico de cancelaciones | `src/core/canales/diagnosticoCancelaciones.js` | Con pruebas. |
+| Resultados diario / semanal / mensual y consolidado | `src/core/canales/resultadosPeriodicos.js` | Con pruebas. Las ventas de los canales no están en SICAR (confirmado), así que se suman sin duplicar. |
+
+### Pasos para activar (cada uno con autorización)
+
+**Mercado Libre (solo lectura)**
+1. En https://developers.mercadolibre.com.mx crear una aplicación con permisos de **lectura** (`read`, `offline_access`). No se solicitan permisos de escritura.
+2. Autorizar la app desde cada cuenta de vendedor (GGBACFHDE372 y JIMO4520833) y guardar el refresh token con `guardar_token_canal`.
+3. Secretos de la función: `ML_CLIENT_ID` y `ML_CLIENT_SECRET`.
+
+**TikTok Shop (solo lectura)**
+1. En TikTok Shop Partner Center registrar una app con alcances de **lectura**: órdenes, finanzas, productos y devoluciones.
+2. Autorizar la tienda "Mony's glam shop" y guardar `access_token|shop_cipher` con `guardar_token_canal`.
+3. Secretos: `TT_APP_KEY` y `TT_APP_SECRET`.
+4. Verificar contra la documentación oficial los campos de cargos por orden (`CAMPOS_TIKTOK_POR_VERIFICAR`). Hasta entonces, comisión, envío y retenciones por orden de TikTok quedan en null.
+
+**Programación:** `pg_cron` diario a las 03:30 CDMX llamando a la función con `x-cron-secret`. La primera corrida va en `dry_run=1` con `desde=2026-09-01`.
+
+### Lo que sigue sin fuente automática
+- **Retenciones de ISR/IVA de Mercado Libre:** la API no las expone. Se configuran como % (dato del contador).
+- **Depósitos bancarios efectivos:** se concilian con Tesorería (`liquidacion_marketplace`). El reporte de liberaciones de Mercado Pago requiere otra autorización.
