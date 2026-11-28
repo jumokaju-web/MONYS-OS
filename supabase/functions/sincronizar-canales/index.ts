@@ -284,8 +284,20 @@ function crearAlmacen(supabase: any) {
 
 /* ---------------- Entrada ---------------- */
 
+/* Comparación en tiempo constante; un secreto corto o vacío nunca autoriza. */
+function secretoValido(recibido: string | null): boolean {
+  const esperado = Deno.env.get("CRON_SECRET") ?? "";
+  if (esperado.length < 32 || !recibido) return false;
+  const a = new TextEncoder().encode(recibido);
+  const b = new TextEncoder().encode(esperado);
+  let diferencia = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) diferencia |= (a[i] ?? 0) ^ b[i];
+  return diferencia === 0;
+}
+
 Deno.serve(async (solicitud) => {
-  if (solicitud.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
+  if (solicitud.method !== "POST") return new Response("Método no permitido", { status: 405 });
+  if (!secretoValido(solicitud.headers.get("x-cron-secret"))) {
     return new Response("No autorizado", { status: 401 });
   }
   const url = new URL(solicitud.url);
