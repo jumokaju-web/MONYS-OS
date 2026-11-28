@@ -83,16 +83,12 @@ export async function obtenerMovimientosDelMes({ organizationId, businessId, mes
   return { movimientos, distribuciones: [...porId.values()], movimientosOrigen };
 }
 
-export function conciliarMovimientosDelNegocio({
-  organizationId,
-  businessId,
-  movimientos = [],
-  distribuciones = [],
-  movimientosOrigen = [],
-  obligaciones = [],
-  mes,
-  gastosFijos = null,
-}) {
+/*
+ * Líneas del negocio listas para conciliar o para el estado de resultados:
+ * solo filas de la organización y el negocio, con distribuciones activas
+ * aplicadas (nunca se suman movimiento y partidas).
+ */
+export function lineasDelNegocio({ organizationId, businessId, movimientos = [], distribuciones = [], movimientosOrigen = [] }) {
   const deLaOrganizacion = (fila) => String(fila?.organization_id) === String(organizationId);
   const deElNegocio = (fila) => deLaOrganizacion(fila) && String(fila?.business_id) === String(businessId);
   const movimientosValidos = (movimientos || []).filter(deElNegocio);
@@ -103,9 +99,32 @@ export function conciliarMovimientosDelNegocio({
     businessId,
   });
   return {
-    ...conciliarGastosDelMes({ movimientos: lineas.filter(deElNegocio), obligaciones: (obligaciones || []).filter(deElNegocio), mes, gastosFijos }),
+    lineas: lineas.filter(deElNegocio),
     pagosCruzados,
     partidasSinMovimiento,
     descartados: (movimientos || []).length - movimientosValidos.length,
+  };
+}
+
+export function conciliarMovimientosDelNegocio({
+  organizationId,
+  businessId,
+  movimientos = [],
+  distribuciones = [],
+  movimientosOrigen = [],
+  obligaciones = [],
+  mes,
+  gastosFijos = null,
+}) {
+  const deElNegocio = (fila) =>
+    String(fila?.organization_id) === String(organizationId) && String(fila?.business_id) === String(businessId);
+  const { lineas, pagosCruzados, partidasSinMovimiento, descartados } = lineasDelNegocio({
+    organizationId, businessId, movimientos, distribuciones, movimientosOrigen,
+  });
+  return {
+    ...conciliarGastosDelMes({ movimientos: lineas, obligaciones: (obligaciones || []).filter(deElNegocio), mes, gastosFijos }),
+    pagosCruzados,
+    partidasSinMovimiento,
+    descartados,
   };
 }

@@ -50,3 +50,14 @@ test("conserva el periodo de los reportes SICAR de utilidad por artículos", () 
   }), [{ ...filas[0], periodoInicio: "2026-10-05", periodoFin: "2026-10-11" }]);
   assert.equal(adjuntarPeriodoSicar(filas, "Otro reporte", { periodoInicio: "2026-10-05" }), filas);
 });
+
+test("alcance del reporte: filtrado solo con un filtro conocido distinto de todos", async () => {
+  const { extraerAlcanceSicar, adjuntarPeriodoSicar } = await import("../../src/features/importador/utils/periodoSicar.js");
+  assert.equal(extraerAlcanceSicar([["Reporte de ventas"], ["Periodo:", "01/10/2026", "31/10/2026"]]).alcance, null);
+  assert.equal(extraerAlcanceSicar([["Departamento:", "Todos"], ["Vendedor:", "", "Todos"]]).alcance, "completo");
+  const f = extraerAlcanceSicar([["Departamento:", "Maquillaje"]]);
+  assert.equal(f.alcance, "filtrado");
+  assert.deepEqual(f.filtros, [{ filtro: "departamento", valor: "Maquillaje" }]);
+  const [fila] = adjuntarPeriodoSicar([{ codigo: "A" }], "Ventas por artículo", { periodoInicio: "2026-10-01", periodoFin: "2026-10-31", alcance: "filtrado" });
+  assert.equal(fila.alcanceSicar, "filtrado");
+});
