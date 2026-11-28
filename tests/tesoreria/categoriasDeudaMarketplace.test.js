@@ -52,3 +52,11 @@ test("la migración es aditiva: no reclasifica ni borra movimientos", () => {
   assert.doesNotMatch(migracion, /drop\s+table|disable row level security/i);
   assert.match(migracion, /like '%anticipo_prestamo%'/);
 });
+
+test("la migración se protege contra funciones modificadas en la base real", () => {
+  assert.match(migracion, /md5\(prosrc\)/);
+  assert.match(migracion, /difiere de la versión revisada/);
+  // Conserva permisos: no revoca la ejecución de funciones existentes ni de la nueva.
+  const sentencias = migracion.replace(/\$\$[\s\S]*?\$\$/g, "");
+  assert.doesNotMatch(sentencias, /^\s*revoke\s/im);
+});

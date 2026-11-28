@@ -22,6 +22,35 @@
 
 begin;
 
+-- Protección: solo continuar si las funciones de la base real son
+-- exactamente las versiones revisadas (huella md5 de su código), o ya
+-- están en la versión nueva (reaplicación). Si alguien las modificó en
+-- producción, la migración se detiene sin cambiar nada.
+do $$
+declare
+  esperado constant jsonb := jsonb_build_object(
+    'guardar_distribucion_cash_movement',
+      jsonb_build_array('ab5cd0701561b71368c13e0fd0300c23', '5e8a1fb4af4b0640d5a12aea148336ee'),
+    'clasificar_movimientos_tesoreria_en_grupo',
+      jsonb_build_array('81a834b8110581bba48cf02e51a42542', '845e41385cf03ee471567f340568f8b4')
+  );
+  funcion text;
+  huella text;
+begin
+  for funcion in select jsonb_object_keys(esperado) loop
+    select md5(prosrc) into huella
+    from pg_proc
+    where pronamespace = 'public'::regnamespace and proname = funcion;
+    if huella is null then
+      raise exception 'La función public.% no existe en esta base: revisa antes de aplicar.', funcion;
+    end if;
+    if not (esperado -> funcion) ? huella then
+      raise exception 'La función public.% difiere de la versión revisada (huella %): revisa antes de aplicar.', funcion, huella;
+    end if;
+  end loop;
+end;
+$$;
+
 create or replace function public.categoria_tesoreria_sin_impacto(p_categoria text)
 returns boolean
 language sql
@@ -36,8 +65,9 @@ as $$
   );
 $$;
 
-revoke all on function public.categoria_tesoreria_sin_impacto(text) from public, anon;
-grant execute on function public.categoria_tesoreria_sin_impacto(text) to authenticated;
+-- Función pura e inmutable: conserva el permiso de ejecución por defecto,
+-- porque la evalúan el check de la tabla y las funciones existentes con
+-- los roles que ya tenían acceso.
 
 -- Regla de la tabla de revisiones en grupo: reemplazar la lista fija.
 do $$
