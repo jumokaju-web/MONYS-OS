@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import {
   CAMPOS_TIKTOK_POR_VERIFICAR,
+  credencialDesdeRenovacionML,
+  credencialDesdeRenovacionTikTok,
+  credencialVigente,
+  liquidacionesDesdeOrdenesML,
+  publicacionesMercadoLibre,
+  publicacionesTikTokShop,
   cadenaFirmaTikTok,
   liquidacionTikTokShop,
   ordenMercadoLibre,
@@ -32,7 +38,7 @@ test("Mercado Libre: comisión por unidad × cantidad, envío desconocido como n
   assert.equal(fila.envio_vendedor, 152);
   assert.equal(fila.fecha_liberacion, "2026-12-26T09:58:17.000-04:00");
   assert.equal(fila.registrado_en_sicar, false);
-  assert.deepEqual(fila.items[0], { publicacion: "MLM1", titulo: "Polvo", sku: "POLVO-70", cantidad: 2, precio_unit: 219, comision: 61.32 });
+  assert.deepEqual(fila.items[0], { publicacion: "MLM1", variacion: "", titulo: "Polvo", sku: "POLVO-70", cantidad: 2, precio_unit: 219, comision: 61.32 });
   assert.equal(ordenMercadoLibre(ordenML).envio_vendedor, null);
   assert.equal(ordenMercadoLibre(ordenML).envio_estado, "sin_dato");
   const cancelada = ordenMercadoLibre({ ...ordenML, status: "cancelled", cancel_detail: { group: "seller" } }, { costoEnvio: 99 });
@@ -51,7 +57,7 @@ test("Mercado Libre: publicación con SKU, código de barras e inventario", () =
     id: "MLM1", title: "Polvo", status: "active", price: 279, available_quantity: 18, sold_quantity: 2,
     attributes: [{ id: "SELLER_SKU", value_name: "POLVO-70" }, { id: "GTIN", value_name: "7501234567890" }],
   });
-  assert.deepEqual(p, { canal: "mercado_libre", publicacion: "MLM1", titulo: "Polvo", sku: "POLVO-70", codigo_barras: "7501234567890", estado: "active", precio: 279, existencia: 18, vendidas: 2 });
+  assert.deepEqual(p, { canal: "mercado_libre", publicacion: "MLM1", titulo: "Polvo", estado: "active", variacion: "", sku: "POLVO-70", codigo_barras: "7501234567890", precio: 279, existencia: 18, vendidas: 2 });
   assert.equal(publicacionMercadoLibre({ id: "X", attributes: [] }).codigo_barras, null);
 });
 
@@ -82,4 +88,55 @@ test("TikTok Shop: estado de cuenta y firma de la API", () => {
   const cadena = cadenaFirmaTikTok({ path: "/order/202309/orders/search", params: { timestamp: "1", app_key: "k", sign: "x", access_token: "t", shop_cipher: "c" }, body: "{}", appSecret: "s" });
   assert.equal(cadena, "s/order/202309/orders/searchapp_keykshop_cipherctimestamp1{}s");
   assert.equal(createHmac("sha256", "s").update(cadena).digest("hex").length, 64);
+});
+
+test("Mercado Libre: variantes de una publicación no chocan", () => {
+  const filas = publicacionesMercadoLibre({
+    id: "MLM9", title: "Base", status: "active", price: 298, attributes: [{ id: "GTIN", value_name: "750" }],
+    variations: [
+      { id: 11, price: 298, available_quantity: 5, sold_quantity: 1, attributes: [{ id: "SELLER_SKU", value_name: "BASE-100" }] },
+      { id: 12, price: 298, available_quantity: 0, sold_quantity: 0, attributes: [{ id: "SELLER_SKU", value_name: "BASE-200" }] },
+    ],
+  });
+  assert.deepEqual(filas.map((f) => [f.variacion, f.sku, f.existencia]), [["11", "BASE-100", 5], ["12", "BASE-200", 0]]);
+  const item = ordenMercadoLibre({ ...ordenML, order_items: [{ ...ordenML.order_items[0], item: { ...ordenML.order_items[0].item, variation_id: 12 } }] }).items[0];
+  assert.equal(item.variacion, "12");
+});
+
+test("Mercado Libre: liquidaciones derivadas de las órdenes (caja, no venta)", () => {
+  const ordenes = [
+    ordenMercadoLibre(ordenML, { costoEnvio: 152 }),
+    ordenMercadoLibre({ ...ordenML, id: 2, payments: [{ money_release_date: "2026-11-20T00:00:00Z", money_release_status: "released" }] }, { costoEnvio: 50 }),
+    ordenMercadoLibre({ ...ordenML, id: 3 }), // envío desconocido
+    ordenMercadoLibre({ ...ordenML, id: 4, status: "cancelled" }, { costoEnvio: 10 }),
+  ];
+  const l = liquidacionesDesdeOrdenesML(ordenes, { hoy: "2026-11-27T12:00:00Z" });
+  assert.equal(l.length, 3);
+  assert.deepEqual(l.map((x) => [x.external_id, x.estado, x.monto_neto]), [
+    ["orden:2000000000000001", "pendiente", 224.68],
+    ["orden:2", "liberada", 326.68],
+    ["orden:3", "pendiente", null],
+  ]);
+  assert.ok(l.every((x) => x.datos_origen.derivada_de_orden && x.retenciones === null));
+});
+
+test("TikTok Shop: productos por SKU con inventario sumado", () => {
+  const filas = publicacionesTikTokShop({
+    id: "P1", title: "Bálsamo", status: "ACTIVATE",
+    skus: [{ id: "S1", seller_sku: "BAL-1", price: { sale_price: "69" }, inventory: [{ quantity: 10 }, { quantity: 4 }] }],
+  });
+  assert.deepEqual(filas[0], { canal: "tiktok_shop", publicacion: "P1", variacion: "S1", titulo: "Bálsamo", sku: "BAL-1", codigo_barras: null, estado: "ACTIVATE", precio: 69, existencia: 14, vendidas: null });
+});
+
+test("credenciales: vigencia con margen y renovación de ambas plataformas", () => {
+  const ahora = new Date("2026-11-28T10:00:00Z");
+  assert.equal(credencialVigente({ access_token: "a", access_expira: "2026-11-28T10:30:00Z" }, ahora), true);
+  assert.equal(credencialVigente({ access_token: "a", access_expira: "2026-11-28T10:05:00Z" }, ahora), false);
+  assert.equal(credencialVigente({}, ahora), false);
+  const ml = credencialDesdeRenovacionML({ access_token: "n", refresh_token: "r2", expires_in: 21600 }, { refresh_token: "r1" }, ahora);
+  assert.deepEqual(ml, { refresh_token: "r2", access_token: "n", access_expira: "2026-11-28T16:00:00.000Z" });
+  const tt = credencialDesdeRenovacionTikTok({ data: { access_token: "t", access_token_expire_in: 1764400000, refresh_token: "rt", refresh_token_expire_in: 1770000000 } }, { shop_cipher: "c" });
+  assert.equal(tt.shop_cipher, "c");
+  assert.equal(tt.refresh_token, "rt");
+  assert.equal(credencialDesdeRenovacionML({ access_token: "x" }), null); // sin refresh nuevo no se acepta
 });

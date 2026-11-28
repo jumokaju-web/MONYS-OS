@@ -6,29 +6,35 @@
  * Libre (status, cancel_group, tags, items, fecha) y, opcionalmente,
  * reclamos ({ order_id, afecta_reputacion, reason_familia }).
  *
- * Patrones que se señalan (sugerencias para revisar, no cambios):
- * - "vendedor": el vendedor canceló (sin stock, precio o publicación
- *   equivocada). Es lo que más daña la reputación.
- * - "pago_no_concretado": orden no pagada; no suele afectar reputación.
- * - "fraude": la plataforma la detuvo por riesgo.
- * - Publicación cancelada 2+ veces: revisar existencia, precio y título.
+ * Atribución (con la evidencia disponible en la orden):
+ * - vendedor: el vendedor canceló (sin stock, precio o publicación
+ *   equivocada). Es la única que la tienda puede evitar directamente.
+ * - comprador: el comprador la canceló.
+ * - plataforma: la plataforma la detuvo (fraude u otra regla interna).
+ * - pago_no_concretado: el comprador no completó el pago.
+ * - sin_evidencia: la orden no dice quién canceló.
+ * Impacto en reputación: SOLO con evidencia de la plataforma (reclamo con
+ * afecta_reputacion). Sin ella queda "desconocido"; no se infiere.
+ * Publicación cancelada 2+ veces: revisar existencia, precio y título.
  * Módulo puro.
  */
 
 const GRUPOS = {
   seller: "vendedor",
-  fraud: "fraude",
-  internal: "plataforma",
   buyer: "comprador",
+  fraud: "plataforma",
+  internal: "plataforma",
 };
+
+export const ATRIBUIBLE_AL_VENDEDOR = new Set(["vendedor"]);
 
 function clasificar(orden) {
   const grupo = GRUPOS[orden?.cancel_group];
   if (grupo) return grupo;
   const tags = new Set(orden?.tags || []);
-  if (tags.has("fraud_risk_detected")) return "fraude";
+  if (tags.has("fraud_risk_detected")) return "plataforma";
   if (tags.has("not_paid")) return "pago_no_concretado";
-  return "sin_motivo";
+  return "sin_evidencia";
 }
 
 export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) {
@@ -41,6 +47,7 @@ export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) 
   const porMotivo = {};
   const porPublicacion = new Map();
   let afectanReputacion = 0;
+  let noAfectanReputacion = 0;
   let reputacionDesconocida = 0;
 
   for (const orden of canceladas) {
@@ -49,7 +56,8 @@ export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) 
 
     const afecta = reputacionPorOrden.get(String(orden.id));
     if (afecta === "affected") afectanReputacion += 1;
-    else if (afecta === undefined || afecta === null) reputacionDesconocida += 1;
+    else if (afecta === "not_affected" || afecta === "not_applies") noAfectanReputacion += 1;
+    else reputacionDesconocida += 1;
 
     for (const item of orden.items || []) {
       const id = item?.item_id || item?.title || "?";
@@ -69,7 +77,7 @@ export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) 
   if (porMotivo.vendedor) {
     recomendaciones.push({
       prioridad: "alta",
-      texto: `${porMotivo.vendedor} cancelación(es) hechas por el vendedor: antes de publicar, confirma existencia real y precio; si no hay stock, pausa la publicación en vez de cancelar la venta.`,
+      texto: `${porMotivo.vendedor} cancelación(es) atribuibles al vendedor: antes de publicar, confirma existencia real y precio; si no hay stock, pausa la publicación en vez de cancelar la venta.`,
     });
   }
   if (repetidas.length) {
@@ -84,10 +92,10 @@ export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) 
       texto: `${porMotivo.pago_no_concretado} orden(es) sin pago concretado: suelen ser pagos en efectivo o tarjeta rechazada; no dependen de la tienda, pero conviene medirlas.`,
     });
   }
-  if (porMotivo.sin_motivo) {
+  if (porMotivo.sin_evidencia) {
     recomendaciones.push({
       prioridad: "media",
-      texto: `${porMotivo.sin_motivo} cancelación(es) sin motivo informado por la plataforma: revisa el detalle de cada venta en Mercado Libre.`,
+      texto: `${porMotivo.sin_evidencia} cancelación(es) sin evidencia de quién canceló: revisa el detalle de cada venta en la plataforma.`,
     });
   }
 
@@ -97,8 +105,14 @@ export function diagnosticarCancelaciones(ordenes = [], { reclamos = [] } = {}) 
     canceladas: canceladas.length,
     tasaPct: total ? Math.round((canceladas.length / total) * 1000) / 10 : null,
     porMotivo,
-    afectanReputacion,
-    reputacionDesconocida,
+    atribuiblesAlVendedor: porMotivo.vendedor || 0,
+    noAtribuiblesAlVendedor: canceladas.length - (porMotivo.vendedor || 0),
+    reputacion: {
+      afecta: afectanReputacion,
+      noAfecta: noAfectanReputacion,
+      desconocido: reputacionDesconocida,
+      nota: "Solo se cuenta con evidencia de la plataforma; no se infiere.",
+    },
     publicacionesRepetidas: repetidas,
     porPublicacion: [...porPublicacion.values()].sort((a, b) => b.cancelaciones - a.cancelaciones),
     recomendaciones,

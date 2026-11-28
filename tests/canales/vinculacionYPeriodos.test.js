@@ -82,9 +82,14 @@ test("diagnostica cancelaciones por motivo, reputación y publicaciones repetida
   );
   assert.equal(diagnostico.canceladas, 4);
   assert.equal(diagnostico.tasaPct, 80);
-  assert.deepEqual(diagnostico.porMotivo, { vendedor: 1, pago_no_concretado: 1, fraude: 1, sin_motivo: 1 });
-  assert.equal(diagnostico.afectanReputacion, 1);
-  assert.equal(diagnostico.reputacionDesconocida, 2);
+  assert.deepEqual(diagnostico.porMotivo, { vendedor: 1, pago_no_concretado: 1, plataforma: 1, sin_evidencia: 1 });
+  assert.equal(diagnostico.atribuiblesAlVendedor, 1);
+  assert.equal(diagnostico.noAtribuiblesAlVendedor, 3);
+  // Reputación solo con evidencia: 1 afecta, 1 no afecta, 2 desconocidas.
+  assert.deepEqual(
+    { afecta: diagnostico.reputacion.afecta, noAfecta: diagnostico.reputacion.noAfecta, desconocido: diagnostico.reputacion.desconocido },
+    { afecta: 1, noAfecta: 1, desconocido: 2 }
+  );
   assert.equal(diagnostico.publicacionesRepetidas[0].publicacion, "A");
   assert.equal(diagnostico.recomendaciones[0].prioridad, "alta");
   assert.match(diagnostico.nota, /no cancela, pausa ni edita/);

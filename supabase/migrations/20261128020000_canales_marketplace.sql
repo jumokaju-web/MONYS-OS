@@ -21,6 +21,10 @@ create table if not exists public.canal_cuentas (
     check (estado in ('PENDIENTE_AUTORIZACION', 'ACTIVA', 'ERROR', 'DESCONECTADA')),
   ultimo_sync timestamptz,
   ultimo_error text check (ultimo_error is null or length(ultimo_error) <= 1000),
+  intentos_fallidos integer not null default 0 check (intentos_fallidos >= 0),
+  proximo_intento timestamptz,          -- reintento automático (backoff)
+  sync_en_curso_hasta timestamptz,      -- turno exclusivo (evita corridas simultáneas)
+  cobertura jsonb,                      -- qué trajo cada fuente en la última corrida
   created_at timestamptz not null default now(),
   unique (canal, cuenta_externa)
 );
@@ -50,13 +54,14 @@ create table if not exists public.canal_ordenes (
 create table if not exists public.canal_orden_items (
   id uuid primary key default gen_random_uuid(),
   orden_id uuid not null references public.canal_ordenes(id) on delete cascade,
-  publicacion text,
+  publicacion text not null default '',
+  variacion text not null default '',   -- tono/color: evita colisiones de variantes
   titulo text,
-  sku text,
+  sku text not null default '',         -- '' = sin SKU (no null, para que la llave sea única)
   cantidad numeric(12,2) not null check (cantidad > 0),
   precio_unit numeric(14,2) not null check (precio_unit >= 0),
   comision numeric(14,2) check (comision is null or comision >= 0),
-  unique (orden_id, publicacion, sku)
+  unique (orden_id, publicacion, variacion, sku)
 );
 
 create table if not exists public.canal_publicaciones (
@@ -66,15 +71,16 @@ create table if not exists public.canal_publicaciones (
   cuenta_id uuid not null references public.canal_cuentas(id),
   canal text not null check (canal in ('mercado_libre', 'tiktok_shop')),
   publicacion text not null,
+  variacion text not null default '',
   titulo text,
   sku text,
   codigo_barras text,
-  estado text,
+  estado text,                          -- 'no_encontrada' si desapareció en un barrido completo
   precio numeric(14,2),
   existencia integer,
   vendidas integer,
   sincronizado_en timestamptz not null default now(),
-  unique (business_id, canal, publicacion)
+  unique (business_id, canal, publicacion, variacion)
 );
 
 create table if not exists public.canal_liquidaciones (
@@ -171,38 +177,87 @@ with check (private.has_org_role(organization_id, array['owner','director','admi
 
 commit;
 
--- Tokens de las plataformas en Supabase Vault (cifrados). Solo la Edge
--- Function (service_role) puede leerlos o rotarlos. Se crean solo si la
--- base tiene Vault (Supabase lo trae).
+-- Turno exclusivo por cuenta: solo una sincronización a la vez. Lo usa
+-- únicamente la Edge Function (service_role).
+create or replace function public.tomar_turno_canal(p_cuenta_id uuid, p_minutos integer)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  tomado uuid;
+begin
+  if p_minutos is null or p_minutos < 1 or p_minutos > 60 then
+    raise exception 'Duración de turno inválida';
+  end if;
+  update public.canal_cuentas
+  set sync_en_curso_hasta = now() + make_interval(mins => p_minutos)
+  where id = p_cuenta_id
+    and (sync_en_curso_hasta is null or sync_en_curso_hasta < now())
+  returning id into tomado;
+  return tomado is not null;
+end;
+$$;
+
+create or replace function public.liberar_turno_canal(p_cuenta_id uuid)
+returns void language sql security definer set search_path = '' as $$
+  update public.canal_cuentas set sync_en_curso_hasta = null where id = p_cuenta_id;
+$$;
+
+revoke all on function public.tomar_turno_canal(uuid, integer) from public, anon, authenticated;
+revoke all on function public.liberar_turno_canal(uuid) from public, anon, authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    execute 'grant execute on function public.tomar_turno_canal(uuid, integer) to service_role';
+    execute 'grant execute on function public.liberar_turno_canal(uuid) to service_role';
+  end if;
+end;
+$$;
+
+-- Credenciales de las plataformas (JSON: access/refresh token, vencimientos,
+-- shop_cipher) cifradas en Supabase Vault. Solo service_role puede leerlas o
+-- rotarlas, y solo para cuentas registradas en canal_cuentas.
 do $do$
 begin
   if exists (select 1 from pg_namespace where nspname = 'vault') then
     execute $f$
-      create or replace function public.leer_token_canal(p_cuenta_id uuid)
-      returns text language sql security definer set search_path = '' as $$
-        select decrypted_secret from vault.decrypted_secrets
-        where name = 'canal_token_' || p_cuenta_id::text
+      create or replace function public.leer_credencial_canal(p_cuenta_id uuid)
+      returns text language plpgsql security definer set search_path = '' as $$
+      begin
+        if not exists (select 1 from public.canal_cuentas where id = p_cuenta_id) then
+          raise exception 'Cuenta de canal inexistente';
+        end if;
+        return (select decrypted_secret from vault.decrypted_secrets where name = 'canal_credencial_' || p_cuenta_id::text);
+      end;
       $$;
     $f$;
     execute $f$
-      create or replace function public.guardar_token_canal(p_cuenta_id uuid, p_token text)
+      create or replace function public.guardar_credencial_canal(p_cuenta_id uuid, p_credencial text)
       returns void language plpgsql security definer set search_path = '' as $$
       declare
         existente uuid;
+        datos jsonb;
       begin
-        select id into existente from vault.secrets where name = 'canal_token_' || p_cuenta_id::text;
+        if not exists (select 1 from public.canal_cuentas where id = p_cuenta_id) then
+          raise exception 'Cuenta de canal inexistente';
+        end if;
+        datos := p_credencial::jsonb;  -- debe ser JSON válido
+        if coalesce(datos->>'access_token', '') = '' or coalesce(datos->>'refresh_token', '') = '' then
+          raise exception 'Credencial incompleta: no se reemplaza la anterior';
+        end if;
+        select id into existente from vault.secrets where name = 'canal_credencial_' || p_cuenta_id::text;
         if existente is null then
-          perform vault.create_secret(p_token, 'canal_token_' || p_cuenta_id::text, 'Refresh token de canal (solo lectura)');
+          perform vault.create_secret(p_credencial, 'canal_credencial_' || p_cuenta_id::text, 'Credencial de canal (solo lectura)');
         else
-          perform vault.update_secret(existente, p_token);
+          perform vault.update_secret(existente, p_credencial);
         end if;
       end;
       $$;
     $f$;
-    execute 'revoke all on function public.leer_token_canal(uuid) from public, anon, authenticated';
-    execute 'revoke all on function public.guardar_token_canal(uuid, text) from public, anon, authenticated';
-    execute 'grant execute on function public.leer_token_canal(uuid) to service_role';
-    execute 'grant execute on function public.guardar_token_canal(uuid, text) to service_role';
+    execute 'revoke all on function public.leer_credencial_canal(uuid) from public, anon, authenticated';
+    execute 'revoke all on function public.guardar_credencial_canal(uuid, text) from public, anon, authenticated';
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+      execute 'grant execute on function public.leer_credencial_canal(uuid) to service_role';
+      execute 'grant execute on function public.guardar_credencial_canal(uuid, text) to service_role';
+    end if;
   end if;
 end;
 $do$;

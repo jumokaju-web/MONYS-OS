@@ -1,47 +1,49 @@
 // Sincronización diaria de canales (Mercado Libre y TikTok Shop) · MONYS OS
 //
-// SOLO LECTURA en las plataformas: únicamente consulta órdenes,
-// publicaciones, envíos y estados de cuenta. No modifica precios,
+// SOLO LECTURA en las plataformas: consulta órdenes, publicaciones, envíos,
+// estados de cuenta y la identidad de la cuenta. No modifica precios,
 // publicaciones, campañas ni promociones.
+//
+// La lógica (turnos, credenciales, dry_run, reintentos, cobertura) vive en
+// src/core/canales/sincronizacion.js y tiene pruebas. Aquí solo se conectan
+// las APIs y Supabase.
 //
 // Estado: preparada, NO desplegada. Requiere (con autorización):
 //   - migración 20261128020000_canales_marketplace.sql aplicada;
-//   - secretos: CRON_SECRET, ML_CLIENT_ID, ML_CLIENT_SECRET,
-//     TT_APP_KEY, TT_APP_SECRET;
-//   - refresh tokens por cuenta en Vault (funciones private.*_token_canal).
+//   - secretos: CRON_SECRET, ML_CLIENT_ID, ML_CLIENT_SECRET, TT_APP_KEY, TT_APP_SECRET;
+//   - credenciales por cuenta en Vault (guardar_credencial_canal).
 //
-// Uso: POST /sincronizar-canales  (header x-cron-secret)
-//      ?dry_run=1      → consulta y traduce, pero no escribe.
-//      ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD (por defecto: últimos 45 días)
+// POST /sincronizar-canales (header x-cron-secret)
+//   ?dry_run=1                      → consulta y mide, sin escribir datos ni estado
+//   ?desde=YYYY-MM-DD&hasta=...     → máx. 120 días (por defecto, últimos 45)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  cadenaFirmaTikTok,
+  credencialDesdeRenovacionML,
+  credencialDesdeRenovacionTikTok,
+  credencialVigente,
   liquidacionTikTokShop,
+  liquidacionesDesdeOrdenesML,
   ordenMercadoLibre,
   ordenTikTokShop,
-  publicacionMercadoLibre,
-  cadenaFirmaTikTok,
+  publicacionesMercadoLibre,
+  publicacionesTikTokShop,
 } from "../../../src/core/canales/mapeoApis.js";
+import { cuentasParaSincronizar, medirCobertura, sincronizarCuenta } from "../../../src/core/canales/sincronizacion.js";
 
 const ML_API = "https://api.mercadolibre.com";
 const TT_API = "https://open-api.tiktokglobalshop.com";
+const TT_AUTH = "https://auth.tiktok-shops.com";
 const VENTANA_DIAS = 45;
 
-type Cuenta = {
-  id: string;
-  organization_id: string;
-  business_id: string;
-  canal: "mercado_libre" | "tiktok_shop";
-  cuenta_externa: string;
-};
-
-const esperar = (ms: number) => new Promise((resolver) => setTimeout(resolver, ms));
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function obtenerJson(url: string, opciones: RequestInit = {}, intentos = 3): Promise<any> {
   for (let intento = 1; ; intento++) {
     const respuesta = await fetch(url, opciones);
-    if (respuesta.status === 429 && intento < intentos) {
-      await esperar(60_000); // límite de consultas por minuto
+    if ((respuesta.status === 429 || respuesta.status >= 500) && intento < intentos) {
+      await esperar(intento * 20_000);
       continue;
     }
     if (!respuesta.ok) throw new Error(`${opciones.method || "GET"} ${url.split("?")[0]} → ${respuesta.status}`);
@@ -49,78 +51,84 @@ async function obtenerJson(url: string, opciones: RequestInit = {}, intentos = 3
   }
 }
 
-/* ---------------- Credenciales (Vault) ---------------- */
-
-async function leerToken(supabase: any, cuenta: Cuenta): Promise<string> {
-  const { data, error } = await supabase.rpc("leer_token_canal", { p_cuenta_id: cuenta.id });
-  if (error || !data) throw new Error(`Sin refresh token para la cuenta ${cuenta.cuenta_externa}`);
-  return data as string;
-}
-
-async function guardarToken(supabase: any, cuenta: Cuenta, token: string) {
-  const { error } = await supabase.rpc("guardar_token_canal", { p_cuenta_id: cuenta.id, p_token: token });
-  if (error) throw new Error(`No se pudo guardar el refresh token: ${error.message}`);
-}
-
 /* ---------------- Mercado Libre ---------------- */
 
-async function tokenMercadoLibre(supabase: any, cuenta: Cuenta): Promise<string> {
-  const refresh = await leerToken(supabase, cuenta);
-  const datos = await obtenerJson(`${ML_API}/oauth/token`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: Deno.env.get("ML_CLIENT_ID")!,
-      client_secret: Deno.env.get("ML_CLIENT_SECRET")!,
-      refresh_token: refresh,
-    }),
-  });
-  // Mercado Libre rota el refresh token en cada uso: se guarda el nuevo.
-  if (datos.refresh_token && datos.refresh_token !== refresh) await guardarToken(supabase, cuenta, datos.refresh_token);
-  return datos.access_token;
-}
+const proveedorMercadoLibre = {
+  credencialVigente,
+  async renovar(cred: any) {
+    const datos = await obtenerJson(`${ML_API}/oauth/token`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: Deno.env.get("ML_CLIENT_ID")!,
+        client_secret: Deno.env.get("ML_CLIENT_SECRET")!,
+        refresh_token: cred.refresh_token,
+      }),
+    });
+    return credencialDesdeRenovacionML(datos, cred);
+  },
+  async identidad(cred: any) {
+    const yo = await obtenerJson(`${ML_API}/users/me`, { headers: { authorization: `Bearer ${cred.access_token}` } });
+    return yo.id;
+  },
+  async descargar(cred: any, { desde, hasta, ahora, presupuestoMs }: any) {
+    const inicio = Date.now();
+    const quedaTiempo = () => Date.now() - inicio < presupuestoMs;
+    const auth = { headers: { authorization: `Bearer ${cred.access_token}` } };
+    const vendedor = await this.identidad(cred);
+    let completa = true;
 
-async function sincronizarMercadoLibre(cuenta: Cuenta, token: string, desde: string, hasta: string) {
-  const auth = { headers: { authorization: `Bearer ${token}` } };
-  const ordenes: any[] = [];
-  for (let offset = 0; ; offset += 50) {
-    const pagina = await obtenerJson(
-      `${ML_API}/orders/search?seller=${cuenta.cuenta_externa}&order.date_created.from=${desde}T00:00:00.000-06:00` +
-        `&order.date_created.to=${hasta}T23:59:59.999-06:00&sort=date_asc&limit=50&offset=${offset}`,
-      auth
-    );
-    for (const orden of pagina.results || []) {
-      let costoEnvio: number | null = null;
-      if (orden.shipping?.id && orden.status !== "cancelled") {
-        try {
-          const costos = await obtenerJson(`${ML_API}/shipments/${orden.shipping.id}/costs`, {
-            headers: { ...auth.headers, "x-format-new": "true" },
-          });
-          const valor = Number(costos?.senders?.[0]?.cost);
-          costoEnvio = Number.isFinite(valor) ? valor : null;
-        } catch {
-          costoEnvio = null; // desconocido, no cero
+    const ordenes: any[] = [];
+    for (let offset = 0; ; offset += 50) {
+      if (!quedaTiempo()) { completa = false; break; }
+      const pagina = await obtenerJson(
+        `${ML_API}/orders/search?seller=${vendedor}&order.date_created.from=${desde}T00:00:00.000-06:00` +
+          `&order.date_created.to=${hasta}T23:59:59.999-06:00&sort=date_asc&limit=50&offset=${offset}`,
+        auth
+      );
+      for (const orden of pagina.results || []) {
+        let costoEnvio: number | null = null;
+        if (orden.shipping?.id && orden.status !== "cancelled") {
+          try {
+            const costos = await obtenerJson(`${ML_API}/shipments/${orden.shipping.id}/costs`, { headers: { ...auth.headers, "x-format-new": "true" } });
+            const valor = Number(costos?.senders?.[0]?.cost);
+            costoEnvio = Number.isFinite(valor) ? valor : null;
+          } catch {
+            costoEnvio = null; // desconocido, no cero
+          }
         }
+        ordenes.push(ordenMercadoLibre(orden, { costoEnvio }));
       }
-      ordenes.push(ordenMercadoLibre(orden, { costoEnvio }));
+      if (!pagina.results?.length || offset + 50 >= (pagina.paging?.total ?? 0)) break;
     }
-    if (!pagina.results?.length || offset + 50 >= (pagina.paging?.total ?? 0)) break;
-  }
 
-  const ids: string[] = [];
-  for (let offset = 0; ; offset += 100) {
-    const pagina = await obtenerJson(`${ML_API}/users/${cuenta.cuenta_externa}/items/search?limit=100&offset=${offset}`, auth);
-    ids.push(...(pagina.results || []));
-    if (!pagina.results?.length || offset + 100 >= (pagina.paging?.total ?? 0)) break;
-  }
-  const publicaciones: any[] = [];
-  for (let i = 0; i < ids.length; i += 20) {
-    const lote = await obtenerJson(`${ML_API}/items?ids=${ids.slice(i, i + 20).join(",")}`, auth);
-    for (const fila of lote || []) if (fila?.code === 200) publicaciones.push(publicacionMercadoLibre(fila.body));
-  }
-  return { ordenes, publicaciones, liquidaciones: [] };
-}
+    const ids: string[] = [];
+    for (let offset = 0; ; offset += 100) {
+      if (!quedaTiempo()) { completa = false; break; }
+      const pagina = await obtenerJson(`${ML_API}/users/${vendedor}/items/search?limit=100&offset=${offset}`, auth);
+      ids.push(...(pagina.results || []));
+      if (!pagina.results?.length || offset + 100 >= (pagina.paging?.total ?? 0)) break;
+    }
+    const publicaciones: any[] = [];
+    for (let i = 0; i < ids.length; i += 20) {
+      if (!quedaTiempo()) { completa = false; break; }
+      const lote = await obtenerJson(`${ML_API}/items?ids=${ids.slice(i, i + 20).join(",")}`, auth);
+      for (const fila of lote || []) if (fila?.code === 200) publicaciones.push(...publicacionesMercadoLibre(fila.body));
+    }
+
+    const liquidaciones = liquidacionesDesdeOrdenesML(ordenes, { hoy: ahora });
+    return {
+      ordenes,
+      publicaciones,
+      liquidaciones,
+      cobertura: medirCobertura({
+        ordenes, publicaciones, liquidaciones, completa,
+        fuentesNoDisponibles: ["retenciones ISR/IVA (no las expone la API)", "depósito bancario (se concilia en Tesorería)"],
+      }),
+    };
+  },
+};
 
 /* ---------------- TikTok Shop ---------------- */
 
@@ -130,81 +138,137 @@ async function firmar(texto: string, secreto: string): Promise<string> {
   return [...new Uint8Array(firma)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function llamadaTikTok(path: string, token: string, shopCipher: string, params: Record<string, string> = {}, body?: object) {
-  const appKey = Deno.env.get("TT_APP_KEY")!;
+async function llamadaTikTok(path: string, cred: any, params: Record<string, string> = {}, body?: object, conTienda = true) {
   const appSecret = Deno.env.get("TT_APP_SECRET")!;
-  const todos: Record<string, string> = { app_key: appKey, timestamp: String(Math.floor(Date.now() / 1000)), shop_cipher: shopCipher, ...params };
+  const todos: Record<string, string> = {
+    app_key: Deno.env.get("TT_APP_KEY")!,
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    ...(conTienda ? { shop_cipher: cred.shop_cipher } : {}),
+    ...params,
+  };
   const cuerpo = body ? JSON.stringify(body) : "";
   todos.sign = await firmar(cadenaFirmaTikTok({ path, params: todos, body: cuerpo, appSecret }), appSecret);
-  const url = `${TT_API}${path}?${new URLSearchParams(todos)}`;
-  const datos = await obtenerJson(url, {
+  const datos = await obtenerJson(`${TT_API}${path}?${new URLSearchParams(todos)}`, {
     method: body ? "POST" : "GET", // POST de búsqueda: sigue siendo lectura
-    headers: { "x-tts-access-token": token, "content-type": "application/json" },
+    headers: { "x-tts-access-token": cred.access_token, "content-type": "application/json" },
     body: body ? cuerpo : undefined,
   });
   if (datos.code !== 0) throw new Error(`TikTok Shop ${path}: ${datos.message}`);
   return datos.data;
 }
 
-async function sincronizarTikTok(cuenta: Cuenta, token: string, shopCipher: string, desde: string, hasta: string) {
-  const inicio = Math.floor(new Date(`${desde}T00:00:00-06:00`).getTime() / 1000);
-  const fin = Math.floor(new Date(`${hasta}T23:59:59-06:00`).getTime() / 1000);
-  const ordenes: any[] = [];
-  let pagina: string | undefined;
-  do {
-    const datos = await llamadaTikTok("/order/202309/orders/search", token, shopCipher,
-      { page_size: "50", ...(pagina ? { page_token: pagina } : {}) },
-      { create_time_ge: inicio, create_time_lt: fin });
-    ordenes.push(...(datos.orders || []).map(ordenTikTokShop));
-    pagina = datos.next_page_token || undefined;
-  } while (pagina);
-
-  const liquidaciones: any[] = [];
-  pagina = undefined;
-  do {
-    const datos = await llamadaTikTok("/finance/202309/statements", token, shopCipher, {
-      statement_time_ge: String(inicio), statement_time_lt: String(fin), page_size: "50", sort_field: "statement_time",
-      ...(pagina ? { page_token: pagina } : {}),
+const proveedorTikTok = {
+  credencialVigente,
+  async renovar(cred: any) {
+    const params = new URLSearchParams({
+      app_key: Deno.env.get("TT_APP_KEY")!,
+      app_secret: Deno.env.get("TT_APP_SECRET")!,
+      refresh_token: cred.refresh_token,
+      grant_type: "refresh_token",
     });
-    liquidaciones.push(...(datos.statements || []).map(liquidacionTikTokShop));
-    pagina = datos.next_page_token || undefined;
-  } while (pagina);
+    return credencialDesdeRenovacionTikTok(await obtenerJson(`${TT_AUTH}/api/v2/token/refresh?${params}`), cred);
+  },
+  async identidad(cred: any) {
+    const datos = await llamadaTikTok("/authorization/202309/shops", cred, {}, undefined, false);
+    const tienda = (datos.shops || []).find((shop: any) => shop.cipher === cred.shop_cipher);
+    if (!tienda) throw new Error("La tienda autorizada no coincide con el shop_cipher guardado.");
+    return tienda.id;
+  },
+  async descargar(cred: any, { desde, hasta, presupuestoMs }: any) {
+    const inicioReloj = Date.now();
+    const quedaTiempo = () => Date.now() - inicioReloj < presupuestoMs;
+    const inicio = Math.floor(new Date(`${desde}T00:00:00-06:00`).getTime() / 1000);
+    const fin = Math.floor(new Date(`${hasta}T23:59:59-06:00`).getTime() / 1000);
+    let completa = true;
 
-  return { ordenes, publicaciones: [], liquidaciones };
-}
+    const paginar = async (path: string, params: Record<string, string>, body: object | undefined, campo: string, mapear: (x: any) => any) => {
+      const filas: any[] = [];
+      let token: string | undefined;
+      do {
+        if (!quedaTiempo()) { completa = false; break; }
+        const datos = await llamadaTikTok(path, cred, { page_size: "50", ...params, ...(token ? { page_token: token } : {}) }, body);
+        filas.push(...(datos[campo] || []).flatMap((x: any) => [mapear(x)].flat()));
+        token = datos.next_page_token || undefined;
+      } while (token);
+      return filas;
+    };
 
-/* ---------------- Escritura idempotente ---------------- */
+    const ordenes = await paginar("/order/202309/orders/search", {}, { create_time_ge: inicio, create_time_lt: fin }, "orders", ordenTikTokShop);
+    const liquidaciones = await paginar("/finance/202309/statements",
+      { statement_time_ge: String(inicio), statement_time_lt: String(fin), sort_field: "statement_time" }, undefined, "statements", liquidacionTikTokShop);
+    const publicaciones = await paginar("/product/202309/products/search", {}, {}, "products", publicacionesTikTokShop);
 
-async function guardar(supabase: any, cuenta: Cuenta, datos: { ordenes: any[]; publicaciones: any[]; liquidaciones: any[] }) {
-  const base = { organization_id: cuenta.organization_id, business_id: cuenta.business_id, cuenta_id: cuenta.id };
-  for (const { items, ...orden } of datos.ordenes) {
-    const { data, error } = await supabase
-      .from("canal_ordenes")
-      .upsert({ ...base, ...orden, sincronizado_en: new Date().toISOString() }, { onConflict: "business_id,canal,external_id" })
-      .select("id")
-      .single();
-    if (error) throw new Error(`canal_ordenes: ${error.message}`);
-    if (items?.length) {
-      const { error: errorItems } = await supabase
-        .from("canal_orden_items")
-        .upsert(items.map((item: any) => ({ ...item, orden_id: data.id })), { onConflict: "orden_id,publicacion,sku" });
-      if (errorItems) throw new Error(`canal_orden_items: ${errorItems.message}`);
-    }
-  }
-  if (datos.publicaciones.length) {
-    const { error } = await supabase.from("canal_publicaciones").upsert(
-      datos.publicaciones.map((p) => ({ ...base, ...p, sincronizado_en: new Date().toISOString() })),
-      { onConflict: "business_id,canal,publicacion" }
-    );
-    if (error) throw new Error(`canal_publicaciones: ${error.message}`);
-  }
-  if (datos.liquidaciones.length) {
-    const { error } = await supabase.from("canal_liquidaciones").upsert(
-      datos.liquidaciones.map((l) => ({ ...base, ...l })),
-      { onConflict: "business_id,canal,external_id" }
-    );
-    if (error) throw new Error(`canal_liquidaciones: ${error.message}`);
-  }
+    return {
+      ordenes,
+      publicaciones,
+      liquidaciones,
+      cobertura: medirCobertura({
+        ordenes, publicaciones, liquidaciones, completa,
+        fuentesNoDisponibles: ["comisión, envío y retenciones por orden (campos por verificar)", "devoluciones"],
+      }),
+    };
+  },
+};
+
+/* ---------------- Almacén (Supabase, service_role) ---------------- */
+
+function crearAlmacen(supabase: any) {
+  const rpc = async (nombre: string, args: object) => {
+    const { data, error } = await supabase.rpc(nombre, args);
+    if (error) throw new Error(`${nombre}: ${error.message}`);
+    return data;
+  };
+  return {
+    tomarTurno: (cuentaId: string, minutos: number) => rpc("tomar_turno_canal", { p_cuenta_id: cuentaId, p_minutos: minutos }),
+    liberarTurno: (cuentaId: string) => rpc("liberar_turno_canal", { p_cuenta_id: cuentaId }),
+    async leerCredencial(cuentaId: string) {
+      const texto = await rpc("leer_credencial_canal", { p_cuenta_id: cuentaId });
+      return texto ? JSON.parse(texto) : null;
+    },
+    guardarCredencial: (cuentaId: string, cred: object) => rpc("guardar_credencial_canal", { p_cuenta_id: cuentaId, p_credencial: JSON.stringify(cred) }),
+    async guardarDatos(cuenta: any, datos: any) {
+      const base = { organization_id: cuenta.organization_id, business_id: cuenta.business_id, cuenta_id: cuenta.id };
+      const marca = new Date().toISOString();
+      for (const { items, ...orden } of datos.ordenes) {
+        const { data, error } = await supabase.from("canal_ordenes")
+          .upsert({ ...base, ...orden, sincronizado_en: marca }, { onConflict: "business_id,canal,external_id" })
+          .select("id").single();
+        if (error) throw new Error(`canal_ordenes: ${error.message}`);
+        if (items?.length) {
+          const { error: e } = await supabase.from("canal_orden_items")
+            .upsert(items.map((item: any) => ({ ...item, orden_id: data.id })), { onConflict: "orden_id,publicacion,variacion,sku" });
+          if (e) throw new Error(`canal_orden_items: ${e.message}`);
+        }
+      }
+      if (datos.publicaciones.length) {
+        const { error } = await supabase.from("canal_publicaciones").upsert(
+          datos.publicaciones.map((p: any) => ({ ...base, ...p, sincronizado_en: marca })),
+          { onConflict: "business_id,canal,publicacion,variacion" });
+        if (error) throw new Error(`canal_publicaciones: ${error.message}`);
+        // Solo con un barrido completo se marcan las que ya no existen.
+        if (datos.cobertura?.completa) {
+          await supabase.from("canal_publicaciones").update({ estado: "no_encontrada" })
+            .eq("cuenta_id", cuenta.id).lt("sincronizado_en", marca);
+        }
+      }
+      if (datos.liquidaciones.length) {
+        const { error } = await supabase.from("canal_liquidaciones").upsert(
+          datos.liquidaciones.map((l: any) => ({ ...base, ...l })), { onConflict: "business_id,canal,external_id" });
+        if (error) throw new Error(`canal_liquidaciones: ${error.message}`);
+      }
+    },
+    async registrarExito(cuentaId: string, { ahora, cobertura }: any) {
+      await supabase.from("canal_cuentas").update({
+        estado: "ACTIVA", intentos_fallidos: 0, proximo_intento: null, ultimo_error: null,
+        ultimo_sync: new Date(ahora).toISOString(), cobertura,
+      }).eq("id", cuentaId);
+    },
+    async registrarFallo(cuentaId: string, { intentos, proximoIntento, mensaje, critico }: any) {
+      await supabase.from("canal_cuentas").update({
+        estado: critico ? "DESCONECTADA" : "ERROR", intentos_fallidos: intentos, proximo_intento: critico ? null : proximoIntento, ultimo_error: mensaje,
+      }).eq("id", cuentaId);
+    },
+  };
 }
 
 /* ---------------- Entrada ---------------- */
@@ -215,33 +279,23 @@ Deno.serve(async (solicitud) => {
   }
   const url = new URL(solicitud.url);
   const dryRun = url.searchParams.get("dry_run") === "1";
-  const hoy = new Date(Date.now() - 6 * 3600_000).toISOString().slice(0, 10);
-  const desde = url.searchParams.get("desde") || new Date(Date.now() - VENTANA_DIAS * 86400_000).toISOString().slice(0, 10);
+  const ahora = new Date();
+  const hoy = new Date(ahora.getTime() - 6 * 3600_000).toISOString().slice(0, 10);
+  const desde = url.searchParams.get("desde") || new Date(ahora.getTime() - VENTANA_DIAS * 86400_000).toISOString().slice(0, 10);
   const hasta = url.searchParams.get("hasta") || hoy;
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: cuentas, error } = await supabase.from("canal_cuentas").select("*").eq("estado", "ACTIVA");
+  const almacen = crearAlmacen(supabase);
+  const { data: cuentas, error } = await supabase.from("canal_cuentas").select("*").in("estado", ["ACTIVA", "ERROR"]);
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
-  const resultado: any[] = [];
-  for (const cuenta of (cuentas || []) as Cuenta[]) {
-    try {
-      let datos;
-      if (cuenta.canal === "mercado_libre") {
-        datos = await sincronizarMercadoLibre(cuenta, await tokenMercadoLibre(supabase, cuenta), desde, hasta);
-      } else {
-        // TikTok Shop: access token y shop_cipher se obtienen al autorizar la app.
-        const [token, shopCipher] = (await leerToken(supabase, cuenta)).split("|");
-        datos = await sincronizarTikTok(cuenta, token, shopCipher, desde, hasta);
-      }
-      if (!dryRun) await guardar(supabase, cuenta, datos);
-      await supabase.from("canal_cuentas").update({ ultimo_sync: new Date().toISOString(), ultimo_error: null }).eq("id", cuenta.id);
-      resultado.push({ cuenta: cuenta.cuenta_externa, canal: cuenta.canal, ordenes: datos.ordenes.length, publicaciones: datos.publicaciones.length, liquidaciones: datos.liquidaciones.length, dryRun });
-    } catch (fallo) {
-      const mensaje = String((fallo as Error).message).slice(0, 1000);
-      await supabase.from("canal_cuentas").update({ estado: "ERROR", ultimo_error: mensaje }).eq("id", cuenta.id);
-      resultado.push({ cuenta: cuenta.cuenta_externa, canal: cuenta.canal, error: mensaje });
-    }
+  const pendientes = cuentasParaSincronizar(cuentas || [], ahora);
+  // Presupuesto de tiempo repartido entre cuentas (límite de la Edge Function).
+  const presupuestoMs = Math.max(20_000, Math.floor(110_000 / Math.max(1, pendientes.length)));
+  const resultado = [];
+  for (const cuenta of pendientes) {
+    const proveedor = cuenta.canal === "mercado_libre" ? proveedorMercadoLibre : proveedorTikTok;
+    resultado.push(await sincronizarCuenta(cuenta, { proveedor, almacen, desde, hasta, dryRun, ahora, presupuestoMs }));
   }
-  return new Response(JSON.stringify({ desde, hasta, resultado }), { headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ desde, hasta, dryRun, resultado }), { headers: { "content-type": "application/json" } });
 });

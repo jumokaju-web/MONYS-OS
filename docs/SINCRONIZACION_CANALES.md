@@ -88,3 +88,23 @@ pg_cron (diario 03:30 CDMX) ──▶ Edge Function `sincronizar-canales`
 ### Lo que sigue sin fuente automática
 - **Retenciones de ISR/IVA de Mercado Libre:** la API no las expone. Se configuran como % (dato del contador).
 - **Depósitos bancarios efectivos:** se concilian con Tesorería (`liquidacion_marketplace`). El reporte de liberaciones de Mercado Pago requiere otra autorización.
+
+## 6. Garantías de la sincronización (revisión de ChatGPT/Codex en #170)
+
+La lógica vive en `src/core/canales/sincronizacion.js`, con pruebas que usan simulaciones. La Edge Function solo conecta las APIs con Supabase.
+
+| Garantía | Cómo |
+|---|---|
+| `dry_run` sin escrituras | No guarda datos ni cambia el estado de la cuenta. Solo persiste una credencial si la plataforma la rotó, porque si no se perdería. |
+| Sin corridas simultáneas | `tomar_turno_canal`: un turno exclusivo de 15 minutos por cuenta, atómico. |
+| Sin pérdida de credenciales | Se reutiliza el access token mientras siga vigente. Al renovar, el token nuevo se guarda con 3 reintentos **antes** de usarlo; si no se puede, la cuenta queda `DESCONECTADA` con aviso de "credencial en riesgo". Una credencial incompleta o inválida nunca reemplaza a la anterior. |
+| Recuperación automática | Una cuenta en `ERROR` se reintenta con espera creciente (15 min × 2ⁿ, máximo 24 h) y vuelve a `ACTIVA` en cuanto una corrida sale bien. |
+| Identidad | `/users/me` en Mercado Libre y `/authorization/202309/shops` en TikTok deben coincidir con la cuenta registrada. |
+| Ventana y tiempo | Máximo 120 días por corrida. El tiempo se reparte entre cuentas; si no alcanza, la cobertura queda `completa: false`. |
+| Publicaciones obsoletas | Solo con un barrido completo se marcan como `no_encontrada`. |
+| Variantes | Llaves `(publicacion, variacion, sku)`, para que los tonos de un mismo producto no choquen. |
+| Cobertura real | Por corrida: órdenes, % de envíos con costo, % de comisiones conocidas, % de publicaciones con SKU, liquidaciones (derivadas o de estado de cuenta) y fuentes no disponibles. Se guarda en `canal_cuentas.cobertura`. |
+| Liquidaciones de Mercado Libre | Se derivan de las órdenes (neto por `money_release_date` y `money_release_status`) y se marcan `derivada_de_orden`. El depósito bancario real se concilia en Tesorería. |
+| Credenciales de TikTok | Se renuevan con `/api/v2/token/refresh`; se verifican sus vencimientos. |
+
+**Por verificar contra la documentación oficial al registrar las apps:** los campos de cargos por orden de TikTok y los de `products/search`.
