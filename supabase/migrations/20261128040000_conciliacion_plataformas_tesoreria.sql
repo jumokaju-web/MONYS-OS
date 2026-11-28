@@ -91,6 +91,22 @@ begin
      and (tg_op = 'INSERT' or new.verificado_por is distinct from old.verificado_por) then
     raise exception 'Solo la persona autenticada puede verificar';
   end if;
+  -- Verificar (o anular algo verificado) es de dirección: owner, director
+  -- o admin. Finanzas propone; no verifica lo que concilia.
+  if new.estado = 'verificado' and (tg_op = 'INSERT' or old.estado is distinct from 'verificado')
+     and not private.has_org_role(new.organization_id, array['owner','director','admin']::text[]) then
+    raise exception 'Solo dirección (owner, director o admin) puede verificar un vínculo';
+  end if;
+  if tg_op = 'UPDATE' and old.estado = 'verificado' then
+    if new.estado = 'anulado' then
+      if not private.has_org_role(new.organization_id, array['owner','director','admin']::text[]) then
+        raise exception 'Solo dirección puede anular un vínculo verificado';
+      end if;
+    elsif row(new.cash_movement_id, new.cuenta_id, new.tipo_operacion, new.referencia_externa, new.monto_conciliado, new.estado)
+          is distinct from row(old.cash_movement_id, old.cuenta_id, old.tipo_operacion, old.referencia_externa, old.monto_conciliado, old.estado) then
+      raise exception 'Un vínculo verificado no se edita: anúlalo y crea uno nuevo';
+    end if;
+  end if;
   new.updated_at := now();
   return new;
 end;
@@ -115,11 +131,21 @@ create trigger cmpl_auditar after insert or update or delete on public.cash_move
   for each row execute function private.auditar_vinculo_plataforma();
 
 alter table public.cash_movement_platform_links enable row level security;
+-- Supabase concede ALL (incluido TRUNCATE, que ignora RLS) en tablas
+-- nuevas: se quita y se conceden solo los permisos que RLS controla.
+revoke all on public.cash_movement_platform_links from anon, authenticated;
+grant select, insert, update on public.cash_movement_platform_links to authenticated;
 drop policy if exists cmpl_leer on public.cash_movement_platform_links;
 create policy cmpl_leer on public.cash_movement_platform_links for select to authenticated
   using (private.has_org_role(organization_id, array['owner','director','admin','finanzas']::text[]));
 drop policy if exists cmpl_escribir on public.cash_movement_platform_links;
-create policy cmpl_escribir on public.cash_movement_platform_links for all to authenticated
+-- Escribir: insert y update; borrar no (se anula para conservar la historia).
+drop policy if exists cmpl_escribir on public.cash_movement_platform_links;
+drop policy if exists cmpl_insertar on public.cash_movement_platform_links;
+create policy cmpl_insertar on public.cash_movement_platform_links for insert to authenticated
+  with check (private.has_org_role(organization_id, array['owner','director','admin','finanzas']::text[]));
+drop policy if exists cmpl_actualizar on public.cash_movement_platform_links;
+create policy cmpl_actualizar on public.cash_movement_platform_links for update to authenticated
   using (private.has_org_role(organization_id, array['owner','director','admin','finanzas']::text[]))
   with check (private.has_org_role(organization_id, array['owner','director','admin','finanzas']::text[]));
 
@@ -127,7 +153,8 @@ alter table public.cash_movement_platform_links_auditoria enable row level secur
 drop policy if exists cmpl_auditoria_leer on public.cash_movement_platform_links_auditoria;
 create policy cmpl_auditoria_leer on public.cash_movement_platform_links_auditoria for select to authenticated
   using (private.has_org_role(organization_id, array['owner','director','admin']::text[]));
-revoke insert, update, delete on public.cash_movement_platform_links_auditoria from authenticated, anon;
+revoke all on public.cash_movement_platform_links_auditoria from anon, authenticated;
+grant select on public.cash_movement_platform_links_auditoria to authenticated;
 
 revoke all on function private.validar_vinculo_plataforma() from public, anon, authenticated;
 revoke all on function private.auditar_vinculo_plataforma() from public, anon, authenticated;
