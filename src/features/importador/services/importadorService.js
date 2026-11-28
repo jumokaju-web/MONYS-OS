@@ -12,13 +12,16 @@ export async function guardarImportacion(carga) {
  if (!carga.branchId) throw new Error('Selecciona una sucursal antes de importar.');
  if (!carga.organizationId) throw new Error('No se pudo identificar la organización de esta carga. Cierra sesión y vuelve a entrar.');
  if(carga.tipoReporte === 'Créditos de proveedores' && Array.isArray(carga.datosNormalizados) && carga.datosNormalizados.some(p=>p.saldo == null || !Number.isFinite(Number(p.saldo)) || Number(p.saldo)<0)) throw new Error('Hay saldos ausentes, inválidos o negativos. Revisa el reporte; no se creó una carga.');
- return guardarCargaConfirmada(carga, {
+ const advertencias = [];
+ const final = await guardarCargaConfirmada(carga, {
  async buscar(id) { const {data,error}=await supabase.from('importaciones').select('id,estado').eq('id',id).eq('branch_id',carga.branchId).maybeSingle();if(error)throw new Error(`No se pudo comprobar una carga anterior: ${error.message}`);if(!data)return null;const {count,error:detalleError}=await supabase.from('importacion_detalle').select('id',{count:'exact',head:true}).eq('importacion_id',id);if(detalleError)throw new Error(`No se pudo comprobar el detalle de la carga anterior: ${detalleError.message}`);return {...data,detallesCount:count}; },
   async crear({id,estado}) { const {data,error}=await supabase.from('importaciones').insert({id,tipo_reporte:carga.tipoReporte,archivo_original:carga.archivoOriginal,estado,total_filas:carga.datosNormalizados.length,organization_id:carga.organizationId,branch_id:carga.branchId,usuario_nombre:carga.usuarioNombre || null}).select().single();if(error)throw new Error(error.message);return data; },
   async detalles(registro) { const {count:existentes,error:consultaError}=await supabase.from('importacion_detalle').select('id',{count:'exact',head:true}).eq('importacion_id',registro.id);if(consultaError)throw new Error(`No se pudo comprobar el detalle antes de reanudar: ${consultaError.message}`);if(existentes!==0)throw new Error(`La carga pendiente ya tiene ${existentes} detalles; no se duplicó ni se modificó nada.`);const detalles=carga.datosNormalizados.map((fila,indice)=>prepararDetalleImportacion(fila,indice,registro.id));await insertarEnLotes('importacion_detalle',detalles,'No se pudieron guardar los detalles');const {count,error}=await supabase.from('importacion_detalle').select('id',{count:'exact',head:true}).eq('importacion_id',registro.id);if(error)throw error;if(count!==detalles.length)throw new Error('El detalle de la importación quedó incompleto.'); },
-  async destino(registro) { await guardarDatosPorTipoReporte({ ...carga,importacionId:registro.id }); },
+  async destino(registro) { const resultado = await guardarDatosPorTipoReporte({ ...carga,importacionId:registro.id }); advertencias.push(...(resultado?.advertencias || [])); },
   async confirmar(registro) { const {data,error}=await supabase.from('importaciones').update({estado:'procesado'}).eq('id',registro.id).eq('branch_id',carga.branchId).eq('estado','pendiente').select().single();if(error)throw new Error(error.message);return data; }
  });
+ // Avisos que la pantalla debe mostrar (no solo en consola).
+ return advertencias.length ? { ...final, advertencias } : final;
 }
 
 export async function obtenerDetallesImportacion(importacionId) {
@@ -72,6 +75,7 @@ async function guardarDatosPorTipoReporte({
   importacionId,
   branchId,
 }) {
+  const advertencias = [];
   switch (tipoReporte) {
     case "Ventas por artículo":
     case "Utilidad por artículos": {
@@ -97,8 +101,8 @@ async function guardarDatosPorTipoReporte({
         ) {
           throw error;
         }
-        console.warn(
-          "ventas_articulos aún no tiene utilidad_disponible/importe_disponible; se guarda sin banderas."
+        advertencias.push(
+          "Las ventas se guardaron, pero sin las banderas de disponibilidad de utilidad e importe: la base aún no tiene la actualización (migración 20261128000000). Los ceros de este reporte se tratarán como dato faltante."
         );
         await insertarEnLotes(
           "ventas_articulos",
@@ -218,6 +222,8 @@ async function guardarDatosPorTipoReporte({
     default:
       throw new Error(`Reporte sin manejador: ${tipoReporte}`);
   }
+
+  return { advertencias };
 }
 async function insertarEnLotes(tabla, registros, mensajeError) {
   const tamanoLote = 500;
